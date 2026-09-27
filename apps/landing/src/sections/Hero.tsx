@@ -1,6 +1,8 @@
 import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { Reel } from '../reel/Reel';
+import { Stories } from '../mobile/Stories';
+import { useIsMobile } from '../lib/useIsMobile';
 import { conference } from '../reel/scenes';
 import { LogoMark } from '../reel/parts';
 
@@ -118,6 +120,7 @@ const line = {
 };
 
 export function Hero() {
+  const mobile = useIsMobile();
   return (
     <section className="hero" id="top">
       <div className="hero-bg" aria-hidden>
@@ -147,13 +150,39 @@ export function Hero() {
         </h1>
 
         <motion.div className="hero-row" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.55 }}>
-          <p className="hero-sub">
-            Tell Intake what you want to ask people. It builds the form for you <b>inside your own Google Forms or Microsoft Forms</b>, follow-up questions and all, then hands you the link. No dragging, no dropping, no settings to hunt for.
-          </p>
-          <HeroComposer />
+          {mobile ? (
+            <div>
+              <p className="hero-sub">
+                Tell Intake what you want to ask people. It builds the form <b>in your own Google Forms or Microsoft Forms</b> and hands you the link.
+              </p>
+              <div className="hero-actions">
+                <a className="btn btn-accent" href="#waitlist">
+                  Get early access
+                </a>
+                <a className="btn btn-ghost" href="#try">
+                  Try it
+                </a>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p className="hero-sub">
+                Tell Intake what you want to ask people. It builds the form for you <b>inside your own Google Forms or Microsoft Forms</b>, follow-up questions and all, then hands you the link. No dragging, no dropping, no settings to hunt for.
+              </p>
+              <HeroComposer />
+            </>
+          )}
         </motion.div>
       </div>
 
+      {mobile && (
+        <motion.div id="demo" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}>
+          <Stories />
+          <p className="ms-hint">Tap to skip · hold to pause</p>
+        </motion.div>
+      )}
+
+      {!mobile && (
       <motion.div className="wrap-wide hero-reel" id="demo" initial={{ opacity: 0, y: 60 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1.2, delay: 0.7, ease: [0.22, 1, 0.36, 1] }}>
         <div className="reel-meta">
           <span>
@@ -163,6 +192,7 @@ export function Hero() {
         </div>
         <Reel scene={conference} className="reel-hero" />
       </motion.div>
+      )}
 
       <Marquee />
     </section>

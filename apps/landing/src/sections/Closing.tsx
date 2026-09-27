@@ -363,7 +363,7 @@ export function Footer() {
           <div>
             <h5>Product</h5>
             <a href="#how">How it works</a>
-            <a href="#reels">Demos</a>
+            <a href="#demo">Demos</a>
             <a href="#try">Try it</a>
             <a href="#faq">FAQ</a>
           </div>

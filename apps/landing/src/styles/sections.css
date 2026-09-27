@@ -2693,3 +2693,12 @@
     padding: 8px 8px;
   }
 }
+
+/* Section numbers count themselves, so hiding a section on mobile never leaves a gap. */
+main {
+  counter-reset: q;
+}
+.sh-n::before {
+  counter-increment: q;
+  content: 'Q' counter(q, decimal-leading-zero);
+}

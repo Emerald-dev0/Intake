@@ -7,6 +7,7 @@ import '@fontsource-variable/fraunces/full-italic.css';
 import './styles/base.css';
 import './styles/reel.css';
 import './styles/sections.css';
+import './styles/mobile.css';
 import App from './App';
 
 createRoot(document.getElementById('root')!).render(

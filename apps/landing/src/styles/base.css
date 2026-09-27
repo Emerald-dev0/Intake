@@ -350,3 +350,11 @@ pre {
     scroll-behavior: auto !important;
   }
 }
+.btn-ghost {
+  color: var(--cream);
+  border: 1px solid var(--line-2);
+  background: rgba(241, 236, 226, 0.03);
+}
+.btn-ghost:hover {
+  background: rgba(241, 236, 226, 0.08);
+}

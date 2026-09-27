@@ -11,7 +11,7 @@ export function SectionHead({ n, kicker, title, lede, center = false }: { n: str
       transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
     >
       <div className="sh-eyebrow">
-        <span className="sh-n">Q{n}</span>
+        <span className="sh-n" data-n={n} />
         <span className="sh-k">{kicker}</span>
         <span className="sh-req">*</span>
       </div>
