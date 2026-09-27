@@ -6,7 +6,6 @@ import { plan, type Plan } from '../lib/planner';
 import { type Answers, type AnswerValue } from '../lib/types';
 import { PROVIDERS, type Provider } from '../lib/providers';
 import { SectionHead } from '../components/SectionHead';
-import { REPO } from './Hero';
 
 const EXAMPLES = [
   { label: 'Workshop signup', text: 'Workshop signup with name, email, t-shirt size, dietary needs and whether they need a laptop. If yes, ask which OS they prefer.' },
@@ -256,10 +255,7 @@ export function Playground() {
                 {note && (
                   <motion.p className="play-create-note" initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}>
                     Connecting accounts is coming soon.{' '}
-                    <a href={REPO} target="_blank" rel="noreferrer">
-                      Star the repo
-                    </a>{' '}
-                    to hear when it’s ready.
+                    <a href="#waitlist">Join the waitlist</a> to be first in.
                   </motion.p>
                 )}
               </AnimatePresence>

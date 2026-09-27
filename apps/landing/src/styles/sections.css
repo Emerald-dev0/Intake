@@ -2598,3 +2598,98 @@
 .sr-pv {
   margin-bottom: 4px;
 }
+
+/* ═════════════ Waitlist ═════════════ */
+.cta-sub {
+  margin: 26px auto 0;
+  max-width: 520px;
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--cream-2);
+}
+.wl {
+  max-width: 560px;
+  margin: 36px auto 0;
+  scroll-margin-top: 140px;
+}
+.wl-form {
+  display: flex;
+  gap: 10px;
+  padding: 8px 8px 8px 22px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  background: rgba(18, 18, 16, 0.85);
+  backdrop-filter: blur(10px);
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.wl-form:focus-within {
+  border-color: rgba(255, 90, 31, 0.55);
+  box-shadow: 0 0 0 6px rgba(255, 90, 31, 0.1);
+}
+.wl-form.is-error {
+  border-color: #e0533a;
+}
+.wl-form input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 17px;
+}
+.wl-form input::placeholder {
+  color: var(--cream-4);
+}
+.wl-form .btn {
+  min-width: 170px;
+  justify-content: center;
+}
+.wl-note {
+  margin: 12px 0 0;
+  min-height: 20px;
+  font-size: 13.5px;
+  color: var(--cream-3);
+}
+.wl-note.is-error {
+  color: #ff8a70;
+}
+.wl-done {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  padding: 16px 20px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--ok) 35%, transparent);
+  background: color-mix(in srgb, var(--ok) 8%, transparent);
+}
+.wl-done div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.wl-done span:not(.wl-tick) {
+  color: var(--cream-2);
+  font-size: 14.5px;
+}
+.wl-tick {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--ok);
+  color: var(--ink);
+  font-weight: 700;
+}
+@media (max-width: 640px) {
+  .wl-form {
+    flex-direction: column;
+    border-radius: 22px;
+    padding: 12px;
+  }
+  .wl-form input {
+    padding: 8px 8px;
+  }
+}

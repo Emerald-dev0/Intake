@@ -16,6 +16,8 @@ export function Reel({ scene, className = '', onEnd, loop = true }: { scene: Sce
   const [hidden, setHidden] = useState(false);
   const [width, setWidth] = useState(0);
   const [full, setFull] = useState(false);
+  // Only mount the (heavy) stage once the reel is near the viewport.
+  const [near, setNear] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   const shell = useRef<HTMLDivElement>(null);
   const onEndRef = useRef(onEnd);
@@ -48,6 +50,14 @@ export function Reel({ scene, className = '', onEnd, loop = true }: { scene: Sce
       document.removeEventListener('visibilitychange', vis);
     };
   }, []);
+
+  useEffect(() => {
+    const el = shell.current;
+    if (!el || near) return;
+    const io = new IntersectionObserver(([e]) => e.isIntersecting && setNear(true), { rootMargin: '800px 0px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [near]);
 
   useEffect(() => {
     const f = () => setFull(document.fullscreenElement === shell.current);
@@ -96,7 +106,7 @@ export function Reel({ scene, className = '', onEnd, loop = true }: { scene: Sce
   return (
     <div className={`reel ${className} ${full ? 'is-full' : ''}`} ref={shell}>
       <div className="reel-screen" ref={wrap} style={{ height: scale ? D.h * scale : undefined, aspectRatio: scale ? undefined : `${D.w} / ${D.h}` }}>
-        {scale > 0 && (
+        {scale > 0 && near && (
           <div className="reel-stage" style={{ width: D.w, height: D.h, transform: `scale(${scale})` }}>
             {scene.kind === 'create' && tl.kind === 'create' ? (
               <CreateStage scene={scene} tl={tl} t={t} portrait={portrait} scale={scale} />

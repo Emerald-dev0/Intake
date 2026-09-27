@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { SectionHead, Reveal } from '../components/SectionHead';
 import { LogoMark } from '../reel/parts';
 import { REPO } from './Hero';
+import { Waitlist } from './Waitlist';
 import type { FieldType } from '../lib/types';
 
 /* ───────────── Statement ───────────── */
@@ -313,7 +314,6 @@ export function FAQ() {
 /* ───────────── CTA + footer ───────────── */
 
 export function CTA() {
-  const [v, setV] = useState('');
   return (
     <section className="cta" id="start">
       <div className="cta-glow" aria-hidden />
@@ -328,19 +328,11 @@ export function CTA() {
             Start <em>saying.</em>
           </h2>
         </Reveal>
-        <Reveal delay={0.12}>
-          <form
-            className="cta-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              window.dispatchEvent(new CustomEvent('intake:try', { detail: v.trim() || 'Signup for our book club. Ask for name, email, favourite genre (fiction, history, poetry) and whether they can host. If yes, ask for their address.' }));
-            }}
-          >
-            <input value={v} onChange={(e) => setV(e.target.value)} placeholder="Describe the form you need…" aria-label="Describe the form you need" />
-            <button className="btn btn-accent" type="submit">
-              Build it ↵
-            </button>
-          </form>
+        <Reveal delay={0.1}>
+          <p className="cta-sub">Intake is in the works. Get early access and be one of the first to connect your Google account.</p>
+        </Reveal>
+        <Reveal delay={0.16}>
+          <Waitlist />
         </Reveal>
         <Reveal delay={0.2} className="cta-links">
           <a href={REPO} target="_blank" rel="noreferrer">
@@ -349,7 +341,7 @@ export function CTA() {
           <a href={`${REPO}#readme`} target="_blank" rel="noreferrer">
             Read the README ↗
           </a>
-          <a href="#top">Watch the demo again ↑</a>
+          <a href="#try">Try the demo ↑</a>
         </Reveal>
       </div>
     </section>
