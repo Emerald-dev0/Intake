@@ -209,6 +209,21 @@ export function Stories() {
         onPointerLeave={() => setHeld(false)}
         onPointerCancel={() => setHeld(false)}
       >
+        <AnimatePresence>
+          {s.kind === 'create' && !sent && (
+            <motion.div key={`empty-${s.id}`} className="ms-empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.3 }}>
+              <span className="ms-empty-logo">
+                <svg width="26" height="26" viewBox="0 0 64 64" aria-hidden>
+                  <circle cx="32" cy="19" r="8" fill="#ff5a1f" />
+                  <rect x="16" y="32" width="32" height="8" rx="4" fill="currentColor" />
+                  <rect x="16" y="45" width="20" height="8" rx="4" fill="currentColor" opacity=".45" />
+                </svg>
+              </span>
+              <b>What do you want to ask people?</b>
+              <span>Intake builds it in your {P.name}.</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <div className="ms-scroll">
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.div key={s.id} className="ms-msgs" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>

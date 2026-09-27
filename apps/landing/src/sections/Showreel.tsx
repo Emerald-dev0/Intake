@@ -3,13 +3,10 @@ import { SectionHead } from '../components/SectionHead';
 import { Reel } from '../reel/Reel';
 import { galleryScenes, edits } from '../reel/scenes';
 import { PROVIDERS } from '../lib/providers';
-import { useIsMobile } from '../lib/useIsMobile';
 
 export function Showreel() {
-  const mobile = useIsMobile();
   const [i, setI] = useState(0);
   const scene = galleryScenes[i];
-  if (mobile) return null;
   return (
     <section className="section showreel" id="reels">
       <div className="wrap">
@@ -46,8 +43,6 @@ export function Showreel() {
 }
 
 export function Edits() {
-  const mobile = useIsMobile();
-  if (mobile) return null;
   return (
     <section className="section edits" id="edits">
       <div className="wrap">
