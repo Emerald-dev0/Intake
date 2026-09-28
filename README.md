@@ -22,11 +22,20 @@ The goal is to make **form creation an intent problem instead of a configuration
 
 ---
 
-## Current implementation (PR 02: authentication foundation)
+## Current implementation (PR 03: provider connections)
 
-The landing page and an authenticated workspace live in `apps/landing`. Intake is **not** a form builder: the landing playground is a demo only; no provider account is connected and no real forms are created yet. The workspace has email/password accounts and persistent server-validated sessions using Better Auth with Neon PostgreSQL. Provider authorization (Google/Microsoft), AI and actual form creation are **future stages**, separate from Intake authentication.
+The landing page and an authenticated workspace live in `apps/landing`. Intake is **not** a form builder: the landing playground is a demo only, and no real forms are created.
 
-**Setup required:** No Neon credentials are present in this repository or cloud environment. See [Local Development](#local-development) for the Neon URL, secret, migration and public-origin setup. Authenticated flows cannot be end-to-end verified until a Neon project is supplied and migrated. No OAuth provider credentials are needed for this stage.
+Two authorization concepts stay separate:
+
+- **Intake login** — Better Auth email/password sessions on Neon PostgreSQL. This answers who the user is.
+- **Provider connection** — an explicit OAuth grant for Google or Microsoft, stored apart from Better Auth's `account` table. Signing in does not authorize Forms access.
+
+An authenticated user can open Connections, start Google or Microsoft OAuth (authorization code + PKCE), and see connected, expired, failed, cancelled, or not-configured states. Grants are encrypted at rest and scoped to that Intake user. Disconnect removes the Intake copy. Google revocation is attempted; Microsoft does not offer a supported per-app revoke, and the UI says so.
+
+Form creation is not implemented. Microsoft still has no supported Forms create/edit API, so a Microsoft connection does not claim that it can create forms. If OAuth client credentials are missing, Connections shows setup required and does not fake a grant.
+
+**Setup required:** No Neon credentials and no Google Cloud or Microsoft Entra app registration are present in this repository or cloud environment. See [Local Development](#local-development) and [apps/landing/server/providers/README.md](apps/landing/server/providers/README.md). Authenticated and OAuth flows cannot be end-to-end verified until those external consoles are configured.
 
 ---
 
@@ -1050,6 +1059,8 @@ Google
 
 This prevents Google-specific implementation details from leaking into the core agent architecture.
 
+The OAuth connection half of that boundary is implemented. Form creation is not. See [apps/landing/server/providers/README.md](apps/landing/server/providers/README.md) for scopes, redirect URIs, and the verified Google and Microsoft API limits.
+
 ---
 
 # Security
@@ -1670,18 +1681,19 @@ The only runnable app currently lives in `apps/landing` (Vite/React frontend and
 1. Create a Neon PostgreSQL project (external manual action), copy its connection string with TLS (`sslmode=require`). There are no database credentials in this environment.
 2. From `apps/landing`, run `npm ci` and `cp .env.example .env`.
 3. Set `DATABASE_URL`, a newly generated `BETTER_AUTH_SECRET` of at least 32 random characters (`openssl rand -base64 32`), and `BETTER_AUTH_URL` to the **exact public origin** where browser requests arrive (for local development, `http://localhost:5173`). Do not put a path or trailing slash in the origin. Never commit `.env`.
-4. Run `npm run db:migrate` from `apps/landing` with that Neon URL. Better Auth's CLI creates/updates its core `user`, `session`, `account` (email credential), and `verification` tables on the configured Postgres database. For schema review, `npm run db:generate` produces `db/auth.sql` against the connected DB; it does not apply it. Review schema changes before applying them in production. Run migrations before starting the server after auth schema changes.
-5. Run `npm run dev` and visit `http://localhost:5173`. `npm run typecheck`, `npm run test`, and `npm run build` verify the code. `npm start` serves the production build with `NODE_ENV=production` after `npm run build` and migrations.
+4. Run `npm run db:migrate` from `apps/landing` with that Neon URL. Better Auth's CLI creates/updates its core `user`, `session`, `account` (email credential), and `verification` tables on the configured Postgres database. Then run `npm run db:migrate:intake` to create provider-connection tables. For schema review, `npm run db:generate` produces `db/auth.sql` against the connected DB; it does not apply it and does not include provider tables. Review schema changes before applying them in production. Run migrations before starting the server after schema changes.
+5. Provider OAuth is optional until you want to connect Google or Microsoft. Leave those variables blank to get an honest "not configured" state. Real client ids and secrets come from Google Cloud and Microsoft Entra, not from this repository. Redirect URIs and scopes are documented in [apps/landing/server/providers/README.md](apps/landing/server/providers/README.md).
+6. Run `npm run dev` and visit `http://localhost:5173`. `npm run typecheck`, `npm run test`, and `npm run build` verify the code. `npm start` serves the production build with `NODE_ENV=production` after `npm run build` and migrations.
 
-The browser uses same-origin `/api/auth/*` for Better Auth and `/api/me` for account state. `/app`, `/app/connections`, and `/app/account` are guarded by the server on document requests and `/api/me` revalidates sessions for the client. Session cookies are managed by Better Auth (HTTP-only, secure on HTTPS). If the database is unavailable, protected routes return 503 instead of exposing content or treating a failure as sign-out. Configure the server behind HTTPS and use a persistent process host; a static-only host cannot run this app. For Arena/cloud previews, set `BETTER_AUTH_URL` to the preview's HTTPS origin before launching (not `localhost`).
+The browser uses same-origin `/api/auth/*` for Better Auth and `/api/me` for account state. Provider grants use `/api/providers` and never return tokens to the browser. `/app`, `/app/connections`, and `/app/account` are guarded by the server on document requests and `/api/me` revalidates sessions for the client. Session cookies are managed by Better Auth (HTTP-only, secure on HTTPS). If the database is unavailable, protected routes return 503 instead of exposing content or treating a failure as sign-out. Configure the server behind HTTPS and use a persistent process host; a static-only host cannot run this app. For Arena/cloud previews, set `BETTER_AUTH_URL` to the preview's HTTPS origin before launching (not `localhost`), and register that same origin's provider callback URLs in Google Cloud and Entra if you intend to complete OAuth there.
 
-**Boundary for the next stage:** Better Auth's `account` rows are for *Intake login credentials*, not Google/Microsoft Forms permissions. Future provider connections must request explicit, separate OAuth consent and scopes, store grants separately from login accounts, and verify ownership using the current Intake user ID. No provider tokens, connection records or form data are implemented here.
+**Boundary for the next stage:** `getProviderConnection(userId, provider)` in `apps/landing/server/providers/service.ts` is the server-side way to ask whether a user has a usable provider grant and, if so, to receive an access token. The next PR can build Google Forms operations on that helper. It must not treat a Better Auth `account` row as permission, must not fake Microsoft Forms API calls, and must publish API-created Google Forms (`setPublishSettings`) because forms created after 30 June 2026 are unpublished by default.
 
 ---
 
 # Environment Variables
 
-See [`apps/landing/.env.example`](apps/landing/.env.example). Required server-side: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`. Optional: `PORT` (default 5173), existing landing-page `VITE_SITE_URL`, `VITE_WAITLIST_URL`, and `VITE_WAITLIST_FIELD`. The `VITE_` values are browser-visible; never put secrets in them. Production requires a stable HTTPS origin matching `BETTER_AUTH_URL`. A changed domain requires updating that value and restarting the server.
+See [`apps/landing/.env.example`](apps/landing/.env.example). Required server-side: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`. Optional: `PORT` (default 5173), existing landing-page `VITE_SITE_URL`, `VITE_WAITLIST_URL`, and `VITE_WAITLIST_FIELD`. Provider connection, only when you have real console credentials: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `MICROSOFT_OAUTH_CLIENT_ID`, `MICROSOFT_OAUTH_CLIENT_SECRET`, optional `MICROSOFT_OAUTH_TENANT`, and optional `PROVIDER_TOKEN_KEY`. The `VITE_` values are browser-visible; never put secrets in them. Production requires a stable HTTPS origin matching `BETTER_AUTH_URL`. A changed domain requires updating that value, the provider redirect URIs, and restarting the server. Blank provider variables are a setup state, not a successful connection.
 
 ---
 
@@ -1817,6 +1829,12 @@ Potential limitations include:
 These limitations should be surfaced rather than hidden.
 
 If Intake cannot safely perform an operation, it should say so.
+
+Verified while building provider connections, and not yet executed because this stage does not call form APIs:
+
+* Google Forms `forms.create` only copies the title. Questions are a later `batchUpdate`. Forms created by the API after 30 June 2026 are unpublished until `setPublishSettings`. Sharing and deletion are Drive API operations; those scopes are not requested.
+* Google conditional logic in the API is section routing on radio and dropdown choices, not per-question show/hide.
+* Microsoft publishes no supported Forms create/edit API. The undocumented `forms.office.com` form API is intentionally unused.
 
 ---
 
