@@ -1,3 +1,7 @@
+import { Connections } from '../Connections';
+import { useWorkspace } from '../hooks/useWorkspace';
+
 export function ConnectionsPage() {
-  return <><div className="page-heading"><div className="eyebrow">02 / PROVIDERS</div><h1>Your forms stay<br /><em>your forms.</em></h1><div className="heading-description">Connecting a form platform will be a separate authorization step. Signing in to Intake does not give us access to your Google or Microsoft account.</div></div><div className="provider-list"><div><span className="provider-symbol">G</span><div><h2>Google Forms</h2><p>Provider authorization is not available yet.</p></div><span className="soon-label">COMING SOON</span></div><div><span className="provider-symbol microsoft">⊞</span><div><h2>Microsoft Forms</h2><p>Provider authorization is not available yet.</p></div><span className="soon-label">COMING LATER</span></div></div><p className="fine-print">No provider accounts are connected. Intake cannot create or access forms in your accounts yet.</p></>;
+  const { providers, reloadProviders } = useWorkspace();
+  return <Connections load={providers} reload={reloadProviders} />;
 }

@@ -1,5 +1,5 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": { "types": ["node"], "noEmit": true },
-  "include": ["server/**/*.ts"]
+  "include": ["server/**/*.ts", "db/**/*.ts", "src/lib/connections.ts"]
 }

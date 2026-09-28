@@ -8,8 +8,31 @@ import { routes } from '../src/app/routes.tsx';
 import { api, ApiError } from '../src/lib/api.ts';
 
 const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost' });
+
+function fixtureProvider(id) {
+  return {
+    id,
+    name: id === 'google' ? 'Google Forms' : 'Microsoft Forms',
+    accountName: id === 'google' ? 'Google account' : 'Microsoft account',
+    description: 'Fixture provider',
+    configured: true,
+    setupEnv: [`${id.toUpperCase()}_OAUTH_CLIENT_ID`],
+    status: 'not_connected',
+    accountEmail: null,
+    accountLabel: null,
+    scopes: [],
+    scopeLabels: [],
+    connectedAt: null,
+    canRefresh: false,
+    revocation: 'supported',
+    formsApi: id === 'google' ? 'supported' : 'unsupported',
+    formsNote: 'Fixture note',
+    permissionLinks: [],
+  };
+}
 globalThis.window = dom.window;
 globalThis.document = dom.window.document;
+globalThis.location = dom.window.location;
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 test('all public and protected paths have explicit ownership', () => {
@@ -50,9 +73,14 @@ test('public auth pages and protected pages render with shared authentication en
       ['/app/account', 401, 'Welcome back'],
       ['/app', 503, 'We couldn’t verify your session'],
     ]) {
-      let calls = 0;
+      let sessionCalls = 0;
+      let providerCalls = 0;
       globalThis.fetch = async path => {
-        calls++;
+        if (path === '/api/providers') {
+          providerCalls++;
+          return new Response(JSON.stringify({ providers: [fixtureProvider('google'), fixtureProvider('microsoft')] }), { status: 200 });
+        }
+        sessionCalls++;
         assert.equal(path, '/api/me');
         return new Response(JSON.stringify({ user: { id: 'test', name: 'Test User', email: 'test@example.com' } }), { status });
       };
@@ -65,7 +93,11 @@ test('public auth pages and protected pages render with shared authentication en
           await act(async () => { await new Promise(resolve => setTimeout(resolve, 10)); });
         }
         assert.ok(document.body.textContent.includes(expected), `${path} (${status}): ${document.body.textContent}`);
-        if (path.startsWith('/auth')) assert.equal(calls, 0);
+        if (path.startsWith('/auth')) assert.equal(sessionCalls, 0);
+        if (path.startsWith('/app') && status === 200) {
+          assert.equal(sessionCalls, 1, `${path}: session revalidated once`);
+          assert.equal(providerCalls, 1, `${path}: providers loaded once by the shared workspace shell`);
+        }
         if (status === 401 && path.startsWith('/app')) assert.equal(router.state.location.pathname, '/auth/sign-in');
       } finally { await act(async () => root.unmount()); router.dispose(); }
     }

@@ -22,11 +22,20 @@ The goal is to make **form creation an intent problem instead of a configuration
 
 ---
 
-## Current implementation (PR 02: authentication foundation)
+## Current implementation (PR 03: provider connections)
 
-The landing page and an authenticated workspace live in `apps/landing`. Intake is **not** a form builder: the landing playground is a demo only; no provider account is connected and no real forms are created yet. The workspace has email/password accounts and persistent server-validated sessions using Better Auth with Neon PostgreSQL. Provider authorization (Google/Microsoft), AI and actual form creation are **future stages**, separate from Intake authentication.
+The landing page and an authenticated workspace live in `apps/landing`. Intake is **not** a form builder: the landing playground is a demo only, and no real forms are created.
 
-**Setup required:** No Neon credentials are present in this repository or cloud environment. See [Local Development](#local-development) for the Neon URL, secret, migration and public-origin setup. Authenticated flows cannot be end-to-end verified until a Neon project is supplied and migrated. No OAuth provider credentials are needed for this stage.
+Two authorization concepts stay separate:
+
+- **Intake login** — Better Auth email/password sessions on Neon PostgreSQL. This answers who the user is.
+- **Provider connection** — an explicit OAuth grant for Google or Microsoft, stored apart from Better Auth's `account` table. Signing in does not authorize Forms access.
+
+An authenticated user can open Connections, start Google or Microsoft OAuth (authorization code + PKCE), and see connected, expired, failed, cancelled, or not-configured states. Grants are encrypted at rest and scoped to that Intake user. Disconnect removes the Intake copy. Google revocation is attempted; Microsoft does not offer a supported per-app revoke, and the UI says so.
+
+Form creation is not implemented. Microsoft still has no supported Forms create/edit API, so a Microsoft connection does not claim that it can create forms. If OAuth client credentials are missing, Connections shows setup required and does not fake a grant.
+
+**Setup required:** No Neon credentials and no Google Cloud or Microsoft Entra app registration are present in this repository or cloud environment. See [Local Development](#local-development) and [apps/landing/server/providers/README.md](apps/landing/server/providers/README.md). Authenticated and OAuth flows cannot be end-to-end verified until those external consoles are configured.
 
 ---
 
@@ -1050,6 +1059,8 @@ Google
 
 This prevents Google-specific implementation details from leaking into the core agent architecture.
 
+The OAuth connection half of that boundary is implemented. Form creation is not. See [apps/landing/server/providers/README.md](apps/landing/server/providers/README.md) for scopes, redirect URIs, and the verified Google and Microsoft API limits.
+
 ---
 
 # Security
@@ -1668,15 +1679,26 @@ npm run build      # type-check + production build to dist/
 The code in `apps/landing` now runs as two separate applications: Vite/React on Vercel and Express/Better Auth on Render. Use Node 22.12+ and npm.
 
 1. In `apps/landing`, run `npm ci` and copy `.env.example` to `.env`.
-2. Set a TLS Neon `DATABASE_URL`, a random `BETTER_AUTH_SECRET` of at least 32 characters, and `BETTER_AUTH_URL=http://localhost:5173`.
-3. Run `npm run db:migrate` against your intended database. No database migration was performed by this PR.
-4. In separate terminals run `npm run dev:api` (Express, port 3001) and `npm run dev` (Vite, port 5173). Open Vite, not Express.
-5. Vite proxies `/api/*` to `API_PROXY_TARGET`, default `http://127.0.0.1:3001`. For cloud previews, set `BETTER_AUTH_URL` to the exact HTTPS frontend preview origin.
-6. Run `npm run typecheck`, `npm test`, and `npm run build`. `npm run preview` serves the frontend build; `npm start` runs only the production API.
+2. Set a TLS Neon `DATABASE_URL` (`sslmode=require`), a random `BETTER_AUTH_SECRET` of at least 32 characters (`openssl rand -base64 32`), and `BETTER_AUTH_URL=http://localhost:5173` with no path or trailing slash. Never commit `.env`.
+3. Run `npm run db:migrate` (Better Auth core tables), then `npm run db:migrate:intake` (provider-connection tables) against your intended database. `npm run db:generate` produces `db/auth.sql` for review only and does not include provider tables. No migration was performed by this PR.
+4. Provider OAuth is optional until you want to connect Google or Microsoft. Leave those variables blank to get an honest "not configured" state. Real client ids and secrets come from Google Cloud and Microsoft Entra, not from this repository. Redirect URIs and scopes are documented in [apps/landing/server/providers/README.md](apps/landing/server/providers/README.md).
+5. In separate terminals run `npm run dev:api` (Express, port 3001) and `npm run dev` (Vite, port 5173). Open Vite, not Express. Vite proxies `/api/*` to `API_PROXY_TARGET`, default `http://127.0.0.1:3001`.
+6. For cloud previews, set `BETTER_AUTH_URL` to the exact HTTPS frontend preview origin, and register that same origin's provider callback URLs in Google Cloud and Entra if you intend to complete OAuth there.
+7. Run `npm run typecheck`, `npm test`, and `npm run build`. `npm run preview` serves the frontend build with the local API proxy; `npm start` runs only the production API.
+
+The browser uses same-origin `/api/auth/*` for Better Auth, `/api/me` for account state, and `/api/providers` for provider connections; grants never return tokens to the browser. Frontend documents are static; the shared client guard checks `/api/me` before rendering `/app`, `/app/connections`, and `/app/account`, and every API operation fails closed independently. Session cookies are managed by Better Auth (HTTP-only, secure on HTTPS). If the database is unavailable, API routes return 503 instead of exposing content or treating a failure as sign-out.
+
+**Boundary for the next stage:** `getProviderConnection(userId, provider)` in `apps/landing/server/providers/service.ts` is the server-side way to ask whether a user has a usable provider grant and, if so, to receive an access token. The next PR can build Google Forms operations on that helper. It must not treat a Better Auth `account` row as permission, must not fake Microsoft Forms API calls, and must publish API-created Google Forms (`setPublishSettings`) because forms created after 30 June 2026 are unpublished by default.
+
+---
 
 # Environment Variables
 
 See [`apps/landing/.env.example`](apps/landing/.env.example). Only `VITE_` variables are public browser configuration. Database credentials, auth secrets, provider encryption keys and OAuth secrets must never use that prefix.
+
+- Render (server secrets): `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (public Vercel origin). Provider connection, only when you have real console credentials: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `MICROSOFT_OAUTH_CLIENT_ID`, `MICROSOFT_OAUTH_CLIENT_SECRET`, optional `MICROSOFT_OAUTH_TENANT`, optional `PROVIDER_TOKEN_KEY`. Render supplies `PORT`. Blank provider variables are a setup state, not a successful connection. A changed domain requires updating `BETTER_AUTH_URL`, the provider redirect URIs in the provider consoles, and restarting the server.
+- Vercel: `BACKEND_URL` (actual HTTPS Render origin, routing only); optional `VITE_SITE_URL` and existing public waitlist settings.
+- Local: optional `API_PROXY_TARGET` changes Vite's backend target without changing browser URLs.
 
 - Render: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (public Vercel origin). Render supplies `PORT`.
 - Vercel: `BACKEND_URL` (actual HTTPS Render origin, routing only); optional `VITE_SITE_URL` and existing public waitlist settings.
@@ -1689,9 +1711,6 @@ Vercel root: `apps/landing`; framework: Vite; build: `npm run build`; output: `d
 Render root: `apps/landing`; build: `npm ci`; start: `npm start`; see `render.yaml`. Set `BETTER_AUTH_URL` to the exact Vercel origin, not Render. Keep all server secrets on Render.
 
 See [deployment instructions and acceptance checklist](apps/landing/DEPLOYMENT.md).
-
-**Checkout limitation:** this branch starts from `41e2642` (PR 02). PR 03 provider services, OAuth routes and tests are absent; Connections remains the existing placeholder. This PR does not recreate provider logic. Integrating PR 03 and verifying production sessions/OAuth remain necessary before the full PR 04 definition of done can be met.
-
 ---
 
 # Design Principles
@@ -1792,6 +1811,12 @@ Potential limitations include:
 These limitations should be surfaced rather than hidden.
 
 If Intake cannot safely perform an operation, it should say so.
+
+Verified while building provider connections, and not yet executed because this stage does not call form APIs:
+
+* Google Forms `forms.create` only copies the title. Questions are a later `batchUpdate`. Forms created by the API after 30 June 2026 are unpublished until `setPublishSettings`. Sharing and deletion are Drive API operations; those scopes are not requested.
+* Google conditional logic in the API is section routing on radio and dropdown choices, not per-question show/hide.
+* Microsoft publishes no supported Forms create/edit API. The undocumented `forms.office.com` form API is intentionally unused.
 
 ---
 

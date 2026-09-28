@@ -45,9 +45,16 @@ test('Render is API-only and fails closed when Neon is unavailable', async () =>
       assert.equal((await get(route)).status, 404, `${route} belongs to Vercel, not Render`);
     }
     assert.equal((await get('/api/health')).status, 200);
-    assert.equal((await get('/api/providers')).status, 404); // PR 03 is absent from this checkout.
-    assert.match((await get('/api/providers')).headers.get('content-type'), /json/);
     assert.equal((await get('/api/me')).status, 503);
+    const providers = await get('/api/providers');
+    assert.equal(providers.status, 503);
+    assert.equal((await providers.text()).includes('access_token'), false);
+    const connect = await fetch(`http://127.0.0.1:${port}/api/providers/google/connect`, { method: 'POST', redirect: 'manual' });
+    assert.equal(connect.status, 503);
+    assert.equal(connect.headers.get('location'), null);
+    const callback = await get('/api/providers/google/callback?code=super-secret-code&state=abc');
+    assert.equal(callback.status, 503);
+    assert.equal((await callback.text()).includes('super-secret-code'), false);
     // A failed Better Auth request must not terminate the entire server process.
     assert.equal((await get('/api/auth/ok')).status, 500);
     assert.equal((await get('/api/health')).status, 200);

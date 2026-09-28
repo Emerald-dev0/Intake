@@ -36,11 +36,12 @@ export function AuthPage({ signUp = false }: { signUp?: boolean }) {
       <div className="grain" aria-hidden />
       <header className="auth-header"><a href="/" className="app-logo" aria-label="Intake home"><LogoMark size={28} /><span>intake</span></a><a href="/" className="auth-back">← Back to website</a></header>
       <main className="auth-layout">
-        <div className="auth-intro"><span className="eyebrow"><i /> YOUR WORKSPACE STARTS HERE</span><h1>Make the form.<br /><em>Not the fuss.</em></h1><p>One account for the work ahead. Soon, Intake will create real forms in the form platform you choose to connect.</p><div className="auth-line">01 / Create your Intake account<br />02 / Connect a form platform <span>Coming later</span><br />03 / Tell Intake what you need <span>Coming later</span></div></div>
+        <div className="auth-intro"><span className="eyebrow"><i /> YOUR WORKSPACE STARTS HERE</span><h1>Make the form.<br /><em>Not the fuss.</em></h1><p>One account for the work ahead. Connecting a form platform is a separate authorization, not part of signing in.</p><div className="auth-line">01 / Create your Intake account<br />02 / Connect a form platform <span>Separate authorization</span><br />03 / Tell Intake what you need <span>Coming later</span></div></div>
         <section className="auth-card" aria-label={signUp ? 'Create an account' : 'Sign in'}>
           <div className="card-kicker">INTAKE / ACCOUNT</div>
           <h2>{signUp ? 'Create your account' : 'Welcome back'}</h2>
-          <p>{signUp ? 'Start with an Intake account. Connecting Google or Microsoft is a separate step, coming later.' : 'Sign in to your Intake workspace.'}</p>
+          <p>{signUp ? 'Start with an Intake account. Connecting Google or Microsoft is a separate step after you sign in.' : 'Sign in to your Intake workspace.'}</p>
+          {new URLSearchParams(location.search).get('reason') === 'session_expired' && <div className="form-error" role="status">Your session ended before authorization finished. Sign in, then connect the provider again.</div>}
           <form onSubmit={submit}>
             {signUp && <label>Full name<input required autoComplete="name" value={name} onChange={e => setName(e.target.value)} placeholder="Your name" maxLength={100} disabled={busy} /></label>}
             <label>Email address<input required type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" disabled={busy} /></label>
