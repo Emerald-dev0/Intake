@@ -22,6 +22,14 @@ The goal is to make **form creation an intent problem instead of a configuration
 
 ---
 
+## Current implementation (PR 02: authentication foundation)
+
+The landing page and an authenticated workspace live in `apps/landing`. Intake is **not** a form builder: the landing playground is a demo only; no provider account is connected and no real forms are created yet. The workspace has email/password accounts and persistent server-validated sessions using Better Auth with Neon PostgreSQL. Provider authorization (Google/Microsoft), AI and actual form creation are **future stages**, separate from Intake authentication.
+
+**Setup required:** No Neon credentials are present in this repository or cloud environment. See [Local Development](#local-development) for the Neon URL, secret, migration and public-origin setup. Authenticated flows cannot be end-to-end verified until a Neon project is supplied and migrated. No OAuth provider credentials are needed for this stage.
+
+---
+
 ## Table of Contents
 
 * [Overview](#overview)
@@ -1657,94 +1665,23 @@ npm run build      # type-check + production build to dist/
 
 # Local Development
 
-## Requirements
+The only runnable app currently lives in `apps/landing` (Vite/React frontend and Express/Better Auth server). Use Node.js 22+ and npm; this repository has an npm lockfile, **not** a pnpm workspace, Docker database or pre-existing migrations. The same Node server serves the landing page, auth routes and protected workspace; do not deploy the Vite static output by itself.
 
-Before running Intake locally, install:
+1. Create a Neon PostgreSQL project (external manual action), copy its connection string with TLS (`sslmode=require`). There are no database credentials in this environment.
+2. From `apps/landing`, run `npm ci` and `cp .env.example .env`.
+3. Set `DATABASE_URL`, a newly generated `BETTER_AUTH_SECRET` of at least 32 random characters (`openssl rand -base64 32`), and `BETTER_AUTH_URL` to the **exact public origin** where browser requests arrive (for local development, `http://localhost:5173`). Do not put a path or trailing slash in the origin. Never commit `.env`.
+4. Run `npm run db:migrate` from `apps/landing` with that Neon URL. Better Auth's CLI creates/updates its core `user`, `session`, `account` (email credential), and `verification` tables on the configured Postgres database. For schema review, `npm run db:generate` produces `db/auth.sql` against the connected DB; it does not apply it. Review schema changes before applying them in production. Run migrations before starting the server after auth schema changes.
+5. Run `npm run dev` and visit `http://localhost:5173`. `npm run typecheck`, `npm run test`, and `npm run build` verify the code. `npm start` serves the production build with `NODE_ENV=production` after `npm run build` and migrations.
 
-* Node.js
-* package manager
-* PostgreSQL
-* Git
+The browser uses same-origin `/api/auth/*` for Better Auth and `/api/me` for account state. `/app`, `/app/connections`, and `/app/account` are guarded by the server on document requests and `/api/me` revalidates sessions for the client. Session cookies are managed by Better Auth (HTTP-only, secure on HTTPS). If the database is unavailable, protected routes return 503 instead of exposing content or treating a failure as sign-out. Configure the server behind HTTPS and use a persistent process host; a static-only host cannot run this app. For Arena/cloud previews, set `BETTER_AUTH_URL` to the preview's HTTPS origin before launching (not `localhost`).
 
-You will also need credentials for the configured AI provider and Google integration.
-
----
-
-## Clone
-
-```bash
-git clone https://github.com/<your-username>/intake.git
-
-cd intake
-```
-
----
-
-## Install dependencies
-
-```bash
-pnpm install
-```
-
----
-
-## Environment
-
-Copy the example environment file:
-
-```bash
-cp .env.example .env
-```
-
-Configure the required values.
-
----
-
-## Database
-
-Run the database locally:
-
-```bash
-docker compose up -d postgres
-```
-
-Then run migrations:
-
-```bash
-pnpm db:migrate
-```
-
----
-
-## Start development
-
-```bash
-pnpm dev
-```
-
-The application should then be available at the configured local development URL.
+**Boundary for the next stage:** Better Auth's `account` rows are for *Intake login credentials*, not Google/Microsoft Forms permissions. Future provider connections must request explicit, separate OAuth consent and scopes, store grants separately from login accounts, and verify ownership using the current Intake user ID. No provider tokens, connection records or form data are implemented here.
 
 ---
 
 # Environment Variables
 
-Example:
-
-```env
-DATABASE_URL=
-
-AUTH_SECRET=
-
-AI_API_KEY=
-
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=
-```
-
-Secrets must never be committed to the repository.
-
-The `.env` file should be ignored by Git.
+See [`apps/landing/.env.example`](apps/landing/.env.example). Required server-side: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`. Optional: `PORT` (default 5173), existing landing-page `VITE_SITE_URL`, `VITE_WAITLIST_URL`, and `VITE_WAITLIST_FIELD`. The `VITE_` values are browser-visible; never put secrets in them. Production requires a stable HTTPS origin matching `BETTER_AUTH_URL`. A changed domain requires updating that value and restarting the server.
 
 ---
 

@@ -269,7 +269,7 @@ const FAQS = [
   ['Is Intake another form builder?', 'No. Intake doesn’t host forms at all. It builds them for you inside Google Forms or Microsoft Forms, the tools you and the people filling them in already know.'],
   ['Where do the responses go?', 'Straight to Google Forms or Microsoft Forms, same as any form you make yourself. Intake never collects them.'],
   ['Can I still edit the form myself?', 'Yes. It’s a normal form in your account. Open it and change whatever you like, or just tell Intake what to change.'],
-  ['What access does Intake need?', 'Permission to create and edit forms in the account you connect. You approve it when you sign in, and you can take it back any time.'],
+  ['What access does Intake need?', 'Permission to create and edit forms in the account you connect. You will approve it separately when you connect a provider; signing in to Intake does not grant form access. Provider connections are not available yet.'],
   ['What if my request is vague?', 'Intake only asks a question when the answer would change the form, like which age groups to offer. Otherwise it just gets on with it.'],
   ['Does it work with Microsoft Forms?', 'That’s the plan. Google Forms comes first, then Microsoft Forms, and the same message will work for both.'],
 ];
