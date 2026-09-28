@@ -1,6 +1,7 @@
 import { motion, useInView, useScroll, useTransform } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { SectionHead, Reveal } from '../components/SectionHead';
+import { Audience } from '../components/Audience';
 
 const BUILDER_STEPS = [
   'Open Google Forms',
@@ -49,10 +50,10 @@ export function Problem() {
             <>
               You know what to ask.
               <br />
-              Form builders want <em>clicks.</em>
+              Building it is the <em>tedious part.</em>
             </>
           }
-          lede="Every question means picking a type, typing options, ticking boxes and fiddling with follow-ups. None of it is hard. It's just slow and boring, and Intake does it for you."
+          lede="Take a final-year student: even with their questions ready, they might spend 20–30 minutes clicking through fields and settings. That's an illustration, not a measured saving. Intake is designed to remove that repetitive setup."
         />
 
         <div className="cmp" ref={cmp}>
@@ -94,21 +95,28 @@ export function Problem() {
               animate={inView ? { opacity: 1, y: 0 } : {}}
               transition={{ delay: 0.5, duration: 0.8 }}
             >
-              “Registration form for our youth conference. Name, phone, age group, church, and whether they need a bus. If they do, ask where to pick them up.”
+              “Create a registration form for my final-year project. Ask for name, email, department, level, phone number, and whether they need accommodation. If they select yes, ask what type they need.”
             </motion.blockquote>
             <motion.div className="cmp-result" initial={{ opacity: 0, y: 16 }} animate={inView ? { opacity: 1, y: 0 } : {}} transition={{ delay: 1.2, duration: 0.7 }}>
               <div className="cmp-arrow">↓</div>
               <div className="cmp-out">
                 <span className="cmp-out-dot" />
                 <div>
-                  <b>A real Google Form, ready to share</b>
-                  <span>6 questions · 1 follow-up · in your own account</span>
+                  <b>One request → a structured form</b>
+                  <span>Concept example · future Google Forms creation</span>
                 </div>
+              </div>
+              <div className="cmp-fields" aria-label="Example form structure, not a live form">
+                <span>PLANNED QUESTIONS / EXAMPLE</span>
+                <p>Name · Email · Department · Level · Phone number</p>
+                <p>Need accommodation? <b>Yes / No</b></p>
+                <p className="cmp-conditional">↳ If yes: What type of accommodation?</p>
               </div>
             </motion.div>
           </div>
         </div>
 
+        <Audience />
         <Translation />
       </div>
     </section>

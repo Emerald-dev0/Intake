@@ -926,3 +926,10 @@ body {
   font-size: 13.5px;
   color: var(--cream-3);
 }
+
+/* The mobile comparison and editing examples share the desktop editorial voice. */
+.mc-preview { border-left: 2px solid var(--accent); padding-left: 15px; margin: 22px 0 0; font: 12px/1.8 var(--mono); color: var(--cream-2); }
+.m-commands { margin-top: 38px; border-top: 1px solid var(--line-2); padding-top: 30px; }
+.m-commands h3 { font-weight: 550; font-size: 23px; letter-spacing: -.035em; margin: 0 0 18px; }
+.m-commands .edits-cmds { gap: 7px; }
+.m-commands .edits-cmd { font-size: 14px; padding: 7px 11px; }

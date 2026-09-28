@@ -1,6 +1,8 @@
 import { motion, useInView } from 'motion/react';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { SectionHead, Reveal } from '../components/SectionHead';
+import { Audience } from '../components/Audience';
+import { ExampleCommands } from '../components/ExampleCommands';
 import { PROVIDERS } from '../lib/providers';
 
 /**
@@ -34,11 +36,12 @@ export function MCompare() {
           kicker="The problem"
           title={
             <>
-              Twelve steps,
+              You know what to ask.
               <br />
-              or <em>one message.</em>
+              Building it is the <em>tedious part.</em>
             </>
           }
+          lede="For a final-year project, you might spend 20–30 minutes building a questionnaire by hand. That’s an illustration, not a measured saving."
         />
         <div className="mc" ref={ref}>
           <div className="mc-old">
@@ -59,12 +62,14 @@ export function MCompare() {
               <span className="mc-k is-accent">With Intake</span>
               <span className="mc-n">1<small> message</small></span>
             </div>
-            <p className="mc-msg">“Sign-up form for the youth conference. Name, phone, age group, and if they need a bus, ask where to pick them up.”</p>
+            <p className="mc-msg">“Create a registration form for my final-year project. Ask for name, email, department, level, phone number and whether they need accommodation. If yes, ask what type.”</p>
             <div className="mc-out">
-              <i /> A real Google Form, ready to share
+              <i /> One request → a structured form (concept)
             </div>
           </motion.div>
         </div>
+        <p className="mc-preview">Name · Email · Department · Level · Phone<br />Need accommodation? → If yes: what type?</p>
+        <Audience />
       </div>
     </section>
   );
@@ -86,15 +91,16 @@ export function MSteps() {
               <em>That’s it.</em>
             </>
           }
+          lede="Concept walkthrough. Intake accounts are available now; provider connections and real form creation are planned."
         />
         <ol className="msteps">
           <Reveal className="mstep">
             <span className="mstep-n">1</span>
             <div>
-              <h3>Connect your account</h3>
-              <p>Sign in with Google or Microsoft. Your forms stay there.</p>
+              <h3>Connect a provider</h3>
+              <p>In a later release, authorize a Google or Microsoft account separately from your Intake login.</p>
               <span className="mstep-chip" style={{ '--pv': G } as CSSProperties}>
-                <i /> Google Forms <b>✓ connected</b>
+                <i /> Google Forms <b>planned</b>
               </span>
             </div>
           </Reveal>
@@ -110,7 +116,7 @@ export function MSteps() {
             <span className="mstep-n">3</span>
             <div>
               <h3>Share the link</h3>
-              <p>A real form appears in your account. Responses come in like normal.</p>
+              <p>The goal: a real form in your provider account, with a link to share. Not live yet.</p>
               <span className="mstep-link">
                 <code>forms.gle/tolu-30th</code>
                 <b>Copy</b>
@@ -119,14 +125,15 @@ export function MSteps() {
           </Reveal>
         </ol>
         <Reveal className="mstep-after">
-          Need a change later? <b>Just ask.</b> “Make church optional” updates the live form.
+          Later, need a change? <b>Just ask.</b> Edit the real form without hunting through menus.
         </Reveal>
+        <div className="m-commands"><h3>What can I ask Intake to do?</h3><ExampleCommands /></div>
       </div>
     </section>
   );
 }
 
-const PROMISES = ['It lives in your own account', 'Responses go straight to Google or Microsoft', 'Edit it by hand anytime', 'Disconnect in one tap'];
+const PROMISES = ['Real forms in your provider account', 'Responses stay with the form platform', 'Edit the form there by hand', 'Separate provider consent, coming later'];
 
 export function MWhere() {
   return (
@@ -142,14 +149,14 @@ export function MWhere() {
               <em>Your</em> account.
             </>
           }
-          lede="Intake doesn’t host forms or keep your responses. It just does the setup for you."
+          lede="Intake is designed to work in your existing form platform, not host a new one. Connections are coming later."
         />
         <Reveal className="mw">
           <div className="mw-pv" style={{ '--pv': PROVIDERS.google.color } as CSSProperties}>
-            <i /> Google Forms <span className="is-live">First up</span>
+            <i /> Google Forms <span>Planned first</span>
           </div>
           <div className="mw-pv" style={{ '--pv': PROVIDERS.microsoft.color } as CSSProperties}>
-            <i /> Microsoft Forms <span>Up next</span>
+            <i /> Microsoft Forms <span>Planned next</span>
           </div>
           <ul className="mw-list">
             {PROMISES.map((p) => (

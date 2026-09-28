@@ -2702,3 +2702,40 @@ main {
   counter-increment: q;
   content: 'Q' counter(q, decimal-leading-zero);
 }
+
+/* Editorial audience + request examples; extensions of the existing comparison, not cards. */
+.cmp-fields {
+  margin-top: 16px;
+  padding: 12px 0 0 16px;
+  border-left: 2px solid var(--accent);
+}
+.cmp-fields > span, .audience-k {
+  font: 11px var(--mono);
+  letter-spacing: .1em;
+  color: var(--cream-3);
+}
+.cmp-fields p {
+  margin: 7px 0;
+  color: var(--cream-2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.cmp-fields b { color: var(--ok); font-weight: 550; }
+.cmp-fields .cmp-conditional { color: var(--c-logic); }
+.audience { border-top: 1px solid var(--line-2); margin-top: 66px; padding-top: 28px; }
+.audience-lead { display: grid; grid-template-columns: 1.5fr 1fr; gap: 40px; align-items: end; padding: 24px 0 36px; }
+.audience-lead p { font-size: clamp(27px, 3.4vw, 48px); line-height: 1.18; font-weight: 520; letter-spacing: -.045em; margin: 0; }
+.audience-lead span { color: var(--cream-2); font-size: 17px; line-height: 1.55; max-width: 340px; }
+.audience-line { display: flex; flex-wrap: wrap; gap: 0 24px; border-top: 1px solid var(--line); padding-top: 14px; }
+.audience-line span { padding: 8px 0; font-size: 13px; color: var(--cream-2); white-space: nowrap; }
+.audience-line i { color: var(--accent); font-style: normal; margin: 0 4px; }
+.example-commands p { color: var(--cream-3); font: 11px/1.6 var(--mono); margin: 18px 0 0; }
+@media (max-width: 719px) {
+  .audience { margin-top: 48px; }
+  .audience-lead { display: block; padding: 24px 0; }
+  .audience-lead p { font-size: 32px; }
+  .audience-lead span { display: block; margin-top: 14px; font-size: 15px; }
+  .audience-line { display: block; }
+  .audience-line span { display: block; white-space: normal; border-bottom: 1px solid var(--line); }
+}
+.hero-status { color: var(--cream-3); font: 11px/1.6 var(--mono); margin: 14px 0 0; max-width: 520px; }

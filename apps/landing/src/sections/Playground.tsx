@@ -8,6 +8,7 @@ import { PROVIDERS, type Provider } from '../lib/providers';
 import { SectionHead } from '../components/SectionHead';
 
 const EXAMPLES = [
+  { label: 'Final-year project', text: 'Create a registration form for my final-year project. Ask for full name, email, department (Science, Arts, Engineering), level, phone number, and whether they need accommodation. If they select yes, ask what type of accommodation they need.' },
   { label: 'Workshop signup', text: 'Workshop signup with name, email, t-shirt size, dietary needs and whether they need a laptop. If yes, ask which OS they prefer.' },
   { label: 'Cake orders', text: 'Order form for my cake business. Ask for name, phone number, cake flavour (chocolate, vanilla, red velvet), pickup date, and whether they want delivery. If yes, ask for their address. Make everything required.' },
   { label: 'Clinic intake', text: 'Patient intake form for a dental clinic. Collect full name, date of birth, phone, email, reason for visit, and whether they have any allergies. If yes, ask them to describe the allergies. Make email optional.' },
@@ -113,7 +114,7 @@ export function Playground() {
               Your turn. Type <em>any</em> form.
             </>
           }
-          lede="Describe a form and watch it take shape. This demo runs in your browser, so nothing gets created. The real thing makes the form in your own account."
+          lede="Describe a form and watch it take shape. This browser-only preview uses a simple example parser, not the future AI agent. Nothing gets created or sent to a provider. The goal is to build a real form in your connected account."
         />
 
         <div className="play-grid">
@@ -160,7 +161,7 @@ export function Playground() {
                   ))}
                 </div>
                 <button type="submit" className="btn btn-accent play-go" disabled={!text.trim()}>
-                  Build it <kbd>↵</kbd>
+                  Preview it <kbd>↵</kbd>
                 </button>
               </div>
             </form>
@@ -249,7 +250,7 @@ export function Playground() {
             </div>
             <div className="play-create">
               <button className="btn play-create-btn" style={{ ['--pv' as string]: P.color }} disabled={phase !== 'done'} onClick={() => setNote(true)}>
-                <i className="pv-tab-dot" /> Create in {P.name}
+                <i className="pv-tab-dot" /> Create in {P.name} · planned
               </button>
               <AnimatePresence>
                 {note && (

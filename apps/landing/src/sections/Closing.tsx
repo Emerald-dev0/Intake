@@ -43,7 +43,7 @@ export function Statement() {
           ))}
         </div>
         <Reveal className="stmt-sub">
-          <p>Intake isn’t another place to keep forms. It’s the helper that sets them up for you in the tools you and your people already use.</p>
+          <p>Your existing forms, controlled through natural language. Intake is designed to work inside the tools you already use, not host another form platform. Provider connections are coming later.</p>
         </Reveal>
       </div>
     </section>
@@ -53,10 +53,10 @@ export function Statement() {
 /* ───────────── Where your forms live ───────────── */
 
 const PROMISES = [
-  ['It’s your form', 'It lives in your Google or Microsoft account, next to all your other forms.'],
-  ['Responses stay put', 'Answers go straight to Google Forms or Microsoft Forms. Intake doesn’t collect them.'],
-  ['Edit it anywhere', 'Change it by hand in Google Forms or Microsoft Forms, or just ask Intake.'],
-  ['You’re in control', 'You choose what to connect, and you can disconnect in one click.'],
+  ['It’s your form', 'The goal is a real form in the Google or Microsoft account you choose to connect.'],
+  ['Responses stay put', 'Responses would go to the form platform, not a new Intake response system.'],
+  ['Edit it anywhere', 'You can still edit it in your form platform; natural-language edits are planned.'],
+  ['You’re in control', 'Provider authorization will be a separate step from your Intake sign-in.'],
 ];
 
 export function Where() {
@@ -71,7 +71,7 @@ export function Where() {
               Your forms. <em>Your</em> account.
             </>
           }
-          lede="Intake doesn’t host forms or hold your responses. It signs in to the form tool you already use, with your permission, and does the setup for you."
+          lede="Intake is not another form builder. The planned provider connection will ask your permission separately from Intake login, then create the real form in the tool you already use. No provider integration is live yet."
         />
         <div className="where-grid">
           <Reveal className="pv-card is-google">
@@ -79,10 +79,10 @@ export function Where() {
               <span className="pv-name">
                 <i /> Google Forms
               </span>
-              <span className="pv-status">First up</span>
+              <span className="pv-status">Planned first</span>
             </div>
-            <h3>Sign in with Google.</h3>
-            <p>Intake makes the form in your Google account. Responses go to Google Forms, and on to Google Sheets if you want them there.</p>
+            <h3>Connect Google Forms.</h3>
+            <p>Planned first: create a real form in the Google account you explicitly authorize. Responses would stay with Google Forms.</p>
             <div className="pv-mock">
               <span className="pv-mock-dot" />
               <code>docs.google.com/forms/d/…/edit</code>
@@ -93,10 +93,10 @@ export function Where() {
               <span className="pv-name">
                 <i /> Microsoft Forms
               </span>
-              <span className="pv-status">Up next</span>
+              <span className="pv-status">Planned next</span>
             </div>
-            <h3>Sign in with Microsoft.</h3>
-            <p>Same idea for work and school accounts. The form shows up in your Microsoft Forms, ready to share with your team or class.</p>
+            <h3>Connect Microsoft Forms.</h3>
+            <p>Planned later for work and school accounts: a real form in your authorized Microsoft account.</p>
             <div className="pv-mock">
               <span className="pv-mock-dot" />
               <code>forms.office.com/r/…</code>
@@ -231,11 +231,11 @@ export function Capabilities() {
           kicker="Say it your way"
           title={
             <>
-              You never pick
-              <br />a question <em>type.</em>
+              Say what matters.
+              <br />Skip the <em>settings.</em>
             </>
           }
-          lede="Say “their WhatsApp number” and you get a phone question. Say “out of 5” and you get a star rating. Intake picks the right one every time."
+          lede="Say “their WhatsApp number” and you get a phone question. Say “out of 5” and you get a star rating. Intake is designed to choose the appropriate question type for you."
         />
         <div className="caps-grid">
           {TYPES.map(([t, name, said], i) => (
@@ -266,11 +266,11 @@ export function Capabilities() {
 /* ───────────── FAQ ───────────── */
 
 const FAQS = [
-  ['Is Intake another form builder?', 'No. Intake doesn’t host forms at all. It builds them for you inside Google Forms or Microsoft Forms, the tools you and the people filling them in already know.'],
-  ['Where do the responses go?', 'Straight to Google Forms or Microsoft Forms, same as any form you make yourself. Intake never collects them.'],
-  ['Can I still edit the form myself?', 'Yes. It’s a normal form in your account. Open it and change whatever you like, or just tell Intake what to change.'],
-  ['What access does Intake need?', 'Permission to create and edit forms in the account you connect. You approve it when you sign in, and you can take it back any time.'],
-  ['What if my request is vague?', 'Intake only asks a question when the answer would change the form, like which age groups to offer. Otherwise it just gets on with it.'],
+  ['Is Intake another form builder?', 'No. Intake is designed to create and manage real forms in the Google or Microsoft account you authorize. Provider connections and form creation are not live yet.'],
+  ['Where will responses go?', 'The plan is for responses to stay with Google Forms or Microsoft Forms, not in an Intake response system. No provider forms are being created yet.'],
+  ['Will I be able to edit the form myself?', 'That is the point of using an existing form platform: you can edit the real form there. Editing it by messaging Intake is a planned capability, not live yet.'],
+  ['What access will Intake need?', 'Eventually you will need to authorize access to create and edit forms in the account you connect. This is separate from signing in to Intake. Provider connections are not available yet.'],
+  ['What if my request is vague?', 'The intended agent would ask only when a missing detail changes the form. The current landing demo uses a simple in-browser parser, not the future agent.'],
   ['Does it work with Microsoft Forms?', 'That’s the plan. Google Forms comes first, then Microsoft Forms, and the same message will work for both.'],
 ];
 
@@ -329,12 +329,13 @@ export function CTA() {
           </h2>
         </Reveal>
         <Reveal delay={0.1}>
-          <p className="cta-sub">Intake is in the works. Get early access and be one of the first to connect your Google account.</p>
+          <p className="cta-sub">Intake is in the works. Create an Intake account now; connecting a provider and making real forms are planned for later.</p>
         </Reveal>
         <Reveal delay={0.16}>
           <Waitlist />
         </Reveal>
         <Reveal delay={0.2} className="cta-links">
+          <a href="/auth/sign-up">Create an Intake account ↗</a>
           <a href={REPO} target="_blank" rel="noreferrer">
             Star the repo ↗
           </a>
@@ -357,7 +358,7 @@ export function Footer() {
             <LogoMark size={26} />
             <span>intake</span>
           </a>
-          <p>Say what you need. Intake makes the form in your Google or Microsoft account.</p>
+          <p>Say what you need. Intake is being built to make the real form in your Google or Microsoft account.</p>
         </div>
         <div className="foot-cols">
           <div>
