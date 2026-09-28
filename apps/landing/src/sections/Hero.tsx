@@ -44,6 +44,7 @@ export function Nav() {
 }
 
 const IDEAS = [
+  'Questionnaire for my final-year research project',
   'RSVP for Tolu’s 30th — plus-ones and dietary needs',
   'Job application for a junior designer, with portfolio link',
   'Parent consent form for the school trip to Lekki',
@@ -105,7 +106,7 @@ function HeroComposer() {
           )}
         </div>
         <button type="submit" className="btn btn-accent">
-          Build it
+          Try the demo
           <svg width="14" height="14" viewBox="0 0 16 16"><path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </button>
       </div>
@@ -131,7 +132,7 @@ export function Hero() {
           <span className="hb-live">
             <i /> in the works
           </span>
-          <span className="hb-text">Works inside Google Forms &amp; Microsoft Forms</span>
+          <span className="hb-text">Concept preview · provider connections coming later</span>
           <span className="hb-arrow">→</span>
         </motion.a>
 
@@ -152,11 +153,12 @@ export function Hero() {
           {mobile ? (
             <div>
               <p className="hero-sub">
-                Tell Intake what you want to ask people. It builds the form <b>in your own Google Forms or Microsoft Forms</b> and hands you the link.
+                For a final-year project, event or business: you know what to ask. Intake is being built to make the real form in your own Google or Microsoft account. Not another form builder.
               </p>
+              <p className="hero-status">Now: Intake accounts + browser-only demo. Real form creation comes later.</p>
               <div className="hero-actions">
-                <a className="btn btn-accent" href="#waitlist">
-                  Get early access
+                <a className="btn btn-accent" href="/auth/sign-up">
+                  Create account
                 </a>
                 <a className="btn btn-ghost" href="#try">
                   Try it
@@ -165,9 +167,10 @@ export function Hero() {
             </div>
           ) : (
             <>
-              <p className="hero-sub">
-                Tell Intake what you want to ask people. It builds the form for you <b>inside your own Google Forms or Microsoft Forms</b>, follow-up questions and all, then hands you the link. No dragging, no dropping, no settings to hunt for.
-              </p>
+              <div>
+                <p className="hero-sub">You already know what you want to ask. Building every field is the tedious part. Intake is being built to create the <b>real form in your own Google Forms or Microsoft Forms</b> from one description. Your existing forms, controlled through natural language.</p>
+                <p className="hero-status">Now: Intake accounts + browser-only demo. Real form creation comes later.</p>
+              </div>
               <HeroComposer />
             </>
           )}
@@ -177,7 +180,7 @@ export function Hero() {
       {mobile && (
         <motion.div id="demo" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}>
           <Stories />
-          <p className="ms-hint">Tap to skip · hold to pause</p>
+          <p className="ms-hint">Concept demo · no live form is created · tap to skip</p>
         </motion.div>
       )}
 
@@ -185,7 +188,7 @@ export function Hero() {
       <motion.div className="wrap-wide hero-reel" id="demo" initial={{ opacity: 0, y: 60 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1.2, delay: 0.7, ease: [0.22, 1, 0.36, 1] }}>
         <div className="reel-meta">
           <span>
-            <i className="rec" /> Watch it make a real Google Form
+            <i className="rec" /> Concept demo · Google Form creation is planned
           </span>
           <span className="reel-meta-r">Drag the timeline to scrub ⟷</span>
         </div>
@@ -199,6 +202,7 @@ export function Hero() {
 }
 
 const PROMPTS = [
+  'Questionnaire for a final-year project',
   'Volunteer signup for Saturday’s cleanup',
   'RSVP with plus-ones',
   'Customer feedback, anonymous',
