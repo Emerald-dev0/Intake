@@ -1,11 +1,8 @@
 import { useState, type FormEvent } from 'react';
-import { createAuthClient } from 'better-auth/react';
-import { LogoMark } from '../reel/parts';
+import { authClient as client } from '../../lib/auth';
+import { LogoMark } from '../../reel/parts';
 
-const client = createAuthClient();
-
-export function AuthPage() {
-  const signUp = location.pathname.includes('sign-up');
+export function AuthPage({ signUp = false }: { signUp?: boolean }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

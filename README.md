@@ -1665,57 +1665,32 @@ npm run build      # type-check + production build to dist/
 
 # Local Development
 
-The only runnable app currently lives in `apps/landing` (Vite/React frontend and Express/Better Auth server). Use Node.js 22+ and npm; this repository has an npm lockfile, **not** a pnpm workspace, Docker database or pre-existing migrations. The same Node server serves the landing page, auth routes and protected workspace; do not deploy the Vite static output by itself.
+The code in `apps/landing` now runs as two separate applications: Vite/React on Vercel and Express/Better Auth on Render. Use Node 22.12+ and npm.
 
-1. Create a Neon PostgreSQL project (external manual action), copy its connection string with TLS (`sslmode=require`). There are no database credentials in this environment.
-2. From `apps/landing`, run `npm ci` and `cp .env.example .env`.
-3. Set `DATABASE_URL`, a newly generated `BETTER_AUTH_SECRET` of at least 32 random characters (`openssl rand -base64 32`), and `BETTER_AUTH_URL` to the **exact public origin** where browser requests arrive (for local development, `http://localhost:5173`). Do not put a path or trailing slash in the origin. Never commit `.env`.
-4. Run `npm run db:migrate` from `apps/landing` with that Neon URL. Better Auth's CLI creates/updates its core `user`, `session`, `account` (email credential), and `verification` tables on the configured Postgres database. For schema review, `npm run db:generate` produces `db/auth.sql` against the connected DB; it does not apply it. Review schema changes before applying them in production. Run migrations before starting the server after auth schema changes.
-5. Run `npm run dev` and visit `http://localhost:5173`. `npm run typecheck`, `npm run test`, and `npm run build` verify the code. `npm start` serves the production build with `NODE_ENV=production` after `npm run build` and migrations.
-
-The browser uses same-origin `/api/auth/*` for Better Auth and `/api/me` for account state. `/app`, `/app/connections`, and `/app/account` are guarded by the server on document requests and `/api/me` revalidates sessions for the client. Session cookies are managed by Better Auth (HTTP-only, secure on HTTPS). If the database is unavailable, protected routes return 503 instead of exposing content or treating a failure as sign-out. Configure the server behind HTTPS and use a persistent process host; a static-only host cannot run this app. For Arena/cloud previews, set `BETTER_AUTH_URL` to the preview's HTTPS origin before launching (not `localhost`).
-
-**Boundary for the next stage:** Better Auth's `account` rows are for *Intake login credentials*, not Google/Microsoft Forms permissions. Future provider connections must request explicit, separate OAuth consent and scopes, store grants separately from login accounts, and verify ownership using the current Intake user ID. No provider tokens, connection records or form data are implemented here.
-
----
+1. In `apps/landing`, run `npm ci` and copy `.env.example` to `.env`.
+2. Set a TLS Neon `DATABASE_URL`, a random `BETTER_AUTH_SECRET` of at least 32 characters, and `BETTER_AUTH_URL=http://localhost:5173`.
+3. Run `npm run db:migrate` against your intended database. No database migration was performed by this PR.
+4. In separate terminals run `npm run dev:api` (Express, port 3001) and `npm run dev` (Vite, port 5173). Open Vite, not Express.
+5. Vite proxies `/api/*` to `API_PROXY_TARGET`, default `http://127.0.0.1:3001`. For cloud previews, set `BETTER_AUTH_URL` to the exact HTTPS frontend preview origin.
+6. Run `npm run typecheck`, `npm test`, and `npm run build`. `npm run preview` serves the frontend build; `npm start` runs only the production API.
 
 # Environment Variables
 
-See [`apps/landing/.env.example`](apps/landing/.env.example). Required server-side: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`. Optional: `PORT` (default 5173), existing landing-page `VITE_SITE_URL`, `VITE_WAITLIST_URL`, and `VITE_WAITLIST_FIELD`. The `VITE_` values are browser-visible; never put secrets in them. Production requires a stable HTTPS origin matching `BETTER_AUTH_URL`. A changed domain requires updating that value and restarting the server.
+See [`apps/landing/.env.example`](apps/landing/.env.example). Only `VITE_` variables are public browser configuration. Database credentials, auth secrets, provider encryption keys and OAuth secrets must never use that prefix.
 
----
+- Render: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (public Vercel origin). Render supplies `PORT`.
+- Vercel: `BACKEND_URL` (actual HTTPS Render origin, routing only); optional `VITE_SITE_URL` and existing public waitlist settings.
+- Local: optional `API_PROXY_TARGET` changes Vite's backend target without changing browser URLs.
 
 # Deployment
 
-Intake is designed to be deployable as a production web application.
+Vercel root: `apps/landing`; framework: Vite; build: `npm run build`; output: `dist`. Set `BACKEND_URL` and deploy the checked-in configuration: API proxy plus one generic SPA fallback.
 
-A typical deployment consists of:
+Render root: `apps/landing`; build: `npm ci`; start: `npm start`; see `render.yaml`. Set `BETTER_AUTH_URL` to the exact Vercel origin, not Render. Keep all server secrets on Render.
 
-```text
-Frontend
-    ↓
-Application server
-    ↓
-Database
-    ↓
-AI provider
+See [deployment instructions and acceptance checklist](apps/landing/DEPLOYMENT.md).
 
-Application server
-    ↓
-Google APIs
-```
-
-Production deployment should include:
-
-* HTTPS
-* secure cookies
-* environment-based secrets
-* database migrations
-* error monitoring
-* request logging
-* rate limiting
-* OAuth redirect restrictions
-* production CORS configuration
+**Checkout limitation:** this branch starts from `41e2642` (PR 02). PR 03 provider services, OAuth routes and tests are absent; Connections remains the existing placeholder. This PR does not recreate provider logic. Integrating PR 03 and verifying production sessions/OAuth remain necessary before the full PR 04 definition of done can be met.
 
 ---
 

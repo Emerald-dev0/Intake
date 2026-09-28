@@ -1,0 +1,20 @@
+# Apply to the existing API service; do not create a second frontend on Render.
+services:
+  - type: web
+    name: intake-api
+    runtime: node
+    rootDir: apps/landing
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.3
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: BETTER_AUTH_SECRET
+        sync: false
+      - key: BETTER_AUTH_URL
+        sync: false

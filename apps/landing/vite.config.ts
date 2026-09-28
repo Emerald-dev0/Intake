@@ -26,11 +26,12 @@ function siteMeta(url: string): Plugin {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
+  const proxy = { '^/api(?:/|$)': { target: env.API_PROXY_TARGET || 'http://127.0.0.1:3001' } };
   return {
     plugins: [react(), siteMeta(siteUrl(env))],
     // CAPTURE=1 also builds the dev-only pages used to record demos / render the social card.
     build: env.CAPTURE ? { rollupOptions: { input: { main: 'index.html', capture: 'capture.html', og: 'og.html' } } } : undefined,
-    server: { host: '0.0.0.0', port: 5173, allowedHosts: true },
-    preview: { host: '0.0.0.0', port: 4173, allowedHosts: true },
+    server: { host: '0.0.0.0', port: 5173, allowedHosts: true, proxy },
+    preview: { host: '0.0.0.0', port: 4173, allowedHosts: true, proxy },
   };
 });
