@@ -12,6 +12,14 @@ The goal is not to build another form builder.
 
 The goal is to make **form creation an intent problem instead of a configuration problem.**
 
+<p align="center">
+  <img src="apps/landing/public/og.png" alt="Intake: say what you need, and it's already a form in your Google Forms or Microsoft Forms" width="100%" />
+</p>
+
+<p align="center">
+  <sub>Connect your Google or Microsoft account, describe the form, and get a real form in your own account with a share link. &nbsp;·&nbsp; <a href="#landing-page">Run the landing page</a></sub>
+</p>
+
 ---
 
 ## Table of Contents
@@ -48,6 +56,7 @@ The goal is to make **form creation an intent problem instead of a configuration
 * [Error Handling](#error-handling)
 * [Observability](#observability)
 * [Testing Strategy](#testing-strategy)
+* [Landing Page](#landing-page)
 * [Local Development](#local-development)
 * [Environment Variables](#environment-variables)
 * [Deployment](#deployment)
@@ -1620,6 +1629,29 @@ external API
 ```
 
 Where possible, provider calls should be mocked for deterministic tests, with a smaller set of real integration tests.
+
+---
+
+# Landing Page
+
+The marketing site lives in [`apps/landing`](apps/landing). It's built with Vite, React, TypeScript and [Motion](https://motion.dev). The "videos" on it are the real UI running on a scripted timeline, so you can pause, scrub and replay them. Phones get their own lighter layout with tap-through demo stories.
+
+```bash
+cd apps/landing
+npm install
+npm run dev        # http://localhost:5173
+npm run build      # type-check + production build to dist/
+```
+
+**Deploying (Vercel / Netlify):** set the root directory to `apps/landing`, the build command to `npm run build` and the output folder to `dist`.
+
+**Environment** (see [`apps/landing/.env.example`](apps/landing/.env.example)):
+
+| Variable | What it does |
+| --- | --- |
+| `VITE_SITE_URL` | Absolute site URL for canonical and link-preview tags. Picked up automatically on Vercel and Netlify. |
+| `VITE_WAITLIST_URL` | Where the "Get early access" box posts to. A Google Form's `…/formResponse` URL works, as do Formspree-style endpoints. |
+| `VITE_WAITLIST_FIELD` | The field name for the email, e.g. `entry.123456789` for a Google Form, or `email`. |
 
 ---
 
