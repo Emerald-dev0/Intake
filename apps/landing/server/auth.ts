@@ -2,9 +2,9 @@ import 'dotenv/config';
 import { betterAuth } from 'better-auth';
 import { Pool } from 'pg';
 
-// Better Auth owns identity, credential accounts and sessions. The same Neon
-// Postgres database can later hold Intake resources, but provider OAuth grants
-// must NEVER be inferred from Better Auth accounts.
+// Better Auth owns identity, credential accounts and sessions. Provider OAuth
+// grants live in provider_connection and must NEVER be inferred from these
+// accounts. See server/providers/README.md.
 const { DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL } = process.env;
 if (!DATABASE_URL || !BETTER_AUTH_URL || !BETTER_AUTH_SECRET || BETTER_AUTH_SECRET.length < 32) {
   throw new Error('Set DATABASE_URL, BETTER_AUTH_URL, and BETTER_AUTH_SECRET (at least 32 characters). See .env.example.');

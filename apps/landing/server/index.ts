@@ -2,6 +2,12 @@ import 'dotenv/config';
 import express from 'express';
 import { toNodeHandler, fromNodeHeaders } from 'better-auth/node';
 import { auth, pool } from './auth';
+import { createTokenCipher } from './providers/crypto';
+import { createProviderHttp } from './providers/http';
+import { createProviderRouter } from './providers/routes';
+import { isProviderConfigured, supportedProviders } from './providers/registry';
+import { createPostgresStore } from './providers/postgres-store';
+import { createProviderService, useProviderService } from './providers/service';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -13,6 +19,26 @@ const authHandler = toNodeHandler(auth);
 app.all('/api/auth/*', (req, res, next) => {
   Promise.resolve(authHandler(req, res)).catch(next);
 });
+
+const providerEnv = process.env;
+const providerService = createProviderService({
+  store: createPostgresStore(pool),
+  http: createProviderHttp(),
+  cipher: createTokenCipher({ authSecret: process.env.BETTER_AUTH_SECRET ?? '', dedicatedKey: process.env.PROVIDER_TOKEN_KEY }),
+  env: providerEnv,
+});
+useProviderService(providerService);
+app.use('/api/providers', createProviderRouter({
+  service: providerService,
+  env: providerEnv,
+  getSession: async req => {
+    const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
+    if (!session?.user?.id) return null;
+    return { id: session.user.id, email: session.user.email, name: session.user.name };
+  },
+}));
+const providerSetup = supportedProviders(providerEnv).map(provider => `${provider.id} ${isProviderConfigured(provider, providerEnv) ? 'configured' : 'not configured'}`).join(', ');
+console.log(`Provider connections: ${providerSetup}`);
 
 app.get('/api/me', async (req, res) => {
   res.set('Cache-Control', 'no-store');
