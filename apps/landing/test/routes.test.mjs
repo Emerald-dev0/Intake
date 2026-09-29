@@ -49,6 +49,24 @@ test('Render is API-only and fails closed when Neon is unavailable', async () =>
     const providers = await get('/api/providers');
     assert.equal(providers.status, 503);
     assert.equal((await providers.text()).includes('access_token'), false);
+    // Form creation authenticates before it reads a body or touches a provider, so with no session store it fails closed.
+    const forms = await get('/api/forms');
+    assert.equal(forms.status, 503);
+    const formsBody = await forms.json();
+    assert.equal(formsBody.code, 'storage_unavailable');
+    assert.match(formsBody.requestId, /^req_/);
+    assert.equal(forms.headers.get('x-request-id'), formsBody.requestId);
+    const create = await fetch(`http://127.0.0.1:${port}/api/forms`, {
+      method: 'POST',
+      headers: { origin: `http://localhost:${port}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ provider: 'google', specification: { title: 'T', questions: [{ id: 'q', type: 'short_text', title: 'Q' }] } }),
+      redirect: 'manual',
+    });
+    assert.equal(create.status, 503);
+    const createText = await create.text();
+    assert.equal(createText.includes('access_token'), false);
+    assert.equal(createText.includes('forms.googleapis.com'), false, 'no provider was contacted');
+    assert.match(output, /Form creation: google enabled, microsoft pending/);
     const connect = await fetch(`http://127.0.0.1:${port}/api/providers/google/connect`, { method: 'POST', redirect: 'manual' });
     assert.equal(connect.status, 503);
     assert.equal(connect.headers.get('location'), null);

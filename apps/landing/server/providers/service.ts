@@ -48,6 +48,8 @@ export interface ProviderService {
   complete(userId: string, provider: ProviderId, query: CallbackQuery): Promise<{ result: ResultCode; revocation?: RevocationOutcome }>;
   disconnect(userId: string, provider: ProviderId): Promise<{ result: ResultCode; revocation: RevocationOutcome }>;
   getAuthorizedConnection(userId: string, provider: string): Promise<AuthorizedConnection>;
+  /** A provider API refused a token Intake believed was valid. The grant is unusable until the user reconnects. */
+  reportAuthorizationRejected(userId: string, provider: string): Promise<void>;
 }
 
 export interface CallbackQuery {
@@ -81,10 +83,16 @@ export function useProviderService(service: ProviderService): void {
   active = service;
 }
 
-/** Server-only. Future form operations should call this and must not send the result to the browser. */
+/** Server-only. Form operations call this and must not send the result to the browser. */
 export function getProviderConnection(userId: string, provider: string): Promise<AuthorizedConnection> {
   if (!active) return Promise.reject(new Error('Provider service is not initialized'));
   return active.getAuthorizedConnection(userId, provider);
+}
+
+/** Server-only. Call when a provider API rejects the access token that getProviderConnection returned. */
+export function reportProviderAuthorizationRejected(userId: string, provider: string): Promise<void> {
+  if (!active) return Promise.reject(new Error('Provider service is not initialized'));
+  return active.reportAuthorizationRejected(userId, provider);
 }
 
 export function createProviderService(deps: ProviderDeps): ProviderService {
@@ -104,6 +112,10 @@ export function createProviderService(deps: ProviderDeps): ProviderService {
     },
     getAuthorizedConnection(userId, provider) {
       return readAuthorizedConnection(deps, userId, provider, now());
+    },
+    async reportAuthorizationRejected(userId, provider) {
+      if (provider !== 'google' && provider !== 'microsoft') return;
+      await deps.store.markNeedsReauthorization(userId, provider, 'reauthorization_required', now());
     },
   };
 }

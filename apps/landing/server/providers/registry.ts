@@ -75,7 +75,7 @@ function googleDefinition(): ProviderDefinition {
     id: 'google',
     name: 'Google Forms',
     accountName: 'Google',
-    description: 'Connect your Google account so Intake can create and manage Google Forms there once form operations launch. Signing in to Intake does not do this.',
+    description: 'Connect your Google account so Intake can create Google Forms there. Signing in to Intake does not do this.',
     scopes: ['openid', 'email', 'https://www.googleapis.com/auth/forms.body'],
     requiredScopes: ['https://www.googleapis.com/auth/forms.body'],
     authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
@@ -90,7 +90,7 @@ function googleDefinition(): ProviderDefinition {
     identity: { type: 'google-userinfo', url: 'https://openidconnect.googleapis.com/v1/userinfo' },
     revocation: { type: 'google', url: 'https://oauth2.googleapis.com/revoke' },
     formsApi: 'supported',
-    formsNote: 'The Google Forms API can create and edit forms. Intake does not call it yet — this step only authorizes the account.',
+    formsNote: 'Intake uses the Google Forms API to create forms in this account. It cannot read responses or your Drive files.',
     scopeLabels: {
       openid: 'Confirm the Google account you connect',
       email: 'See the email address of that Google account',

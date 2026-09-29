@@ -7,6 +7,7 @@ const LandingPage = lazy(() => import('../App'));
 const AuthPage = lazy(() => import('./pages/AuthPage').then(m => ({ default: m.AuthPage })));
 const OverviewPage = lazy(() => import('./pages/OverviewPage').then(m => ({ default: m.OverviewPage })));
 const ConnectionsPage = lazy(() => import('./pages/ConnectionsPage').then(m => ({ default: m.ConnectionsPage })));
+const FormsPage = lazy(() => import('./pages/FormsPage').then(m => ({ default: m.FormsPage })));
 const AccountPage = lazy(() => import('./pages/AccountPage').then(m => ({ default: m.AccountPage })));
 function NotFoundPage() {
   return <main className="workspace-status"><h1>Page not found</h1><a href="/">Back to Intake</a></main>;
@@ -20,6 +21,7 @@ export const routes: RouteObject[] = [
     { element: <WorkspaceLayout />, children: [
       { index: true, element: <OverviewPage /> },
       { path: 'connections', element: <ConnectionsPage /> },
+      { path: 'forms', element: <FormsPage /> },
       { path: 'account', element: <AccountPage /> },
       { path: '*', element: <NotFoundPage /> },
     ] },
