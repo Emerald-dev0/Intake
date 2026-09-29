@@ -1676,16 +1676,17 @@ npm run build      # type-check + production build to dist/
 
 # Local Development
 
-The only runnable app currently lives in `apps/landing` (Vite/React frontend and Express/Better Auth server). Use Node.js 22+ and npm; this repository has an npm lockfile, **not** a pnpm workspace, Docker database or pre-existing migrations. The same Node server serves the landing page, auth routes and protected workspace; do not deploy the Vite static output by itself.
+The code in `apps/landing` now runs as two separate applications: Vite/React on Vercel and Express/Better Auth on Render. Use Node 22.12+ and npm.
 
-1. Create a Neon PostgreSQL project (external manual action), copy its connection string with TLS (`sslmode=require`). There are no database credentials in this environment.
-2. From `apps/landing`, run `npm ci` and `cp .env.example .env`.
-3. Set `DATABASE_URL`, a newly generated `BETTER_AUTH_SECRET` of at least 32 random characters (`openssl rand -base64 32`), and `BETTER_AUTH_URL` to the **exact public origin** where browser requests arrive (for local development, `http://localhost:5173`). Do not put a path or trailing slash in the origin. Never commit `.env`.
-4. Run `npm run db:migrate` from `apps/landing` with that Neon URL. Better Auth's CLI creates/updates its core `user`, `session`, `account` (email credential), and `verification` tables on the configured Postgres database. Then run `npm run db:migrate:intake` to create provider-connection tables. For schema review, `npm run db:generate` produces `db/auth.sql` against the connected DB; it does not apply it and does not include provider tables. Review schema changes before applying them in production. Run migrations before starting the server after schema changes.
-5. Provider OAuth is optional until you want to connect Google or Microsoft. Leave those variables blank to get an honest "not configured" state. Real client ids and secrets come from Google Cloud and Microsoft Entra, not from this repository. Redirect URIs and scopes are documented in [apps/landing/server/providers/README.md](apps/landing/server/providers/README.md).
-6. Run `npm run dev` and visit `http://localhost:5173`. `npm run typecheck`, `npm run test`, and `npm run build` verify the code. `npm start` serves the production build with `NODE_ENV=production` after `npm run build` and migrations.
+1. In `apps/landing`, run `npm ci` and copy `.env.example` to `.env`.
+2. Set a TLS Neon `DATABASE_URL` (`sslmode=require`), a random `BETTER_AUTH_SECRET` of at least 32 characters (`openssl rand -base64 32`), and `BETTER_AUTH_URL=http://localhost:5173` with no path or trailing slash. Never commit `.env`.
+3. Run `npm run db:migrate` (Better Auth core tables), then `npm run db:migrate:intake` (provider-connection tables) against your intended database. `npm run db:generate` produces `db/auth.sql` for review only and does not include provider tables. No migration was performed by this PR.
+4. Provider OAuth is optional until you want to connect Google or Microsoft. Leave those variables blank to get an honest "not configured" state. Real client ids and secrets come from Google Cloud and Microsoft Entra, not from this repository. Redirect URIs and scopes are documented in [apps/landing/server/providers/README.md](apps/landing/server/providers/README.md).
+5. In separate terminals run `npm run dev:api` (Express, port 3001) and `npm run dev` (Vite, port 5173). Open Vite, not Express. Vite proxies `/api/*` to `API_PROXY_TARGET`, default `http://127.0.0.1:3001`.
+6. For cloud previews, set `BETTER_AUTH_URL` to the exact HTTPS frontend preview origin, and register that same origin's provider callback URLs in Google Cloud and Entra if you intend to complete OAuth there.
+7. Run `npm run typecheck`, `npm test`, and `npm run build`. `npm run preview` serves the frontend build with the local API proxy; `npm start` runs only the production API.
 
-The browser uses same-origin `/api/auth/*` for Better Auth and `/api/me` for account state. Provider grants use `/api/providers` and never return tokens to the browser. `/app`, `/app/connections`, and `/app/account` are guarded by the server on document requests and `/api/me` revalidates sessions for the client. Session cookies are managed by Better Auth (HTTP-only, secure on HTTPS). If the database is unavailable, protected routes return 503 instead of exposing content or treating a failure as sign-out. Configure the server behind HTTPS and use a persistent process host; a static-only host cannot run this app. For Arena/cloud previews, set `BETTER_AUTH_URL` to the preview's HTTPS origin before launching (not `localhost`), and register that same origin's provider callback URLs in Google Cloud and Entra if you intend to complete OAuth there.
+The browser uses same-origin `/api/auth/*` for Better Auth, `/api/me` for account state, and `/api/providers` for provider connections; grants never return tokens to the browser. Frontend documents are static; the shared client guard checks `/api/me` before rendering `/app`, `/app/connections`, and `/app/account`, and every API operation fails closed independently. Session cookies are managed by Better Auth (HTTP-only, secure on HTTPS). If the database is unavailable, API routes return 503 instead of exposing content or treating a failure as sign-out.
 
 **Boundary for the next stage:** `getProviderConnection(userId, provider)` in `apps/landing/server/providers/service.ts` is the server-side way to ask whether a user has a usable provider grant and, if so, to receive an access token. The next PR can build Google Forms operations on that helper. It must not treat a Better Auth `account` row as permission, must not fake Microsoft Forms API calls, and must publish API-created Google Forms (`setPublishSettings`) because forms created after 30 June 2026 are unpublished by default.
 
@@ -1693,42 +1694,23 @@ The browser uses same-origin `/api/auth/*` for Better Auth and `/api/me` for acc
 
 # Environment Variables
 
-See [`apps/landing/.env.example`](apps/landing/.env.example). Required server-side: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`. Optional: `PORT` (default 5173), existing landing-page `VITE_SITE_URL`, `VITE_WAITLIST_URL`, and `VITE_WAITLIST_FIELD`. Provider connection, only when you have real console credentials: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `MICROSOFT_OAUTH_CLIENT_ID`, `MICROSOFT_OAUTH_CLIENT_SECRET`, optional `MICROSOFT_OAUTH_TENANT`, and optional `PROVIDER_TOKEN_KEY`. The `VITE_` values are browser-visible; never put secrets in them. Production requires a stable HTTPS origin matching `BETTER_AUTH_URL`. A changed domain requires updating that value, the provider redirect URIs, and restarting the server. Blank provider variables are a setup state, not a successful connection.
+See [`apps/landing/.env.example`](apps/landing/.env.example). Only `VITE_` variables are public browser configuration. Database credentials, auth secrets, provider encryption keys and OAuth secrets must never use that prefix.
 
----
+- Render (server secrets): `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (public Vercel origin). Provider connection, only when you have real console credentials: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `MICROSOFT_OAUTH_CLIENT_ID`, `MICROSOFT_OAUTH_CLIENT_SECRET`, optional `MICROSOFT_OAUTH_TENANT`, optional `PROVIDER_TOKEN_KEY`. Render supplies `PORT`. Blank provider variables are a setup state, not a successful connection. A changed domain requires updating `BETTER_AUTH_URL`, the provider redirect URIs in the provider consoles, and restarting the server.
+- Vercel: `BACKEND_URL` (actual HTTPS Render origin, routing only); optional `VITE_SITE_URL` and existing public waitlist settings.
+- Local: optional `API_PROXY_TARGET` changes Vite's backend target without changing browser URLs.
+
+- Render: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (public Vercel origin). Render supplies `PORT`.
+- Vercel: `BACKEND_URL` (actual HTTPS Render origin, routing only); optional `VITE_SITE_URL` and existing public waitlist settings.
+- Local: optional `API_PROXY_TARGET` changes Vite's backend target without changing browser URLs.
 
 # Deployment
 
-Intake is designed to be deployable as a production web application.
+Vercel root: `apps/landing`; framework: Vite; build: `npm run build`; output: `dist`. Set `BACKEND_URL` and deploy the checked-in configuration: API proxy plus one generic SPA fallback.
 
-A typical deployment consists of:
+Render root: `apps/landing`; build: `npm ci`; start: `npm start`; see `render.yaml`. Set `BETTER_AUTH_URL` to the exact Vercel origin, not Render. Keep all server secrets on Render.
 
-```text
-Frontend
-    ↓
-Application server
-    ↓
-Database
-    ↓
-AI provider
-
-Application server
-    ↓
-Google APIs
-```
-
-Production deployment should include:
-
-* HTTPS
-* secure cookies
-* environment-based secrets
-* database migrations
-* error monitoring
-* request logging
-* rate limiting
-* OAuth redirect restrictions
-* production CORS configuration
-
+See [deployment instructions and acceptance checklist](apps/landing/DEPLOYMENT.md).
 ---
 
 # Design Principles

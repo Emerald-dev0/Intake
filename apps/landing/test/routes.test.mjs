@@ -12,7 +12,7 @@ async function unusedPort() {
   return port;
 }
 
-test('the server serves public pages and fails closed when Neon is unavailable', async () => {
+test('Render is API-only and fails closed when Neon is unavailable', async () => {
   const port = await unusedPort();
   const child = spawn('./node_modules/.bin/tsx', ['server/index.ts'], {
     env: {
@@ -41,16 +41,10 @@ test('the server serves public pages and fails closed when Neon is unavailable',
     ]);
     clearTimeout(timer);
     const get = route => fetch(`http://127.0.0.1:${port}${route}`, { redirect: 'manual' });
-    for (const route of ['/', '/auth/sign-in', '/auth/sign-up']) {
-      const response = await get(route);
-      assert.equal(response.status, 200, route);
-      assert.match(await response.text(), /<div id="root"><\/div>/);
+    for (const route of ['/', '/auth/sign-in', '/auth/sign-up', '/app', '/app/connections', '/app/account']) {
+      assert.equal((await get(route)).status, 404, `${route} belongs to Vercel, not Render`);
     }
-    for (const route of ['/app', '/app/connections', '/app/account']) {
-      const response = await get(route);
-      assert.equal(response.status, 503, `${route} must never serve workspace HTML without a verified session`);
-      assert.equal(response.headers.get('cache-control'), 'no-store');
-    }
+    assert.equal((await get('/api/health')).status, 200);
     assert.equal((await get('/api/me')).status, 503);
     const providers = await get('/api/providers');
     assert.equal(providers.status, 503);
@@ -63,7 +57,7 @@ test('the server serves public pages and fails closed when Neon is unavailable',
     assert.equal((await callback.text()).includes('super-secret-code'), false);
     // A failed Better Auth request must not terminate the entire server process.
     assert.equal((await get('/api/auth/ok')).status, 500);
-    assert.equal((await get('/auth/sign-in')).status, 200);
+    assert.equal((await get('/api/health')).status, 200);
     assert.equal((await get('/unknown')).status, 404);
   } finally {
     child.kill('SIGTERM');
