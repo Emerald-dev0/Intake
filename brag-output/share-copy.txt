@@ -1,0 +1,3 @@
+Intake — the natural-language interface for forms.
+Describe it. Build it. Use it.
+github.com/Emerald-dev0/Intake
