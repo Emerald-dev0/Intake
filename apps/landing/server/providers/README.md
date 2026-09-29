@@ -9,7 +9,7 @@ Intake login and provider authorization are different questions.
 
 Signing in with an email, or any future social login, does **not** grant Forms access. A Better Auth `account` row is never treated as a provider connection.
 
-This stage stores authorization. It does not create, edit, or pretend to create forms.
+This layer stores authorization. It does not create, edit, or pretend to create forms. The form engine in `server/forms/` does that, using this layer and nothing else for credentials.
 
 ## Flow
 
@@ -22,7 +22,9 @@ This stage stores authorization. It does not create, edit, or pretend to create 
 7. The connection is stored for that user only. A different external account than the one already connected is a conflict; disconnect first.
 8. Disconnect deletes the Intake row. Google revocation is attempted at `https://oauth2.googleapis.com/revoke`. Microsoft has no supported per-app token revocation endpoint, so the UI says so and links to the account permissions pages.
 
-Future form operations should call `getProviderConnection(userId, provider)` from `server/providers/service.ts`. That helper is server-only. It refreshes an expired access token when a refresh token exists, and it never has an HTTP route. A rejected refresh is marked `reauthorization_required` and the ciphertext is cleared.
+Form operations call `getProviderConnection(userId, provider)` from `server/providers/service.ts`. That helper is server-only. It refreshes an expired access token when a refresh token exists, and it never has an HTTP route. A rejected refresh is marked `reauthorization_required` and the ciphertext is cleared.
+
+When a provider API rejects the access token that helper returned (for example Google answers a Forms request with 401), the caller reports it with `reportProviderAuthorizationRejected(userId, provider)`. That marks the same user's connection `reauthorization_required` through the same store method a rejected refresh uses, so the next request asks the user to reconnect instead of sending a token the provider already refused. `server/forms/` is the only caller today.
 
 ## Data model
 
@@ -112,13 +114,13 @@ Microsoft does not offer a supported API to revoke only this application's refre
 
 ## What the Forms APIs actually allow
 
-Checked against provider documentation on 2026-09-28. No form API client is implemented in this PR.
+Checked against provider documentation on 2026-09-28, and against the Google Forms API Discovery document (revision 20260922) when the form engine was built. The Google client is implemented in `server/forms/providers/google/` (see [`server/forms/README.md`](../forms/README.md)); it has been run only against an emulator, not a live account. Microsoft has no form client.
 
 ### Google Forms API
 
 Official references: [forms.create](https://developers.google.com/workspace/forms/api/reference/rest/v1/forms/create), [Form resource](https://developers.google.com/workspace/forms/api/reference/rest/v1/forms), [API changes](https://developers.google.com/workspace/forms/api/guides/api-changes-to-google-forms).
 
-Supported by the API with `forms.body`, for a later PR:
+Supported by the API with `forms.body`. The form engine uses create, `batchUpdate` (description, questions, section routing) and `setPublishSettings`:
 
 - Create a form. Only `info.title` and `info.documentTitle` are copied on create. Description, items, and settings must be added afterward with `batchUpdate`.
 - Add and update questions, including required questions. Question kinds in the REST resource include short/long text, radio, checkbox, dropdown, scale, date, time, rating, file upload, grids, and page breaks.
@@ -150,6 +152,6 @@ A Microsoft connection therefore records which account the user authorized. It d
 
 Deployment must keep `BETTER_AUTH_URL` equal to the public HTTPS origin, serve the Express process (not the Vite `dist` folder alone), and keep client secrets in the host's environment. Redirect URIs in Google Cloud and Entra must match that origin exactly. Provider HTTP calls are server-side only.
 
-## What the next PR should build
+## Form operations
 
-Form operations, behind the provider boundary, using `getProviderConnection` for a live access token. Google first: create, `batchUpdate`, `setPublishSettings`, and return `responderUri`. Do not add Drive scopes unless that PR actually shares or deletes forms. Microsoft form creation stays blocked until Microsoft publishes a supported API — do not fill that gap with the undocumented form API or a simulated form.
+Implemented for Google in `server/forms/` behind the provider boundary: it calls `getProviderConnection` for a live access token, then `forms.create`, `batchUpdate` and `setPublishSettings`, and returns the responder and edit links. See [`server/forms/README.md`](../forms/README.md). It requests no Drive scope: do not add one unless a change actually shares or deletes forms. Microsoft form creation stays blocked until Microsoft publishes a supported API. Do not fill that gap with the undocumented form API or a simulated form.

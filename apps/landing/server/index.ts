@@ -7,7 +7,11 @@ import { createProviderHttp } from './providers/http';
 import { createProviderRouter } from './providers/routes';
 import { isProviderConfigured, supportedProviders } from './providers/registry';
 import { createPostgresStore } from './providers/postgres-store';
-import { createProviderService, useProviderService } from './providers/service';
+import { createProviderService, useProviderService, type SessionUser } from './providers/service';
+import { createFormEngine } from './forms/engine';
+import { createPostgresFormStore } from './forms/postgres-store';
+import { createFormsProviders } from './forms/providers';
+import { createFormsRouter } from './forms/routes';
 const app = express();
 app.disable('x-powered-by');
 app.use('/api', (_req, res, next) => {
@@ -29,17 +33,23 @@ const providerService = createProviderService({
   env: providerEnv,
 });
 useProviderService(providerService);
-app.use('/api/providers', createProviderRouter({
-  service: providerService,
-  env: providerEnv,
-  getSession: async req => {
-    const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
-    if (!session?.user?.id) return null;
-    return { id: session.user.id, email: session.user.email, name: session.user.name };
-  },
-}));
+// One session lookup, shared by every router that needs the signed-in Intake user.
+const getSession = async (req: express.Request): Promise<SessionUser | null> => {
+  const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
+  if (!session?.user?.id) return null;
+  return { id: session.user.id, email: session.user.email, name: session.user.name };
+};
+app.use('/api/providers', createProviderRouter({ service: providerService, env: providerEnv, getSession }));
+
+// Form creation: validated specification -> provider adapter -> the user's own connected account.
+const formsEngine = createFormEngine({
+  providers: createFormsProviders({ env: providerEnv }),
+  store: createPostgresFormStore(pool),
+});
+app.use('/api/forms', createFormsRouter({ engine: formsEngine, getSession, env: providerEnv }));
 const providerSetup = supportedProviders(providerEnv).map(provider => `${provider.id} ${isProviderConfigured(provider, providerEnv) ? 'configured' : 'not configured'}`).join(', ');
 console.log(`Provider connections: ${providerSetup}`);
+console.log('Form creation: google enabled, microsoft pending (no supported Microsoft Forms API)');
 
 app.get('/api/me', async (req, res) => {
   res.set('Cache-Control', 'no-store');
