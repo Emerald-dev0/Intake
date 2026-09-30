@@ -43,7 +43,7 @@ export function Statement() {
           ))}
         </div>
         <Reveal className="stmt-sub">
-          <p>Your existing forms, controlled through natural language. Intake is designed to work inside the tools you already use, not host another form platform. Provider connections are coming later.</p>
+          <p>Create in your own Google account, not on another form platform. Intake supports natural-language changes to a draft before creation; editing an existing Google form through Intake is future work.</p>
         </Reveal>
       </div>
     </section>
@@ -53,10 +53,10 @@ export function Statement() {
 /* ───────────── Where your forms live ───────────── */
 
 const PROMISES = [
-  ['It’s your form', 'The goal is a real form in the Google or Microsoft account you choose to connect.'],
-  ['Responses stay put', 'Responses would go to the form platform, not a new Intake response system.'],
-  ['Edit it anywhere', 'You can still edit it in your form platform; natural-language edits are planned.'],
-  ['You’re in control', 'Provider authorization will be a separate step from your Intake sign-in.'],
+  ['It’s your form', 'Confirm to create in the Google account you separately connected. Microsoft creation is not available.'],
+  ['Responses stay put', 'Google hosts the responder form and responses; Intake does not collect them.'],
+  ['Edit it anywhere', 'Revise your Intake draft before creation; edit a created form directly in Google Forms.'],
+  ['You’re in control', 'Connecting Google is a separate permission from your Intake sign-in; creation needs explicit confirmation.'],
 ];
 
 export function Where() {
@@ -71,7 +71,7 @@ export function Where() {
               Your forms. <em>Your</em> account.
             </>
           }
-          lede="Intake is not another form builder. The planned provider connection will ask your permission separately from Intake login, then create the real form in the tool you already use. No provider integration is live yet."
+          lede="Intake asks you to connect Google separately from your login, then creates a Google Form only after you review and confirm. This workspace workflow is implemented but has not been verified against a real Google account. Microsoft creation is unavailable."
         />
         <div className="where-grid">
           <Reveal className="pv-card is-google">
@@ -79,10 +79,10 @@ export function Where() {
               <span className="pv-name">
                 <i /> Google Forms
               </span>
-              <span className="pv-status">Planned first</span>
+              <span className="pv-status">Google target</span>
             </div>
             <h3>Connect Google Forms.</h3>
-            <p>Planned first: create a real form in the Google account you explicitly authorize. Responses would stay with Google Forms.</p>
+            <p>Connect Google separately, review your draft and confirm to create there. Google hosts the responses; live end-to-end verification is still pending.</p>
             <div className="pv-mock">
               <span className="pv-mock-dot" />
               <code>docs.google.com/forms/d/…/edit</code>
@@ -93,10 +93,10 @@ export function Where() {
               <span className="pv-name">
                 <i /> Microsoft Forms
               </span>
-              <span className="pv-status">Planned next</span>
+              <span className="pv-status">Creation unavailable</span>
             </div>
             <h3>Connect Microsoft Forms.</h3>
-            <p>Planned later for work and school accounts: a real form in your authorized Microsoft account.</p>
+            <p>A Microsoft account can be connected, but Microsoft does not publish a supported Forms creation API. Intake does not create Microsoft Forms.</p>
             <div className="pv-mock">
               <span className="pv-mock-dot" />
               <code>forms.office.com/r/…</code>
@@ -266,12 +266,12 @@ export function Capabilities() {
 /* ───────────── FAQ ───────────── */
 
 const FAQS = [
-  ['Is Intake another form builder?', 'No. Intake is designed to create and manage real forms in the Google or Microsoft account you authorize. Provider connections and form creation are not live yet.'],
-  ['Where will responses go?', 'The plan is for responses to stay with Google Forms or Microsoft Forms, not in an Intake response system. No provider forms are being created yet.'],
-  ['Will I be able to edit the form myself?', 'That is the point of using an existing form platform: you can edit the real form there. Editing it by messaging Intake is a planned capability, not live yet.'],
-  ['What access will Intake need?', 'Eventually you will need to authorize access to create and edit forms in the account you connect. This is separate from signing in to Intake. Provider connections are not available yet.'],
-  ['What if my request is vague?', 'The intended agent would ask only when a missing detail changes the form. The current landing demo uses a simple in-browser parser, not the future agent.'],
-  ['Does it work with Microsoft Forms?', 'That’s the plan. Google Forms comes first, then Microsoft Forms, and the same message will work for both.'],
+  ['Is Intake another form builder?', 'No. The authenticated workspace proposes a form and can create it in your connected Google account only after you confirm. The landing demos are scripted; the live integration still needs credentials and verification.'],
+  ['Where will responses go?', 'Google Forms hosts the responder page and its responses. Intake stores only your specification and created-form metadata, not respondent data.'],
+  ['Will I be able to edit the form myself?', 'Yes, in Google Forms. Before creation, you can revise your Intake draft in natural language. Editing an already-created form through Intake is not implemented.'],
+  ['What access will Intake need?', 'Connect Google separately from Intake sign-in to grant form-creation access. Intake checks that connection again when you confirm; signing in alone does not grant Google access.'],
+  ['What if my request is vague?', 'The server-side interpreter can ask a focused question when an important detail is missing. The landing demo is scripted and does not call the model or create a form.'],
+  ['Does it work with Microsoft Forms?', 'No. Microsoft does not publish a supported Forms creation API. Intake does not fabricate Microsoft form links or use its undocumented API.'],
 ];
 
 export function FAQ() {
@@ -329,7 +329,7 @@ export function CTA() {
           </h2>
         </Reveal>
         <Reveal delay={0.1}>
-          <p className="cta-sub">Intake is in the works. Create an Intake account now; connecting a provider and making real forms are planned for later.</p>
+          <p className="cta-sub">Create an Intake account, connect Google separately, and review a form before confirming. Live use needs server configuration and a connected Google account; the demos here are scripted.</p>
         </Reveal>
         <Reveal delay={0.16}>
           <Waitlist />
@@ -358,7 +358,7 @@ export function Footer() {
             <LogoMark size={26} />
             <span>intake</span>
           </a>
-          <p>Say what you need. Intake is being built to make the real form in your Google or Microsoft account.</p>
+          <p>Say what you need. Review a draft and choose when to create it in your connected Google account.</p>
         </div>
         <div className="foot-cols">
           <div>
@@ -388,7 +388,7 @@ export function Footer() {
             <span className="foot-status">
               <i /> In the works
             </span>
-            <span className="foot-small">Google Forms first, Microsoft Forms next.</span>
+            <span className="foot-small">Google creation · Microsoft unavailable</span>
           </div>
         </div>
       </div>

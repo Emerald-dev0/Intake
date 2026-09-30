@@ -12,6 +12,7 @@ import { BrowserRouter, useRoutes } from 'react-router-dom';
 import { routes } from './app/routes';
 function Routes() { return useRoutes(routes); }
 import './styles/app.css';
+import './styles/drafts.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

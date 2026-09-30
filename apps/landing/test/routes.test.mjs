@@ -21,6 +21,7 @@ test('Render is API-only and fails closed when Neon is unavailable', async () =>
       DATABASE_URL: 'postgresql://invalid:invalid@127.0.0.1:1/intake?connect_timeout=1',
       BETTER_AUTH_SECRET: randomBytes(32).toString('base64'),
       BETTER_AUTH_URL: `http://localhost:${port}`,
+      OPENAI_API_KEY: '', // prove an absent model credential cannot bypass session checks
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -66,7 +67,15 @@ test('Render is API-only and fails closed when Neon is unavailable', async () =>
     const createText = await create.text();
     assert.equal(createText.includes('access_token'), false);
     assert.equal(createText.includes('forms.googleapis.com'), false, 'no provider was contacted');
+    const interpret = await fetch(`http://127.0.0.1:${port}/api/forms/interpret`, {
+      method: 'POST',
+      headers: { origin: `http://localhost:${port}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ provider: 'google', request: 'Register a participant' }),
+    });
+    assert.equal(interpret.status, 503, 'session lookup fails closed before model access');
+    assert.equal((await interpret.json()).code, 'storage_unavailable');
     assert.match(output, /Form creation: google enabled, microsoft pending/);
+    assert.match(output, /Form interpretation: not configured/);
     const connect = await fetch(`http://127.0.0.1:${port}/api/providers/google/connect`, { method: 'POST', redirect: 'manual' });
     assert.equal(connect.status, 503);
     assert.equal(connect.headers.get('location'), null);

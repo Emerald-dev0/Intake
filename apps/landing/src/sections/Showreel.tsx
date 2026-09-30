@@ -21,7 +21,7 @@ export function Showreel() {
               Three <em>form concepts.</em>
             </>
           }
-          lede="Concept demos of the planned flow, not live provider integrations. Pause, scrub through or skip ahead to see how a request could become a form."
+          lede="Scripted concept demos, not real inference or provider calls; some show future capabilities. The authenticated workspace supports Google creation after review and confirmation. Pause, scrub through or skip ahead."
         />
         <div className="sr-tabs" role="tablist">
           {galleryScenes.map((s, k) => (

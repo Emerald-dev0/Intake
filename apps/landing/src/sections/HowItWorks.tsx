@@ -32,7 +32,7 @@ function ConnectVis({ t }: { t: number }) {
   return (
     <div className="hv hv-connect">
       <div className="hv-card">
-        <span className="hv-k">Provider connection · planned</span>
+        <span className="hv-k">Illustrative connection screen</span>
         <div className={`hv-btn ${pressed && !done ? 'is-press' : ''} ${done ? 'is-done' : ''}`} style={{ ['--pv' as string]: G }}>
           <span className="hv-dot" />
           {done ? 'Connected · ada.okafor@gmail.com' : 'Authorize Google Forms'}
@@ -42,7 +42,7 @@ function ConnectVis({ t }: { t: number }) {
           <span className="hv-dot" />
           Authorize Microsoft Forms
         </div>
-        <p className="hv-fine">Separate from your Intake sign-in. Coming later.</p>
+        <p className="hv-fine">Google authorization is separate from Intake sign-in.</p>
       </div>
     </div>
   );
@@ -110,9 +110,9 @@ function LinkVis({ t }: { t: number }) {
 }
 
 const STEPS = [
-  { n: '01', title: 'Connect a provider', body: 'In a later release, authorize a Google or Microsoft account separately from your Intake login. Your forms will stay there.', Vis: ConnectVis, period: 5 },
-  { n: '02', title: 'Say what you need', body: 'Type it the way you’d text a friend. Intake picks up the questions, the required bits and the follow-ups.', Vis: SayVis, period: 5.5 },
-  { n: '03', title: 'Get a real form', body: 'The goal: Intake creates it in your connected provider account and gives you the link. Provider connections are not live yet.', Vis: LinkVis, period: 5 },
+  { n: '01', title: 'Connect Google', body: 'After signing in to Intake, authorize Google separately in Connections. A Microsoft connection cannot create Forms.', Vis: ConnectVis, period: 5 },
+  { n: '02', title: 'Say what you need', body: 'Describe the questions and follow-ups, then review and revise the proposed form before confirming.', Vis: SayVis, period: 5.5 },
+  { n: '03', title: 'Get a real form', body: 'On confirmation, the server creates a form in your connected Google account and returns the links. Live verification remains to be done.', Vis: LinkVis, period: 5 },
 ];
 
 function StepCard({ s, i }: { s: (typeof STEPS)[number]; i: number }) {
@@ -154,7 +154,7 @@ export function HowItWorks() {
               The goal is <em>sharing the link.</em>
             </>
           }
-          lede="This is the intended flow. Today you can create an Intake account and try a browser-only demo; provider authorization and form creation are still to come."
+          lede="The authenticated workspace implements this Google-only flow. This animation is a scripted illustration, not a live provider call; actual use requires server credentials, migrations and Google authorization."
         />
         <div className="how-grid">
           {STEPS.map((s, i) => (

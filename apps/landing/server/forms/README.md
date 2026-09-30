@@ -16,9 +16,10 @@ Google Forms API   forms.create → forms.batchUpdate → forms.setPublishSettin
 real, published Google Form  →  { providerFormId, editUrl, responderUrl }
 ```
 
-This is **not** the conversational agent and there is no model in this path. A future agent will produce a
-`FormSpecification` and hand it to the same engine. Google stays the source of truth for the form and for every
-response; Intake hosts no form renderer, no responder page and no response collection.
+This engine remains **independent of the model**. Phase 6's server-side interpreter produces a validated
+`FormSpecification` in a user-owned draft; only after explicit confirmation does it hand the specification to this
+same engine. See [interpretation/README.md](interpretation/README.md). Google stays the source of truth for the form and
+for every response; Intake hosts no form renderer, no responder page and no response collection.
 
 **Status.** Everything here is verified locally with a stateful emulator of the Google Forms API at the `fetch`
 boundary, not against real Google, Neon or Vercel (see [Testing](#testing) and
@@ -29,7 +30,7 @@ implementation, because Microsoft publishes no supported Forms API.
 
 | Path | Role |
 | --- | --- |
-| `specification.ts` | The `FormSpecification` types, question types and limits. Provider independent. |
+| `specification.ts` → `../../src/lib/specification.ts` | Shared `FormSpecification` types, question types and limits. Provider independent; server still owns validation. |
 | `validation.ts` | `parseFormSpecification`: strict, pure validation with structured issues. |
 | `provider.ts` | `FormsProvider`, `CreatedForm`, and the pending-provider used for Microsoft. |
 | `providers/index.ts` | The provider slots: `google` (real) and `microsoft` (refuses, no request). |
@@ -145,8 +146,10 @@ interface CreatedForm {            // what adapters return; raw provider respons
 }
 ```
 
-The engine, routes and any future agent depend only on this interface. To add a provider: implement `FormsProvider`,
-replace its slot in `providers/index.ts`, and flip `formsApi` in `server/providers/registry.ts`. Nothing else changes.
+The creation engine depends on this interface; the model interpreter uses a **separate** `FormInterpreter`
+boundary and the Google planner to check the current target's capabilities before showing a ready draft.
+Supporting another provider would require its adapter, capability plan, provider registry entry and corresponding
+draft-route/UI target support. Microsoft stays explicitly unavailable.
 
 ### The Microsoft limitation
 
@@ -411,7 +414,7 @@ optional is not required in practice, and the real latency.
 - Google only; Microsoft is architecture only.
 - Layout rules above; nesting, back-to-back branches and optional controlling questions are refused.
 - No editing, deleting or sharing of forms after creation, and no reading responses.
-- No duplicate detection: every successful request creates a new form.
+- The legacy direct `POST /api/forms` endpoint has no durable idempotency key: repeat calls create new forms. The user-facing natural-language flow uses an atomic draft claim at `POST /api/forms/confirm` and replays a completed result instead of creating again.
 - Limits are in memory and per process; a second API instance would have its own counters.
 - Email questions cannot be validated by Google's API and are created as short answer with a warning.
 - The list shows the 20 most recent forms; there is no pagination.

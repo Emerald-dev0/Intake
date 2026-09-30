@@ -56,9 +56,9 @@ test('a form that is incomplete must say where it stopped and can never carry a 
   assert.match(sql, /\(status = 'created' AND failure_stage IS NULL\) OR \(status = 'incomplete' AND failure_stage IS NOT NULL AND responder_url IS NULL\)/);
 });
 
-test('the migration is the second, idempotent, purely additive file and the only new one', async () => {
+test('the form migration remains the second, idempotent, purely additive file', async () => {
   const files = (await readdir(new URL('../db/migrations/', import.meta.url))).filter(file => file.endsWith('.sql')).sort();
-  assert.deepEqual(files, ['001_provider_connections.sql', '002_forms.sql']);
+  assert.deepEqual(files, ['001_provider_connections.sql', '002_forms.sql', '003_form_drafts.sql']);
   const sql = await readFile(new URL('../db/migrations/002_forms.sql', import.meta.url), 'utf8');
   assert.doesNotMatch(sql.replace(/--.*$/gm, ''), /^\s*(DROP|ALTER|TRUNCATE|DELETE|UPDATE)\b/im, 'no statement changes or removes existing data');
   assert.equal((sql.match(/CREATE TABLE/g) ?? []).length, 1, 'one table');

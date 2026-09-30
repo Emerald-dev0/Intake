@@ -13,31 +13,29 @@ The goal is not to build another form builder.
 The goal is to make **form creation an intent problem instead of a configuration problem.**
 
 <p align="center">
-  <img src="apps/landing/public/og.png" alt="Intake: say what you need, and it's already a form in your Google Forms or Microsoft Forms" width="100%" />
+  <img src="apps/landing/public/og.png" alt="Intake marketing image: describe the form you need; Google Forms creation is the current supported target" width="100%" />
 </p>
 
 <p align="center">
-  <sub>Connect your Google or Microsoft account, describe the form, and get a real form in your own account with a share link. &nbsp;·&nbsp; <a href="#landing-page">Run the landing page</a></sub>
+  <sub>Sign in, separately connect Google, describe and review the form, then create it in your own Google account. Microsoft creation is not available. &nbsp;·&nbsp; <a href="#landing-page">Run the landing page</a></sub>
 </p>
 
 ---
 
-## Current implementation (Phase 5: form creation engine)
+## Current implementation (Phase 6: natural-language form creation)
 
-The landing page and an authenticated workspace live in `apps/landing`. Intake is **not** a form builder: the landing playground is a demo only, and the form, its responder page and every response stay in the user's own provider account.
+The landing page and an authenticated workspace live in `apps/landing`. The landing playground remains a **demo only**. Intake does not host respondent forms or collect their responses: a created form lives in the user's own Google account.
 
-Two authorization concepts stay separate:
+Two authorizations remain separate:
 
 - **Intake login** — Better Auth email/password sessions on Neon PostgreSQL. This answers who the user is.
-- **Provider connection** — an explicit OAuth grant for Google or Microsoft, stored apart from Better Auth's `account` table. Signing in does not authorize Forms access.
+- **Provider connection** — an explicit OAuth grant for Google or Microsoft, stored apart from Better Auth's `account` table. Signing in does not authorize Forms access. Grants are encrypted and user-scoped; a Google connection may be refreshed before form creation.
 
-An authenticated user can open Connections, start Google or Microsoft OAuth (authorization code + PKCE), and see connected, expired, failed, cancelled, or not-configured states. Grants are encrypted at rest and scoped to that Intake user. Disconnect removes the Intake copy. Google revocation is attempted; Microsoft does not offer a supported per-app revoke, and the UI says so.
+**Describe → review → create (Google only).** In the authenticated Forms workspace, the user describes a form, sees a structured proposal with questions, choices, supported section routing and assumptions, revises it using natural language, then explicitly confirms. The server uses a structured-output model to interpret intent. The model cannot call provider APIs or access OAuth tokens: its result passes the existing specification validator **and** Google layout planner. A server-owned, user-scoped PostgreSQL draft holds the current specification, not a chat transcript. Confirmation atomically claims that draft and calls the existing form creation engine; a successful, partial or ambiguous attempt cannot be submitted again. Only a definitively not-created failure releases the draft for retry. Intake returns actual responder/edit links or reports an incomplete/uncertain result. See [Phase 6 implementation and setup](apps/landing/server/forms/interpretation/README.md) and the [form engine](apps/landing/server/forms/README.md). The older `POST /api/forms` structured-spec API remains for developer clients; the workspace does **not** require JSON.
 
-**Form creation (Google only).** A signed-in user with Google connected can open **Forms** in the workspace, submit a structured `FormSpecification` as JSON, and Intake creates a real Google Form in their own account: specification → validation → Google adapter → `forms.create` → `forms.batchUpdate` → `forms.setPublishSettings`, then returns the responder and edit links. `POST /api/forms` derives the provider connection from the session and never accepts tokens, user ids or connection ids from the browser. There is no conversational agent, form editor or model in this path; a later agent will produce the same specification. Design, question types, conditional-logic limits, failure semantics and tests are in [apps/landing/server/forms/README.md](apps/landing/server/forms/README.md).
+Microsoft Forms creation is **not** implemented: Microsoft has no supported Forms create/edit API. A Microsoft connection does not imply form creation works. No unsupported conditional logic or fake form links are offered.
 
-Microsoft still has no supported Forms create/edit API, so Microsoft creation is architecture only: its slot refuses without contacting Microsoft, and a Microsoft connection does not claim that it can create forms. If OAuth client credentials are missing, Connections shows setup required and does not fake a grant.
-
-**Setup required:** No Neon credentials and no Google Cloud or Microsoft Entra app registration are present in this repository or cloud environment. See [Local Development](#local-development) and [apps/landing/server/providers/README.md](apps/landing/server/providers/README.md). Authenticated and OAuth flows cannot be end-to-end verified until those external consoles are configured. Form creation is verified against a stateful emulator of the Google Forms API and mocks only; no real Google Form has been created by this code yet. Running it for real also needs the Google Forms API enabled in the Cloud project and `npm run db:migrate:intake` applied (migration `002_forms.sql`); the checklist is in [apps/landing/server/forms/README.md](apps/landing/server/forms/README.md#verify-against-a-real-account).
+**External setup required for live use:** This checkout has no Neon connection, OpenAI API key, Google OAuth app credentials, or connected Google account. Tests cover interpretation and revisions with a mocked model and form creation with a stateful Google Forms API emulator; neither live inference nor a real Google Form has been tested here. Live use requires `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, an `OPENAI_API_KEY`, Google OAuth credentials and the Forms API enabled, plus Better Auth migrations followed by `npm run db:migrate:intake` (migrations `001`–`003`). See [`.env.example`](apps/landing/.env.example) and the [live verification checklist](apps/landing/server/forms/interpretation/README.md#live-verification).
 
 ---
 
@@ -1483,7 +1481,7 @@ DELETE /api/providers/google/disconnect
 
 The exact endpoint structure may change.
 
-**Implemented today:** `GET /api/forms` (the signed-in user's recent forms) and `POST /api/forms` (create a form from a specification). `GET /api/forms/:id`, `PATCH` and `DELETE` are not implemented; editing and deleting are later work.
+**Implemented today:** `GET /api/forms` lists the signed-in user's recent forms; `POST /api/forms` creates directly from a typed specification for developer clients. The authenticated natural-language workflow uses `POST /api/forms/interpret` and `/api/forms/revise`, `GET`/`DELETE /api/forms/draft/:id` (ready drafts only for deletion), and explicit `POST /api/forms/confirm`. `GET /api/forms/:id`, `PATCH`/`DELETE` of an existing Google form, and conversation endpoints are **not** implemented. Draft revisions are not edits to a created provider form.
 
 The principle is:
 
@@ -1686,15 +1684,15 @@ The code in `apps/landing` now runs as two separate applications: Vite/React on 
 
 1. In `apps/landing`, run `npm ci` and copy `.env.example` to `.env`.
 2. Set a TLS Neon `DATABASE_URL` (`sslmode=require`), a random `BETTER_AUTH_SECRET` of at least 32 characters (`openssl rand -base64 32`), and `BETTER_AUTH_URL=http://localhost:5173` with no path or trailing slash. Never commit `.env`.
-3. Run `npm run db:migrate` (Better Auth core tables), then `npm run db:migrate:intake` (provider-connection tables and the `form` table) against your intended database. `npm run db:generate` produces `db/auth.sql` for review only and does not include provider tables. No migration has been applied to a real database by these changes.
-4. Provider OAuth is optional until you want to connect Google or Microsoft. Leave those variables blank to get an honest "not configured" state. Real client ids and secrets come from Google Cloud and Microsoft Entra, not from this repository. Redirect URIs and scopes are documented in [apps/landing/server/providers/README.md](apps/landing/server/providers/README.md).
+3. Run `npm run db:migrate` (Better Auth core tables), then `npm run db:migrate:intake` (provider-connection, created-form and draft tables, migrations `001`–`003`) against your intended database. `npm run db:generate` produces `db/auth.sql` for review only and does not include Intake tables. No migration has been applied to a real database by these changes.
+4. Set `OPENAI_API_KEY` on the API server for live interpretation (`OPENAI_MODEL` defaults to `gpt-4o-mini`). Without it, the workspace reports a configuration error; it does not invent a form. Google OAuth and the Forms API are required **only** when creating a real form, and connecting Google is a separate action after login. Provider credentials are not included in this repository. Redirect URIs and scopes are documented in [apps/landing/server/providers/README.md](apps/landing/server/providers/README.md). Microsoft OAuth can be connected but cannot create Forms.
 5. In separate terminals run `npm run dev:api` (Express, port 3001) and `npm run dev` (Vite, port 5173). Open Vite, not Express. Vite proxies `/api/*` to `API_PROXY_TARGET`, default `http://127.0.0.1:3001`.
 6. For cloud previews, set `BETTER_AUTH_URL` to the exact HTTPS frontend preview origin, and register that same origin's provider callback URLs in Google Cloud and Entra if you intend to complete OAuth there.
 7. Run `npm run typecheck`, `npm test`, and `npm run build`. `npm run preview` serves the frontend build with the local API proxy; `npm start` runs only the production API.
 
-The browser uses same-origin `/api/auth/*` for Better Auth, `/api/me` for account state, `/api/providers` for provider connections, and `/api/forms` for form creation; grants never return tokens to the browser. Frontend documents are static; the shared client guard checks `/api/me` before rendering `/app`, `/app/connections`, `/app/forms`, and `/app/account`, and every API operation fails closed independently. Session cookies are managed by Better Auth (HTTP-only, secure on HTTPS). If the database is unavailable, API routes return 503 instead of exposing content or treating a failure as sign-out.
+The browser uses same-origin `/api/auth/*` for Better Auth, `/api/me` for account state, `/api/providers` for provider connections, and the authenticated `/api/forms/interpret` → `/api/forms/draft/:id` → `/api/forms/confirm` flow for form creation; grants never return tokens to the browser. Frontend documents are static; the shared client guard checks `/api/me` before rendering `/app`, `/app/connections`, `/app/forms`, and `/app/account`, and every API operation fails closed independently. Session cookies are managed by Better Auth (HTTP-only, secure on HTTPS). If the database is unavailable, API routes return 503 instead of exposing content or treating a failure as sign-out.
 
-**Form creation boundary:** the only path to a provider form is a `FormSpecification` through `apps/landing/server/forms/` (validator, then adapter). The Google adapter gets its access token from `getProviderConnection(userId, 'google')` in `apps/landing/server/providers/service.ts`. A future conversational agent must call that engine with a specification; it must not call Google itself, must not treat a Better Auth `account` row as permission, must not fake Microsoft Forms API calls, and must publish API-created Google Forms with `setPublishSettings` because forms created after 30 June 2026 are unpublished by default (the engine creates them unpublished and publishes them last, so a half-built form never accepts responses).
+**Form creation boundary:** the only path to a provider form is a `FormSpecification` through `apps/landing/server/forms/` (validator, then adapter). The Google adapter gets its access token from `getProviderConnection(userId, 'google')` in `apps/landing/server/providers/service.ts`. The server-side interpreter can only propose a specification: after review and explicit confirmation the existing engine validates again and calls Google, never the model. Intake must not treat a Better Auth `account` row as permission or fake Microsoft Forms API calls. The engine publishes API-created Google Forms with `setPublishSettings` because forms created after 30 June 2026 are unpublished by default (it builds them unpublished and publishes last, so a half-built form never accepts responses).
 
 ---
 
@@ -1702,11 +1700,7 @@ The browser uses same-origin `/api/auth/*` for Better Auth, `/api/me` for accoun
 
 See [`apps/landing/.env.example`](apps/landing/.env.example). Only `VITE_` variables are public browser configuration. Database credentials, auth secrets, provider encryption keys and OAuth secrets must never use that prefix.
 
-- Render (server secrets): `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (public Vercel origin). Provider connection, only when you have real console credentials: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `MICROSOFT_OAUTH_CLIENT_ID`, `MICROSOFT_OAUTH_CLIENT_SECRET`, optional `MICROSOFT_OAUTH_TENANT`, optional `PROVIDER_TOKEN_KEY`. Render supplies `PORT`. Form creation adds no environment variables: it reuses the Google OAuth configuration and `PROVIDER_TOKEN_KEY`. Blank provider variables are a setup state, not a successful connection. A changed domain requires updating `BETTER_AUTH_URL`, the provider redirect URIs in the provider consoles, and restarting the server.
-- Vercel: `BACKEND_URL` (actual HTTPS Render origin, routing only); optional `VITE_SITE_URL` and existing public waitlist settings.
-- Local: optional `API_PROXY_TARGET` changes Vite's backend target without changing browser URLs.
-
-- Render: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (public Vercel origin). Render supplies `PORT`.
+- Render (server secrets): `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (public Vercel origin). Live interpretation requires `OPENAI_API_KEY` (optional `OPENAI_MODEL`, default `gpt-4o-mini`). Google connection and actual form creation require `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`; Microsoft OAuth optionally uses `MICROSOFT_OAUTH_CLIENT_ID`, `MICROSOFT_OAUTH_CLIENT_SECRET` and `MICROSOFT_OAUTH_TENANT` but Microsoft form creation remains unsupported. `PROVIDER_TOKEN_KEY` is recommended. Render supplies `PORT`. Blank model/provider variables are honest configuration errors, never fake success. A changed domain requires updating `BETTER_AUTH_URL`, the provider redirect URIs in the provider consoles, and restarting the server.
 - Vercel: `BACKEND_URL` (actual HTTPS Render origin, routing only); optional `VITE_SITE_URL` and existing public waitlist settings.
 - Local: optional `API_PROXY_TARGET` changes Vite's backend target without changing browser URLs.
 
@@ -1827,6 +1821,8 @@ Checked against the provider documentation. The Google behaviour below is now im
 ---
 
 # Roadmap
+
+This is the original **aspirational product roadmap**, not a checklist of unimplemented work. The current Google-only describe/review/confirm implementation and its verification limits are summarized at the top; editing an existing provider form, a persistent conversation interface and additional provider creation remain future work.
 
 ## Phase 1 — Foundation
 

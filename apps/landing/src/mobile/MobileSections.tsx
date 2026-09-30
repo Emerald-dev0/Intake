@@ -91,16 +91,16 @@ export function MSteps() {
               <em>That’s it.</em>
             </>
           }
-          lede="Concept walkthrough. Intake accounts are available now; provider connections and real form creation are planned."
+          lede="Scripted walkthrough of the Google-only workspace flow. The animation does not connect an account or create a form; live use still needs setup and verification."
         />
         <ol className="msteps">
           <Reveal className="mstep">
             <span className="mstep-n">1</span>
             <div>
-              <h3>Connect a provider</h3>
-              <p>In a later release, authorize a Google or Microsoft account separately from your Intake login.</p>
+              <h3>Connect Google</h3>
+              <p>After signing in, connect Google separately in the workspace. Microsoft Forms creation is unavailable.</p>
               <span className="mstep-chip" style={{ '--pv': G } as CSSProperties}>
-                <i /> Google Forms <b>planned</b>
+                <i /> Google Forms <b>supported</b>
               </span>
             </div>
           </Reveal>
@@ -116,7 +116,7 @@ export function MSteps() {
             <span className="mstep-n">3</span>
             <div>
               <h3>Share the link</h3>
-              <p>The goal: a real form in your provider account, with a link to share. Not live yet.</p>
+              <p>After you review and confirm, Intake returns the Google Form link. This sample link is illustrative, not a created form.</p>
               <span className="mstep-link">
                 <code>forms.gle/tolu-30th</code>
                 <b>Copy</b>
@@ -125,7 +125,7 @@ export function MSteps() {
           </Reveal>
         </ol>
         <Reveal className="mstep-after">
-          Later, need a change? <b>Just ask.</b> Edit the real form without hunting through menus.
+          Before creation, need a change? <b>Just ask.</b> After creation, edit the real form in Google Forms.
         </Reveal>
         <div className="m-commands"><h3>What can I ask Intake to do?</h3><ExampleCommands /></div>
       </div>
@@ -133,7 +133,7 @@ export function MSteps() {
   );
 }
 
-const PROMISES = ['Real forms in your provider account', 'Responses stay with the form platform', 'Edit the form there by hand', 'Separate provider consent, coming later'];
+const PROMISES = ['Real forms in your connected Google account', 'Responses stay with Google Forms', 'Edit the created form in Google', 'Separate Google consent and explicit confirmation'];
 
 export function MWhere() {
   return (
@@ -149,14 +149,14 @@ export function MWhere() {
               <em>Your</em> account.
             </>
           }
-          lede="Intake is designed to work in your existing form platform, not host a new one. Connections are coming later."
+          lede="Intake connects to Google separately from your login. The workspace implements creation in Google Forms; Microsoft creation is not supported."
         />
         <Reveal className="mw">
           <div className="mw-pv" style={{ '--pv': PROVIDERS.google.color } as CSSProperties}>
-            <i /> Google Forms <span>Planned first</span>
+            <i /> Google Forms <span>Supported</span>
           </div>
           <div className="mw-pv" style={{ '--pv': PROVIDERS.microsoft.color } as CSSProperties}>
-            <i /> Microsoft Forms <span>Planned next</span>
+            <i /> Microsoft Forms <span>Creation unavailable</span>
           </div>
           <ul className="mw-list">
             {PROMISES.map((p) => (
