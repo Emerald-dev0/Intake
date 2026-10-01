@@ -28,6 +28,16 @@ const draft = (spec = SPEC, extra = {}) => ({ id: ID, provider: 'google', versio
   createdAt: '2026-09-29T09:00:00.000Z', updatedAt: '2026-09-29T09:00:00.000Z', ...extra });
 const ready = (spec = SPEC, extra = {}) => json({ requestId: 'req_interpret1', status: 'ready', draft: draft(spec, extra) }, 201);
 const created = () => ({ requestId: 'req_created1', form: { id: 'form-record-1', provider: 'google', providerFormId: '1FAfakeForm0001abcdefghijklmnop', title: 'Final Year Project Registration', editUrl: EDIT, responderUrl: RESPOND, published: true, createdAt: '2026-09-29T09:00:00.000Z' }, warnings: [] });
+const EDIT_FORM_ID = '1FAfakeForm0001abcdefghijklmnop';
+const EDIT_RECORD_ID = 'form-record-1';
+const EDIT_DRAFT_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const EDIT_VIEW = { providerFormId: EDIT_FORM_ID, title: 'Project registration', description: 'Register for the showcase.', editUrl: EDIT, responderUrl: RESPOND,
+  items: [{ itemId: '00000001', index: 0, sectionIndex: 0, kind: 'question', questionId: '00000002', questionType: 'short_text', title: 'Full name', required: true, capabilities: ['update_title', 'update_description', 'update_required', 'update_type', 'delete', 'move'] }], hasSections: false, hasBranching: false };
+const editDraft = (overrides = {}) => ({ id: EDIT_DRAFT_ID, provider: 'google', version: 1, status: 'ready', current: EDIT_VIEW,
+  plan: { formId: EDIT_FORM_ID, summary: 'Rename the form', operations: [{ type: 'update_title', title: 'Project registration 2027' }] },
+  changes: [{ type: 'update_title', title: 'Form title', detail: '“Project registration” → “Project registration 2027”', destructive: false }], result: null,
+  createdAt: '2026-10-01T09:00:00.000Z', updatedAt: '2026-10-01T09:00:00.000Z', ...overrides });
+const editSuccess = { ok: true, requestId: 'req_editdone1', providerFormId: EDIT_FORM_ID, title: 'Project registration 2027', editUrl: EDIT, responderUrl: RESPOND, recordUpdated: true };
 const failure = (body, status = 502) => json({ error: 'Failed.', code: 'provider_error', requestId: 'req_failed1', ...body }, status);
 function provider(id, overrides = {}) {
   return { id, name: id === 'google' ? 'Google Forms' : 'Microsoft Forms', accountName: id === 'google' ? 'Google account' : 'Microsoft account', description: 'Fixture provider',
@@ -147,6 +157,75 @@ test('unsupported requests and model failures are recoverable without inventing 
   await page.click(page.button('Understand my form →'));
   assert.match(page.text(), /OPENAI_API_KEY is missing/);
   assert.ok(!page.button('Understand my form →').disabled);
+  assert.equal(page.posts('/confirm').length, 0);
+}));
+
+// ------------------------------------------------------------------ existing-form edit workflow
+
+const recentGoogleForm = { id: EDIT_RECORD_ID, provider: 'google', providerFormId: EDIT_FORM_ID, title: 'Project registration', status: 'created', failureStage: null, editUrl: EDIT, responderUrl: RESPOND, createdAt: '2026-09-30T09:00:00.000Z' };
+
+test('existing-form UI retrieves fresh state, previews an exact diff, and applies only after explicit confirmation to the original', () => withPage({ recent: [recentGoogleForm], handlers: {
+  'POST /api/forms/edit/inspect': () => json({ requestId: 'req_inspect1', form: EDIT_VIEW }),
+  'POST /api/forms/edit/interpret': () => json({ requestId: 'req_editplan1', status: 'ready', draft: editDraft() }, 201),
+  'POST /api/forms/edit/confirm': () => {
+    const applied = editDraft({ version: 2, status: 'applied', current: { ...EDIT_VIEW, title: editSuccess.title }, result: editSuccess });
+    return json({ requestId: 'req_editdone1', result: editSuccess, draft: applied });
+  },
+} }, async page => {
+  await page.click(page.button('Edit an existing form'));
+  await page.until(() => page.$('#edit-form-record'), 'recent Google form selector is shown');
+  assert.match(page.text(), /Drive-wide search is not available/);
+  await page.click(page.button('Inspect current form →'));
+  await page.until(() => page.$('#edit-request'), 'current provider form is displayed');
+  assert.match(page.text(), /Full name/);
+  assert.deepEqual(JSON.parse(page.posts('/edit/inspect')[0].init.body), { target: { kind: 'record', formRecordId: EDIT_RECORD_ID } });
+  await page.type(page.$('#edit-request'), 'Rename the form for the 2027 showcase.');
+  await page.click(page.button('Prepare edit proposal →'));
+  await page.until(() => page.$('#edit-review-title'), 'change preview is displayed');
+  assert.equal(page.$('#edit-review-title').textContent, 'Rename the form');
+  assert.match(page.text(), /Original Google Form/);
+  assert.match(page.text(), /Project registration.*Project registration 2027/);
+  assert.match(page.text(), /No Google change has been made yet/);
+  assert.equal(page.button('Confirm and apply edit →').disabled, true);
+  assert.equal(page.posts('/edit/confirm').length, 0);
+  assert.equal(page.posts('/confirm').length, 0, 'the create-form endpoint is never used');
+  await page.click(page.$('.edit-confirm-check input[type="checkbox"]'));
+  assert.equal(page.button('Confirm and apply edit →').disabled, false);
+  await page.click(page.button('Confirm and apply edit →'));
+  await page.until(() => page.$('.edit-success'), 'verified original-form result is displayed');
+  assert.match(page.text(), /ORIGINAL FORM UPDATED/);
+  assert.match(page.text(), new RegExp(EDIT_FORM_ID));
+  assert.deepEqual(JSON.parse(page.posts('/edit/confirm')[0].init.body), { draftId: EDIT_DRAFT_ID, version: 1, confirm: true });
+  assert.equal(page.posts('/confirm').length, 0);
+  assert.equal(page.$('.edit-success a[href="' + RESPOND + '"]').href, RESPOND);
+  assert.equal(page.$('.edit-success a[href="' + EDIT + '"]').href, EDIT);
+}));
+
+test('revising an edit replaces its preview, resets confirmation, and never applies the old proposal', () => withPage({ recent: [recentGoogleForm], handlers: {
+  'POST /api/forms/edit/inspect': () => json({ requestId: 'req_inspect1', form: EDIT_VIEW }),
+  'POST /api/forms/edit/interpret': () => json({ requestId: 'req_editplan1', status: 'ready', draft: editDraft() }, 201),
+  'POST /api/forms/edit/revise': () => {
+    const plan = { formId: EDIT_FORM_ID, summary: 'Change the form title', operations: [{ type: 'update_title', title: 'Project showcase registration' }] };
+    const revised = editDraft({ version: 2, plan, changes: [{ type: 'update_title', title: 'Form title', detail: '“Project registration” → “Project showcase registration”', destructive: false }] });
+    return json({ requestId: 'req_editrevise1', status: 'ready', draft: revised });
+  },
+} }, async page => {
+  await page.click(page.button('Edit an existing form'));
+  await page.until(() => page.$('#edit-form-record'), 'recent Google form selector is shown');
+  await page.click(page.button('Inspect current form →'));
+  await page.until(() => page.$('#edit-request'), 'current form is inspected');
+  await page.type(page.$('#edit-request'), 'Rename the form.');
+  await page.click(page.button('Prepare edit proposal →'));
+  await page.until(() => page.$('#edit-review-title'), 'proposal is ready');
+  await page.click(page.$('.edit-confirm-check input[type="checkbox"]'));
+  assert.equal(page.button('Confirm and apply edit →').disabled, false);
+  await page.type(page.$('#edit-revision'), 'Use “Project showcase registration” instead.');
+  await page.click(page.button('Revise proposal →'));
+  await page.until(() => page.$('#edit-review-title')?.textContent === 'Change the form title', 'revised preview replaces the old one');
+  assert.equal(page.$('.edit-confirm-check input[type="checkbox"]').checked, false);
+  assert.equal(page.button('Confirm and apply edit →').disabled, true);
+  assert.deepEqual(JSON.parse(page.posts('/edit/revise')[0].init.body), { draftId: EDIT_DRAFT_ID, version: 1, request: 'Use “Project showcase registration” instead.' });
+  assert.equal(page.posts('/edit/confirm').length, 0);
   assert.equal(page.posts('/confirm').length, 0);
 }));
 

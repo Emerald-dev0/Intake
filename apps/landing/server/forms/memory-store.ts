@@ -19,6 +19,21 @@ export function createMemoryFormStore(): FormStore & { all(): FormRecord[] } {
         .slice(0, limit)
         .map(({ id, provider, providerFormId, title, status, failureStage, editUrl, responderUrl, createdAt }): FormSummaryRecord => ({ id, provider, providerFormId, title, status, failureStage, editUrl, responderUrl, createdAt }));
     },
+    async getForUser(userId, id) {
+      const record = records.find(item => item.id === id && item.userId === userId);
+      return record ? structuredClone(record) : null;
+    },
+    async updateMetadata(input, now) {
+      const record = records.find(item => item.id === input.id && item.userId === input.userId && item.provider === 'google' &&
+        item.providerFormId === input.providerFormId && item.externalAccountId === input.externalAccountId);
+      if (!record) return false;
+      record.title = input.title;
+      record.editUrl = input.editUrl;
+      if (record.status === 'created' && input.responderUrl) record.responderUrl = input.responderUrl;
+      if (record.status === 'incomplete') record.responderUrl = null;
+      record.updatedAt = now;
+      return true;
+    },
     all() {
       return records.map(record => ({ ...record }));
     },

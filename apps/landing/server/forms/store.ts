@@ -39,4 +39,7 @@ export type FormSummaryRecord = Pick<FormRecord, 'id' | 'provider' | 'providerFo
 export interface FormStore {
   save(input: NewFormRecord, now: Date): Promise<FormRecord>;
   listForUser(userId: string, limit: number): Promise<FormSummaryRecord[]>;
+  getForUser(userId: string, id: string): Promise<FormRecord | null>;
+  /** Update only safe, current display metadata after a provider-confirmed edit. */
+  updateMetadata(input: { userId: string; id: string; providerFormId: string; externalAccountId: string; title: string; editUrl: string; responderUrl: string | null }, now: Date): Promise<boolean>;
 }

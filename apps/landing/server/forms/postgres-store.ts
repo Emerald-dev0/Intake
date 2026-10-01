@@ -97,5 +97,17 @@ export function createPostgresFormStore(pool: Pool): FormStore {
       );
       return result.rows.map(mapSummary);
     },
+    async getForUser(userId, id) {
+      const result = await pool.query<FormRow>(`SELECT ${COLUMNS} FROM form WHERE user_id = $1 AND id = $2`, [userId, id]);
+      return result.rows[0] ? mapRecord(result.rows[0]) : null;
+    },
+    async updateMetadata(input, now) {
+      const result = await pool.query(
+        `UPDATE form SET title = $5, edit_url = $6, responder_url = CASE WHEN status = 'created' THEN COALESCE($7, responder_url) ELSE NULL END, updated_at = $8
+         WHERE user_id = $1 AND id = $2 AND provider = 'google' AND provider_form_id = $3 AND external_account_id = $4 AND status IN ('created', 'incomplete')`,
+        [input.userId, input.id, input.providerFormId, input.externalAccountId, input.title, input.editUrl, input.responderUrl, now],
+      );
+      return result.rowCount === 1;
+    },
   };
 }

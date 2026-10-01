@@ -19,7 +19,21 @@ function row(input = first) {
 
 test('the third additive migration owns server drafts and durable one-shot creation claims', async () => {
   const files = (await readdir(new URL('../db/migrations/', import.meta.url))).filter(name => name.endsWith('.sql')).sort();
-  assert.deepEqual(files, ['001_provider_connections.sql', '002_forms.sql', '003_form_drafts.sql']);
+  assert.deepEqual(files, ['001_provider_connections.sql', '002_forms.sql', '003_form_drafts.sql', '004_form_edit_drafts.sql']);
+  const editText = await readFile(new URL('../db/migrations/004_form_edit_drafts.sql', import.meta.url), 'utf8');
+  const editSql = editText.replace(/--.*$/gm, '');
+  assert.match(editSql, /CREATE TABLE IF NOT EXISTS form_edit_draft \(/);
+  assert.match(editSql, /provider text NOT NULL CHECK \(provider = 'google'\)/);
+  assert.match(editSql, /status IN \('ready', 'applying', 'applied', 'blocked', 'stale'\)/);
+  assert.match(editSql, /form_record_id text REFERENCES form\(id\) ON DELETE SET NULL/);
+  assert.match(editSql, /current_form jsonb NOT NULL/);
+  assert.match(editSql, /edit_plan jsonb NOT NULL/);
+  assert.match(editSql, /current_form->>'providerFormId' = provider_form_id/);
+  assert.match(editSql, /edit_plan->>'formId' = provider_form_id/);
+  assert.doesNotMatch(editSql, /access_token|refresh_token|ciphertext|respondent|response_body/i);
+  assert.doesNotMatch(editSql, /^\s*(DROP|ALTER|TRUNCATE|DELETE|UPDATE)\b/im, 'the edit draft migration is additive');
+  for (const statement of editSql.match(/CREATE (TABLE|INDEX)[^;]*/g) ?? []) assert.match(statement, /IF NOT EXISTS/);
+
   const text = await readFile(new URL('../db/migrations/003_form_drafts.sql', import.meta.url), 'utf8');
   const sql = text.replace(/--.*$/gm, '');
   assert.match(sql, /CREATE TABLE IF NOT EXISTS form_draft \(/);

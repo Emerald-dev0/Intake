@@ -36,13 +36,17 @@ implementation, because Microsoft publishes no supported Forms API.
 | `providers/index.ts` | The provider slots: `google` (real) and `microsoft` (refuses, no request). |
 | `providers/google/plan.ts` | Pure translation of a specification into Google requests, and the Google layout rules. |
 | `providers/google/client.ts` | The only code that talks to `forms.googleapis.com`. Hardened `fetch`, error mapping. |
-| `providers/google/adapter.ts` | `GoogleFormsProvider`: connection → create → batchUpdate → publish, and failure reporting. |
-| `engine.ts` | Orchestration: provider choice, validation, limits, persistence, response shaping, logging. |
-| `routes.ts` | `POST /api/forms` and `GET /api/forms`. |
-| `store.ts`, `memory-store.ts`, `postgres-store.ts` | Ownership records (`form` table). |
-| `errors.ts`, `logging.ts` | Structured errors with HTTP statuses; secret-free logging and request ids. |
-| `../../src/lib/forms.ts` | Browser-safe contract: response types, defensive parsers, `safeFormUrl`, the example spec. |
-| `../../db/migrations/002_forms.sql` | The `form` table. |
+| `providers/google/adapter.ts` | `GoogleFormsProvider`: connection, create/publish and fresh-read/revision-checked edit operations. |
+| `engine.ts`, `edit-engine.ts` | Creation and existing-form edit orchestration, ownership, validation, persistence and logging. |
+| `routes.ts`, `edit-routes.ts` | Creation routes plus edit inspect, interpret, revise, load, discard and confirm routes. |
+| `store.ts`, `memory-store.ts`, `postgres-store.ts` | Ownership records (`form` table) and safe metadata refresh. |
+| `edit-store.ts`, `edit-memory-store.ts`, `edit-postgres-store.ts` | Server-owned edit snapshots and optimistic one-shot confirmation state. |
+| `edit-validation.ts`, `interpretation/edit-interpreter.ts` | Semantic validation against actual provider item/question IDs and declared capabilities. |
+| `providers/google/client.ts` | The only code that talks to `forms.googleapis.com`, including bounded `forms.get` parsing. |
+| `errors.ts`, `edit-errors.ts`, `logging.ts` | Structured errors with HTTP statuses; secret-safe logging and request ids. |
+| `../../src/lib/forms.ts`, `../../src/lib/form-edit.ts` | Browser-safe contracts and defensive parsers for creation and edit review. |
+| `../../src/app/FormEditWorkspace.tsx` | Existing-form selection, fresh-state preview, conversational revision and explicit confirmation UI. |
+| `../../db/migrations/002_forms.sql`, `../../db/migrations/004_form_edit_drafts.sql` | Owned form records and durable edit-draft state. |
 
 ## The form specification
 
@@ -130,8 +134,10 @@ registered, so **no provider request can follow an invalid specification**, whic
 ```ts
 interface FormsProvider {
   readonly id: 'google' | 'microsoft';
-  readonly capabilities: { createForm: boolean; note?: string };
+  readonly capabilities: { createForm: boolean; note?: string; editForm?: boolean; editNote?: string };
   createForm(userId: string, specification: FormSpecification, context?: { requestId: string; log: FormLogger }): Promise<CreatedForm>;
+  retrieveForm?(userId: string, providerFormId: string, context?: FormEditProviderContext): Promise<LoadedEditableForm>;
+  applyEditPlan?(userId: string, input: { base: FormEditSnapshot; plan: FormEditPlan; expectedAccountId: string }, context?: FormEditProviderContext): Promise<LoadedEditableForm>;
 }
 
 interface CreatedForm {            // what adapters return; raw provider responses never leave the adapter
@@ -146,16 +152,17 @@ interface CreatedForm {            // what adapters return; raw provider respons
 }
 ```
 
-The creation engine depends on this interface; the model interpreter uses a **separate** `FormInterpreter`
-boundary and the Google planner to check the current target's capabilities before showing a ready draft.
-Supporting another provider would require its adapter, capability plan, provider registry entry and corresponding
-draft-route/UI target support. Microsoft stays explicitly unavailable.
+The creation and edit engines depend on this interface; the edit interpreter uses a **separate** model boundary and
+checks each proposal against a fresh provider snapshot and the adapter's declared capabilities. Supporting another provider
+would require its documented read/update API, capability plan, provider registry entry and corresponding draft-route/UI
+target support. Microsoft editing stays explicitly unavailable.
 
 ### The Microsoft limitation
 
 Microsoft publishes no supported API for creating or editing Forms. `OrgSettings-Forms.ReadWrite.All` only changes
 tenant settings. The `forms.office.com/formapi` surface the Forms website uses is undocumented, and this code does not
-call it, scrape it or imitate it. The Microsoft slot is `createPendingProvider`: it reports
+call it, scrape it or imitate it. Microsoft records are rejected by the edit engine, and its provider advertises
+`editForm: false`. The Microsoft slot is `createPendingProvider`: it reports
 `provider_not_supported` ("Microsoft Forms creation is not available yet…"), HTTP 501, and makes **no** network request
 and reads **no** connection. The workspace shows the option disabled with that reason. A Microsoft *connection* still
 works (Phase 4); it records which account was authorized and nothing more.
@@ -171,10 +178,11 @@ only, which is already requested and required by the connect flow (`FORMS_BODY_S
 2. **`POST /v1/forms?unpublished=true`** with `{ info: { title, documentTitle } }`. `forms.create` copies only the title,
    so nothing else is sent. `unpublished=true` means a half-built form can never accept responses. The response gives
    `formId` and `responderUri`.
-3. **`POST /v1/forms/{id}:batchUpdate`** in one atomic request, applied in order: `updateFormInfo` (description, with
+3. **`POST /v1/forms/{id}:batchUpdate`** with ordered requests: `updateFormInfo` (description, with
    `updateMask: "description"`) if there is one, then one `createItem` per question and section break, each with an
    explicit `location.index` starting at `0`. Section breaks are `pageBreakItem: {}`. Routing options use
-   `goToAction` (`NEXT_SECTION`, `SUBMIT_FORM`) or `goToSectionId`.
+   `goToAction` (`NEXT_SECTION`, `SUBMIT_FORM`) or `goToSectionId`. The API reference does not establish that a batch is
+   atomic; Intake treats a rejected/uncertain batch as potentially partial and does not automatically create a replacement.
 4. **Second `batchUpdate`, only when needed.** A routing option can only name a section that already exists, and
    `batchUpdate` validates requests one at a time. When a question must route to a *later* section, batch 1 creates the
    whole final structure with that question in place but plain. Batch 2 creates the routed version at the same position and
@@ -202,6 +210,46 @@ may cut the browser's connection sooner. The server keeps going and records the 
 - Configure section-level "after this section, go to…" navigation.
 - Delete a form, share it, or change who can access it (those are Drive API operations; no Drive scope is requested).
 - Read responses (needs `forms.responses.readonly`, not requested).
+
+## Editing an existing Google Form
+
+Editing uses the existing `forms.body` OAuth grant; no scope is added or silently expanded. There is no Drive-wide
+search or permission grant in this workflow. A user can select a form already listed under **Recent forms**, or paste a
+standard `https://docs.google.com/forms/d/{formId}/edit` (or `/viewform`) URL they already know. Intake parses the URL
+locally and sends only the validated ID to `forms.get`; it never fetches or follows the submitted URL. The provider read is
+authorized by Google's current user token. Intake does not claim to discover every form in Drive.
+
+The edit workflow is deliberately separate from creation:
+
+1. **Inspect and interpret.** The server resolves a user-owned Intake record or a known Google Forms URL, calls `forms.get`,
+   and sanitizes the current title, description, item/question IDs, types, required flags, options, routing and capabilities.
+   The model can return only a typed proposal. Intake validates all targets against real current question IDs and rejects
+   unsupported, duplicate, conflicting, ambiguous or no-op operations. Unknown question references ask for clarification.
+2. **Review and revise.** A ready plan is stored server-side with the fresh provider revision and account id. The UI shows a
+   human-readable preview, including destructive actions. Conversational revision replaces that plan; it does not apply it.
+   No client-supplied user id, provider token or executable plan is accepted.
+3. **Explicit confirmation.** Only a separate explicit confirm applies. The server claims the draft once, re-checks the
+   connected Google account, calls `forms.get` again, revalidates the target IDs and capabilities, and sends
+   `writeControl.requiredRevisionId` with supported `batchUpdate` requests. This protects against changes made in Google
+   after review. It never creates a replacement form.
+4. **Verify and report.** Intake reads the original form again and compares the final state with the proposal. A single
+   bounded read retry is allowed because `forms.get` is safe; update requests, especially `createItem`, are never blindly
+   retried. On uncertain batches Intake re-fetches to distinguish applied, not-applied, partial and unknown outcomes. A
+   partial or unknown result is locked and the latest readable snapshot is retained for review.
+
+Supported edit operations are form title/description changes; question title/description/required changes; question type or
+choice changes only where the item is simple and its existing settings can be preserved; and adding, deleting or moving
+questions when the form's structure permits it. Intake disables structural quiz/grading edits and refuses branching,
+section, unsupported item and other capability edge cases instead of approximating them. Each supported `batchUpdate`
+request uses documented `updateFormInfo`, `updateItem`, `createItem`, `moveItem` or `deleteItem` fields and masks. The Forms
+reference does not establish that a multi-request batch is atomic, so the application treats a failed or timed-out batch as
+potentially partial and re-fetches before reporting; it does not rely on rollback.
+
+Routes are `POST /api/forms/edit/inspect`, `POST /api/forms/edit/interpret`, `POST /api/forms/edit/revise`,
+`GET /api/forms/edit/draft/:id`, `DELETE /api/forms/edit/draft/:id`, and `POST /api/forms/edit/confirm`. Migration
+`004_form_edit_drafts.sql` stores only a normalized provider snapshot, a typed plan and the one-shot outcome; it stores no
+credential or respondent data. The successful update retains the original Google `formId` and Google's responder URI. For
+an Intake `incomplete` record, metadata refresh keeps the stored responder URL null to preserve the database constraint.
 
 ## Conditional logic
 
@@ -233,7 +281,7 @@ combination of answers and comparing what they see with what the specification s
 
 ## HTTP API
 
-Both routes require a signed-in Intake user. The user comes from the session and **nowhere else**.
+All forms routes require a signed-in Intake user. The user comes from the session and **nowhere else**. Mutating routes require an Intake `Origin` (or `Referer`) before reading their JSON bodies.
 
 ### `POST /api/forms`
 
@@ -287,6 +335,16 @@ Failures share one shape: `{ error, code, requestId, issues?, provider?, stage?,
 `{ requestId, forms: [{ id, provider, providerFormId, title, status, failureStage, editUrl, responderUrl, createdAt }] }`
 for the signed-in user only, newest first, at most 20. No specification, account id or request id.
 
+### Existing-form edit request shapes
+
+The edit routes accept JSON bodies up to 64 KB. A target is exactly one of `{ "formRecordId": "…" }` (an Intake record
+owned by the signed-in user) or `{ "formUrl": "https://docs.google.com/forms/d/…/edit" }` (a known standard URL); it is
+wrapped as `{ "target": … }` on inspect/interpret. `interpret` also needs a natural-language `request`; `revise` accepts
+`draftId`, `version` and a new `request`. The server sends the existing plan as context to the interpreter—it never accepts a
+client-supplied plan. `POST /api/forms/edit/confirm` requires `{ "draftId": "…", "version": 1, "confirm": true }`; false,
+missing or extra values are rejected before a provider write. Draft `GET` and `DELETE` are user-scoped, and DELETE can only
+remove a still-ready proposal.
+
 ## Partial failure
 
 Google has no transaction across these calls, and Intake does not pretend to. Every failure says exactly what exists:
@@ -296,8 +354,8 @@ Google has no transaction across these calls, and Intake does not pretend to. Ev
 | `connection` | not connected, needs reauthorization, not configured, storage | `not_created` | nothing | after fixing the cause |
 | `create` | Google rejects the request (4xx) | `not_created` | nothing | yes (`retryable: true` for 429) |
 | `create` | 5xx, timeout, network drop, unusable reply | `unknown` | **maybe** a form: Intake cannot know | no; check Google Forms first |
-| `add_questions` | any | `partial` | an **unpublished** form with none of the questions | no: a retry makes a second form |
-| `configure_logic` | any | `partial` | **unpublished**; all questions, no routing | no |
+| `add_questions` | any | `partial` | an **unpublished** form; the question batch may have applied none, some or all requests | no: inspect the existing form first; a retry makes a second form |
+| `configure_logic` | any | `partial` | **unpublished**; questions or routing changes may be partly applied | no: inspect the existing form first |
 | `publish` | rejected | `partial`, `partialForm.state: "unpublished"` | complete but unpublished | publish it in Google, or discard |
 | `publish` | timeout or network drop | `partial`, `partialForm.state: "publish_unconfirmed"` | complete; publish state unknown | check in Google |
 
@@ -308,7 +366,7 @@ Google with a token it just rejected.
 
 ## Persistence
 
-Migration `db/migrations/002_forms.sql` (apply with `npm run db:migrate:intake`) adds one table, `form`:
+Migration `db/migrations/002_forms.sql` (apply with `npm run db:migrate:intake`) adds the `form` table:
 
 `id`, `user_id` → `"user"(id)` `ON DELETE CASCADE`, `provider`, `external_account_id`, `provider_form_id`, `title`,
 `status` (`created` or `incomplete`), `edit_url`, `responder_url`, `failure_stage`, `request_id`, `specification` (jsonb),
@@ -319,6 +377,13 @@ It completes the ownership chain **Intake user → provider connection → provi
 source of truth; the table stores no respondent data and no credentials. Every read is scoped by the session's user id. The
 save happens after the provider work and is best effort: if it fails, the request still succeeds (the form exists),
 `form.id` is `null`, and `form.create.persist_failed` logs the provider form id for an operator.
+
+Migration `db/migrations/004_form_edit_drafts.sql` adds `form_edit_draft`, whose owner-scoped rows bind a draft to its
+Google provider form ID and account, an Intake form record when available, a normalized fresh snapshot, a typed plan,
+version/status and the final outcome. Atomic compare-and-swap updates protect revision and confirmation; `applying` is a
+one-shot claim, so a process interruption never replays a possibly non-idempotent batch. It stores neither credentials nor
+respondent data. Apply all migrations in numeric order before using edit routes; a missing `004` makes edit-draft storage
+unavailable without changing any Google form.
 
 ## Logging
 
@@ -366,13 +431,15 @@ line in `providers/google/adapter.ts` `failure()`.
 
 | File | Covers |
 | --- | --- |
-| `test/helpers/google-forms-fake.mjs` | A stateful emulator of the Forms API used at the `fetch` boundary. It keeps a form and enforces the documented rules: only the title copied on create, `unpublished=true` (without it the emulator publishes, as the old API did, so a forgotten parameter is caught), ordered `batchUpdate` with valid `location.index`, routing only to existing sections and only on radio or dropdown, and a complete publish body. It also contains a respondent simulator. |
+| `test/helpers/google-forms-fake.mjs` | A stateful emulator of the Forms API used at the `fetch` boundary. It checks documented request shapes and ordered locations, supports fresh reads/revisions, and can inject external changes, partial batches and lost responses. Those failure injections ensure callers do not rely on batch atomicity. It also contains a respondent simulator. |
 | `test/helpers/forms-harness.mjs` | The real provider service and memory store, the real adapter and client, and the emulator, wired together. |
 | `forms-validation.test.mjs` | Valid short-text and multiple-choice specs; missing title; missing options; invalid type; duplicate ids; bad branching references; strictness. |
 | `forms-google-plan.test.mjs` | Type mapping, batch shapes, and behavioural equivalence: every layout is built and walked as a respondent for every answer combination. Refusal rules. |
 | `forms-google-adapter.test.mjs` | Call order, headers, bodies; result mapping; every connection failure; each stage failing with its outcome; token refresh through the real service; user isolation; no secrets; zero requests for invalid input. |
 | `forms-routes.test.mjs` | Authentication, CSRF, forbidden keys, ownership and isolation, partial failures, persistence failure, concurrency and limits, logging, no secrets or user content in logs. |
-| `forms-storage.test.mjs` | The migration (second file, idempotent, ownership and CHECK rules) and the Postgres and memory stores (parameterized, user-scoped, newest first). |
+| `forms-storage.test.mjs` | The `form` table migration, Postgres and memory ownership stores, and the incomplete-record responder-URL constraint during metadata refresh. |
+| `forms-edit.test.mjs` | Fresh `forms.get`, known-URL selection, real item-ID targeting, review/revision, explicit confirmation, account/revision rechecks, same-ID and responder-URL retention, partial/lost responses, and no blind retries. |
+| `forms-edit-storage.test.mjs` | Memory and Postgres edit-draft owner isolation, optimistic claims and refreshed-snapshot persistence. |
 | `forms-engine.test.mjs` | The logger (masking, bounds, event names), request ids, the error-code/status table, the engine turning a bug into a safe `internal_error`, and rejected-token reporting. |
 | `forms-contract.test.mjs` | The browser-side parsers and link checks in `src/lib/forms.ts`: unknown fields dropped, unsafe links become `null`, unreadable bodies never read as success. |
 | `forms-page.test.mjs` | The workspace page under jsdom: every state, safe links, no sign-in redirect on provider problems, invalid JSON never sent. |
@@ -401,19 +468,29 @@ Not done in this repository's environment. To do it:
 4. Sign in, open **Connections**, connect Google. Open **Forms**, click **Create form** with the prefilled example.
 5. Confirm in Google Forms: the form exists with all questions, is published and accepting responses, the Yes/No question
    routes as expected, and **Open form** / **Edit form** open the right pages. Submit a test response.
-6. Confirm the `form` row and that `GET /api/forms` lists it. Confirm logs show the five events with one `requestId`.
-7. Revoke Intake in the Google account and create again: the workspace should offer **Reconnect Google**.
+6. Confirm the `form` row and that `GET /api/forms` lists it. Confirm logs show the creation events with one `requestId`.
+7. In **Edit existing form**, select the Recent form (or paste a standard Google Forms edit URL), inspect its current
+   questions, ask for a safe title/question change, revise it conversationally, and verify that no change occurs before
+   explicit confirmation. Confirm the original Google form ID and responder URL are unchanged afterward. Also try a stale
+   proposal and a simple edit on an existing non-Intake form the connected account can edit.
+8. Confirm the applied `form_edit_draft` and refreshed form metadata. In a non-production test form, safely induce a rejected
+   or interrupted batch and verify the report matches Google's actual final state before taking any further action.
+9. Revoke Intake in the Google account and inspect again: the workspace should offer **Reconnect Google**.
 
-Things this checklist would confirm that mocks cannot: that `forms.body` alone is accepted for all three calls, that the
-returned `responderUri` opens the live form, that Google accepts `createItem` followed by `deleteItem` in one `batchUpdate`
-and routes sections as documented (the emulator only encodes that reading of the docs), that a field the emulator treats as
-optional is not required in practice, and the real latency.
+Things this checklist would confirm that mocks cannot: that `forms.body` alone is accepted for create, read and update;
+that the returned `responderUri` opens the live form; that Google preserves question IDs and accepts the documented update
+masks, `writeControl` precondition and structural requests; that incomplete or timeout outcomes are reported as expected;
+and the real latency. The emulator does not prove Google's behavior or batch atomicity.
 
 ## Known limitations
 
-- Google only; Microsoft is architecture only.
-- Layout rules above; nesting, back-to-back branches and optional controlling questions are refused.
-- No editing, deleting or sharing of forms after creation, and no reading responses.
+- Google only; Microsoft Forms editing remains unavailable without a verified supported API.
+- No Drive-wide form discovery. Choose an Intake Recent form or provide a known standard Google Forms URL; Google still
+  enforces the connected account's access.
+- Existing-form edits are limited to the operations/capabilities above. Quiz/scoring, branching/section structural changes,
+  unsupported question types and unsafe settings are refused rather than approximated.
+- Intake cannot delete a whole form, share it, or change who can access it (those are Drive operations; no Drive scope is
+  requested), and it cannot read responses.
 - The legacy direct `POST /api/forms` endpoint has no durable idempotency key: repeat calls create new forms. The user-facing natural-language flow uses an atomic draft claim at `POST /api/forms/confirm` and replays a completed result instead of creating again.
 - Limits are in memory and per process; a second API instance would have its own counters.
 - Email questions cannot be validated by Google's API and are created as short answer with a warning.

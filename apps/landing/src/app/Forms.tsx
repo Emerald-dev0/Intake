@@ -7,9 +7,11 @@ import {
 import { parseConfirmedResponse, parseDraftLoad, parseInterpretResponse, type PublicDraft } from '../lib/drafts';
 import type { PublicProvider } from '../lib/connections';
 import type { ProviderLoad } from './Connections';
+import { FormEditWorkspace } from './FormEditWorkspace';
 
 type Busy = 'loading' | 'interpreting' | 'revising' | 'creating' | 'cancelling' | null;
-type Recent = { status: 'loading' | 'error' | 'ready'; forms: PublicFormSummary[] };
+export type RecentFormsState = { status: 'loading' | 'error' | 'ready'; forms: PublicFormSummary[] };
+type Recent = RecentFormsState;
 type Pending = { mode: 'new' | 'revise'; request: string; question: string; answers: string };
 const STORAGE_KEY = 'intake:current-form-draft'; // only an opaque id, never the specification or chat text
 const EXAMPLE = 'Create a registration form for my final-year project. Ask for full name, email, phone number, department, and whether they need accommodation. If they do, ask what type of accommodation they need.';
@@ -92,6 +94,7 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
   const [failure, setFailure] = useState<FormFailure | null>(null);
   const [unsupported, setUnsupported] = useState('');
   const [result, setResult] = useState<CreateFormResult | null>(null);
+  const [workspaceMode, setWorkspaceMode] = useState<'create' | 'edit'>('create');
   const recent = useRecentForms();
   const alive = useAlive();
   const google = providers.providers?.find(provider => provider.id === 'google');
@@ -261,8 +264,17 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
     : connectionLine(google);
   const blocked = draft?.status === 'creating' || draft?.status === 'blocked';
   const finished = draft?.status === 'created';
+  const workspaceSwitch = <nav className="forms-mode-switch" aria-label="Form workflow">
+    <button type="button" className={workspaceMode === 'create' ? 'selected' : ''} aria-current={workspaceMode === 'create' ? 'page' : undefined} onClick={() => setWorkspaceMode('create')}>Create a new form</button>
+    <button type="button" className={workspaceMode === 'edit' ? 'selected' : ''} aria-current={workspaceMode === 'edit' ? 'page' : undefined} onClick={() => setWorkspaceMode('edit')}>Edit an existing form</button>
+  </nav>;
+  if (workspaceMode === 'edit') return <>
+    {workspaceSwitch}
+    <FormEditWorkspace providers={providers} reloadProviders={reloadProviders} forms={recent.state.forms} formsStatus={recent.state.status} reloadForms={recent.load} />
+  </>;
 
   return <>
+    {workspaceSwitch}
     <div className="page-heading draft-heading">
       <div className="eyebrow">04 / CREATE A FORM</div>
       <h1>Describe it.<br /><em>Make it real.</em></h1>

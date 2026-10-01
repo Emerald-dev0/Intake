@@ -1,0 +1,69 @@
+/* Safe editing of an existing provider form. */
+.forms-mode-switch { display:flex; gap:8px; margin:0 0 34px; padding:5px; width:fit-content; border:1px solid var(--line-2); border-radius:999px; background:var(--ink-2); }
+.forms-mode-switch button, .edit-source-switch button { border:0; border-radius:999px; padding:10px 16px; background:transparent; color:var(--cream-3); font:12px var(--mono); transition:background .16s,color .16s; }
+.forms-mode-switch button:hover, .edit-source-switch button:hover { color:var(--cream); }
+.forms-mode-switch button.selected, .edit-source-switch button.selected { background:var(--accent); color:var(--ink); }
+.edit-heading { margin-bottom:34px; }
+.edit-provider { margin-bottom:18px; }
+.edit-provider small { max-width:600px; }
+.edit-target-panel, .edit-request-panel, .edit-revision-panel { margin-top:20px; }
+.edit-target-panel h2, .edit-request-panel h2, .edit-revision-panel h2 { margin:7px 0; font-size:clamp(22px,3vw,30px); font-weight:500; letter-spacing:-.04em; }
+.edit-target-panel > p, .edit-revision-panel > p { color:var(--cream-3); font-size:14px; line-height:1.65; max-width:74ch; }
+.edit-source-switch { display:flex; gap:5px; width:fit-content; margin:22px 0 18px; padding:4px; border:1px solid var(--line-2); border-radius:999px; background:var(--ink-1); }
+.edit-source-switch button { padding:9px 13px; font-size:11px; }
+.edit-target-field { max-width:670px; }
+.edit-target-field label, .draft-question label { display:block; margin:12px 0 8px; font-size:13px; color:var(--cream-2); }
+.edit-target-field select, .edit-target-field input { width:100%; min-height:46px; border:1px solid var(--line-2); border-radius:7px; padding:10px 13px; background:var(--ink-1); color:var(--cream); font:14px var(--sans); }
+.edit-target-field select:focus, .edit-target-field input:focus, .edit-confirm-check input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.edit-target-field select:disabled, .edit-target-field input:disabled { opacity:.6; }
+.edit-current, .edit-review { margin-top:22px; border:1px solid var(--line-2); border-radius:11px; padding:clamp(20px,3vw,30px); background:var(--ink-2); }
+.edit-current-head, .edit-review-head { display:flex; align-items:flex-start; justify-content:space-between; gap:22px; }
+.edit-current-head h2, .edit-review-head h2 { margin:4px 0 0; font-size:clamp(22px,3vw,34px); line-height:1.12; font-weight:500; letter-spacing:-.04em; overflow-wrap:anywhere; }
+.edit-current-head > div:first-child { min-width:0; }
+.edit-current-head > div:first-child > p { color:var(--cream-3); font-size:13px; line-height:1.6; white-space:pre-wrap; }
+.edit-current-head .forms-links { justify-content:flex-end; margin-top:0; }
+.edit-current-items { list-style:none; margin:15px 0 0; padding:0; border-top:1px solid var(--line); }
+.edit-current-items > li { display:grid; grid-template-columns:34px minmax(0,1fr); gap:13px; align-items:start; padding:16px 0; border-bottom:1px solid var(--line); }
+.edit-current-items > li > div { display:grid; gap:5px; min-width:0; }
+.edit-current-items strong { font-size:15px; font-weight:500; overflow-wrap:anywhere; }
+.edit-current-items p { margin:0; font-size:12px; color:var(--cream-3); line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; }
+.edit-item-kind, .edit-diff-tag { font:10px var(--mono); color:var(--cream-3); text-transform:uppercase; letter-spacing:.08em; }
+.edit-current-options { color:var(--cream-2) !important; }
+.edit-routing-note { color:var(--c-rule) !important; }
+.edit-review-head { align-items:center; }
+.edit-review-head .status-pill { white-space:nowrap; }
+.edit-original-note { margin:12px 0 0; color:var(--cream-3); font:11px/1.6 var(--mono); overflow-wrap:anywhere; }
+.edit-diff-list { list-style:none; margin:18px 0 0; padding:0; border-top:1px solid var(--line-2); }
+.edit-diff-list > li { display:grid; grid-template-columns:34px minmax(0,1fr) auto; gap:13px; align-items:start; padding:17px 0; border-bottom:1px solid var(--line); }
+.edit-diff-index { color:var(--cream-3); font:11px var(--mono); padding-top:3px; }
+.edit-diff-list > li > div { min-width:0; }
+.edit-diff-list strong { display:block; color:var(--cream); font-size:14px; font-weight:550; overflow-wrap:anywhere; }
+.edit-diff-list p { margin:5px 0 0; color:var(--cream-2); font-size:13px; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere; }
+.edit-diff-list .destructive strong { color:#ffb3a0; }
+.edit-diff-tag { padding:4px 7px; border:1px solid var(--line-2); border-radius:999px; font-size:9px; text-align:center; }
+.edit-diff-tag.danger { color:#ff987e; border-color:#ff5a1f77; }
+.edit-current-details { margin-top:18px; border-top:1px solid var(--line); padding-top:14px; }
+.edit-current-details summary { cursor:pointer; color:var(--cream-2); font-size:13px; }
+.edit-current-details .edit-current { margin-top:15px; padding:18px; }
+.edit-confirm-panel { margin-top:21px; padding:19px; border:1px solid #f2c94c55; border-radius:8px; background:var(--ink-1); }
+.edit-confirm-panel > p { margin:0 0 13px; color:var(--cream-2); font-size:13px; line-height:1.65; }
+.edit-confirm-panel > p strong { color:var(--cream); }
+.edit-confirm-check { display:flex; align-items:flex-start; gap:10px; margin:10px 0; color:var(--cream-2); font-size:13px; line-height:1.5; }
+.edit-confirm-check input { margin:2px 0 0; accent-color:var(--accent); width:16px; height:16px; flex:0 0 auto; }
+.edit-outcome { margin-top:16px !important; }
+.edit-outcome .forms-actions { align-items:flex-start; }
+.edit-success { margin-top:18px !important; }
+.edit-success > strong { display:block; margin:5px 0; color:var(--cream); font-size:19px; font-weight:550; overflow-wrap:anywhere; }
+.edit-failure { margin-top:18px; }
+.edit-revision-panel textarea { min-height:92px; }
+.edit-revision-panel form { margin-top:14px; }
+@media (max-width:680px) {
+  .forms-mode-switch { width:100%; }
+  .forms-mode-switch button { flex:1; padding:10px 8px; font-size:10px; }
+  .edit-source-switch { width:100%; }
+  .edit-source-switch button { flex:1; padding:9px 7px; font-size:10px; }
+  .edit-current-head, .edit-review-head { flex-direction:column; align-items:flex-start; }
+  .edit-current-head .forms-links { justify-content:flex-start; }
+  .edit-diff-list > li { grid-template-columns:27px minmax(0,1fr); }
+  .edit-diff-tag { grid-column:2; justify-self:start; }
+}

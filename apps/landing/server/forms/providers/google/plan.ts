@@ -35,21 +35,25 @@ export type GoogleOption = {
 };
 
 export interface GoogleItem {
+  itemId?: string;
   title?: string;
   description?: string;
   pageBreakItem?: Record<string, never>;
   questionItem?: {
     question: {
+      questionId?: string;
       required?: boolean;
       textQuestion?: { paragraph: boolean };
-      choiceQuestion?: { type: 'RADIO' | 'CHECKBOX' | 'DROP_DOWN'; options: GoogleOption[] };
+      choiceQuestion?: { type: 'RADIO' | 'CHECKBOX' | 'DROP_DOWN'; options: GoogleOption[]; shuffle?: boolean };
     };
   };
 }
 
 export type GoogleRequest =
-  | { updateFormInfo: { info: { description: string }; updateMask: 'description' } }
+  | { updateFormInfo: { info: { title?: string; description?: string }; updateMask: string } }
   | { createItem: { item: GoogleItem; location: { index: number } } }
+  | { updateItem: { item: GoogleItem; location: { index: number }; updateMask: string } }
+  | { moveItem: { originalLocation: { index: number }; newLocation: { index: number } } }
   | { deleteItem: { location: { index: number } } };
 
 export type RouteTarget = { type: 'next' } | { type: 'submit' } | { type: 'section'; key: string };
@@ -251,6 +255,11 @@ function buildItem(item: PlannedItem, sectionIds: ReadonlyMap<string, string> | 
     google.questionItem = { question: { ...base, choiceQuestion: { type, options } } };
   }
   return google;
+}
+
+/** The same conservative field mapping used by creation, for a new item in an existing form. */
+export function buildGoogleQuestionItem(question: QuestionSpecification): GoogleItem {
+  return buildItem({ kind: 'question', key: `question:${question.id}`, question }, null);
 }
 
 export interface InitialBatch {

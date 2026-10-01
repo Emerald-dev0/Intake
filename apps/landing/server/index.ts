@@ -11,9 +11,12 @@ import { createProviderService, useProviderService, type SessionUser } from './p
 import { createFormEngine } from './forms/engine';
 import { createPostgresFormStore } from './forms/postgres-store';
 import { createFormsProviders } from './forms/providers';
+import { createPostgresFormEditDraftStore } from './forms/edit-postgres-store';
+import { createFormEditRouter } from './forms/edit-routes';
+import { createInterpretationLimiter } from './forms/interpretation/routes';
 import { createFormsRouter } from './forms/routes';
 import { createPostgresDraftStore } from './forms/draft-postgres-store';
-import { createOpenAIFormInterpreter } from './forms/interpretation/openai';
+import { createOpenAIFormEditInterpreter, createOpenAIFormInterpreter } from './forms/interpretation/openai';
 import { createFormDraftRouter } from './forms/interpretation/routes';
 const app = express();
 app.disable('x-powered-by');
@@ -44,19 +47,32 @@ const getSession = async (req: express.Request): Promise<SessionUser | null> => 
 };
 app.use('/api/providers', createProviderRouter({ service: providerService, env: providerEnv, getSession }));
 
-// Form creation: validated specification -> provider adapter -> the user's own connected account.
-const formsEngine = createFormEngine({
-  providers: createFormsProviders({ env: providerEnv }),
-  store: createPostgresFormStore(pool),
-});
-// The draft router only interprets and revises. Its explicit /confirm path claims a
-// user-owned draft before delegating to the SAME creation engine as POST /api/forms.
+// Form creation and safe edits share the same provider service, user-scoped metadata store,
+// interpreter, and per-user model-call limiter. Editing always re-fetches provider state.
+const formsProviders = createFormsProviders({ env: providerEnv });
+const formStore = createPostgresFormStore(pool);
+const formsEngine = createFormEngine({ providers: formsProviders, store: formStore });
+const formInterpreter = createOpenAIFormInterpreter({ env: providerEnv });
+const formEditInterpreter = createOpenAIFormEditInterpreter({ env: providerEnv });
+const interpretationLimiter = createInterpretationLimiter();
+// Phase 6 creation drafts: confirmation still delegates to the same creation engine.
 app.use('/api/forms', createFormDraftRouter({
   store: createPostgresDraftStore(pool),
-  interpreter: createOpenAIFormInterpreter({ env: providerEnv }),
+  interpreter: formInterpreter,
   engine: formsEngine,
   getSession,
   env: providerEnv,
+  limiter: interpretationLimiter,
+}));
+// Phase 7 edit proposals are separate from creation drafts and only target a known Google Form.
+app.use('/api/forms', createFormEditRouter({
+  providers: formsProviders,
+  forms: formStore,
+  drafts: createPostgresFormEditDraftStore(pool),
+  interpreter: formEditInterpreter,
+  getSession,
+  env: providerEnv,
+  limiter: interpretationLimiter,
 }));
 app.use('/api/forms', createFormsRouter({ engine: formsEngine, getSession, env: providerEnv }));
 const providerSetup = supportedProviders(providerEnv).map(provider => `${provider.id} ${isProviderConfigured(provider, providerEnv) ? 'configured' : 'not configured'}`).join(', ');

@@ -58,7 +58,7 @@ test('a form that is incomplete must say where it stopped and can never carry a 
 
 test('the form migration remains the second, idempotent, purely additive file', async () => {
   const files = (await readdir(new URL('../db/migrations/', import.meta.url))).filter(file => file.endsWith('.sql')).sort();
-  assert.deepEqual(files, ['001_provider_connections.sql', '002_forms.sql', '003_form_drafts.sql']);
+  assert.deepEqual(files, ['001_provider_connections.sql', '002_forms.sql', '003_form_drafts.sql', '004_form_edit_drafts.sql']);
   const sql = await readFile(new URL('../db/migrations/002_forms.sql', import.meta.url), 'utf8');
   assert.doesNotMatch(sql.replace(/--.*$/gm, ''), /^\s*(DROP|ALTER|TRUNCATE|DELETE|UPDATE)\b/im, 'no statement changes or removes existing data');
   assert.equal((sql.match(/CREATE TABLE/g) ?? []).length, 1, 'one table');
@@ -67,13 +67,13 @@ test('the form migration remains the second, idempotent, purely additive file', 
 
 // ---------------------------------------------------------------- the Postgres store, without a database
 
-function recordingPool(rows = []) {
+function recordingPool(rows = [], rowCount = rows.length) {
   const queries = [];
   return {
     queries,
     async query(sql, params) {
       queries.push({ sql, params });
-      return { rows, rowCount: rows.length };
+      return { rows, rowCount };
     },
   };
 }
@@ -132,6 +132,26 @@ test('listing is scoped to the user with parameters, newest first, and returns s
 });
 
 // ---------------------------------------------------------------- the in-memory store used by tests behaves the same
+
+test('metadata refresh keeps an incomplete form responder URL null in both stores', async () => {
+  const memory = createMemoryFormStore();
+  await memory.save(record({ status: 'incomplete', failureStage: 'publish', responderUrl: null }), NOW);
+  const input = { userId: 'user-a', id: 'form-1', providerFormId: '1FAfakeForm0001abcdefghijklmnop', externalAccountId: 'google-account-of-user-a',
+    title: 'Fresh Google title', editUrl: 'https://docs.google.com/forms/d/1FAfakeForm0001abcdefghijklmnop/edit',
+    responderUrl: 'https://docs.google.com/forms/d/e/1FAIpQLSfake1/viewform' };
+  assert.equal(await memory.updateMetadata(input, new Date(NOW.getTime() + 1)), true);
+  const refreshed = await memory.getForUser('user-a', 'form-1');
+  assert.equal(refreshed.title, 'Fresh Google title');
+  assert.equal(refreshed.responderUrl, null, 'an incomplete record cannot gain a responder link during an edit metadata refresh');
+
+  const pool = recordingPool([], 1);
+  const postgres = createPostgresFormStore(pool);
+  assert.equal(await postgres.updateMetadata(input, new Date(NOW.getTime() + 1)), true);
+  const [{ sql, params }] = pool.queries;
+  assert.match(sql, /responder_url = CASE WHEN status = 'created' THEN COALESCE\(\$7, responder_url\) ELSE NULL END/);
+  assert.match(sql, /status IN \('created', 'incomplete'\)/);
+  assert.equal(params[6], input.responderUrl, 'the candidate link stays parameterized and the row status controls storage');
+});
 
 test('the memory store mirrors the database rules: unique provider form, per-user lists, stable order', async () => {
   const store = createMemoryFormStore();
