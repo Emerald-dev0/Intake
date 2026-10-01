@@ -392,6 +392,16 @@ test('Google error statuses become specific, human-readable, correctly classifie
   }
 });
 
+test('the Google client rejects an oversized response before parsing it', async () => {
+  const client = createGoogleFormsClient({
+    fetchImpl: async () => new Response('{}', { status: 200, headers: { 'content-length': '5000001' } }),
+  });
+  const error = await failureOf(client.createForm('server-only-access-token', { title: 'Test', documentTitle: 'Test', unpublished: true }));
+  assert.ok(error instanceof GoogleFormsApiError);
+  assert.equal(error.info.kind, 'malformed_response');
+  assert.equal(error.info.operation, 'forms.create');
+});
+
 test('Google rejecting the token marks the connection for renewal, and the next attempt never reaches Google', async () => {
   const world = await connectedWorld();
   world.fake.revokeToken('ACCESS_TOKEN_OF_USER-A');

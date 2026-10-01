@@ -98,6 +98,9 @@ export function reportProviderAuthorizationRejected(userId: string, provider: st
 export function createProviderService(deps: ProviderDeps): ProviderService {
   const now = deps.now ?? (() => new Date());
   const allow = deps.rateLimit ?? createRateLimit();
+  // Coalesce concurrent reads for one user/provider in this process so rotating refresh tokens are not
+  // submitted twice. PostgreSQL remains the source of truth across instances; see PRODUCTION.md.
+  const authorizationReads = new Map<string, Promise<AuthorizedConnection>>();
 
   return {
     list: userId => listProviders(deps, userId, now()),
@@ -111,7 +114,16 @@ export function createProviderService(deps: ProviderDeps): ProviderService {
       return disconnectProvider(deps, userId, provider, now());
     },
     getAuthorizedConnection(userId, provider) {
-      return readAuthorizedConnection(deps, userId, provider, now());
+      const key = `${userId}\u0000${provider}`;
+      const activeRead = authorizationReads.get(key);
+      if (activeRead) return activeRead;
+      const pending = readAuthorizedConnection(deps, userId, provider, now());
+      authorizationReads.set(key, pending);
+      void pending.then(
+        () => { if (authorizationReads.get(key) === pending) authorizationReads.delete(key); },
+        () => { if (authorizationReads.get(key) === pending) authorizationReads.delete(key); },
+      );
+      return pending;
     },
     async reportAuthorizationRejected(userId, provider) {
       if (provider !== 'google' && provider !== 'microsoft') return;
@@ -169,6 +181,13 @@ function accessUsable(expiresAt: Date | null, at: Date): boolean {
   return !!expiresAt && expiresAt.getTime() - at.getTime() > ACCESS_SKEW_MS;
 }
 
+function accessExpiresAt(at: Date, expiresIn: number | null): Date {
+  // OAuth access tokens are short-lived. Reject nonsensical provider lifetimes instead of creating
+  // an invalid Date or treating an unbounded token as valid indefinitely.
+  const seconds = expiresIn !== null && Number.isSafeInteger(expiresIn) && expiresIn > 0 && expiresIn <= 86_400 ? expiresIn : 300;
+  return new Date(at.getTime() + seconds * 1000);
+}
+
 async function listProviders(deps: ProviderDeps, userId: string, at: Date): Promise<PublicProvider[]> {
   const records = await deps.store.listConnections(userId);
   return supportedProviders(deps.env).map(definition => {
@@ -215,23 +234,18 @@ async function startAuthorization(deps: ProviderDeps, userId: string, provider: 
 
 async function completeAuthorization(deps: ProviderDeps, userId: string, provider: ProviderId, query: CallbackQuery, at: Date): Promise<{ result: ResultCode; revocation?: RevocationOutcome }> {
   const definition = providerDefinition(provider, deps.env);
-  if (definition.configurationError) return { result: 'not_configured' };
   const classified = classifyCallbackError(query);
-  if (classified) {
-    if (query.state && query.state.length <= 128) {
-      await deps.store.consumeTransaction(hashSecret(query.state), userId, provider, at).catch(error => {
-        logSafe('Provider transaction consume failed', error);
-      });
-    }
-    return { result: classified };
-  }
-  if (!query.code || !query.state || query.code.length > 2048 || query.state.length > 128) return { result: 'invalid_callback' };
+  // Provider error callbacks are still OAuth callbacks: cancellation/denial is trusted only after
+  // the exact single-use state is consumed for this signed-in user and provider.
+  if (!query.state || query.state.length > 128) return { result: 'invalid_callback' };
   const consumed = await deps.store.consumeTransaction(hashSecret(query.state), userId, provider, at);
   if (!consumed.ok) return { result: consumed.reason };
   const origin = publicOrigin(deps.env.BETTER_AUTH_URL);
   const expectedRedirect = origin ? redirectUri(origin, provider) : '';
   if (!origin || consumed.transaction.redirectUri !== expectedRedirect) return { result: 'invalid_callback' };
-  if (!isProviderConfigured(definition, deps.env)) return { result: 'not_configured' };
+  if (classified) return { result: classified };
+  if (!query.code || query.code.length > 2048) return { result: 'invalid_callback' };
+  if (definition.configurationError || !isProviderConfigured(definition, deps.env)) return { result: 'not_configured' };
   let verifier: string;
   try {
     verifier = deps.cipher.decrypt(consumed.transaction.codeVerifierCiphertext, credentialAad(userId, provider, 'verifier'));
@@ -289,7 +303,7 @@ async function completeAuthorization(deps: ProviderDeps, userId: string, provide
       externalAccountLabel: identity.label,
       scopes: scopes.length ? scopes : definition.scopes,
       accessTokenCiphertext: deps.cipher.encrypt(token.accessToken, credentialAad(userId, provider, 'access')),
-      accessTokenExpiresAt: new Date(at.getTime() + (token.expiresIn ?? 300) * 1000),
+      accessTokenExpiresAt: accessExpiresAt(at, token.expiresIn),
       refreshTokenCiphertext: token.refreshToken ? deps.cipher.encrypt(token.refreshToken, credentialAad(userId, provider, 'refresh')) : null,
       lastAuthorizedAt: at,
       lastRefreshedAt: null,
@@ -487,7 +501,7 @@ async function refreshAuthorizedConnection(deps: ProviderDeps, definition: Provi
       externalAccountLabel: record.externalAccountLabel,
       scopes: nextScopes,
       accessTokenCiphertext: deps.cipher.encrypt(token.accessToken, credentialAad(record.userId, definition.id, 'access')),
-      accessTokenExpiresAt: new Date(at.getTime() + (token.expiresIn ?? 300) * 1000),
+      accessTokenExpiresAt: accessExpiresAt(at, token.expiresIn),
       refreshTokenCiphertext: deps.cipher.encrypt(token.refreshToken ?? refreshToken, credentialAad(record.userId, definition.id, 'refresh')),
       lastAuthorizedAt: record.lastAuthorizedAt ?? at,
       lastRefreshedAt: at,
@@ -501,7 +515,7 @@ async function refreshAuthorizedConnection(deps: ProviderDeps, definition: Provi
       externalAccountEmail: cleanEmail(record.externalAccountEmail),
       scopes: nextScopes,
       accessToken: token.accessToken,
-      accessTokenExpiresAt: new Date(at.getTime() + (token.expiresIn ?? 300) * 1000).toISOString(),
+      accessTokenExpiresAt: accessExpiresAt(at, token.expiresIn).toISOString(),
     };
   } catch (error) {
     logSafe('Provider refresh unavailable', error);

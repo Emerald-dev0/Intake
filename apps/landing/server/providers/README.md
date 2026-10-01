@@ -18,11 +18,11 @@ This layer stores authorization. It does not create, edit, or pretend to create 
 3. The server stores a single-use transaction: hashed `state`, hashed `nonce`, and an encrypted PKCE verifier. The redirect URI is derived only from `BETTER_AUTH_URL`.
 4. The browser goes to the provider. Tokens are never put in the browser by Intake.
 5. The provider redirects to `/api/providers/:provider/callback` with a code, not a token.
-6. The callback requires the same Intake session, a matching unexpired state, PKCE, and a successful token exchange. The code is not written to the next URL (`Referrer-Policy: no-referrer`).
+6. Every callback outcome—including denial and cancellation—first requires the same Intake session and a matching unexpired single-use state bound to that user/provider. A success also requires PKCE and token exchange. Forged error callbacks are reported as invalid state, not trusted as user cancellation. The code is never written to the next URL (`Referrer-Policy: no-referrer`).
 7. The connection is stored for that user only. A different external account than the one already connected is a conflict; disconnect first.
 8. Disconnect deletes the Intake row. Google revocation is attempted at `https://oauth2.googleapis.com/revoke`. Microsoft has no supported per-app token revocation endpoint, so the UI says so and links to the account permissions pages.
 
-Form operations call `getProviderConnection(userId, provider)` from `server/providers/service.ts`. That helper is server-only. It refreshes an expired access token when a refresh token exists, and it never has an HTTP route. A rejected refresh is marked `reauthorization_required` and the ciphertext is cleared.
+Form operations call `getProviderConnection(userId, provider)` from `server/providers/service.ts`. That helper is server-only. It refreshes an expired access token when a refresh token exists, and it never has an HTTP route. Concurrent reads for one user/provider are coalesced within one API process so a rotating refresh token is not submitted twice locally. There is no cross-instance refresh lease; horizontally scaled instances can still race, and the loser may require reconnection. A rejected refresh is marked `reauthorization_required` and the ciphertext is cleared.
 
 When a provider API rejects the access token that helper returned (for example Google answers a Forms request with 401), the caller reports it with `reportProviderAuthorizationRejected(userId, provider)`. That marks the same user's connection `reauthorization_required` through the same store method a rejected refresh uses, so the next request asks the user to reconnect instead of sending a token the provider already refused. `server/forms/` is the only caller today.
 
@@ -52,7 +52,7 @@ Key material, in order:
 
 Changing the key makes existing tokens unreadable. Intake then marks the connection as needing reauthorization and clears the ciphertext. Rotating `BETTER_AUTH_SECRET` has the same effect unless a dedicated `PROVIDER_TOKEN_KEY` is set. Neon disk encryption is additional; it is not a substitute for this.
 
-Access tokens, refresh tokens, authorization codes, PKCE verifiers, and client secrets are not written to logs. Log lines pass through a redactor, but new logs must still avoid those values.
+Access tokens, refresh tokens, authorization codes, PKCE verifiers, and client secrets are not written to logs. Log lines pass through a redactor, but new logs must still avoid those values. OAuth token, identity, and JWKS responses are capped at 1 MB and redirects are rejected so credentials are not forwarded to another host. OAuth lifecycle endpoints also use the shared PostgreSQL abuse limiter described in [`PRODUCTION.md`](../../PRODUCTION.md).
 
 ## Environment
 

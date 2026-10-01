@@ -76,8 +76,11 @@ export function FormLibrary({
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [actionBusy, setActionBusy] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const alive = useRef(true);
+  const loadSequence = useRef(0);
   const google = providers.providers?.find(provider => provider.id === 'google');
   const isGoogleConnected = google?.status === 'connected';
 
@@ -87,6 +90,7 @@ export function FormLibrary({
   }, []);
 
   async function loadLibrary() {
+    const sequence = ++loadSequence.current;
     setLoading(true);
     setError(null);
     try {
@@ -105,7 +109,11 @@ export function FormLibrary({
         headers: { accept: 'application/json' },
       });
 
-      if (!alive.current) return;
+      if (response.status === 401) {
+        window.location.replace('/auth/sign-in?reason=session_expired');
+        return;
+      }
+      if (!alive.current || sequence !== loadSequence.current) return;
 
       if (response.ok) {
         const body = await response.json().catch(() => null);
@@ -117,14 +125,20 @@ export function FormLibrary({
         }
       }
 
-      // Fallback to /api/forms if /api/forms/library returned error or 404
+      // Backward compatibility only: an explicit server failure must stay visible rather than being
+      // hidden by a second request that may return a different data set.
+      if (response.status !== 404) throw new Error('Could not load library forms');
       const fallbackRes = await fetch('/api/forms', {
         credentials: 'same-origin',
         cache: 'no-store',
         headers: { accept: 'application/json' },
       });
 
-      if (!alive.current) return;
+      if (fallbackRes.status === 401) {
+        window.location.replace('/auth/sign-in?reason=session_expired');
+        return;
+      }
+      if (!alive.current || sequence !== loadSequence.current) return;
 
       if (fallbackRes.ok) {
         const fallbackBody = await fallbackRes.json().catch(() => null);
@@ -146,7 +160,7 @@ export function FormLibrary({
 
       throw new Error('Could not load library forms');
     } catch {
-      if (alive.current) {
+      if (alive.current && sequence === loadSequence.current) {
         if (initialForms && initialForms.length > 0) {
           setForms(initialForms.map(f => ({
             ...f,
@@ -170,7 +184,7 @@ export function FormLibrary({
   }, [searchQuery, sourceFilter, archiveFilter, sortOption]);
 
   async function checkLiveStatus(formId: string) {
-    if (liveChecking) return;
+    if (liveChecking || actionBusy || deleteBusy) return;
     setLiveChecking(true);
     setLiveStatus(null);
     try {
@@ -180,6 +194,10 @@ export function FormLibrary({
         cache: 'no-store',
         headers: { accept: 'application/json', 'content-type': 'application/json' },
       });
+      if (response.status === 401) {
+        window.location.replace('/auth/sign-in?reason=session_expired');
+        return;
+      }
       const data = await response.json().catch(() => null);
       if (!alive.current) return;
 
@@ -225,8 +243,11 @@ export function FormLibrary({
   }
 
   async function toggleArchive(form: PublicLibraryForm) {
+    if (actionBusy || deleteBusy) return;
     const isArchived = Boolean(form.archivedAt);
     const endpoint = isArchived ? 'unarchive' : 'archive';
+    setActionBusy(form.id);
+    setActionError(null);
     try {
       const response = await fetch(`/api/forms/library/${encodeURIComponent(form.id)}/${endpoint}`, {
         method: 'POST',
@@ -234,26 +255,34 @@ export function FormLibrary({
         cache: 'no-store',
         headers: { accept: 'application/json', 'content-type': 'application/json' },
       });
-      if (response.ok) {
-        const now = new Date().toISOString();
-        const updated: PublicLibraryForm = {
-          ...form,
-          archivedAt: isArchived ? null : now,
-          updatedAt: now,
-        };
-        setForms(prev => prev.map(f => f.id === form.id ? updated : f));
-        if (inspectingForm?.id === form.id) {
-          setInspectingForm(updated);
-        }
+      if (response.status === 401) {
+        window.location.replace('/auth/sign-in?reason=session_expired');
+        return;
       }
+      if (!response.ok) {
+        const body = await response.json().catch(() => null) as { error?: unknown } | null;
+        setActionError(typeof body?.error === 'string' ? body.error : 'Intake could not update the archive status. The form record was not changed.');
+        return;
+      }
+      const now = new Date().toISOString();
+      const updated: PublicLibraryForm = {
+        ...form,
+        archivedAt: isArchived ? null : now,
+        updatedAt: now,
+      };
+      setForms(prev => prev.map(f => f.id === form.id ? updated : f));
+      if (inspectingForm?.id === form.id) setInspectingForm(updated);
     } catch {
-      // ignore transient network error
+      if (alive.current) setActionError('Could not reach Intake. The archive status was not confirmed; reload the library before trying again.');
+    } finally {
+      if (alive.current) setActionBusy(null);
     }
   }
 
   async function handleRemove(formId: string) {
-    if (deleteBusy) return;
+    if (deleteBusy || actionBusy) return;
     setDeleteBusy(true);
+    setActionError(null);
     try {
       const response = await fetch(`/api/forms/library/${encodeURIComponent(formId)}`, {
         method: 'DELETE',
@@ -261,11 +290,20 @@ export function FormLibrary({
         cache: 'no-store',
         headers: { accept: 'application/json' },
       });
-      if (response.ok) {
-        setForms(prev => prev.filter(f => f.id !== formId));
-        setDeleteConfirmOpen(false);
-        setInspectingForm(null);
+      if (response.status === 401) {
+        window.location.replace('/auth/sign-in?reason=session_expired');
+        return;
       }
+      if (!response.ok) {
+        const body = await response.json().catch(() => null) as { error?: unknown } | null;
+        setActionError(typeof body?.error === 'string' ? body.error : 'Intake could not remove this record. Nothing was removed.');
+        return;
+      }
+      setForms(prev => prev.filter(f => f.id !== formId));
+      setDeleteConfirmOpen(false);
+      setInspectingForm(null);
+    } catch {
+      if (alive.current) setActionError('Could not reach Intake. The form may still be in your library; reload before trying again.');
     } finally {
       if (alive.current) setDeleteBusy(false);
     }
@@ -284,6 +322,10 @@ export function FormLibrary({
         headers: { accept: 'application/json', 'content-type': 'application/json' },
         body: JSON.stringify({ url: importUrl.trim() }),
       });
+      if (response.status === 401) {
+        window.location.replace('/auth/sign-in?reason=session_expired');
+        return;
+      }
       const data = await response.json().catch(() => null);
       if (!alive.current) return;
 
@@ -555,6 +597,7 @@ export function FormLibrary({
                     onClick={() => {
                       setInspectingForm(form);
                       setLiveStatus(null);
+                      setActionError(null);
                     }}
                   >
                     View details
@@ -594,6 +637,9 @@ export function FormLibrary({
 
             {inspectingForm.description && (
               <p className="library-modal-desc">{inspectingForm.description}</p>
+            )}
+            {actionError && (
+              <div className="form-banner bad" role="alert"><p>{actionError}</p></div>
             )}
 
             <div className="library-details-list">
@@ -636,7 +682,7 @@ export function FormLibrary({
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm"
-                  disabled={liveChecking}
+                  disabled={liveChecking || actionBusy !== null || deleteBusy}
                   onClick={() => checkLiveStatus(inspectingForm.id)}
                 >
                   {liveChecking ? 'Checking…' : 'Check live status ↻'}
@@ -691,9 +737,10 @@ export function FormLibrary({
               <button
                 type="button"
                 className="btn btn-ghost btn-sm"
+                disabled={actionBusy !== null || deleteBusy || liveChecking}
                 onClick={() => void toggleArchive(inspectingForm)}
               >
-                {inspectingForm.archivedAt ? 'Restore to active library' : 'Archive form'}
+                {actionBusy === inspectingForm.id ? 'Saving…' : inspectingForm.archivedAt ? 'Restore to active library' : 'Archive form'}
               </button>
             </div>
 
@@ -705,7 +752,8 @@ export function FormLibrary({
               <button
                 type="button"
                 className="btn btn-ghost btn-sm library-btn-danger"
-                onClick={() => setDeleteConfirmOpen(true)}
+                disabled={actionBusy !== null || deleteBusy || liveChecking}
+                onClick={() => { setActionError(null); setDeleteConfirmOpen(true); }}
               >
                 Remove from Intake
               </button>
@@ -738,6 +786,7 @@ export function FormLibrary({
                 <strong>The external Google Form will NOT be deleted.</strong> You can still open and manage it directly in Google Forms, or re-import it later.
               </p>
             </div>
+            {actionError && <div className="form-banner bad" role="alert"><p>{actionError}</p></div>}
             <div className="forms-actions" style={{ justifyContent: 'flex-end', marginTop: 12 }}>
               <button
                 type="button"

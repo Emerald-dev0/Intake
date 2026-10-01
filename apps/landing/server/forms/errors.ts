@@ -40,6 +40,7 @@ export interface FormErrorInfo {
   stage?: FormStage;
   outcome?: FormOutcome;
   retryable?: boolean;
+  retryAfterSeconds?: number;
   detail?: string;
   partialForm?: PartialForm;
 }
@@ -68,6 +69,7 @@ export function toFailureBody(info: FormErrorInfo, requestId: string): FormFailu
   if (info.stage) body.stage = info.stage;
   if (info.outcome) body.outcome = info.outcome;
   if (typeof info.retryable === 'boolean') body.retryable = info.retryable;
+  if (Number.isSafeInteger(info.retryAfterSeconds) && (info.retryAfterSeconds as number) > 0) body.retryAfterSeconds = info.retryAfterSeconds;
   if (info.detail) body.detail = info.detail;
   if (info.partialForm) body.partialForm = info.partialForm;
   return body;

@@ -18,6 +18,7 @@ export interface FormEditFailure {
   requestId: string;
   outcome?: EditOutCome;
   retryable?: boolean;
+  retryAfterSeconds?: number;
   detail?: string;
   issues?: { code: string; path: string; message: string; hint?: string }[];
 }
@@ -255,6 +256,7 @@ function parseFailure(value: unknown): FormEditFailure | null {
     error: row.error, code: row.code as FormEditErrorCode, requestId: row.requestId,
     ...(outcomes.includes(row.outcome as EditOutCome) ? { outcome: row.outcome as EditOutCome } : {}),
     ...(typeof row.retryable === 'boolean' ? { retryable: row.retryable } : {}),
+    ...(typeof row.retryAfterSeconds === 'number' && Number.isSafeInteger(row.retryAfterSeconds) && row.retryAfterSeconds > 0 && row.retryAfterSeconds <= 86_400 ? { retryAfterSeconds: row.retryAfterSeconds } : {}),
     ...(text(row.detail, 400) ? { detail: row.detail as string } : {}),
     ...(Array.isArray(row.issues) ? { issues: row.issues.slice(0, 50).flatMap(item => {
       const issue = record(item);

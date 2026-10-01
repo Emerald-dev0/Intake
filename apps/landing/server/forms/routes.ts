@@ -6,7 +6,9 @@ import type { SessionUser } from '../providers/service';
 import type { FormEngine } from './engine';
 import { statusFor, toFailureBody, type FormErrorInfo } from './errors';
 import { createFormLogger, newRequestId, type FormLogger } from './logging';
+import { consumeRequestLimit, setRateLimitHeaders, type AbuseScope, type RateLimitStore } from '../security/rate-limit';
 import type { FormLibraryFilter } from './store';
+import { extractGoogleFormId } from './edit-engine';
 
 const MAX_BODY = '100kb';
 const ALLOWED_KEYS = ['provider', 'specification'] as const;
@@ -17,45 +19,56 @@ export interface FormsRouterDeps {
   getSession: (req: Request) => Promise<SessionUser | null>;
   env: NodeJS.ProcessEnv;
   log?: FormLogger;
+  abuseLimiter?: RateLimitStore;
+  /** The production UI must use reviewed drafts. Kept injectable only for engine/legacy route tests. */
+  allowDirectCreation?: boolean;
 }
 
 function safeKey(key: string): string {
   return key.replace(/[^A-Za-z0-9_$-]/g, '_').slice(0, 40) || '_';
 }
 
-function parseLibraryFilter(query: Request['query']): FormLibraryFilter {
-  const filter: FormLibraryFilter = {};
-  if (typeof query.query === 'string' && query.query.trim().length <= 100) {
-    filter.query = query.query.trim();
+const LIBRARY_QUERY_KEYS = new Set(['query', 'provider', 'source', 'archived', 'sort', 'limit', 'mode']);
+
+type FilterParse = { ok: true; filter: FormLibraryFilter } | { ok: false; message: string };
+
+/** Invalid filters are rejected rather than silently changing the requested result set. */
+function parseLibraryFilter(query: Request['query']): FilterParse {
+  const unknown = Object.keys(query).filter(key => !LIBRARY_QUERY_KEYS.has(key));
+  if (unknown.length) return { ok: false, message: 'The form-library query contains an unsupported parameter.' };
+  if (Object.values(query).some(value => typeof value !== 'string')) {
+    return { ok: false, message: 'Each form-library filter must be supplied exactly once as text.' };
   }
-  if (query.provider === 'google' || query.provider === 'microsoft' || query.provider === 'all') {
+  const filter: FormLibraryFilter = {};
+  if (typeof query.query === 'string') {
+    const value = query.query.trim();
+    if (value.length > 100) return { ok: false, message: 'Search text must be at most 100 characters.' };
+    if (value) filter.query = value;
+  }
+  if (query.provider !== undefined) {
+    if (query.provider !== 'google' && query.provider !== 'microsoft' && query.provider !== 'all') return { ok: false, message: 'Provider must be google, microsoft, or all.' };
     filter.provider = query.provider;
   }
-  if (query.source === 'created' || query.source === 'imported' || query.source === 'all') {
+  if (query.source !== undefined) {
+    if (query.source !== 'created' && query.source !== 'imported' && query.source !== 'all') return { ok: false, message: 'Source must be created, imported, or all.' };
     filter.source = query.source;
   }
-  if (query.archived === 'true') {
-    filter.archived = true;
-  } else if (query.archived === 'all') {
-    filter.archived = 'all';
-  } else if (query.archived === 'false') {
-    filter.archived = false;
+  if (query.archived !== undefined) {
+    if (query.archived === 'true') filter.archived = true;
+    else if (query.archived === 'false') filter.archived = false;
+    else if (query.archived === 'all') filter.archived = 'all';
+    else return { ok: false, message: 'Archived must be true, false, or all.' };
   }
-  if (
-    query.sort === 'newest' ||
-    query.sort === 'oldest' ||
-    query.sort === 'title_asc' ||
-    query.sort === 'title_desc' ||
-    query.sort === 'updated' ||
-    query.sort === 'synced'
-  ) {
-    filter.sort = query.sort;
+  if (query.sort !== undefined) {
+    if (!['newest', 'oldest', 'title_asc', 'title_desc', 'updated', 'synced'].includes(query.sort as string)) return { ok: false, message: 'The requested sort order is not supported.' };
+    filter.sort = query.sort as NonNullable<FormLibraryFilter['sort']>;
   }
-  if (typeof query.limit === 'string') {
-    const num = Number.parseInt(query.limit, 10);
-    if (!Number.isNaN(num) && num > 0) filter.limit = Math.min(num, 100);
+  if (query.limit !== undefined) {
+    if (!/^[1-9][0-9]{0,2}$/.test(query.limit as string) || Number(query.limit) > 100) return { ok: false, message: 'Limit must be an integer from 1 to 100.' };
+    filter.limit = Number(query.limit);
   }
-  return filter;
+  if (query.mode !== undefined && query.mode !== 'library') return { ok: false, message: 'Mode must be library when supplied.' };
+  return { ok: true, filter };
 }
 
 /**
@@ -73,6 +86,20 @@ function parseLibraryFilter(query: Request['query']): FormLibraryFilter {
 export function createFormsRouter(deps: FormsRouterDeps): Router {
   const router = Router();
   const log = deps.log ?? createFormLogger();
+
+  async function allowExpensive(req: Request, res: Response, scope: AbuseScope, action: string): Promise<boolean> {
+    const requestId = res.locals.requestId as string;
+    const currentUser = res.locals.user as SessionUser;
+    const decision = await consumeRequestLimit(deps.abuseLimiter, scope, currentUser.id, req);
+    if (decision.ok) return true;
+    if (decision.reason === 'rate_limited') {
+      setRateLimitHeaders(res, decision.retryAfterSeconds);
+      send(res, { code: 'rate_limited', message: `Too many ${action} requests were made in a short time. Wait before trying again.`, retryable: true, outcome: 'not_created' }, requestId);
+    } else {
+      send(res, { code: 'storage_unavailable', message: `Intake cannot safely start ${action} right now. No provider request was sent. Try again later.`, retryable: true, outcome: 'not_created' }, requestId);
+    }
+    return false;
+  }
 
   router.use((_req, res, next) => {
     res.set('Cache-Control', 'no-store');
@@ -101,12 +128,12 @@ export function createFormsRouter(deps: FormsRouterDeps): Router {
     const requestId = res.locals.requestId as string;
     const user = res.locals.user as SessionUser;
 
-    const hasFilterParams = Boolean(
-      req.query.query || req.query.provider || req.query.source || req.query.archived || req.query.sort || req.query.mode === 'library',
-    );
+    const hasFilterParams = Object.keys(req.query).length > 0;
 
     if (hasFilterParams) {
-      const outcome = await deps.engine.listLibrary(user.id, parseLibraryFilter(req.query));
+      const parsed = parseLibraryFilter(req.query);
+      if (!parsed.ok) return send(res, { code: 'invalid_request', message: parsed.message, retryable: false }, requestId);
+      const outcome = await deps.engine.listLibrary(user.id, parsed.filter);
       if (!outcome.ok) return send(res, outcome.error, requestId);
       return sendJson(res, 200, { requestId, forms: outcome.forms });
     }
@@ -120,7 +147,9 @@ export function createFormsRouter(deps: FormsRouterDeps): Router {
   router.get('/library', async (req, res) => {
     const requestId = res.locals.requestId as string;
     const user = res.locals.user as SessionUser;
-    const outcome = await deps.engine.listLibrary(user.id, parseLibraryFilter(req.query));
+    const parsed = parseLibraryFilter(req.query);
+    if (!parsed.ok) return send(res, { code: 'invalid_request', message: parsed.message, retryable: false }, requestId);
+    const outcome = await deps.engine.listLibrary(user.id, parsed.filter);
     if (!outcome.ok) return send(res, outcome.error, requestId);
     return sendJson(res, 200, { requestId, forms: outcome.forms });
   });
@@ -142,9 +171,10 @@ export function createFormsRouter(deps: FormsRouterDeps): Router {
       const requestId = res.locals.requestId as string;
       const user = res.locals.user as SessionUser;
       const body = req.body;
-      if (!body || typeof body !== 'object' || typeof body.url !== 'string' || !body.url.trim()) {
-        return send(res, { code: 'invalid_request', message: 'Provide a valid Google Forms URL to import.' }, requestId);
+      if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => key !== 'url') || typeof body.url !== 'string' || !body.url.trim() || body.url.length > 2048 || !extractGoogleFormId(body.url.trim())) {
+        return send(res, { code: 'invalid_request', message: 'Provide only one valid Google Forms edit URL (up to 2,048 characters). Short links and other hosts are rejected.' }, requestId);
       }
+      if (!await allowExpensive(req, res, 'forms.provider_read', 'provider form import')) return;
       const outcome = await deps.engine.importForm(user.id, body.url.trim(), requestId);
       if (!outcome.ok) return send(res, outcome.error, requestId);
       return sendJson(res, outcome.alreadyExists ? 200 : 201, { requestId, form: outcome.form, alreadyExists: outcome.alreadyExists });
@@ -175,6 +205,7 @@ export function createFormsRouter(deps: FormsRouterDeps): Router {
     if (!RECORD_ID.test(id)) {
       return send(res, { code: 'invalid_request', message: 'Invalid form ID.' }, requestId, 404);
     }
+    if (!await allowExpensive(req, res, 'forms.provider_read', 'provider synchronization')) return;
     const outcome = await deps.engine.refreshForm(user.id, id, requestId);
     return sendJson(res, 200, { requestId, ...outcome });
   });
@@ -237,6 +268,14 @@ export function createFormsRouter(deps: FormsRouterDeps): Router {
         log('form.create.rejected', { requestId, userId: user.id, reason: 'untrusted_origin', code: 'forbidden' });
         return send(res, { code: 'forbidden', message: 'This request did not come from the Intake app, so it was rejected. Nothing was created.' }, requestId);
       }
+      if (deps.allowDirectCreation === false) {
+        return send(res, {
+          code: 'invalid_request',
+          message: 'Direct form creation is disabled. Describe the form, review the server-owned draft, and explicitly confirm it before Intake contacts Google.',
+          outcome: 'not_created',
+          retryable: false,
+        }, requestId, 405);
+      }
       return next();
     },
     express.json({ limit: MAX_BODY, strict: true }),
@@ -266,6 +305,7 @@ export function createFormsRouter(deps: FormsRouterDeps): Router {
         return send(res, { code: 'invalid_request', message: 'The request was not accepted. Nothing was created.', issues, outcome: 'not_created' }, requestId);
       }
 
+      if (!await allowExpensive(req, res, 'forms.create', 'form creation')) return;
       const outcome = await deps.engine.createForm({ userId: user.id, provider: record.provider, specification: record.specification, requestId });
       if (outcome.ok) return sendJson(res, 201, { requestId, form: outcome.form, warnings: outcome.warnings });
       return send(res, outcome.error, requestId);
@@ -322,6 +362,7 @@ export function createFormsRouter(deps: FormsRouterDeps): Router {
 }
 
 function send(res: Response, info: FormErrorInfo, requestId: string, status?: number): void {
+  if (info.retryAfterSeconds) setRateLimitHeaders(res, info.retryAfterSeconds);
   sendJson(res, status ?? statusFor(info.code), toFailureBody(info, requestId));
 }
 

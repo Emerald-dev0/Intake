@@ -51,7 +51,8 @@ function publicDraft(row: FormEditDraftRecord): PublicFormEditDraft {
 
 function editFailureInfo(failure: FormEditFailure) {
   return { code: failure.code, message: failure.error, ...(failure.outcome ? { outcome: failure.outcome } : {}),
-    ...(typeof failure.retryable === 'boolean' ? { retryable: failure.retryable } : {}), ...(failure.detail ? { detail: failure.detail } : {}),
+    ...(typeof failure.retryable === 'boolean' ? { retryable: failure.retryable } : {}),
+    ...(failure.retryAfterSeconds ? { retryAfterSeconds: failure.retryAfterSeconds } : {}), ...(failure.detail ? { detail: failure.detail } : {}),
     ...(failure.issues ? { issues: failure.issues } : {}) };
 }
 
