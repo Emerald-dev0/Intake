@@ -13,6 +13,10 @@ export function createFormsProviders(options: { env: NodeJS.ProcessEnv; google?:
   const microsoft = providerDefinition('microsoft', options.env);
   return {
     google: createGoogleFormsProvider(options.google),
-    microsoft: createPendingProvider('microsoft', `Microsoft Forms creation is not available yet. ${microsoft.formsNote}`),
+    microsoft: createPendingProvider(
+      'microsoft',
+      `Microsoft Forms creation is not available yet. ${microsoft.formsNote}`,
+      'Microsoft Forms editing is not available. Microsoft does not publish a supported Forms update API; Intake does not call undocumented endpoints.',
+    ),
   };
 }

@@ -23,7 +23,22 @@ export type FormLogEvent =
   | 'form.draft.validation_failed'
   | 'form.draft.create_started'
   | 'form.draft.create_completed'
-  | 'form.draft.create_failed';
+  | 'form.draft.create_failed'
+  | 'form.edit.provider_request'
+  | 'form.edit.provider_failed'
+  | 'form.edit.request_rejected'
+  | 'form.edit.interpret.started'
+  | 'form.edit.interpret.completed'
+  | 'form.edit.interpret.clarification'
+  | 'form.edit.interpret.unsupported'
+  | 'form.edit.interpret.failed'
+  | 'form.edit.revised'
+  | 'form.edit.stale'
+  | 'form.edit.apply_started'
+  | 'form.edit.apply_completed'
+  | 'form.edit.completed'
+  | 'form.edit.apply_failed'
+  | 'form.edit.result_not_saved';
 
 type LogValue = string | number | boolean | null | undefined | readonly string[];
 export type FormLogFields = Record<string, LogValue>;
@@ -51,6 +66,21 @@ const LEVELS: Record<FormLogEvent, LogLevel> = {
   'form.draft.create_started': 'info',
   'form.draft.create_completed': 'info',
   'form.draft.create_failed': 'error',
+  'form.edit.provider_request': 'info',
+  'form.edit.provider_failed': 'error',
+  'form.edit.request_rejected': 'warn',
+  'form.edit.interpret.started': 'info',
+  'form.edit.interpret.completed': 'info',
+  'form.edit.interpret.clarification': 'info',
+  'form.edit.interpret.unsupported': 'warn',
+  'form.edit.interpret.failed': 'error',
+  'form.edit.revised': 'info',
+  'form.edit.stale': 'warn',
+  'form.edit.apply_started': 'info',
+  'form.edit.apply_completed': 'info',
+  'form.edit.completed': 'info',
+  'form.edit.apply_failed': 'error',
+  'form.edit.result_not_saved': 'error',
 };
 
 function cleanString(value: string): string {

@@ -9,9 +9,10 @@
  *   - forms.create?unpublished=true creates a form that does not accept responses. Without the
  *     parameter this fake publishes (the pre-2026-06-30 behaviour) so an adapter that forgot the
  *     parameter would be caught leaving a half-built form live;
- *   - batchUpdate is atomic, and sub-requests are validated one at a time in order, so
- *     location.index must be valid at that moment and goToSectionId must name a section header that
- *     already exists;
+ *   - sub-requests are validated one at a time in order, so location.index must be valid at that
+ *     moment and goToSectionId must name a section header that already exists. A normal successful
+ *     fake batch is applied as a unit for simplicity, but the real API's atomicity is not assumed:
+ *     injected failures can apply a prefix and are used to test partial-outcome recovery;
  *   - updateFormInfo needs an updateMask;
  *   - a pageBreakItem is an empty object, and a form cannot start with one (assumed, to be safe);
  *   - deleteItem needs a location that points at an existing item;
@@ -23,6 +24,7 @@
 export const FAKE_TOKEN = 'ACCESS_TOKEN_FOR_TESTS';
 
 const ROUTE = /^\/v1\/forms(?:\/([^/:]+):(batchUpdate|setPublishSettings))?$/;
+const FORM_GET_ROUTE = /^\/v1\/forms\/([^/:]+)$/;
 
 export function createFakeGoogleForms(options = {}) {
   const acceptedTokens = new Set(options.tokens ?? [options.token ?? FAKE_TOKEN]);
@@ -101,6 +103,34 @@ export function createFakeGoogleForms(options = {}) {
         }
         items.splice(location.index, 0, created);
         replies.push({ createItem: reply });
+      } else if (kind === 'updateItem') {
+        const index = body?.location?.index;
+        const patch = body?.item;
+        if (!Number.isInteger(index) || index < 0 || index >= items.length || !patch || patch.itemId !== items[index].itemId || typeof body.updateMask !== 'string' || !body.updateMask) {
+          return { error: invalid(`${where}.updateItem requires the existing item id, location and updateMask`) };
+        }
+        for (const path of body.updateMask.split(',')) {
+          const parts = path.split('.');
+          let source = patch;
+          let destination = items[index];
+          for (let offset = 0; offset < parts.length - 1; offset += 1) {
+            source = source?.[parts[offset]];
+            destination[parts[offset]] ??= {};
+            destination = destination[parts[offset]];
+          }
+          const leaf = parts.at(-1);
+          if (source?.[leaf] === undefined) return { error: invalid(`${where}.updateItem is missing masked field ${path}`) };
+          destination[leaf] = structuredClone(source[leaf]);
+        }
+        replies.push({});
+      } else if (kind === 'moveItem') {
+        const original = body?.originalLocation?.index;
+        const next = body?.newLocation?.index;
+        if (!Number.isInteger(original) || original < 0 || original >= items.length || !Number.isInteger(next)) return { error: invalid(`${where}.moveItem locations are invalid`) };
+        const [moved] = items.splice(original, 1);
+        if (next < 0 || next > items.length) return { error: invalid(`${where}.moveItem destination is out of range`) };
+        items.splice(next, 0, moved);
+        replies.push({});
       } else if (kind === 'deleteItem') {
         const index = body?.location?.index;
         if (!Number.isInteger(index) || index < 0 || index >= items.length) return { error: invalid(`${where}.deleteItem.location.index ${index} does not point at an item`) };
@@ -117,8 +147,10 @@ export function createFakeGoogleForms(options = {}) {
     const url = new URL(input);
     const headers = new Headers(init.headers);
     const body = init.body ? JSON.parse(init.body) : undefined;
-    const match = url.origin === 'https://forms.googleapis.com' ? ROUTE.exec(url.pathname) : null;
-    const operation = !match ? 'unknown' : !match[1] ? 'forms.create' : match[2] === 'batchUpdate' ? 'forms.batchUpdate' : 'forms.setPublishSettings';
+    const trustedOrigin = url.origin === 'https://forms.googleapis.com';
+    const getMatch = trustedOrigin && init.method === 'GET' ? FORM_GET_ROUTE.exec(url.pathname) : null;
+    const match = trustedOrigin ? ROUTE.exec(url.pathname) : null;
+    const operation = getMatch ? 'forms.get' : !match ? 'unknown' : !match[1] ? 'forms.create' : match[2] === 'batchUpdate' ? 'forms.batchUpdate' : 'forms.setPublishSettings';
     calls.push({
       operation,
       method: init.method,
@@ -131,19 +163,24 @@ export function createFakeGoogleForms(options = {}) {
       hasSignal: !!init.signal,
       body: body === undefined ? undefined : structuredClone(body),
     });
-    if (!match || init.method !== 'POST') return problem(404, 'NOT_FOUND', 'Not found');
+    if ((!match && !getMatch) || (getMatch ? init.method !== 'GET' : init.method !== 'POST')) return problem(404, 'NOT_FOUND', 'Not found');
     if (!acceptedTokens.has((headers.get('authorization') ?? '').replace(/^Bearer /, ''))) return problem(401, 'UNAUTHENTICATED', 'Request had invalid authentication credentials.');
 
     const injected = failure(operation);
     if (injected?.network) throw new TypeError('fetch failed');
     if (injected?.timeout) throw Object.assign(new Error('The operation was aborted due to timeout'), { name: 'TimeoutError' });
     if (injected?.respond) return json(injected.respond.status ?? 200, injected.respond.body, injected.respond.headers);
-    if (injected?.status && !injected.applyThenDrop) {
+    if (injected?.status && !injected.applyThenDrop && injected.partialAfter === undefined) {
       return problem(injected.status, injected.googleStatus ?? 'UNKNOWN', injected.message ?? 'injected failure', injected.reason, injected.headers);
     }
 
     let response;
-    if (operation === 'forms.create') {
+    if (operation === 'forms.get') {
+      const form = forms.get(getMatch[1]);
+      if (!form) return problem(404, 'NOT_FOUND', 'Requested entity was not found.');
+      response = json(200, { formId: form.formId, revisionId: form.revisionId, info: form.info, responderUri: form.responderUri,
+        settings: { quizSettings: { isQuiz: form.isQuiz ?? false } }, items: form.items });
+    } else if (operation === 'forms.create') {
       const extra = Object.keys(body ?? {}).filter(key => key !== 'info');
       if (extra.length || !body?.info || typeof body.info.title !== 'string' || !body.info.title) return invalid('info.title is required and only info is accepted');
       if (Object.keys(body.info).some(key => !['title', 'documentTitle'].includes(key))) return invalid('Only info.title and info.documentTitle are copied on create');
@@ -156,21 +193,36 @@ export function createFakeGoogleForms(options = {}) {
         items: [],
         revisionId: '00000001',
         responderUri: options.responderUri ? options.responderUri(formCounter) : `https://docs.google.com/forms/d/e/1FAIpQLSfake${formCounter}/viewform`,
+        isQuiz: false,
         publishState: { isPublished: !unpublished, isAcceptingResponses: !unpublished },
       };
       forms.set(formId, form);
       response = json(200, { formId, info: form.info, revisionId: form.revisionId, responderUri: form.responderUri, publishSettings: { publishState: form.publishState } });
     } else {
-      const form = forms.get(match[1]);
+      const formId = getMatch?.[1] ?? match[1];
+      const form = forms.get(formId);
       if (!form) return problem(404, 'NOT_FOUND', 'Requested entity was not found.');
       if (operation === 'forms.batchUpdate') {
         if (!Array.isArray(body?.requests) || body.requests.length === 0) return invalid('requests is required');
-        const applied = applyBatch(form, body.requests);
-        if (applied.error) return applied.error;
-        form.items = applied.items;
-        form.info = applied.info;
-        form.revisionId = String(Number(form.revisionId) + 1).padStart(8, '0');
-        response = json(200, { replies: applied.replies, writeControl: { requiredRevisionId: form.revisionId } });
+        if (body.writeControl?.requiredRevisionId && body.writeControl.requiredRevisionId !== form.revisionId) {
+          return problem(400, 'FAILED_PRECONDITION', 'The form revision did not match the required revision.');
+        }
+        if (Number.isInteger(injected?.partialAfter)) {
+          const count = Math.max(0, Math.min(body.requests.length, injected.partialAfter));
+          const partial = applyBatch(form, body.requests.slice(0, count));
+          if (partial.error) return partial.error;
+          form.items = partial.items;
+          form.info = partial.info;
+          form.revisionId = String(Number(form.revisionId) + 1).padStart(8, '0');
+          response = problem(injected.status ?? 500, injected.googleStatus ?? 'INTERNAL', injected.message ?? 'injected partial batch failure');
+        } else {
+          const applied = applyBatch(form, body.requests);
+          if (applied.error) return applied.error;
+          form.items = applied.items;
+          form.info = applied.info;
+          form.revisionId = String(Number(form.revisionId) + 1).padStart(8, '0');
+          response = json(200, { replies: applied.replies, writeControl: { requiredRevisionId: form.revisionId } });
+        }
       } else {
         const state = body?.publishSettings?.publishState;
         if (!state || typeof state.isPublished !== 'boolean' || typeof state.isAcceptingResponses !== 'boolean') {
@@ -205,6 +257,13 @@ export function createFakeGoogleForms(options = {}) {
     },
     lastForm() {
       return [...forms.values()].at(-1);
+    },
+    mutateForm(formId, mutate) {
+      const form = forms.get(formId);
+      if (!form) throw new Error('unknown fake form');
+      mutate(form);
+      form.revisionId = String(Number(form.revisionId) + 1).padStart(8, '0');
+      return form;
     },
   };
 }

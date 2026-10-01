@@ -4,10 +4,13 @@ import { getProviderConnection, reportProviderAuthorizationRejected, type Author
 import { FormEngineError, type FormErrorInfo } from '../../errors';
 import { createFormLogger, newRequestId, type FormLogger } from '../../logging';
 import type { CreatedForm, FormsProvider } from '../../provider';
-import type { FormSpecification } from '../../specification';
+import type { FormSpecification, QuestionSpecification, QuestionType } from '../../specification';
 import { ensureValidatedSpecification } from '../../validation';
-import { createGoogleFormsClient, createdItemId, GoogleFormsApiError, type GoogleFormsClient, type GoogleFormsOperation } from './client';
-import { buildInitialBatch, buildRoutingBatch, countQuestions, hasDeferredRouting, planGoogleForm } from './plan';
+import { FormEditError } from '../../edit-errors';
+import { validateFormEditPlan, type ExpectedFormState } from '../../edit-validation';
+import type { FormEditOperation, FormEditPlan, FormEditSnapshot, EditCapability, EditQuestionType } from '../../../../src/lib/form-edit';
+import { createGoogleFormsClient, createdItemId, isFormId, GoogleFormsApiError, type GoogleFormsClient, type GoogleFormsOperation, type GoogleFormResource } from './client';
+import { buildGoogleQuestionItem, buildInitialBatch, buildRoutingBatch, countQuestions, hasDeferredRouting, planGoogleForm, type GoogleItem, type GoogleRequest } from './plan';
 
 /** Must stay equal to the required scope in server/providers/registry.ts; a test checks it. */
 export const FORMS_BODY_SCOPE = 'https://www.googleapis.com/auth/forms.body';
@@ -38,7 +41,90 @@ export function createGoogleFormsProvider(deps: GoogleFormsProviderDeps = {}): F
 
   return {
     id: 'google',
-    capabilities: { createForm: true },
+    capabilities: { createForm: true, editForm: true },
+
+    async retrieveForm(userId, providerFormId, context) {
+      const requestId = context?.requestId ?? newRequestId();
+      const log = context?.log ?? fallbackLog;
+      if (!isGoogleFormId(providerFormId)) throw new FormEditError({ code: 'invalid_form_url', message: 'That Google Forms URL does not contain a valid form ID.', outcome: 'not_applied', retryable: false });
+      const connection = await acquireEditConnection(getConnection, userId);
+      try {
+        log('form.edit.provider_request', { requestId, userId, provider: 'google', operation: 'forms.get', formId: providerFormId, stage: 'retrieve' });
+        const resource = await client.getForm(connection.accessToken, providerFormId);
+        return { current: googleFormSnapshot(resource), externalAccountId: connection.externalAccountId };
+      } catch (error) {
+        throw await editReadFailure(error, { requestId, log, userId, formId: providerFormId, reportRejected });
+      }
+    },
+
+    async applyEditPlan(userId, input, context) {
+      const requestId = context?.requestId ?? newRequestId();
+      const log = context?.log ?? fallbackLog;
+      if (!isGoogleFormId(input.base.providerFormId) || input.plan.formId !== input.base.providerFormId) {
+        throw new FormEditError({ code: 'edit_plan_invalid', message: 'The plan does not target the selected Google Form. Nothing was changed.', outcome: 'not_applied', retryable: false });
+      }
+      const connection = await acquireEditConnection(getConnection, userId);
+      if (connection.externalAccountId !== input.expectedAccountId) {
+        throw new FormEditError({ code: 'form_not_editable', message: 'The connected Google account changed after this proposal was prepared. Reconnect the original account and review the form again.', outcome: 'not_applied', retryable: false });
+      }
+      let freshResource: GoogleFormResource;
+      try {
+        log('form.edit.provider_request', { requestId, userId, provider: 'google', operation: 'forms.get', formId: input.base.providerFormId, stage: 'verify_before_apply' });
+        freshResource = await client.getForm(connection.accessToken, input.base.providerFormId);
+      } catch (error) {
+        throw await editReadFailure(error, { requestId, log, userId, formId: input.base.providerFormId, reportRejected });
+      }
+      const fresh = googleFormSnapshot(freshResource);
+      if (fresh.providerFormId !== input.base.providerFormId || fresh.revisionId !== input.base.revisionId || !sameTargets(input.base, fresh, input.plan)) {
+        throw new FormEditError({ code: 'edit_stale', message: 'This Google Form changed after Intake prepared the proposal. Nothing was applied. Refresh the current form and review a new proposal.', outcome: 'stale', retryable: false });
+      }
+      const validation = validateFormEditPlan(fresh, { summary: input.plan.summary, operations: input.plan.operations });
+      if (!validation.ok) {
+        throw new FormEditError({ code: validation.kind === 'unsupported' ? 'edit_unsupported' : 'edit_plan_invalid',
+          message: validation.issues.slice(0, 4).map(issue => issue.message).join(' ') || 'This proposal no longer passes validation. Nothing was changed.',
+          outcome: 'not_applied', retryable: false, issues: validation.issues });
+      }
+      const requests = compileEditRequests(fresh, input.plan.operations);
+      if (!requests.length) throw new FormEditError({ code: 'edit_plan_invalid', message: 'The plan did not contain an applicable change. Nothing was changed.', outcome: 'not_applied', retryable: false });
+      try {
+        log('form.edit.provider_request', { requestId, userId, provider: 'google', operation: 'forms.batchUpdate', formId: fresh.providerFormId, stage: 'apply', requestCount: requests.length });
+        await client.batchUpdate(connection.accessToken, fresh.providerFormId, requests, { requiredRevisionId: fresh.revisionId });
+      } catch (error) {
+        const reconciliation = await reconcileAfterEditFailure(client, connection.accessToken, fresh, validation.expected, input.plan, error);
+        if (reconciliation.kind === 'applied') return { current: reconciliation.current, externalAccountId: connection.externalAccountId };
+        throw await editWriteFailure(error, { requestId, log, userId, formId: fresh.providerFormId, reportRejected, reconciliation });
+      }
+      let updated: FormEditSnapshot | null = null;
+      let verificationError: unknown;
+      // A fresh GET is safe to repeat once. This recovers a transient read failure after Google has
+      // accepted the batch without ever resending potentially non-idempotent createItem requests.
+      for (let attempt = 1; attempt <= 2 && !updated; attempt += 1) {
+        try {
+          log('form.edit.provider_request', { requestId, userId, provider: 'google', operation: 'forms.get', formId: fresh.providerFormId, stage: 'verify_after_apply', attempt });
+          updated = googleFormSnapshot(await client.getForm(connection.accessToken, fresh.providerFormId));
+        } catch (error) {
+          verificationError = error;
+          const api = error instanceof GoogleFormsApiError ? error.info : null;
+          log('form.edit.provider_failed', { requestId, userId, provider: 'google', operation: 'forms.get', formId: fresh.providerFormId,
+            stage: 'verify_after_apply', attempt, kind: api?.kind ?? 'unexpected', httpStatus: api?.httpStatus, googleStatus: api?.googleStatus, outcome: 'unknown' });
+        }
+      }
+      if (!updated) {
+        const api = verificationError instanceof GoogleFormsApiError ? verificationError.info : null;
+        if (api?.kind === 'http' && api.httpStatus === 401) {
+          try { await reportRejected?.(userId, 'google'); } catch (reportError) { logSafe('Could not mark the Google connection for renewal', reportError); }
+        }
+        throw new FormEditError({ code: 'provider_unavailable', message: 'Google accepted the update request, but Intake could not verify the resulting form after a safe read retry. Do not submit this proposal again; check the original Google Form before starting a new edit.', outcome: 'unknown', retryable: false });
+      }
+      if (!matchesExpected(updated, validation.expected, input.plan)) {
+        const outcome = hasAnyPlannedEffect(fresh, updated, input.plan) ? 'partial' : 'unknown';
+        log('form.edit.provider_failed', { requestId, userId, provider: 'google', operation: 'forms.batchUpdate', formId: fresh.providerFormId, stage: 'verify_after_apply', outcome });
+        throw new FormEditError({ code: outcome === 'partial' ? 'provider_error' : 'provider_unavailable',
+          message: outcome === 'partial' ? 'Google applied only part of the proposal. Intake verified the current form and will not retry automatically. Review the original form, then prepare a new edit for any remaining changes.' : 'Google returned a successful update, but Intake could not verify that all proposed changes are present. Do not retry this proposal; inspect the original form first.', outcome, retryable: false });
+      }
+      log('form.edit.completed', { requestId, userId, provider: 'google', formId: updated.providerFormId, operationCount: input.plan.operations.length, questionCount: updated.items.filter(item => item.kind === 'question').length });
+      return { current: updated, externalAccountId: connection.externalAccountId };
+    },
 
     async createForm(userId, specification, context) {
       const requestId = context?.requestId ?? newRequestId();
@@ -120,6 +206,279 @@ export function createGoogleFormsProvider(deps: GoogleFormsProviderDeps = {}): F
   };
 }
 
+type EditReconciliation = { kind: 'applied'; current: FormEditSnapshot } | { kind: 'unchanged' | 'partial' | 'unknown'; current?: FormEditSnapshot };
+
+function isGoogleFormId(value: unknown): value is string {
+  return isFormId(value);
+}
+
+async function acquireEditConnection(getConnection: NonNullable<GoogleFormsProviderDeps['getConnection']>, userId: string): Promise<ConnectedGoogle> {
+  try {
+    return await acquireConnection(getConnection, userId, 'edit');
+  } catch (error) {
+    if (error instanceof FormEngineError) {
+      throw new FormEditError({ code: error.info.code as FormEditError['info']['code'], message: error.info.message,
+        outcome: 'not_applied', retryable: error.info.retryable });
+    }
+    throw new FormEditError({ code: 'storage_unavailable', message: 'Intake could not verify your Google connection. The form was not changed.', outcome: 'not_applied', retryable: true });
+  }
+}
+
+function googleFormSnapshot(resource: GoogleFormResource): FormEditSnapshot {
+  const sectionIds = new Set(resource.items.filter(item => item.kind === 'section').map(item => item.itemId));
+  let hasBranching = false;
+  let sectionIndex = 0;
+  const items = resource.items.map((item, index) => {
+    if (item.kind === 'section') sectionIndex += 1;
+    const options = item.options ?? [];
+    const hasRouting = options.some(option => option.hasRouting);
+    if (hasRouting) hasBranching = true;
+    for (const option of options) {
+      if (option.goToAction && !['NEXT_SECTION', 'RESTART_FORM', 'SUBMIT_FORM'].includes(option.goToAction)) throw new GoogleFormsApiError({ operation: 'forms.get', kind: 'malformed_response' });
+      if (option.goToSectionId && !sectionIds.has(option.goToSectionId)) throw new GoogleFormsApiError({ operation: 'forms.get', kind: 'malformed_response' });
+      if (option.hasRouting && item.questionType === 'checkboxes') throw new GoogleFormsApiError({ operation: 'forms.get', kind: 'malformed_response' });
+    }
+    const capabilities: EditCapability[] = [];
+    if (item.kind === 'question' && item.questionId) {
+      const known = ['short_text', 'long_text', 'multiple_choice', 'dropdown', 'checkboxes'].includes(item.questionType ?? '');
+      if (known) capabilities.push('update_title', 'update_description', 'update_required');
+      const special = options.some(option => option.hasImage || option.isOther || option.hasRouting);
+      const simple = known && !special && !item.hasGrading && !resource.isQuiz;
+      if (simple) capabilities.push('update_type');
+      if (simple && ['multiple_choice', 'dropdown', 'checkboxes'].includes(item.questionType ?? '')) capabilities.push('update_options');
+      if (!hasRouting && !resource.isQuiz && !item.hasGrading) capabilities.push('delete', 'move');
+    }
+    const mappedType = item.questionType ?? (item.kind === 'question' ? 'unknown' : undefined);
+    return {
+      itemId: item.itemId, ...(item.questionId ? { questionId: item.questionId } : {}), index, sectionIndex,
+      kind: item.kind, title: item.title, ...(item.description !== undefined ? { description: item.description } : {}),
+      ...(mappedType ? { questionType: mappedType as EditQuestionType } : {}),
+      ...(item.kind === 'question' ? { required: item.required ?? false, options: options.map(option => option.value), hasRouting } : {}),
+      capabilities,
+    };
+  });
+  return { providerFormId: resource.formId, revisionId: resource.revisionId, title: resource.info.title,
+    ...(resource.info.description !== undefined ? { description: resource.info.description } : {}), editUrl: editUrl(resource.formId),
+    responderUrl: safeFormUrl(resource.responderUri), items, hasSections: sectionIds.size > 0, hasBranching, isQuiz: resource.isQuiz };
+}
+
+function sameTargets(base: FormEditSnapshot, fresh: FormEditSnapshot, plan: FormEditPlan): boolean {
+  if (base.providerFormId !== fresh.providerFormId || base.revisionId !== fresh.revisionId || base.title !== fresh.title ||
+      (base.description ?? '') !== (fresh.description ?? '') || base.items.length !== fresh.items.length) return false;
+  for (const operation of plan.operations) {
+    if (!('questionId' in operation)) continue;
+    const before = base.items.find(item => item.questionId === operation.questionId);
+    const after = fresh.items.find(item => item.questionId === operation.questionId);
+    if (!before || !after || before.itemId !== after.itemId || before.index !== after.index || before.title !== after.title ||
+        (before.description ?? '') !== (after.description ?? '') || before.questionType !== after.questionType || before.required !== after.required ||
+        JSON.stringify(before.options ?? []) !== JSON.stringify(after.options ?? []) || before.hasRouting !== after.hasRouting) return false;
+  }
+  return true;
+}
+
+function googleChoiceType(type: QuestionType): 'RADIO' | 'CHECKBOX' | 'DROP_DOWN' {
+  return type === 'multiple_choice' ? 'RADIO' : type === 'dropdown' ? 'DROP_DOWN' : 'CHECKBOX';
+}
+function questionTypeFromSnapshot(item: FormEditSnapshot['items'][number]): QuestionType {
+  return ['short_text', 'long_text', 'multiple_choice', 'dropdown', 'checkboxes'].includes(item.questionType ?? '') ? item.questionType as QuestionType : 'short_text';
+}
+function questionSpecFromItem(item: FormEditSnapshot['items'][number], changes: { title?: string; description?: string; type?: QuestionType; required?: boolean; options?: string[] }): QuestionSpecification {
+  const type = changes.type ?? questionTypeFromSnapshot(item);
+  return { id: 'existing_question', title: changes.title ?? (item.title || 'Question'),
+    ...(changes.description !== undefined ? (changes.description ? { description: changes.description } : {}) : (item.description ? { description: item.description } : {})),
+    type, required: changes.required ?? item.required ?? false,
+    ...(type === 'multiple_choice' || type === 'dropdown' || type === 'checkboxes' ? { options: changes.options ?? item.options ?? [] } : {}) };
+}
+
+function compileEditRequests(current: FormEditSnapshot, operations: FormEditOperation[]): GoogleRequest[] {
+  const requests: GoogleRequest[] = [];
+  const live = current.items.map(item => ({ itemId: item.itemId, ...(item.questionId ? { questionId: item.questionId } : {}), kind: item.kind }));
+  for (const [operationIndex, operation] of operations.entries()) {
+    if (operation.type === 'update_title') requests.push({ updateFormInfo: { info: { title: operation.title }, updateMask: 'title' } });
+    else if (operation.type === 'update_description') requests.push({ updateFormInfo: { info: { description: operation.description }, updateMask: 'description' } });
+    else if (operation.type === 'add_question') {
+      const position = operation.position ?? live.length;
+      const spec: QuestionSpecification = { id: `added_${operationIndex + 1}`, ...operation.question, required: operation.question.required ?? false };
+      requests.push({ createItem: { item: buildGoogleQuestionItem(spec), location: { index: position } } });
+      live.splice(position, 0, { itemId: `new:${operationIndex}`, kind: 'question' });
+    } else if (operation.type === 'delete_question') {
+      const index = live.findIndex(item => item.questionId === operation.questionId);
+      if (index < 0) throw new Error('Validated edit target disappeared while compiling');
+      requests.push({ deleteItem: { location: { index } } });
+      live.splice(index, 1);
+    } else if (operation.type === 'move_question') {
+      const original = live.findIndex(item => item.questionId === operation.questionId);
+      if (original < 0) throw new Error('Validated edit target disappeared while compiling');
+      const [item] = live.splice(original, 1);
+      requests.push({ moveItem: { originalLocation: { index: original }, newLocation: { index: operation.position } } });
+      live.splice(operation.position, 0, item);
+    } else {
+      const target = current.items.find(item => item.questionId === operation.questionId);
+      const index = live.findIndex(item => item.questionId === operation.questionId);
+      if (!target || index < 0 || !target.itemId || !target.questionId) throw new Error('Validated edit target disappeared while compiling');
+      const body: GoogleItem = { itemId: target.itemId };
+      const mask: string[] = [];
+      const changes = operation.changes;
+      if (changes.title !== undefined) { body.title = changes.title; mask.push('title'); }
+      if (changes.description !== undefined) { body.description = changes.description; mask.push('description'); }
+      const crossKind = changes.type !== undefined &&
+        (['short_text', 'long_text'].includes(questionTypeFromSnapshot(target)) !== ['short_text', 'long_text'].includes(changes.type));
+      if (crossKind) {
+        const complete = buildGoogleQuestionItem(questionSpecFromItem(target, changes));
+        if (!complete.questionItem) throw new Error('A supported Google question item could not be built');
+        complete.itemId = target.itemId;
+        complete.questionItem.question.questionId = target.questionId;
+        body.questionItem = complete.questionItem;
+        mask.push('questionItem.question');
+      } else {
+        if (changes.required !== undefined) {
+          body.questionItem = { question: { questionId: target.questionId, required: changes.required } };
+          mask.push('questionItem.question.required');
+        }
+        if (changes.type !== undefined) {
+          body.questionItem ??= { question: { questionId: target.questionId } };
+          if (['short_text', 'long_text'].includes(changes.type)) {
+            body.questionItem.question.textQuestion = { paragraph: changes.type === 'long_text' };
+            mask.push('questionItem.question.textQuestion.paragraph');
+          } else {
+            body.questionItem.question.choiceQuestion = { type: googleChoiceType(changes.type), options: (changes.options ?? target.options ?? []).map(value => ({ value })) };
+            mask.push('questionItem.question.choiceQuestion.type');
+            if (changes.options !== undefined) mask.push('questionItem.question.choiceQuestion.options');
+          }
+        } else if (changes.options !== undefined) {
+          body.questionItem = { question: { questionId: target.questionId,
+            choiceQuestion: { type: googleChoiceType(questionTypeFromSnapshot(target)), options: changes.options.map(value => ({ value })) } } };
+          mask.push('questionItem.question.choiceQuestion.options');
+        }
+      }
+      if (mask.length) requests.push({ updateItem: { item: body, location: { index }, updateMask: [...new Set(mask)].join(',') } });
+    }
+  }
+  return requests;
+}
+
+function expectedTypeWasChanged(plan: FormEditPlan, questionId: string): boolean {
+  return plan.operations.some(operation => operation.type === 'update_question' && operation.questionId === questionId && operation.changes.type !== undefined);
+}
+function itemMatchesExpected(actual: FormEditSnapshot['items'][number], expected: ExpectedFormState['items'][number], plan: FormEditPlan): boolean {
+  const old = expected.existingItem;
+  if (old) {
+    if (actual.itemId !== old.itemId || actual.kind !== old.kind || actual.title !== (expected.question?.title ?? old.title) ||
+        (actual.description ?? '') !== (expected.question?.description ?? old.description ?? '')) return false;
+    if (old.questionId) {
+      const typeChanged = expectedTypeWasChanged(plan, old.questionId);
+      const desiredType = typeChanged ? expected.question?.type : old.questionType;
+      const desiredRequired = expected.question?.required ?? old.required;
+      const desiredOptions = typeChanged || plan.operations.some(operation => operation.type === 'update_question' && operation.questionId === old.questionId && operation.changes.options !== undefined)
+        ? expected.question?.options ?? [] : old.options ?? [];
+      if (actual.questionId !== old.questionId || actual.questionType !== desiredType || actual.required !== desiredRequired ||
+          JSON.stringify(actual.options ?? []) !== JSON.stringify(desiredOptions)) return false;
+    }
+    return true;
+  }
+  const question = expected.question;
+  return !!question && actual.kind === 'question' && actual.title === question.title && (actual.description ?? '') === (question.description ?? '') &&
+    actual.questionType === question.type && actual.required === (question.required ?? false) && JSON.stringify(actual.options ?? []) === JSON.stringify(question.options ?? []);
+}
+function matchesExpected(current: FormEditSnapshot, expected: ExpectedFormState, plan: FormEditPlan): boolean {
+  if (current.title !== expected.title || (current.description ?? '') !== expected.description || current.items.length !== expected.items.length) return false;
+  return expected.items.every((item, index) => itemMatchesExpected(current.items[index], item, plan));
+}
+function hasAnyPlannedEffect(base: FormEditSnapshot, actual: FormEditSnapshot, plan: FormEditPlan): boolean {
+  for (const operation of plan.operations) {
+    if (operation.type === 'update_title' && actual.title === operation.title) return true;
+    if (operation.type === 'update_description' && (actual.description ?? '') === operation.description) return true;
+    if (operation.type === 'add_question') {
+      const before = base.items.filter(item => item.kind === 'question' && item.title === operation.question.title).length;
+      const after = actual.items.filter(item => item.kind === 'question' && item.title === operation.question.title).length;
+      if (after > before) return true;
+    }
+    if (operation.type === 'delete_question' && !actual.items.some(item => item.questionId === operation.questionId)) return true;
+    if (operation.type === 'move_question') {
+      const before = base.items.find(item => item.questionId === operation.questionId);
+      const after = actual.items.find(item => item.questionId === operation.questionId);
+      if (before && after && before.index !== after.index) return true;
+    }
+    if (operation.type === 'update_question') {
+      const after = actual.items.find(item => item.questionId === operation.questionId);
+      if (after && Object.entries(operation.changes).some(([key, value]) => {
+        if (key === 'description') return (after.description ?? '') === value;
+        if (key === 'options') return JSON.stringify(after.options ?? []) === JSON.stringify(value);
+        if (key === 'type') return after.questionType === value;
+        return (after as unknown as Record<string, unknown>)[key] === value;
+      })) return true;
+    }
+  }
+  return false;
+}
+
+async function reconcileAfterEditFailure(client: GoogleFormsClient, token: string, base: FormEditSnapshot, expected: ExpectedFormState, plan: FormEditPlan, _error: unknown): Promise<EditReconciliation> {
+  try {
+    const latest = googleFormSnapshot(await client.getForm(token, base.providerFormId));
+    if (matchesExpected(latest, expected, plan)) return { kind: 'applied', current: latest };
+    if (hasAnyPlannedEffect(base, latest, plan)) return { kind: 'partial', current: latest };
+    if (latest.revisionId === base.revisionId) return { kind: 'unchanged', current: latest };
+    return { kind: 'unknown', current: latest };
+  } catch { return { kind: 'unknown' }; }
+}
+
+async function editReadFailure(error: unknown, context: { requestId: string; log: FormLogger; userId: string; formId: string; reportRejected: GoogleFormsProviderDeps['reportAuthorizationRejected'] }): Promise<FormEditError> {
+  if (error instanceof FormEditError) return error;
+  const api = error instanceof GoogleFormsApiError ? error.info : null;
+  if (!api) {
+    logSafe('Google form retrieval failed unexpectedly', error);
+    return new FormEditError({ code: 'internal_error', message: 'Intake could not read this Google Form. The form was not changed.', outcome: 'not_applied', retryable: false });
+  }
+  if (api.kind === 'http' && api.httpStatus === 401) {
+    try { await context.reportRejected?.(context.userId, 'google'); } catch (reportError) { logSafe('Could not mark the Google connection for renewal', reportError); }
+  }
+  context.log('form.edit.provider_failed', { requestId: context.requestId, userId: context.userId, provider: 'google', operation: api.operation,
+    stage: 'retrieve', formId: context.formId, kind: api.kind, httpStatus: api.httpStatus, googleStatus: api.googleStatus, reason: api.reason });
+  return mapGoogleEditFailure(api, 'not_applied');
+}
+
+async function editWriteFailure(error: unknown, context: { requestId: string; log: FormLogger; userId: string; formId: string; reportRejected: GoogleFormsProviderDeps['reportAuthorizationRejected']; reconciliation: EditReconciliation }): Promise<FormEditError> {
+  if (context.reconciliation.kind === 'partial') {
+    context.log('form.edit.provider_failed', { requestId: context.requestId, userId: context.userId, provider: 'google', operation: 'forms.batchUpdate', stage: 'apply', formId: context.formId, outcome: 'partial' });
+    return new FormEditError({ code: 'provider_error', message: 'Google applied only part of the proposal. Intake verified the current form and will not retry automatically. Review the original form, then prepare a new edit for any remaining changes.', outcome: 'partial', retryable: false,
+      ...(context.reconciliation.current ? { current: context.reconciliation.current } : {}) });
+  }
+  const api = error instanceof GoogleFormsApiError ? error.info : null;
+  if (!api) {
+    logSafe('Google form edit failed unexpectedly', error);
+    return new FormEditError({ code: 'internal_error', message: 'Intake could not confirm whether the edit was applied. Do not retry this proposal. Check the original Google Form first.', outcome: 'unknown', retryable: false,
+      ...(context.reconciliation.current ? { current: context.reconciliation.current } : {}) });
+  }
+  if (api.kind === 'http' && api.httpStatus === 401) {
+    try { await context.reportRejected?.(context.userId, 'google'); } catch (reportError) { logSafe('Could not mark the Google connection for renewal', reportError); }
+  }
+  let result: FormEditError;
+  if (context.reconciliation.kind === 'unknown' || api.kind === 'timeout' || api.kind === 'network' || api.kind === 'malformed_response' || (api.kind === 'http' && (api.httpStatus ?? 0) >= 500)) {
+    result = new FormEditError({ code: 'provider_unavailable', message: 'Google did not confirm whether all proposed changes were applied. Do not retry this proposal. Check the original form before starting a new edit.', outcome: 'unknown', retryable: false });
+  } else result = mapGoogleEditFailure(api, 'not_applied');
+  if (context.reconciliation.current) result = new FormEditError({ ...result.info, current: context.reconciliation.current });
+  context.log('form.edit.provider_failed', { requestId: context.requestId, userId: context.userId, provider: 'google', operation: api.operation,
+    stage: 'apply', formId: context.formId, kind: api.kind, httpStatus: api.httpStatus, googleStatus: api.googleStatus, reason: api.reason,
+    outcome: result.info.outcome, code: result.info.code });
+  return result;
+}
+
+function mapGoogleEditFailure(api: GoogleFormsApiError['info'], outcome: FormEditError['info']['outcome']): FormEditError {
+  if (api.kind === 'timeout' || api.kind === 'network') return new FormEditError({ code: 'provider_unavailable', message: 'Google Forms could not be reached. The form was not changed.', outcome, retryable: outcome === 'not_applied' });
+  if (api.kind === 'malformed_response') return new FormEditError({ code: 'provider_error', message: 'Google returned a response Intake could not safely use. The form was not changed.', outcome, retryable: false });
+  const status = api.httpStatus ?? 0;
+  if (status === 401) return new FormEditError({ code: 'provider_reauthorization_required', message: 'Google no longer accepts Intake’s authorization. Reconnect Google, then review the form again.', outcome, retryable: false });
+  if (status === 403) {
+    if (api.reason === 'SERVICE_DISABLED' || api.reason === 'API_DISABLED') return new FormEditError({ code: 'provider_permission_denied', message: 'The Google Forms API is not enabled for the Google Cloud project Intake uses.', outcome, retryable: false });
+    if (api.reason === 'ACCESS_TOKEN_SCOPE_INSUFFICIENT') return new FormEditError({ code: 'provider_reauthorization_required', message: 'Google did not grant Intake the requested Forms permission. Reconnect Google and allow the existing Forms access.', outcome, retryable: false });
+    return new FormEditError({ code: 'form_not_editable', message: 'This Google account can read the form but Google did not authorize an edit. Use an account with editor access, then load the form again.', outcome, retryable: false });
+  }
+  if (status === 404) return new FormEditError({ code: 'form_not_found', message: 'Google Forms could not find this form for the connected account. Check the edit URL and Google account.', outcome, retryable: false });
+  if (status === 429) return new FormEditError({ code: 'provider_rate_limited', message: 'Google is limiting form requests. Wait a moment and try again.', outcome, retryable: outcome === 'not_applied' });
+  if (status >= 500) return new FormEditError({ code: 'provider_unavailable', message: 'Google Forms is temporarily unavailable.', outcome, retryable: false });
+  return new FormEditError({ code: 'provider_rejected', message: 'Google rejected the requested form edit. Intake made no replacement form and will not retry it automatically.', outcome, retryable: false, detail: api.detail });
+}
+
 function request(log: FormLogger, requestId: string, operation: GoogleFormsOperation, stage: BuildStage, formId: string | null, extra: Record<string, number>): void {
   log('form.create.provider_request', { requestId, provider: 'google', operation, stage, formId, ...extra });
 }
@@ -128,7 +487,7 @@ export function editUrl(formId: string): string {
   return `https://docs.google.com/forms/d/${encodeURIComponent(formId)}/edit`;
 }
 
-async function acquireConnection(getConnection: NonNullable<GoogleFormsProviderDeps['getConnection']>, userId: string): Promise<ConnectedGoogle> {
+async function acquireConnection(getConnection: NonNullable<GoogleFormsProviderDeps['getConnection']>, userId: string, action: 'create' | 'edit' = 'create'): Promise<ConnectedGoogle> {
   let result: AuthorizedConnection;
   try {
     result = await getConnection(userId, 'google');
@@ -136,41 +495,42 @@ async function acquireConnection(getConnection: NonNullable<GoogleFormsProviderD
     logSafe('Forms connection lookup failed', error);
     throw new FormEngineError({
       code: 'storage_unavailable',
-      message: 'Intake could not read your Google connection right now. Nothing was created. Try again in a moment.',
+      message: action === 'create' ? 'Intake could not read your Google connection right now. Nothing was created. Try again in a moment.' : 'Intake could not read your Google connection. The form was not changed. Try again in a moment.',
       provider: 'google',
       stage: 'connection',
       outcome: 'not_created',
       retryable: true,
     });
   }
-  if (!result.ok) throw connectionError(result.reason);
+  if (!result.ok) throw connectionError(result.reason, action);
   // The service already scopes by user. This is a second, independent check of the ownership chain.
   if (result.provider !== 'google' || result.userId !== userId) {
     logSafe('Forms connection ownership mismatch');
-    throw new FormEngineError({ code: 'internal_error', message: 'Intake could not verify which Google connection to use. Nothing was created.', provider: 'google', stage: 'connection', outcome: 'not_created', retryable: false });
+    throw new FormEngineError({ code: 'internal_error', message: action === 'create' ? 'Intake could not verify which Google connection to use. Nothing was created.' : 'Intake could not verify the Google connection. The form was not changed.', provider: 'google', stage: 'connection', outcome: 'not_created', retryable: false });
   }
   if (!hasScope(result.scopes, FORMS_BODY_SCOPE)) {
-    throw connectionError('reauthorization_required');
+    throw connectionError('reauthorization_required', action);
   }
   return result;
 }
 
 type ConnectionFailure = Extract<AuthorizedConnection, { ok: false }>['reason'];
 
-function connectionError(reason: ConnectionFailure): FormEngineError {
+function connectionError(reason: ConnectionFailure, action: 'create' | 'edit' = 'create'): FormEngineError {
   const base = { provider: 'google' as const, stage: 'connection' as const, outcome: 'not_created' as const };
+  const ending = action === 'edit' ? ' The form was not changed.' : ' Nothing was created.';
   switch (reason) {
     case 'not_connected':
-      return new FormEngineError({ ...base, code: 'provider_not_connected', message: 'Google is not connected to your Intake account. Connect Google Forms first. Nothing was created.', retryable: false });
+      return new FormEngineError({ ...base, code: 'provider_not_connected', message: `Google is not connected to your Intake account. Connect Google Forms first.${ending}`, retryable: false });
     case 'expired':
     case 'reauthorization_required':
-      return new FormEngineError({ ...base, code: 'provider_reauthorization_required', message: 'Your Google authorization has expired or was revoked. Reconnect Google, then try again. Nothing was created.', retryable: false });
+      return new FormEngineError({ ...base, code: 'provider_reauthorization_required', message: `Your Google authorization has expired or was revoked. Reconnect Google, then try again.${ending}`, retryable: false });
     case 'not_configured':
-      return new FormEngineError({ ...base, code: 'provider_not_configured', message: 'Google is not set up on this Intake server yet, so it cannot create forms. Nothing was created.', retryable: false });
+      return new FormEngineError({ ...base, code: 'provider_not_configured', message: `Google is not set up on this Intake server yet.${ending}`, retryable: false });
     case 'provider_unavailable':
-      return new FormEngineError({ ...base, code: 'provider_unavailable', message: 'Google could not be reached to renew your authorization. Nothing was created. Try again in a moment.', retryable: true });
+      return new FormEngineError({ ...base, code: 'provider_unavailable', message: `Google could not be reached to renew your authorization.${ending} Try again in a moment.`, retryable: true });
     case 'storage_unavailable':
-      return new FormEngineError({ ...base, code: 'storage_unavailable', message: 'Intake could not read your Google connection right now. Nothing was created. Try again in a moment.', retryable: true });
+      return new FormEngineError({ ...base, code: 'storage_unavailable', message: `Intake could not read your Google connection right now.${ending} Try again in a moment.`, retryable: true });
     default:
       return new FormEngineError({ ...base, code: 'unsupported_provider', message: 'That provider is not supported.', retryable: false });
   }
