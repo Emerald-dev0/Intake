@@ -45,7 +45,12 @@ test('Render is API-only and fails closed when Neon is unavailable', async () =>
     for (const route of ['/', '/auth/sign-in', '/auth/sign-up', '/app', '/app/connections', '/app/account']) {
       assert.equal((await get(route)).status, 404, `${route} belongs to Vercel, not Render`);
     }
-    assert.equal((await get('/api/health')).status, 200);
+    const health = await get('/api/health');
+    assert.equal(health.status, 200);
+    assert.equal(health.headers.get('cache-control'), 'no-store');
+    assert.equal(health.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(health.headers.get('x-frame-options'), 'DENY');
+    assert.match(health.headers.get('x-request-id'), /^req_/);
     assert.equal((await get('/api/me')).status, 503);
     const providers = await get('/api/providers');
     assert.equal(providers.status, 503);
@@ -82,7 +87,19 @@ test('Render is API-only and fails closed when Neon is unavailable', async () =>
     const callback = await get('/api/providers/google/callback?code=super-secret-code&state=abc');
     assert.equal(callback.status, 503);
     assert.equal((await callback.text()).includes('super-secret-code'), false);
-    // A failed Better Auth request must not terminate the entire server process.
+    const oversizedAuth = await fetch(`http://127.0.0.1:${port}/api/auth/sign-in/email`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'a@example.test', password: 'x'.repeat(70_000) }),
+    });
+    assert.equal(oversizedAuth.status, 413);
+    const invalidAuth = await fetch(`http://127.0.0.1:${port}/api/auth/sign-in/email`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{',
+    });
+    assert.equal(invalidAuth.status, 400);
+    const unsupportedAuth = await fetch(`http://127.0.0.1:${port}/api/auth/sign-in/email`, {
+      method: 'POST', headers: { 'content-type': 'text/plain' }, body: 'credentials',
+    });
+    assert.equal(unsupportedAuth.status, 415);
+    // Failed Better Auth and parser requests must not terminate the entire server process.
     assert.equal((await get('/api/auth/ok')).status, 500);
     assert.equal((await get('/api/health')).status, 200);
     assert.equal((await get('/unknown')).status, 404);

@@ -37,6 +37,7 @@ async function boot(options = {}) {
     store, engine, interpreter: options.interpreter ?? interpreter, env: world.env, log: world.log, now: world.now,
     newId: () => `aaaaaaaa-aaaa-4aaa-8aaa-${String(store.all().length + 1).padStart(12, '0')}`,
     limiter: options.limiter,
+    abuseLimiter: options.abuseLimiter,
     getSession: async () => { if (people.failing) throw new Error('session password=hunter2'); return people.current; },
   }));
   app.use('/api/forms', createFormsRouter({ engine, env: world.env, log: world.log, getSession: async () => people.current }));
@@ -298,6 +299,32 @@ test('input sizes, unwanted fields, invalid model output and rate limits fail be
   assert.equal((await app.interpret()).status, 429);
   assert.equal(app.inputs.length, 1);
   assert.equal(app.world.fake.calls.length, 0);
+}));
+
+test('distributed interpretation limits fail before model work and include a retry hint', () => withApi({
+  abuseLimiter: {
+    async consume(scope) {
+      return scope.endsWith('.user')
+        ? { allowed: false, retryAfterSeconds: 23, limit: 1, remaining: 0 }
+        : { allowed: true, retryAfterSeconds: 23, limit: 100, remaining: 99 };
+    },
+  },
+}, async app => {
+  const response = await app.interpret();
+  assert.equal(response.status, 429, response.text);
+  assert.equal(response.json.code, 'rate_limited');
+  assert.equal(response.headers.get('retry-after'), '23');
+  assert.equal(app.inputs.length, 0);
+  assert.equal(app.store.all().length, 0);
+}));
+
+test('a distributed limiter outage fails closed before expensive work', () => withApi({
+  abuseLimiter: { async consume() { throw new Error('rate database unavailable'); } },
+}, async app => {
+  const response = await app.interpret();
+  assert.equal(response.status, 503, response.text);
+  assert.equal(response.json.code, 'storage_unavailable');
+  assert.equal(app.inputs.length, 0);
 }));
 
 test('cancel discards only a ready draft and never deletes a provider form', () => withApi({}, async app => {

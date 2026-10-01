@@ -284,9 +284,11 @@ combination of answers and comparing what they see with what the specification s
 
 All forms routes require a signed-in Intake user. The user comes from the session and **nowhere else**. Mutating routes require an Intake `Origin` (or `Referer`) before reading their JSON bodies.
 
-### `POST /api/forms`
+### `POST /api/forms` (disabled in production)
 
-Request (JSON, ≤ 100 KB, must come from the Intake origin):
+`server/index.ts` configures this route with `allowDirectCreation: false`; deployed requests receive HTTP 405 `review_required`. The contract below exists only for isolated engine/backward-compatibility tests. Do not enable it in production because it bypasses the persisted review draft and durable one-shot confirmation claim.
+
+Compatibility request (JSON, ≤ 100 KB, must come from the Intake origin):
 
 ```json
 { "provider": "google", "specification": { "title": "…", "questions": [ … ] } }
@@ -423,7 +425,7 @@ line in `providers/google/adapter.ts` `failure()`.
   generic Google rejection) is truncated to 240 characters, stripped of control characters and passed through `redact`. The
   route tests assert that no response body or log line contains a token, ciphertext or the provider account id. There is no
   runtime scanner: the guarantee is that responses are built by copying named fields, never by spreading provider data.
-- **Abuse and quota:** one creation in flight per user and 12 per 10 minutes (in memory, per process).
+- **Abuse controls:** atomic draft claims prevent duplicate confirmation; PostgreSQL-backed user/network ceilings cover AI, provider reads, confirmed creation/editing, and OAuth. The process-local creation/model guards remain defense in depth. Exact non-billing limits and failure behavior are in [`PRODUCTION.md`](../../PRODUCTION.md).
 - **Model independence:** the engine accepts only a typed specification.
 
 ## Form Library & Management (Phase 8)
@@ -519,7 +521,7 @@ and the real latency. The emulator does not prove Google's behavior or batch ato
   unsupported question types and unsafe settings are refused rather than approximated.
 - Intake cannot delete a whole form, share it, or change who can access it (those are Drive operations; no Drive scope is
   requested), and it cannot read responses.
-- The legacy direct `POST /api/forms` endpoint has no durable idempotency key: repeat calls create new forms. The user-facing natural-language flow uses an atomic draft claim at `POST /api/forms/confirm` and replays a completed result instead of creating again.
-- Limits are in memory and per process; a second API instance would have its own counters.
+- The legacy direct `POST /api/forms` compatibility path has no durable idempotency key and is disabled by production composition. Creation uses an atomic draft claim at `POST /api/forms/confirm` and replays terminal results.
+- Technical abuse ceilings are PostgreSQL-backed across API instances. One-in-flight model suppression and token-refresh coalescing are still process-local; there is no cross-instance refresh lease. See [`PRODUCTION.md`](../../PRODUCTION.md).
 - Email questions cannot be validated by Google's API and are created as short answer with a warning.
 - The list shows the 20 most recent forms; there is no pagination.

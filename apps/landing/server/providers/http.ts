@@ -4,6 +4,27 @@ export interface ProviderHttp {
 }
 
 const jwksCache = new Map<string, { expires: number; json: unknown }>();
+const MAX_PROVIDER_RESPONSE_BYTES = 1_000_000;
+
+async function limitedText(response: Response): Promise<string> {
+  const declared = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > MAX_PROVIDER_RESPONSE_BYTES) throw new Error('provider_response_too_large');
+  if (!response.body) return '';
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_PROVIDER_RESPONSE_BYTES) {
+      await reader.cancel();
+      throw new Error('provider_response_too_large');
+    }
+    chunks.push(value);
+  }
+  return new TextDecoder().decode(Buffer.concat(chunks));
+}
 
 export function createProviderHttp(): ProviderHttp {
   return {
@@ -25,8 +46,8 @@ export function createProviderHttp(): ProviderHttp {
 }
 
 async function request(url: string, init: RequestInit): Promise<{ status: number; json: unknown }> {
-  const response = await fetch(url, { ...init, signal: AbortSignal.timeout(12_000) });
-  const text = await response.text();
+  const response = await fetch(url, { ...init, redirect: 'error', signal: AbortSignal.timeout(12_000) });
+  const text = await limitedText(response);
   if (!text) return { status: response.status, json: null };
   try {
     return { status: response.status, json: JSON.parse(text) as unknown };

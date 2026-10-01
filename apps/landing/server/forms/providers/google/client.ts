@@ -20,6 +20,29 @@ import type { GoogleRequest } from './plan';
 export const GOOGLE_FORMS_ORIGIN = 'https://forms.googleapis.com';
 const FORM_ID = /^[A-Za-z0-9_-]{8,256}$/;
 const DEFAULT_TIMEOUT_MS = 20_000;
+const MAX_RESPONSE_BYTES = 5_000_000;
+
+class ResponseTooLargeError extends Error {}
+
+async function limitedText(response: Response): Promise<string> {
+  const declared = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > MAX_RESPONSE_BYTES) throw new ResponseTooLargeError();
+  if (!response.body) return '';
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_RESPONSE_BYTES) {
+      await reader.cancel();
+      throw new ResponseTooLargeError();
+    }
+    chunks.push(value);
+  }
+  return new TextDecoder().decode(Buffer.concat(chunks));
+}
 
 export type GoogleFormsOperation = 'forms.create' | 'forms.get' | 'forms.batchUpdate' | 'forms.setPublishSettings';
 
@@ -116,8 +139,9 @@ export function createGoogleFormsClient(options: { fetchImpl?: FetchLike; timeou
         redirect: 'error',
         signal: AbortSignal.timeout(timeoutMs),
       });
-      raw = await response.text();
+      raw = await limitedText(response);
     } catch (error) {
+      if (error instanceof ResponseTooLargeError) throw new GoogleFormsApiError({ operation, kind: 'malformed_response' });
       const name = error instanceof Error ? error.name : '';
       throw new GoogleFormsApiError({ operation, kind: name === 'TimeoutError' || name === 'AbortError' ? 'timeout' : 'network' });
     }

@@ -93,7 +93,7 @@ async function boot(options = {}) {
   const runtime = options.env || env();
   const service = createProviderService({ store: users.store, http, cipher: cipher(), env: runtime, now: options.now });
   const app = express();
-  app.use('/api/providers', createProviderRouter({ service, env: runtime, getSession: async () => users.current }));
+  app.use('/api/providers', createProviderRouter({ service, env: runtime, abuseLimiter: options.abuseLimiter, getSession: async () => users.current }));
   const server = createServer(app);
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   return {
@@ -227,10 +227,16 @@ test('a different Intake user cannot see or disconnect someone else’s connecti
 test('cancelled, denied, and invalid callbacks do not persist a connection', async () => {
   const { app, calls, close, users } = await boot();
   try {
-    const cancelled = await fetch(app + '/api/providers/google/callback?error=access_denied&error_subcode=cancel&state=nope', { redirect: 'manual' });
+    const forgedCancellation = await fetch(app + '/api/providers/google/callback?error=access_denied&error_subcode=cancel&state=nope', { redirect: 'manual' });
+    assert.equal(new URL(forgedCancellation.headers.get('location'), ORIGIN).searchParams.get('result'), 'invalid_state');
+    const deniedWithoutState = await fetch(app + '/api/providers/microsoft/callback?error=access_denied', { redirect: 'manual' });
+    assert.equal(new URL(deniedWithoutState.headers.get('location'), ORIGIN).searchParams.get('result'), 'invalid_callback');
+
+    const start = await fetch(app + '/api/providers/google/connect', { method: 'POST', redirect: 'manual', headers: { origin: ORIGIN } });
+    const state = new URL(start.headers.get('location')).searchParams.get('state');
+    const cancelled = await fetch(`${app}/api/providers/google/callback?${new URLSearchParams({ error: 'access_denied', error_subcode: 'cancel', state })}`, { redirect: 'manual' });
     assert.equal(new URL(cancelled.headers.get('location'), ORIGIN).searchParams.get('result'), 'cancelled');
-    const denied = await fetch(app + '/api/providers/microsoft/callback?error=access_denied', { redirect: 'manual' });
-    assert.equal(new URL(denied.headers.get('location'), ORIGIN).searchParams.get('result'), 'denied');
+
     const invalid = await fetch(app + '/api/providers/google/callback?code=stolen&state=not-ours', { redirect: 'manual' });
     assert.equal(new URL(invalid.headers.get('location'), ORIGIN).searchParams.get('result'), 'invalid_state');
     assert.equal(invalid.headers.get('location').includes('stolen'), false);
@@ -349,9 +355,14 @@ test('expired grants refresh, and a rejected refresh cannot be used again', asyn
   });
   try {
     await write();
-    const refreshed = await service.getAuthorizedConnection('user-a', 'google');
+    const [refreshed, concurrent] = await Promise.all([
+      service.getAuthorizedConnection('user-a', 'google'),
+      service.getAuthorizedConnection('user-a', 'google'),
+    ]);
     assert.equal(refreshed.ok, true);
+    assert.equal(concurrent.ok, true);
     assert.equal(refreshed.accessToken, 'REFRESHED_ACCESS_TOKEN');
+    assert.equal(calls.refresh, 1, 'concurrent requests in one process share one token refresh');
     assert.equal((await service.getAuthorizedConnection('user-b', 'google')).ok, false);
     calls.refreshMode = 'invalid_grant';
     await write();
@@ -360,6 +371,27 @@ test('expired grants refresh, and a rejected refresh cannot be used again', asyn
     const stored = await users.store.getConnection('user-a', 'google');
     assert.equal(stored.accessTokenCiphertext, null);
     assert.equal(stored.refreshTokenCiphertext, null);
+  } finally {
+    await close();
+  }
+});
+
+test('OAuth start is storage-rate-limited before state is issued', async () => {
+  const { app, close, users } = await boot({
+    abuseLimiter: {
+      async consume(scope) {
+        return scope.endsWith('.user')
+          ? { allowed: false, retryAfterSeconds: 19, limit: 1, remaining: 0 }
+          : { allowed: true, retryAfterSeconds: 19, limit: 10, remaining: 9 };
+      },
+    },
+  });
+  try {
+    const response = await fetch(app + '/api/providers/google/connect', { method: 'POST', redirect: 'manual', headers: { origin: ORIGIN, accept: 'application/json' } });
+    assert.equal(response.status, 429);
+    assert.equal(response.headers.get('retry-after'), '19');
+    assert.equal((await response.json()).result, 'rate_limited');
+    assert.equal(await users.store.listConnections('user-a').then(items => items.length), 0);
   } finally {
     await close();
   }

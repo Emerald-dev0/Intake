@@ -261,6 +261,28 @@ test('Removal from library requires explicit confirmation stating external Googl
     assert.match(page.text(), /Faculty Feedback Survey/);
   }));
 
+test('library mutations show failures and do not optimistically change local state', () =>
+  withLibraryPage({
+    handlers: {
+      'POST /api/forms/library/form-1/archive': () => json({ error: 'Archive is temporarily unavailable.' }, 503),
+      'DELETE /api/forms/library/form-1': () => json({ error: 'Removal is temporarily unavailable.' }, 503),
+    },
+  }, async page => {
+    await page.click(page.$$('button').find(button => button.textContent.trim() === 'View details'));
+    await page.until(() => page.button('Archive form'), 'details modal opened');
+
+    await page.click(page.button('Archive form'));
+    await page.until(() => page.text().includes('Archive is temporarily unavailable.'), 'archive failure is visible');
+    assert.ok(page.button('Archive form'), 'failed archive did not alter the local record');
+
+    await page.click(page.button('Remove from Intake'));
+    await page.until(() => page.button('Yes, remove from Intake'), 'confirmation dialog opened');
+    await page.click(page.button('Yes, remove from Intake'));
+    await page.until(() => page.text().includes('Removal is temporarily unavailable.'), 'remove failure is visible');
+    assert.equal(page.$$('.library-card').length, 2, 'failed removal did not hide the form');
+    assert.ok(page.$('#confirm-remove-title'), 'confirmation remains open so the user can retry or cancel');
+  }));
+
 test('clicking Edit with Intake transitions to the edit workspace with the selected form', () =>
   withLibraryPage({}, async page => {
     const editButtons = page.$$('button').filter(b => b.textContent.trim() === 'Edit with Intake');

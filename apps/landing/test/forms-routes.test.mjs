@@ -25,6 +25,8 @@ async function boot(options = {}) {
     },
     env: world.env,
     log: world.log,
+    allowDirectCreation: options.allowDirectCreation,
+    abuseLimiter: options.abuseLimiter,
   }));
   const server = createServer(app);
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -113,6 +115,29 @@ test('a session lookup failure is a 503 that leaks nothing', () =>
     assertFailureShape(response, 503, 'storage_unavailable');
     assert.equal(response.text.includes('hunter2'), false);
     assert.equal(response.json.retryable, true);
+  }));
+
+test('production composition can disable the direct structured creation route', () =>
+  withServer({ allowDirectCreation: false }, async app => {
+    await app.world.connect('user-a');
+    const response = await app.post({ provider: 'google', specification: SIMPLE });
+    assertFailureShape(response, 405, 'invalid_request');
+    assert.equal(response.json.retryable, false);
+    assert.equal(app.world.fake.calls.length, 0);
+    assert.equal(app.formStore.all().length, 0);
+  }));
+
+test('library filters and import URLs are rejected strictly before provider access', () =>
+  withServer({}, async app => {
+    const invalidLimit = await app.get({ path: '?mode=library&limit=0' });
+    assertFailureShape(invalidLimit, 400, 'invalid_request');
+    const repeated = await app.get({ path: '?mode=library&sort=newest&sort=oldest' });
+    assertFailureShape(repeated, 400, 'invalid_request');
+    const unknown = await app.get({ path: '?mode=library&owner=user-b' });
+    assertFailureShape(unknown, 400, 'invalid_request');
+    const importResponse = await app.post({ url: 'https://evil.example/forms/not-google' }, { path: '/library/import' });
+    assertFailureShape(importResponse, 400, 'invalid_request');
+    assert.equal(app.world.fake.calls.length, 0);
   }));
 
 // ---------------------------------------------------------------- cross-site requests and body handling
@@ -443,11 +468,13 @@ test('when Google does not answer forms.create, the outcome is unknown and nothi
 test('a Google rate limit before anything exists is a retryable 429', () =>
   withServer({}, async app => {
     await app.world.connect('user-a');
-    app.world.fake.failOn('forms.create', { status: 429, googleStatus: 'RESOURCE_EXHAUSTED', message: 'Quota exceeded' });
+    app.world.fake.failOn('forms.create', { status: 429, googleStatus: 'RESOURCE_EXHAUSTED', message: 'Quota exceeded', headers: { 'retry-after': '30' } });
     const response = await app.post({ provider: 'google', specification: SIMPLE });
     assertFailureShape(response, 429, 'provider_rate_limited');
     assert.equal(response.json.outcome, 'not_created');
     assert.equal(response.json.retryable, true);
+    assert.equal(response.json.retryAfterSeconds, 30);
+    assert.equal(response.headers.get('retry-after'), '30');
   }));
 
 test('a rejected Google token returns a 409 reconnect prompt and flags the connection', () =>

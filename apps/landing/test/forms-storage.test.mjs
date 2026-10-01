@@ -58,7 +58,7 @@ test('a form that is incomplete must say where it stopped and can never carry a 
 
 test('the form migration remains the second, idempotent, purely additive file', async () => {
   const files = (await readdir(new URL('../db/migrations/', import.meta.url))).filter(file => file.endsWith('.sql')).sort();
-  assert.deepEqual(files, ['001_provider_connections.sql', '002_forms.sql', '003_form_drafts.sql', '004_form_edit_drafts.sql', '005_form_library.sql']);
+  assert.deepEqual(files, ['001_provider_connections.sql', '002_forms.sql', '003_form_drafts.sql', '004_form_edit_drafts.sql', '005_form_library.sql', '006_production_hardening.sql']);
   const sql = await readFile(new URL('../db/migrations/002_forms.sql', import.meta.url), 'utf8');
   assert.doesNotMatch(sql.replace(/--.*$/gm, ''), /^\s*(DROP|ALTER|TRUNCATE|DELETE|UPDATE)\b/im, 'no statement changes or removes existing data');
   assert.equal((sql.match(/CREATE TABLE/g) ?? []).length, 1, 'one table');

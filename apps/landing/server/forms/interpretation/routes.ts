@@ -7,6 +7,7 @@ import type { DraftRecord, DraftStore } from '../draft-store';
 import type { FormEngine } from '../engine';
 import { statusFor, toFailureBody, type FormErrorInfo } from '../errors';
 import { createFormLogger, newRequestId, type FormLogger } from '../logging';
+import { consumeRequestLimit, setRateLimitHeaders, type RateLimitStore } from '../../security/rate-limit';
 import { assessInterpretation, InterpretationError, type FormInterpreter, type InterpretationInput, type InterpretationResult } from './interpreter';
 
 const MAX_REQUEST = 3000;
@@ -52,6 +53,8 @@ export interface DraftRouterDeps {
   now?: () => Date;
   newId?: () => string;
   limiter?: InterpretationLimiter;
+  /** PostgreSQL-backed in production; omitted by isolated unit tests. */
+  abuseLimiter?: RateLimitStore;
 }
 
 function publicDraft(draft: DraftRecord) {
@@ -113,9 +116,19 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
     next();
   };
 
-  async function infer(input: InterpretationInput, res: Response): Promise<InterpretationResult | null> {
+  async function infer(input: InterpretationInput, req: Request, res: Response): Promise<InterpretationResult | null> {
     const person = user(res);
     const id = requestId(res);
+    const distributed = await consumeRequestLimit(deps.abuseLimiter, 'ai.interpret', person.id, req);
+    if (!distributed.ok) {
+      if (distributed.reason === 'rate_limited') {
+        setRateLimitHeaders(res, distributed.retryAfterSeconds);
+        send(res, { code: 'rate_limited', message: 'Too many interpretation requests were made in a short time. Wait before trying again.', retryable: true, outcome: 'not_created' });
+      } else {
+        send(res, { code: 'storage_unavailable', message: 'Intake cannot safely start an interpretation right now. No model request was sent. Try again later.', retryable: true, outcome: 'not_created' });
+      }
+      return null;
+    }
     const slot = limiter.acquire(person.id, now().getTime());
     if (!slot.ok) {
       send(res, { code: 'rate_limited', message: slot.reason === 'in_progress' ? 'Intake is already understanding a request for your account. Wait for it to finish.' : 'Too many interpretations in a short time. Wait a few minutes and try again.', retryable: true, outcome: 'not_created' });
@@ -148,7 +161,7 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
       return send(res, invalidRequest(`Describe the form in up to ${MAX_REQUEST} characters. Only provider, request and optional clarification are accepted.`));
     }
     if (body.provider !== 'google') return send(res, { code: 'provider_not_supported', message: 'Only Google Forms creation is available. Microsoft Forms creation is not supported.', outcome: 'not_created', retryable: false });
-    const result = await infer({ mode: 'new', provider: 'google', request: body.request.trim(), ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}) }, res);
+    const result = await infer({ mode: 'new', provider: 'google', request: body.request.trim(), ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}) }, req, res);
     if (!result) return;
     if (result.status !== 'ready') return sendJson(res, 200, { requestId: requestId(res), status: result.status, ...(result.status === 'needs_clarification' ? { question: result.question } : { explanation: result.explanation }) });
     const draft = await deps.store.create({ id: newId(), userId: user(res).id, provider: 'google', specification: result.specification, assumptions: result.assumptions, warnings: result.warnings }, now());
@@ -166,7 +179,7 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
     if (draft.status !== 'ready') return send(res, locked);
     if (draft.version !== body.version) return send(res, conflict);
     const result = await infer({ mode: 'revise', provider: draft.provider, request: body.request.trim(),
-      ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}), specification: draft.specification }, res);
+      ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}), specification: draft.specification }, req, res);
     if (!result) return;
     if (result.status !== 'ready') return sendJson(res, 200, { requestId: requestId(res), status: result.status, ...(result.status === 'needs_clarification' ? { question: result.question } : { explanation: result.explanation }) });
     const updated = await deps.store.revise(user(res).id, draft.id, draft.version,
@@ -205,6 +218,17 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
       return respondResult(res, draft.result, draft, true);
     }
     if (draft.status === 'creating') return send(res, { ...locked, code: 'creation_in_progress', message: 'Creation may still be running or the result may be unknown. Do not submit this draft again. Check Recent forms and Google Forms.', outcome: 'unknown' });
+
+    // Completed/blocked replays above never consume provider capacity. Only a ready draft is charged
+    // against the technical creation ceiling before the durable claim and any Google request.
+    const distributed = await consumeRequestLimit(deps.abuseLimiter, 'forms.create', user(res).id, req);
+    if (!distributed.ok) {
+      if (distributed.reason === 'rate_limited') {
+        setRateLimitHeaders(res, distributed.retryAfterSeconds);
+        return send(res, { code: 'rate_limited', message: 'Too many form creation attempts were made in a short time. Wait before trying this ready draft again.', retryable: true, outcome: 'not_created' });
+      }
+      return send(res, { code: 'storage_unavailable', message: 'Intake cannot safely start form creation right now. Nothing was sent to Google. Try again later.', retryable: true, outcome: 'not_created' });
+    }
 
     // This one SQL UPDATE is the durable idempotency boundary. Model output and browser state have
     // no authority to choose a connection. The engine will validate and fetch this user's grant.
@@ -251,7 +275,10 @@ function respondResult(res: Response, result: CreateFormResult, draft: DraftReco
   const id = requestId(res);
   const latest = publicDraft(draft);
   if (result.ok) sendJson(res, replay ? 200 : 201, { requestId: id, form: result.form, warnings: result.warnings, draft: latest });
-  else sendJson(res, statusFor(result.failure.code), { ...result.failure, requestId: id, draft: latest });
+  else {
+    if (result.failure.retryAfterSeconds) setRateLimitHeaders(res, result.failure.retryAfterSeconds);
+    sendJson(res, statusFor(result.failure.code), { ...result.failure, requestId: id, draft: latest });
+  }
 }
 
 function send(res: Response, info: FormErrorInfo, status?: number): void {

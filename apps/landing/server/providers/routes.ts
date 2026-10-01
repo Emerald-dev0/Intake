@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { isProviderId, isResultCode, isRevocationOutcome, type ProviderId, type ResultCode, type RevocationOutcome } from '../../src/lib/connections';
 import { logSafe, publicOrigin } from './oauth';
 import { createProviderService, storageResult, type ProviderDeps, type ProviderService, type SessionUser } from './service';
+import { consumeRequestLimit, setRateLimitHeaders, type AbuseScope, type RateLimitStore } from '../security/rate-limit';
 
 const FORBIDDEN_KEYS = new Set([
   'accessToken', 'refreshToken', 'access_token', 'refresh_token', 'idToken', 'id_token',
@@ -12,10 +13,24 @@ export interface ProviderRouterDeps {
   service: ProviderService;
   getSession: (req: Request) => Promise<SessionUser | null>;
   env: NodeJS.ProcessEnv;
+  abuseLimiter?: RateLimitStore;
 }
 
 export function createProviderRouter(deps: ProviderRouterDeps): Router {
   const router = Router();
+
+  async function allowExpensive(req: Request, res: Response, userId: string, scope: AbuseScope): Promise<boolean> {
+    const decision = await consumeRequestLimit(deps.abuseLimiter, scope, userId, req);
+    if (decision.ok) return true;
+    if (decision.reason === 'rate_limited') {
+      setRateLimitHeaders(res, decision.retryAfterSeconds);
+      respond(req, res, providerParam(req), 'rate_limited');
+    } else {
+      respond(req, res, providerParam(req), 'storage_unavailable');
+    }
+    return false;
+  }
+
   router.use((_req, res, next) => {
     res.set('Cache-Control', 'no-store');
     res.set('Referrer-Policy', 'no-referrer');
@@ -39,6 +54,7 @@ export function createProviderRouter(deps: ProviderRouterDeps): Router {
     const user = await session(deps, req, res);
     if (!user) return;
     if (!trustedMutation(req, deps.env)) return res.status(403).json({ error: 'Request was rejected.' });
+    if (!await allowExpensive(req, res, user.id, 'oauth.start')) return;
     try {
       const started = await deps.service.start(user.id, provider);
       if (!started.ok) return redirect(res, provider, started.result);
@@ -53,6 +69,7 @@ export function createProviderRouter(deps: ProviderRouterDeps): Router {
     if (!provider) return redirect(res, null, 'unsupported_provider');
     const user = await session(deps, req, res);
     if (!user) return;
+    if (!await allowExpensive(req, res, user.id, 'oauth.callback')) return;
     const query = {
       code: stringParam(req.query.code),
       state: stringParam(req.query.state),
@@ -77,6 +94,7 @@ export function createProviderRouter(deps: ProviderRouterDeps): Router {
     const user = await session(deps, req, res);
     if (!user) return;
     if (!trustedMutation(req, deps.env)) return res.status(403).json({ error: 'Request was rejected.' });
+    if (!await allowExpensive(req, res, user.id, 'oauth.disconnect')) return;
     try {
       const removed = await deps.service.disconnect(user.id, provider);
       return respond(req, res, provider, removed.result, removed.revocation);
@@ -143,7 +161,8 @@ function redirect(res: Response, provider: ProviderId | null, result: ResultCode
 
 function respond(req: Request, res: Response, provider: ProviderId | null, result: ResultCode, revocation?: RevocationOutcome): void {
   if ((req.get('accept') || '').includes('application/json')) {
-    sendPublic(res, result === 'storage_unavailable' || result === 'storage_failed' ? 503 : 200, {
+    const status = result === 'storage_unavailable' || result === 'storage_failed' ? 503 : result === 'rate_limited' ? 429 : 200;
+    sendPublic(res, status, {
       result,
       provider,
       revocation: revocation ?? null,
