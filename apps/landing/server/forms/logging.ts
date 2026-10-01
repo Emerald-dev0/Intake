@@ -13,7 +13,17 @@ export type FormLogEvent =
   | 'form.create.provider_failed'
   | 'form.create.completed'
   | 'form.create.rejected'
-  | 'form.create.persist_failed';
+  | 'form.create.persist_failed'
+  | 'form.interpret.started'
+  | 'form.interpret.completed'
+  | 'form.interpret.clarification'
+  | 'form.interpret.unsupported'
+  | 'form.interpret.failed'
+  | 'form.draft.revised'
+  | 'form.draft.validation_failed'
+  | 'form.draft.create_started'
+  | 'form.draft.create_completed'
+  | 'form.draft.create_failed';
 
 type LogValue = string | number | boolean | null | undefined | readonly string[];
 export type FormLogFields = Record<string, LogValue>;
@@ -31,6 +41,16 @@ const LEVELS: Record<FormLogEvent, LogLevel> = {
   'form.create.rejected': 'warn',
   'form.create.provider_failed': 'error',
   'form.create.persist_failed': 'error',
+  'form.interpret.started': 'info',
+  'form.interpret.completed': 'info',
+  'form.interpret.clarification': 'info',
+  'form.interpret.unsupported': 'warn',
+  'form.interpret.failed': 'error',
+  'form.draft.revised': 'info',
+  'form.draft.validation_failed': 'warn',
+  'form.draft.create_started': 'info',
+  'form.draft.create_completed': 'info',
+  'form.draft.create_failed': 'error',
 };
 
 function cleanString(value: string): string {

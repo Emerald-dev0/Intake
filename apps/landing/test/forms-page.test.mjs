@@ -2,60 +2,42 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 
-// React DOM decides at import time whether a DOM exists. The globals therefore come first and every
-// module that loads React DOM (directly or through react-router-dom or the app routes) is imported
-// after them; otherwise React falls back to a legacy change-event path that ignores typing.
+// React DOM chooses its event system at import time; install DOM globals before importing the app.
 const dom = new JSDOM('<div id="root"></div>', { url: 'http://localhost/app/forms' });
 globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 globalThis.location = dom.window.location;
+globalThis.sessionStorage = dom.window.sessionStorage;
+globalThis.FormData = dom.window.FormData;
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-
 const React = await import('react');
 const { act, Suspense } = React;
 const { createRoot } = await import('react-dom/client');
 const { createMemoryRouter, RouterProvider } = await import('react-router-dom');
 const { routes } = await import('../src/app/routes.tsx');
-const { EXAMPLE_SPECIFICATION, EXAMPLE_SPECIFICATION_JSON } = await import('../src/lib/forms.ts');
+const { EXAMPLE_SPECIFICATION } = await import('../src/lib/forms.ts');
+const { parseFormSpecification } = await import('../server/forms/validation.ts');
 
+const ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const EDIT = 'https://docs.google.com/forms/d/1FAfakeForm0001abcdefghijklmnop/edit';
 const RESPOND = 'https://docs.google.com/forms/d/e/1FAIpQLSfake1/viewform';
-
+const SPEC = parseFormSpecification(EXAMPLE_SPECIFICATION).specification;
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+const draft = (spec = SPEC, extra = {}) => ({ id: ID, provider: 'google', version: 1, status: 'ready', specification: spec, assumptions: ['Phone number is optional.'],
+  warnings: [{ code: 'email_validation_unavailable', questionId: 'email', message: 'Google does not check email address format for this field.' }], result: null,
+  createdAt: '2026-09-29T09:00:00.000Z', updatedAt: '2026-09-29T09:00:00.000Z', ...extra });
+const ready = (spec = SPEC, extra = {}) => json({ requestId: 'req_interpret1', status: 'ready', draft: draft(spec, extra) }, 201);
+const created = () => ({ requestId: 'req_created1', form: { id: 'form-record-1', provider: 'google', providerFormId: '1FAfakeForm0001abcdefghijklmnop', title: 'Final Year Project Registration', editUrl: EDIT, responderUrl: RESPOND, published: true, createdAt: '2026-09-29T09:00:00.000Z' }, warnings: [] });
+const failure = (body, status = 502) => json({ error: 'Failed.', code: 'provider_error', requestId: 'req_failed1', ...body }, status);
 function provider(id, overrides = {}) {
-  return {
-    id,
-    name: id === 'google' ? 'Google Forms' : 'Microsoft Forms',
-    accountName: id === 'google' ? 'Google account' : 'Microsoft account',
-    description: 'Fixture provider',
-    configured: true,
-    setupEnv: [`${id.toUpperCase()}_OAUTH_CLIENT_ID`, `${id.toUpperCase()}_OAUTH_CLIENT_SECRET`],
-    status: 'not_connected',
-    accountEmail: null,
-    accountLabel: null,
-    scopes: [],
-    scopeLabels: [],
-    connectedAt: null,
-    canRefresh: true,
-    revocation: 'supported',
-    formsApi: id === 'google' ? 'supported' : 'unsupported',
-    formsNote: 'Fixture note',
-    permissionLinks: [],
-    ...overrides,
-  };
+  return { id, name: id === 'google' ? 'Google Forms' : 'Microsoft Forms', accountName: id === 'google' ? 'Google account' : 'Microsoft account', description: 'Fixture provider',
+    configured: true, setupEnv: ['GOOGLE_OAUTH_CLIENT_ID'], status: 'connected', accountEmail: 'ada@gmail.test', accountLabel: null, scopes: [], scopeLabels: [], connectedAt: null,
+    canRefresh: true, revocation: 'supported', formsApi: id === 'google' ? 'supported' : 'unsupported', formsNote: 'Fixture note', permissionLinks: [], ...overrides };
 }
 
-const CONNECTED = { status: 'connected', accountEmail: 'ada@gmail.test' };
-const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
-const created = (overrides = {}) => ({
-  requestId: 'req_success1',
-  form: { id: 'form-record-1', provider: 'google', providerFormId: '1FAfakeForm0001abcdefghijklmnop', title: 'Final Year Project Registration', editUrl: EDIT, responderUrl: RESPOND, published: true, createdAt: '2026-09-29T09:00:00.000Z', ...overrides.form },
-  warnings: [{ code: 'email_validation_unavailable', questionId: 'email', message: '"Email address" was created as a short-answer question. The Google Forms API cannot turn on email validation.' }],
-  ...overrides.body,
-});
-const failure = (body, status = 502) => json({ error: 'Failed.', code: 'provider_error', requestId: 'req_failed01', ...body }, status);
-
-/** Mount the real router at a path with fetch routed to handlers. Returns helpers and the request log. */
-async function mount(path, { google = CONNECTED, handlers = {}, recent = [] } = {}) {
+async function mount({ handlers = {}, google = {}, recent = [], start = '/app/forms', savedDraftId = null } = {}) {
+  sessionStorage.clear();
+  if (savedDraftId) sessionStorage.setItem('intake:current-form-draft', savedDraftId);
   const original = globalThis.fetch;
   const calls = [];
   globalThis.fetch = async (url, init = {}) => {
@@ -65,373 +47,259 @@ async function mount(path, { google = CONNECTED, handlers = {}, recent = [] } = 
     if (custom) return custom(init, calls);
     if (url === '/api/me') return json({ user: { id: 'u1', name: 'Test User', email: 'test@example.com' } });
     if (url === '/api/providers') return json({ providers: [provider('google', google), provider('microsoft')] });
-    if (url === '/api/forms' && method === 'GET') return json({ requestId: 'req_list', forms: recent });
+    if (url === '/api/forms' && method === 'GET') return json({ requestId: 'req_list1', forms: recent });
     throw new Error(`unexpected request ${method} ${url}`);
   };
-  const router = createMemoryRouter(routes, { initialEntries: [path] });
+  const router = createMemoryRouter(routes, { initialEntries: [start] });
   const root = createRoot(document.getElementById('root'));
   await act(async () => { root.render(React.createElement(Suspense, { fallback: 'Loading' }, React.createElement(RouterProvider, { router }))); });
-  const api = {
-    router,
-    calls,
+  const page = {
+    router, calls,
     text: () => document.body.textContent,
     $: selector => document.querySelector(selector),
     $$: selector => [...document.querySelectorAll(selector)],
     button: label => [...document.querySelectorAll('button')].find(button => button.textContent.trim() === label),
     async until(predicate, message) {
-      for (let attempt = 0; attempt < 60 && !predicate(); attempt += 1) await act(async () => { await new Promise(resolve => setTimeout(resolve, 10)); });
-      assert.ok(predicate(), `${message}\n--- page text ---\n${document.body.textContent}`);
+      for (let attempt = 0; attempt < 70 && !predicate(); attempt++) await act(async () => { await new Promise(resolve => setTimeout(resolve, 10)); });
+      assert.ok(predicate(), `${message}\n--- page ---\n${document.body.textContent}`);
     },
-    async click(element) {
-      await act(async () => { element.click(); });
-    },
+    async click(element) { assert.ok(element, 'expected button'); await act(async () => { element.click(); }); },
     async type(element, value) {
+      assert.ok(element, 'expected textarea');
       await act(async () => {
         Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value').set.call(element, value);
         element.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
       });
     },
-    posts: () => calls.filter(call => call.method === 'POST' && call.url === '/api/forms'),
-    async unmount() {
-      await act(async () => root.unmount());
-      router.dispose();
-      globalThis.fetch = original;
-    },
+    posts: (suffix = '') => calls.filter(call => call.method === 'POST' && call.url === `/api/forms${suffix}`),
+    async unmount() { await act(async () => root.unmount()); router.dispose(); globalThis.fetch = original; sessionStorage.clear(); },
   };
-  await api.until(() => api.text().includes('Create a form'), 'the forms page renders');
-  return api;
+  await page.until(() => page.$('#form-request') || page.$('#review-title') || page.$('#future-prompt'), 'workspace page rendered');
+  return page;
 }
+async function withPage(options, run) { const page = await mount(options); try { return await run(page); } finally { await page.unmount(); } }
+async function describe(page) { await page.type(page.$('#form-request'), 'Create a final-year project registration form with name, email and accommodation.'); await page.click(page.button('Understand my form →')); await page.until(() => page.$('#review-title'), 'draft review is visible'); }
 
-async function withPage(path, options, run) {
-  const page = await mount(path, options);
-  try {
-    await run(page);
-  } finally {
-    await page.unmount();
-  }
-}
+// ------------------------------------------------------------------ describe, clarify, review
 
-const submit = page => page.click(page.button('Create form'));
+test('the protected workspace starts with natural language, never a JSON editor or a provider create request', () => withPage({}, async page => {
+  assert.equal(page.router.state.location.pathname, '/app/forms');
+  assert.ok(page.$('a[href="/app/forms"].active'));
+  assert.ok(page.$('label[for="form-request"]'));
+  assert.equal(page.$('#form-specification'), null);
+  assert.equal(page.button('Create form →'), undefined);
+  assert.match(page.text(), /Describe it/);
+  assert.match(page.text(), /Microsoft Forms creation is not available/);
+  assert.equal(page.posts('/confirm').length, 0);
+}));
 
-// ---------------------------------------------------------------- idle
-
-test('the forms page is a protected workspace route with the sidebar item active', () =>
-  withPage('/app/forms', {}, async page => {
-    assert.equal(page.router.state.location.pathname, '/app/forms');
-    const link = page.$('a[href="/app/forms"]');
-    assert.ok(link && link.className.includes('active'));
-    assert.match(page.text(), /WORKSPACE\s*\/\s*FORMS/);
-    assert.match(page.text(), /DEVELOPER PREVIEW/);
-  }));
-
-test('idle: Google is chosen, Microsoft is disabled with its reason, the editor starts with a valid example', () =>
-  withPage('/app/forms', {}, async page => {
-    const [google, microsoft] = page.$$('input[name="provider"]');
-    assert.equal(google.value, 'google');
-    assert.equal(google.checked, true);
-    assert.equal(microsoft.value, 'microsoft');
-    assert.equal(microsoft.disabled, true);
-    assert.match(page.text(), /Microsoft Forms/);
-    assert.match(page.text(), /Not available yet\. Microsoft publishes no supported API/);
-    assert.match(page.text(), /Connected as ada@gmail\.test/);
-
-    const editor = page.$('#form-specification');
-    assert.equal(editor.value, EXAMPLE_SPECIFICATION_JSON);
-    assert.deepEqual(JSON.parse(editor.value), EXAMPLE_SPECIFICATION);
-    assert.equal(page.$('label[for="form-specification"]') !== null, true, 'the editor has a label');
-
-    const button = page.button('Create form');
-    assert.ok(button && !button.disabled);
-    assert.equal(page.text().includes('Form created.'), false);
-    assert.equal(page.posts().length, 0, 'nothing is created just by opening the page');
-  }));
-
-// ---------------------------------------------------------------- creating and success
-
-test('creating shows progress and locks the form; success shows Form created. with the real links', () => {
-  let resolvePost;
-  const pending = new Promise(resolve => { resolvePost = resolve; });
-  return withPage('/app/forms', { handlers: { 'POST /api/forms': () => pending } }, async page => {
-    await submit(page);
-    await page.until(() => page.button('Creating your form…'), 'the button says Creating your form…');
-    assert.equal(page.button('Creating your form…').disabled, true);
-    assert.equal(page.$('#form-specification').disabled, true);
-    assert.equal(page.$('fieldset').disabled, true);
-    assert.match(page.text(), /building it/);
-    assert.equal(page.posts().length, 1, 'one request');
-
-    // A second submit while one is running is ignored (Enter key, double click, script).
-    await act(async () => { page.$('form.forms-panel').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })); });
-    assert.equal(page.posts().length, 1);
-
-    resolvePost(json(created(), 201));
-    await page.until(() => page.text().includes('Form created.'), 'success is shown');
-    assert.ok(page.button('Create form'), 'the button is back to Create form');
-    assert.equal(page.$('#form-specification').disabled, false);
-
-    const banner = page.$('.form-banner.ok');
-    assert.equal(banner.getAttribute('role'), 'status');
-    const [open, edit] = [...banner.querySelectorAll('a')];
-    assert.equal(open.textContent.replace('↗', '').trim(), 'Open form');
-    assert.equal(open.href, RESPOND);
-    assert.equal(edit.textContent.replace('↗', '').trim(), 'Edit form');
-    assert.equal(edit.href, EDIT);
-    for (const link of [open, edit]) {
-      assert.equal(link.target, '_blank');
-      assert.match(link.rel, /noreferrer/);
-    }
-    assert.match(banner.textContent, /Final Year Project Registration is published in your Google account and accepting responses/);
-    assert.match(banner.textContent, /cannot turn on email validation/, 'warnings are shown');
-    assert.match(banner.textContent, /Request req_success1/);
+test('interpretation shows a loading state, then a readable review with routing and warnings; Google is untouched', () => {
+  let resolve;
+  const pending = new Promise(ok => { resolve = ok; });
+  return withPage({ handlers: { 'POST /api/forms/interpret': () => pending } }, async page => {
+    await page.type(page.$('#form-request'), 'Register for my project');
+    await page.click(page.button('Understand my form →'));
+    assert.ok(page.button('Understanding your request…').disabled);
+    assert.match(page.text(), /No form is being created yet/);
+    assert.equal(page.posts('/confirm').length, 0);
+    resolve(ready());
+    await page.until(() => page.$('#review-title'), 'a review appears');
+    assert.equal(page.$('#review-title').textContent, 'Final Year Project Registration');
+    assert.equal(page.$$('.draft-item').length, SPEC.questions.length);
+    assert.match(page.$('.draft-review').textContent, /Email · short answer/);
+    assert.match(page.$('.draft-review').textContent, /Optional/);
+    assert.match(page.$('.draft-review').textContent, /ROUTING SECTION/);
+    assert.match(page.$('.draft-review').textContent, /Science/);
+    assert.match(page.$('.draft-review').textContent, /Google does not check email address format/);
+    assert.ok(page.button('Create form →'));
+    assert.ok(page.button('Edit with Intake'));
+    assert.ok(page.button('Cancel'));
+    assert.equal(page.posts('/confirm').length, 0, 'never auto-creates because a model returned a spec');
+    assert.equal(sessionStorage.getItem('intake:current-form-draft'), ID);
   });
 });
 
-test('the request carries only the provider and the specification, and the list is refreshed afterwards', () =>
-  withPage('/app/forms', { handlers: { 'POST /api/forms': () => json(created(), 201) } }, async page => {
-    await submit(page);
-    await page.until(() => page.text().includes('Form created.'), 'success');
-    const [post] = page.posts();
-    assert.equal(post.init.credentials, 'same-origin');
-    assert.equal(post.init.cache, 'no-store');
-    assert.equal(post.init.headers['content-type'], 'application/json');
-    const body = JSON.parse(post.init.body);
-    assert.deepEqual(Object.keys(body).sort(), ['provider', 'specification']);
-    assert.equal(body.provider, 'google');
-    assert.deepEqual(body.specification, EXAMPLE_SPECIFICATION);
-    const lists = page.calls.filter(call => call.method === 'GET' && call.url === '/api/forms');
-    assert.equal(lists.length, 2, 'loaded on mount, and again after the form was created');
-  }));
+test('clarification is a focused follow-up and its answer is sent with the original request', () => withPage({ handlers: {
+  'POST /api/forms/interpret': (init, calls) => calls.filter(call => call.url === '/api/forms/interpret').length === 1
+    ? json({ status: 'needs_clarification', question: 'Which departments should respondents choose from?' }) : ready(),
+} }, async page => {
+  await page.type(page.$('#form-request'), 'List our departments.');
+  await page.click(page.button('Understand my form →'));
+  await page.until(() => page.$('#clarification-answer'), 'the question is displayed');
+  assert.match(page.text(), /Which departments/);
+  assert.equal(page.posts('/confirm').length, 0);
+  await page.type(page.$('#clarification-answer'), 'Computer Science, Economics, Statistics');
+  await page.click(page.button('Continue →'));
+  await page.until(() => page.$('#review-title'), 'a draft appears');
+  const second = JSON.parse(page.posts('/interpret')[1].init.body);
+  assert.deepEqual(second, { provider: 'google', request: 'List our departments.', clarification: 'Computer Science, Economics, Statistics' });
+}));
 
-test('an edited specification is what gets sent', () =>
-  withPage('/app/forms', { handlers: { 'POST /api/forms': () => json(created(), 201) } }, async page => {
-    const custom = { title: 'Hello', questions: [{ id: 'name', type: 'short_text', title: 'Name' }] };
-    await page.type(page.$('#form-specification'), JSON.stringify(custom));
-    await submit(page);
-    await page.until(() => page.posts().length === 1, 'sent');
-    assert.deepEqual(JSON.parse(page.posts()[0].init.body).specification, custom);
-  }));
+test('unsupported requests and model failures are recoverable without inventing a draft', () => withPage({ handlers: {
+  'POST /api/forms/interpret': (_init, calls) => calls.filter(call => call.url === '/api/forms/interpret').length === 1
+    ? json({ status: 'unsupported', explanation: 'File uploads cannot be created through this Google adapter.' })
+    : failure({ code: 'model_not_configured', error: 'OPENAI_API_KEY is missing. Nothing was created.' }, 503),
+} }, async page => {
+  await page.type(page.$('#form-request'), 'Collect a file');
+  await page.click(page.button('Understand my form →'));
+  assert.match(page.text(), /File uploads cannot be created/);
+  assert.equal(page.$('#review-title'), null);
+  await page.click(page.button('Understand my form →'));
+  assert.match(page.text(), /OPENAI_API_KEY is missing/);
+  assert.ok(!page.button('Understand my form →').disabled);
+  assert.equal(page.posts('/confirm').length, 0);
+}));
 
-test('a created form with no verifiable respondent link or record says so instead of guessing', () =>
-  withPage('/app/forms', { handlers: { 'POST /api/forms': () => json(created({ form: { responderUrl: null, id: null, createdAt: null } }), 201) } }, async page => {
-    await submit(page);
-    await page.until(() => page.text().includes('Form created.'), 'success');
-    const banner = page.$('.form-banner.ok');
-    assert.equal(banner.querySelectorAll('a').length, 1, 'only the edit link');
-    assert.match(banner.textContent, /did not return a respondent link that Intake could verify/);
-    assert.match(banner.textContent, /could not save a record of this form/);
-  }));
+// ------------------------------------------------------------------ revisions and confirmation
 
-test('links that are not Google Forms https links are never rendered, whatever the server sends', () =>
-  withPage('/app/forms', {
-    handlers: { 'POST /api/forms': () => json(created({ form: { editUrl: 'javascript:alert(document.cookie)', responderUrl: 'https://evil.example/forms/d/e/x/viewform' } }), 201) },
-    recent: [{ id: 'f1', provider: 'google', providerFormId: 'abc12345', title: 'Tampered', status: 'created', failureStage: null, editUrl: 'data:text/html,<script>alert(1)</script>', responderUrl: 'https://docs.google.com.evil.example/forms/d/e/x/viewform', createdAt: '2026-09-29T09:00:00.000Z' }],
-  }, async page => {
-    await page.until(() => page.text().includes('Tampered'), 'recent form listed');
-    await submit(page);
-    await page.until(() => page.text().includes('Form created.'), 'success');
-    const hrefs = page.$$('a').map(link => link.getAttribute('href')).filter(Boolean);
-    assert.equal(hrefs.some(href => href.startsWith('javascript:') || href.startsWith('data:') || href.includes('evil.example')), false, hrefs.join(', '));
-    assert.equal(page.$('.form-banner.ok').querySelectorAll('a').length, 0);
-  }));
+test('editing with Intake sends only the draft id/version and instruction; preserves review until a revised draft returns', () => withPage({ handlers: {
+  'POST /api/forms/interpret': () => ready(),
+  'POST /api/forms/revise': () => {
+    const spec = structuredClone(SPEC);
+    spec.questions.find(q => q.id === 'email').required = false;
+    spec.questions.splice(2, 0, { id: 'student_id', title: 'Student ID', type: 'short_text', required: true });
+    return json({ status: 'ready', draft: draft(spec, { version: 2 }) });
+  },
+} }, async page => {
+  await describe(page);
+  await page.click(page.button('Edit with Intake'));
+  await page.type(page.$('#revision-request'), 'Make email optional and add a student ID question.');
+  await page.click(page.button('Apply change →'));
+  await page.until(() => page.$$('.draft-item').length === SPEC.questions.length + 1, 'updated review');
+  assert.match(page.$('.draft-review').textContent, /Student ID/);
+  assert.equal(page.$$('.draft-item').find(item => item.textContent.includes('Email address')).textContent.includes('Optional'), true);
+  assert.deepEqual(JSON.parse(page.posts('/revise')[0].init.body), { draftId: ID, version: 1, request: 'Make email optional and add a student ID question.' });
+  assert.equal(page.posts('/confirm').length, 0);
+  await page.click(page.button('Edit with Intake'));
+  assert.ok(page.$('#revision-request'), 'another revision can be requested');
+}));
 
-// ---------------------------------------------------------------- connection states
+test('a failed revision leaves the review and confirmation intact', () => withPage({ handlers: {
+  'POST /api/forms/interpret': () => ready(),
+  'POST /api/forms/revise': () => failure({ error: 'Intake could not validate the interpretation.', code: 'model_invalid_output', outcome: 'not_created' }),
+} }, async page => {
+  await describe(page);
+  await page.click(page.button('Edit with Intake'));
+  await page.type(page.$('#revision-request'), 'Add a date picker.');
+  await page.click(page.button('Apply change →'));
+  assert.match(page.text(), /could not validate the interpretation/);
+  assert.equal(page.$('#review-title').textContent, SPEC.title);
+  assert.ok(page.button('Create form →'));
+  assert.equal(page.posts('/confirm').length, 0);
+}));
 
-test('not connected: the page offers Connect Google Forms with the existing connect flow and never redirects to sign-in', () =>
-  withPage('/app/forms', {
-    handlers: { 'POST /api/forms': () => failure({ error: 'Google is not connected to your Intake account. Connect Google Forms first. Nothing was created.', code: 'provider_not_connected', stage: 'connection', outcome: 'not_created', retryable: false }, 409) },
-  }, async page => {
-    await submit(page);
-    await page.until(() => page.text().includes('Google is not connected'), 'not-connected heading');
-    const banner = page.$('.form-banner.warn[role="alert"]');
-    assert.match(banner.textContent, /Nothing was created/);
-    const connect = banner.querySelector('form[action="/api/providers/google/connect"]');
-    assert.ok(connect, 'the same form POST the Connections screen uses');
-    assert.equal(connect.method.toLowerCase(), 'post');
-    assert.equal(connect.querySelector('button').textContent, 'Connect Google Forms');
-    assert.equal(page.router.state.location.pathname, '/app/forms', 'a provider problem is not a sign-out');
-    const providerLoads = page.calls.filter(call => call.url === '/api/providers');
-    assert.equal(providerLoads.length, 2, 'provider status is refreshed so the page is not out of date');
-  }));
-
-test('authorization expired: the page offers Reconnect Google', () =>
-  withPage('/app/forms', {
-    handlers: { 'POST /api/forms': () => failure({ error: 'Your Google authorization has expired or was revoked. Reconnect Google, then try again. Nothing was created.', code: 'provider_reauthorization_required', stage: 'connection', outcome: 'not_created' }, 409) },
-  }, async page => {
-    await submit(page);
-    await page.until(() => page.text().includes('Google authorization needs renewing'), 'reauthorization heading');
-    const form = page.$('.form-banner form[action="/api/providers/google/connect"]');
-    assert.equal(form.querySelector('button').textContent, 'Reconnect Google');
-    assert.equal(page.router.state.location.pathname, '/app/forms');
-  }));
-
-test('the connection state is shown before anything is submitted, and the server still decides', async () => {
-  await withPage('/app/forms', { google: { status: 'not_connected' } }, async page => {
-    await page.until(() => page.text().includes('Connect Google Forms'), 'connect prompt');
-    assert.match(page.text(), /Not connected/);
-    assert.ok(!page.button('Create form').disabled, 'advice only: the server checks on every request');
-  });
-  await withPage('/app/forms', { google: { status: 'reauthorization_required' } }, async page => {
-    await page.until(() => page.text().includes('Reconnect Google'), 'reconnect prompt');
-    assert.match(page.text(), /Reconnect required/, 'same wording as the Connections page');
-    assert.equal(page.text().includes('Not connected'), false, 'a revoked grant is not the same as no grant');
-  });
-  await withPage('/app/forms', { google: { status: 'expired' } }, async page => {
-    await page.until(() => page.text().includes('Reconnect Google'), 'reconnect prompt for an expired grant');
-    assert.match(page.text(), /Expired/, 'the card uses the Connections wording; the notice says "expired" in lower case');
-    assert.equal(page.text().includes('Not connected'), false);
-  });
-  await withPage('/app/forms', { google: { status: 'not_connected', configured: false } }, async page => {
-    await page.until(() => page.text().includes('not set up on this Intake server'), 'setup notice');
-    assert.equal(page.text().includes('Connect Google Forms'), false, 'no button that could only fail');
-    assert.match(page.text(), /GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET/);
-    assert.match(page.text(), /Setup required/);
+test('confirmation is explicit, progress locks the action, success renders only real safe URLs and recent forms reload', () => {
+  let resolve;
+  const pending = new Promise(ok => { resolve = ok; });
+  return withPage({ handlers: {
+    'POST /api/forms/interpret': () => ready(),
+    'POST /api/forms/confirm': () => pending,
+  } }, async page => {
+    await describe(page);
+    await page.click(page.button('Create form →'));
+    assert.ok(page.button('Creating your form…').disabled);
+    assert.match(page.text(), /Google is building your form/);
+    assert.equal(page.posts('/confirm').length, 1);
+    await page.click(page.button('Creating your form…'));
+    assert.equal(page.posts('/confirm').length, 1, 'double click does nothing');
+    const success = { ...created(), draft: draft(SPEC, { status: 'created', result: { ok: true, ...created() } }) };
+    resolve(json(success, 201));
+    await page.until(() => page.text().includes('Form created.'), 'creation success');
+    assert.equal(page.button('Create form →'), undefined);
+    const links = page.$$('.draft-result a');
+    assert.deepEqual(links.map(link => link.href), [RESPOND, EDIT]);
+    assert.ok(links.every(link => link.target === '_blank' && link.rel.includes('noreferrer')));
+    assert.ok(page.button('Start another form →'));
+    assert.ok(page.calls.filter(call => call.url === '/api/forms' && call.method === 'GET').length >= 2);
+    assert.deepEqual(Object.keys(JSON.parse(page.posts('/confirm')[0].init.body)).sort(), ['confirm', 'draftId', 'version']);
+    assert.equal(JSON.parse(page.posts('/confirm')[0].init.body).confirm, true);
   });
 });
 
-// ---------------------------------------------------------------- validation
+test('provider not connected retains the reviewed draft and links to Connections, not sign-in', () => withPage({ google: { status: 'not_connected', accountEmail: null }, handlers: {
+  'POST /api/forms/interpret': () => ready(),
+  'POST /api/forms/confirm': () => failure({ error: 'Google is not connected. Nothing was created.', code: 'provider_not_connected', outcome: 'not_created', draft: draft() }, 409),
+} }, async page => {
+  await describe(page);
+  assert.ok(page.$('a[href="/app/connections"]'));
+  await page.click(page.button('Create form →'));
+  assert.match(page.text(), /Google is not connected\. Nothing was created/);
+  assert.ok(page.button('Create form →'), 'retry remains possible after connecting');
+  assert.equal(page.router.state.location.pathname, '/app/forms');
+}));
 
-test('validation errors say exactly what is invalid, where, and how to fix it, and keep the text', () => {
-  const issues = [
-    { code: 'options_required', path: 'questions[3].options', message: '"dropdown" question "department" needs at least one option.', hint: 'Add an "options" array such as ["Option A", "Option B"].' },
-    { code: 'duplicate_question_id', path: 'questions[5].id', message: 'Question id "phone" is already used by questions[4].' },
-  ];
-  return withPage('/app/forms', {
-    handlers: { 'POST /api/forms': () => failure({ error: 'The form specification is not valid. Nothing was created.', code: 'validation_failed', issues, outcome: 'not_created', retryable: false }, 422) },
-  }, async page => {
-    await submit(page);
-    await page.until(() => page.text().includes('The specification is not valid'), 'validation heading');
-    const items = page.$$('.form-banner [aria-label="What to fix"] li');
-    assert.equal(items.length, 2);
-    assert.equal(items[0].querySelector('code').textContent, 'questions[3].options');
-    assert.match(items[0].textContent, /needs at least one option/);
-    assert.match(items[0].textContent, /Add an "options" array/);
-    assert.equal(items[1].querySelector('code').textContent, 'questions[5].id');
-    assert.equal(page.$('#form-specification').value, EXAMPLE_SPECIFICATION_JSON, 'the text is kept so it can be corrected');
-    assert.equal(page.$$('.form-banner form[action="/api/providers/google/connect"]').length, 0);
-  });
-});
+test('partial or unknown outcomes disable repeat creation and keep the real partial link', () => withPage({ handlers: {
+  'POST /api/forms/interpret': () => ready(),
+  'POST /api/forms/confirm': () => failure({ error: 'Questions were not accepted. A partly built form exists.', outcome: 'partial', partialForm: { providerFormId: '1FAfakeForm0001abcdefghijklmnop', editUrl: EDIT, state: 'unpublished' }, draft: draft(SPEC, { status: 'blocked', result: { ok: false, failure: { error: 'Questions were not accepted. A partly built form exists.', code: 'provider_error', requestId: 'req_failed1', outcome: 'partial', partialForm: { providerFormId: '1FAfakeForm0001abcdefghijklmnop', editUrl: EDIT, state: 'unpublished' } } } }) }),
+  [`GET /api/forms/draft/${ID}`]: () => json({ draft: draft(SPEC, { status: 'blocked', result: { ok: false, failure: { error: 'Questions were not accepted. A partly built form exists.', code: 'provider_error', requestId: 'req_failed1', outcome: 'partial', partialForm: { providerFormId: '1FAfakeForm0001abcdefghijklmnop', editUrl: EDIT, state: 'unpublished' } } } }) }),
+} }, async page => {
+  await describe(page);
+  await page.click(page.button('Create form →'));
+  assert.match(page.text(), /partly built form exists/);
+  assert.match(page.text(), /Do not create this draft again/);
+  assert.equal(page.button('Create form →'), undefined);
+  assert.equal(page.$('a[href="' + EDIT + '"]') !== null, true);
+  await page.click(page.button('Check draft status'));
+  assert.equal(page.posts('/confirm').length, 1);
+}));
 
-test('text that is not JSON is explained locally and never sent', () =>
-  withPage('/app/forms', {}, async page => {
-    await page.type(page.$('#form-specification'), '{ "title": "Broken", ');
-    await submit(page);
-    await page.until(() => page.$('#spec-json-error'), 'JSON error shown');
-    assert.match(page.$('#spec-json-error').textContent, /This is not valid JSON/);
-    assert.match(page.$('#spec-json-error').textContent, /Nothing was sent/);
-    assert.equal(page.$('#spec-json-error').getAttribute('role'), 'alert');
-    assert.equal(page.$('#form-specification').getAttribute('aria-invalid'), 'true');
-    assert.equal(page.posts().length, 0);
-    assert.ok(page.button('Create form'));
-  }));
+test('a dropped confirmation response is uncertain: no automatic retry and draft status must be checked', () => withPage({ handlers: {
+  'POST /api/forms/interpret': () => ready(),
+  'POST /api/forms/confirm': () => { throw new Error('connection dropped'); },
+  [`GET /api/forms/draft/${ID}`]: () => json({ draft: draft(SPEC, { status: 'creating' }) }),
+} }, async page => {
+  await describe(page);
+  await page.click(page.button('Create form →'));
+  assert.match(page.text(), /A Google Form may exist/);
+  assert.equal(page.button('Create form →'), undefined);
+  await page.click(page.button('Check draft status'));
+  assert.equal(page.posts('/confirm').length, 1);
+  assert.match(page.text(), /Creation was started/);
+}));
 
-// ---------------------------------------------------------------- provider failures
+test('cancel discards a ready draft, never calls the provider, and returns to the natural-language entry', () => withPage({ handlers: {
+  'POST /api/forms/interpret': () => ready(),
+  [`DELETE /api/forms/draft/${ID}`]: () => new Response(null, { status: 204 }),
+} }, async page => {
+  await describe(page);
+  await page.click(page.button('Cancel'));
+  assert.ok(page.$('#form-request'));
+  assert.equal(page.$('#review-title'), null);
+  assert.equal(sessionStorage.getItem('intake:current-form-draft'), null);
+  assert.equal(page.posts('/confirm').length, 0);
+  assert.equal(page.calls.filter(call => call.method === 'DELETE').length, 1);
+}));
 
-test('a provider failure after the form exists is explained, links the partly built form, and refreshes the list', () =>
-  withPage('/app/forms', {
-    handlers: {
-      'POST /api/forms': () => failure({
-        error: 'Google created an empty form but did not accept the questions. Google rejected part of the form. A partly built form exists in your Google account and is not published. Open it to finish or delete it.',
-        code: 'provider_rejected',
-        provider: 'google',
-        stage: 'add_questions',
-        outcome: 'partial',
-        retryable: false,
-        detail: 'Invalid requests[2].createItem',
-        partialForm: { providerFormId: '1FAfakeForm0001abcdefghijklmnop', editUrl: EDIT, state: 'unpublished' },
-      }),
-    },
-  }, async page => {
-    await submit(page);
-    await page.until(() => page.text().includes('The form was only partly created'), 'partial heading');
-    const banner = page.$('.form-banner.bad');
-    assert.match(banner.textContent, /partly built form exists in your Google account and is not published/);
-    assert.match(banner.textContent, /Google said: Invalid requests\[2\]\.createItem/);
-    assert.match(banner.textContent, /Request req_failed01/);
-    const link = [...banner.querySelectorAll('a')].find(anchor => anchor.textContent.includes('Open partly built form'));
-    assert.equal(link.href, EDIT);
-    assert.equal(link.target, '_blank');
-    assert.equal(page.calls.filter(call => call.method === 'GET' && call.url === '/api/forms').length, 2, 'the incomplete form is listed');
-  }));
+test('the overview input carries a private initial prompt into the creation workspace without putting it in a URL', () => withPage({ start: '/app' }, async page => {
+  await page.type(page.$('#future-prompt'), 'Register our team');
+  await page.click(page.button('Review my form →'));
+  await page.until(() => page.$('#form-request'), 'forms page opened');
+  assert.equal(page.$('#form-request').value, 'Register our team');
+  assert.equal(page.router.state.location.pathname, '/app/forms');
+  assert.equal(page.posts('/interpret').length, 0);
+}));
 
-test('failures are worded for what actually happened: not created, unknown, or something else', async () => {
-  const cases = [
-    { body: { code: 'provider_rejected', outcome: 'not_created', error: 'Google rejected the request. Nothing was created.' }, heading: 'The form was not created' },
-    { body: { code: 'provider_unavailable', outcome: 'unknown', error: 'Google took too long to answer. Google did not confirm the request, so a form may or may not exist. Check Google Forms before trying again.' }, heading: 'Intake could not confirm the result' },
-    { body: { code: 'internal_error', error: 'Something went wrong inside Intake. The form may not have been created.' }, heading: 'Something went wrong' },
-    { body: { code: 'rate_limited', outcome: 'not_created', error: 'Too many forms were created in a short time.' }, heading: 'Try again in a moment' },
-    { body: { code: 'provider_not_supported', provider: 'microsoft', outcome: 'not_created', error: 'Microsoft Forms creation is not available yet.' }, heading: 'Creation is not available for this provider yet' },
-  ];
-  for (const { body, heading } of cases) {
-    await withPage('/app/forms', { handlers: { 'POST /api/forms': () => failure(body, 500) } }, async page => {
-      await submit(page);
-      await page.until(() => page.text().includes(heading), heading);
-      assert.match(page.$('.form-banner[role="alert"]').textContent, new RegExp(body.error.slice(0, 30).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-    });
-  }
-});
+test('reloading the tab resumes the user-owned specification from the server without a new model or Google call', () => withPage({ savedDraftId: ID, handlers: {
+  [`GET /api/forms/draft/${ID}`]: () => json({ draft: draft(SPEC, { version: 4 }) }),
+} }, async page => {
+  await page.until(() => page.$('#review-title'), 'saved review loaded');
+  assert.equal(page.$('#review-title').textContent, SPEC.title);
+  assert.equal(page.$('#form-request'), null);
+  assert.equal(page.posts('/interpret').length, 0);
+  assert.equal(page.posts('/confirm').length, 0);
+  assert.equal(page.calls.filter(call => call.url === `/api/forms/draft/${ID}`).length, 1);
+}));
 
-test('when Intake cannot be reached the page admits the result is unknown', () =>
-  withPage('/app/forms', { handlers: { 'POST /api/forms': () => { throw new TypeError('network down'); } } }, async page => {
-    await submit(page);
-    await page.until(() => page.text().includes('Intake could not confirm the result'), 'unknown heading');
-    assert.match(page.$('.form-banner[role="alert"]').textContent, /a form may have been created/);
-    assert.ok(page.button('Create form') && !page.button('Create form').disabled, 'the page is usable again');
-  }));
-
-test('an unreadable server answer is never shown as success', () =>
-  withPage('/app/forms', { handlers: { 'POST /api/forms': () => new Response('<html>502 Bad Gateway</html>', { status: 200, headers: { 'content-type': 'text/html' } }) } }, async page => {
-    await submit(page);
-    await page.until(() => page.text().includes('Intake could not confirm the result') || page.text().includes('Something went wrong'), 'failure shown');
-    assert.equal(page.text().includes('Form created.'), false);
-  }));
-
-test('a lapsed Intake session is explained and does not throw away the specification', () =>
-  withPage('/app/forms', { handlers: { 'POST /api/forms': () => new Response('{}', { status: 401 }) } }, async page => {
-    await page.type(page.$('#form-specification'), '{"title":"Keep me","questions":[]}');
-    await submit(page);
-    await page.until(() => page.text().includes('Your Intake session ended'), 'session message');
-    assert.equal(page.$('#form-specification').value, '{"title":"Keep me","questions":[]}');
-  }));
-
-// ---------------------------------------------------------------- recent forms
-
-test('recent forms are listed from the API with their links, and incomplete ones are marked', () =>
-  withPage('/app/forms', {
-    recent: [
-      { id: 'f2', provider: 'google', providerFormId: 'abc12345', title: 'Second form', status: 'incomplete', failureStage: 'publish', editUrl: EDIT, responderUrl: null, createdAt: '2026-09-29T10:00:00.000Z' },
-      { id: 'f1', provider: 'google', providerFormId: 'def67890', title: 'First form', status: 'created', failureStage: null, editUrl: EDIT, responderUrl: RESPOND, createdAt: '2026-09-29T09:00:00.000Z' },
-    ],
-  }, async page => {
-    await page.until(() => page.text().includes('Second form'), 'list rendered');
-    const rows = page.$$('.forms-row');
-    assert.equal(rows.length, 2);
-    assert.match(rows[0].textContent, /Incomplete/);
-    assert.match(rows[0].textContent, /Stopped while publishing\. It is not published and does not accept responses/);
-    assert.equal(rows[0].querySelectorAll('a').length, 1, 'no respondent link for an unpublished form');
-    assert.match(rows[1].textContent, /Published/);
-    assert.equal(rows[1].querySelectorAll('a').length, 2);
-  }));
-
-test('an empty list and a failing list are both said plainly', async () => {
-  await withPage('/app/forms', { recent: [] }, async page => {
-    await page.until(() => page.text().includes('Forms you create here will be listed'), 'empty state');
-  });
-  await withPage('/app/forms', { handlers: { 'GET /api/forms': () => new Response('{}', { status: 503 }) } }, async page => {
-    await page.until(() => page.text().includes('couldn’t load your recent forms'), 'error state');
-    assert.match(page.text(), /does not mean they are gone/);
-    assert.ok(page.button('Try again'));
-    assert.equal(page.router.state.location.pathname, '/app/forms');
-  });
-});
-
-// ---------------------------------------------------------------- the rest of the workspace still says true things
-
-test('the overview no longer says creation is unavailable, still asks the same question, and points at the preview', () =>
-  withPage('/app', {}, async page => {
-    await page.until(() => page.text().includes('What do you need'), 'overview heading');
-    assert.equal(page.text().includes('Form creation is not available yet'), false);
-    assert.equal(page.text().includes('Form creation is coming in a future release'), false);
-    assert.ok(page.$('a[href="/app/forms"]'));
-    assert.match(page.text(), /Plain-language requests are coming in a future release/);
-    assert.ok(page.$('#future-prompt').disabled, 'the plain-language prompt is still not available');
-  }));
+test('a blocked draft restored after reload shows its partial result but cannot create another form', () => withPage({ savedDraftId: ID, handlers: {
+  [`GET /api/forms/draft/${ID}`]: () => json({ draft: draft(SPEC, { status: 'blocked', result: {
+    ok: false, failure: { code: 'provider_error', error: 'Google built only part of the form.', requestId: 'req_partial1', outcome: 'partial', partialForm: { providerFormId: '1FAfakeForm0001abcdefghijklmnop', editUrl: EDIT, state: 'unpublished' } },
+  } }) }),
+} }, async page => {
+  await page.until(() => page.$('#review-title'), 'saved partial result loaded');
+  assert.match(page.text(), /Do not create this draft again/);
+  assert.match(page.text(), /Google built only part of the form/);
+  assert.equal(page.button('Create form →'), undefined);
+  assert.equal(page.$(`a[href="${EDIT}"]`)?.href, EDIT);
+  assert.equal(page.posts('/confirm').length, 0);
+  assert.ok(page.button('Start a different form after checking Google →'));
+}));

@@ -12,6 +12,9 @@ import { createFormEngine } from './forms/engine';
 import { createPostgresFormStore } from './forms/postgres-store';
 import { createFormsProviders } from './forms/providers';
 import { createFormsRouter } from './forms/routes';
+import { createPostgresDraftStore } from './forms/draft-postgres-store';
+import { createOpenAIFormInterpreter } from './forms/interpretation/openai';
+import { createFormDraftRouter } from './forms/interpretation/routes';
 const app = express();
 app.disable('x-powered-by');
 app.use('/api', (_req, res, next) => {
@@ -46,10 +49,20 @@ const formsEngine = createFormEngine({
   providers: createFormsProviders({ env: providerEnv }),
   store: createPostgresFormStore(pool),
 });
+// The draft router only interprets and revises. Its explicit /confirm path claims a
+// user-owned draft before delegating to the SAME creation engine as POST /api/forms.
+app.use('/api/forms', createFormDraftRouter({
+  store: createPostgresDraftStore(pool),
+  interpreter: createOpenAIFormInterpreter({ env: providerEnv }),
+  engine: formsEngine,
+  getSession,
+  env: providerEnv,
+}));
 app.use('/api/forms', createFormsRouter({ engine: formsEngine, getSession, env: providerEnv }));
 const providerSetup = supportedProviders(providerEnv).map(provider => `${provider.id} ${isProviderConfigured(provider, providerEnv) ? 'configured' : 'not configured'}`).join(', ');
 console.log(`Provider connections: ${providerSetup}`);
 console.log('Form creation: google enabled, microsoft pending (no supported Microsoft Forms API)');
+console.log(`Form interpretation: ${providerEnv.OPENAI_API_KEY?.trim() ? 'configured' : 'not configured (OPENAI_API_KEY missing)'}`);
 
 app.get('/api/me', async (req, res) => {
   res.set('Cache-Control', 'no-store');

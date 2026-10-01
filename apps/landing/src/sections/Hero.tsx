@@ -132,7 +132,7 @@ export function Hero() {
           <span className="hb-live">
             <i /> in the works
           </span>
-          <span className="hb-text">Concept preview · provider connections coming later</span>
+          <span className="hb-text">Concept preview · no connection or form created here</span>
           <span className="hb-arrow">→</span>
         </motion.a>
 
@@ -153,9 +153,9 @@ export function Hero() {
           {mobile ? (
             <div>
               <p className="hero-sub">
-                For a final-year project, event or business: you know what to ask. Intake is being built to make the real form in your own Google or Microsoft account. Not another form builder.
+                For a final-year project, event or business: describe what you need, review Intake’s draft, then choose whether to create it in your Google account. Microsoft Forms creation is not available.
               </p>
-              <p className="hero-status">Now: Intake accounts + browser-only demo. Real form creation comes later.</p>
+              <p className="hero-status">Google-only workspace implemented · the demo below is scripted · live use needs setup and verification.</p>
               <div className="hero-actions">
                 <a className="btn btn-accent" href="/auth/sign-up">
                   Create account
@@ -168,8 +168,8 @@ export function Hero() {
           ) : (
             <>
               <div>
-                <p className="hero-sub">You already know what you want to ask. Building every field is the tedious part. Intake is being built to create the <b>real form in your own Google Forms or Microsoft Forms</b> from one description. Your existing forms, controlled through natural language.</p>
-                <p className="hero-status">Now: Intake accounts + browser-only demo. Real form creation comes later.</p>
+                <p className="hero-sub">You already know what you want to ask. Building every field is the tedious part. In the authenticated workspace, Intake turns a description into a draft you can review and revise, then creates the <b>real form in your own Google account</b> only when you confirm. Microsoft Forms creation is not available.</p>
+                <p className="hero-status">Google-only workspace implemented · the demo below is scripted · live use needs setup and verification.</p>
               </div>
               <HeroComposer />
             </>
@@ -188,7 +188,7 @@ export function Hero() {
       <motion.div className="wrap-wide hero-reel" id="demo" initial={{ opacity: 0, y: 60 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1.2, delay: 0.7, ease: [0.22, 1, 0.36, 1] }}>
         <div className="reel-meta">
           <span>
-            <i className="rec" /> Concept demo · Google Form creation is planned
+            <i className="rec" /> Scripted demo · no Google Form is created here
           </span>
           <span className="reel-meta-r">Drag the timeline to scrub ⟷</span>
         </div>

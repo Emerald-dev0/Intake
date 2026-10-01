@@ -21,6 +21,13 @@ export const FORM_ERROR_STATUS: Record<FormErrorCode, number> = {
   storage_unavailable: 503,
   rate_limited: 429,
   creation_in_progress: 409,
+  draft_not_found: 404,
+  draft_conflict: 409,
+  draft_locked: 409,
+  model_not_configured: 503,
+  model_timeout: 504,
+  model_unavailable: 503,
+  model_invalid_output: 502,
   internal_error: 500,
 };
 

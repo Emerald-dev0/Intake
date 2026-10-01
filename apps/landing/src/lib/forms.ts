@@ -1,8 +1,8 @@
 /**
  * Public form-creation contract. Safe to import from the browser: no tokens, no provider payloads.
  *
- * The server builds these shapes; the browser parses them defensively before rendering. The form
- * specification itself lives in server/forms/specification.ts because only the server acts on it.
+ * The server builds these shapes; the browser parses them defensively before rendering. The shared
+ * specification types live in lib/specification.ts; only the server validates and acts on them.
  */
 import { isProviderId, type ProviderId } from './connections';
 
@@ -37,6 +37,13 @@ export const FORM_ERROR_CODES = [
   'storage_unavailable',
   'rate_limited',
   'creation_in_progress',
+  'draft_not_found',
+  'draft_conflict',
+  'draft_locked',
+  'model_not_configured',
+  'model_timeout',
+  'model_unavailable',
+  'model_invalid_output',
   'internal_error',
 ] as const;
 export type FormErrorCode = (typeof FORM_ERROR_CODES)[number];
@@ -285,8 +292,19 @@ export function describeFailure(failure: FormFailure): { tone: 'warn' | 'bad'; h
       return { tone: 'warn', heading: 'Google Forms cannot express this form as written', action: null };
     case 'provider_not_supported':
       return { tone: 'warn', heading: 'Creation is not available for this provider yet', action: null };
-    case 'rate_limited':
+    case 'model_not_configured':
+      return { tone: 'warn', heading: 'Live interpretation needs setup', action: null };
+    case 'model_timeout':
+    case 'model_unavailable':
+    case 'model_invalid_output':
+      return { tone: 'warn', heading: 'Intake could not interpret this request', action: null };
+    case 'draft_not_found':
+    case 'draft_conflict':
+    case 'draft_locked':
+      return { tone: 'warn', heading: 'Check your draft', action: null };
     case 'creation_in_progress':
+      return { tone: 'warn', heading: 'Creation is still in progress or uncertain', action: null };
+    case 'rate_limited':
     case 'provider_rate_limited':
       return { tone: 'warn', heading: 'Try again in a moment', action: null };
     case 'not_authenticated':

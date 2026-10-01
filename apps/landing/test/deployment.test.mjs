@@ -60,3 +60,16 @@ test('browser module imports cannot cross the server boundary', async () => {
   }
   await scan('src');
 });
+
+test('the production browser bundle contains no model client, model key name or Google Forms API client', async () => {
+  const assets = (await readdir('dist/assets')).filter(file => file.endsWith('.js'));
+  assert.ok(assets.length > 0, 'build the frontend before this test');
+  for (const asset of assets) {
+    const body = await readFile(`dist/assets/${asset}`, 'utf8');
+    // Better Auth's public client bundle itself contains the literal name BETTER_AUTH_SECRET
+    // in a generic environment getter; a name is not the secret value. Test our new boundary.
+    for (const secretBoundary of ['api.openai.com', 'OPENAI_API_KEY', 'forms.googleapis.com', 'GOOGLE_OAUTH_CLIENT_SECRET']) {
+      assert.equal(body.includes(secretBoundary), false, `${asset} bundled ${secretBoundary}`);
+    }
+  }
+});

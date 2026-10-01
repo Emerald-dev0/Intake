@@ -68,7 +68,7 @@ test('public auth pages and protected pages render with shared authentication en
       ['/auth/sign-up', 503, 'Create your account'],
       ['/app', 200, 'What do you need'],
       ['/app/connections', 200, 'Your forms stay'],
-      ['/app/forms', 200, 'Create a form'],
+      ['/app/forms', 200, 'What should your form ask?'],
       ['/app/account', 200, 'Your account.'],
       ['/app', 401, 'Welcome back'],
       ['/app/connections', 401, 'Welcome back'],

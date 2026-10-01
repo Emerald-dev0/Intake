@@ -89,7 +89,7 @@ export function Logic() {
               Say <em>“if.”</em> It just works.
             </>
           }
-          lede="Follow-up questions are the fiddliest part of making a form. With Intake you just say when to ask them, and it sets them up in Google or Microsoft Forms for you."
+          lede="Follow-up questions are the fiddliest part of making a form. Intake can plan supported Google Forms section routing from your description; it will flag logic the Google API cannot express. Microsoft creation is not supported."
         />
         <div className="logic-grid">
           <div className="logic-left">

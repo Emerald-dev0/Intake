@@ -38,7 +38,7 @@ export function WorkspaceLayout() {
           <a className={page === 'connections' ? 'active' : ''} href="/app/connections"><span aria-hidden>◇</span> Connections</a>
           <a className={page === 'forms' ? 'active' : ''} href="/app/forms"><span aria-hidden>▤</span> Forms</a>
         </nav>
-        <div className="sidebar-bottom"><div className="side-note"><span className="rec" /> INTAKE / EARLY STAGE<p>Developer preview: Intake can create a Google Form from a structured specification. Connect a provider only when you want Intake authorized to operate that account.</p></div><a href="/" className="site-link">← Visit website</a></div>
+        <div className="sidebar-bottom"><div className="side-note"><span className="rec" /> INTAKE / EARLY STAGE<p>Describe a form, review the draft, then confirm creation in your own Google account. Connect Google separately from your Intake login.</p></div><a href="/" className="site-link">← Visit website</a></div>
       </aside>
       {mobileOpen && <button className="mobile-shade" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
       <div className="app-body">
