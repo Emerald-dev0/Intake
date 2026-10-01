@@ -14,6 +14,7 @@ function Routes() { return useRoutes(routes); }
 import './styles/app.css';
 import './styles/drafts.css';
 import './styles/edit-forms.css';
+import './styles/library.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

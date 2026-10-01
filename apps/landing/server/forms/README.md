@@ -44,9 +44,10 @@ implementation, because Microsoft publishes no supported Forms API.
 | `edit-validation.ts`, `interpretation/edit-interpreter.ts` | Semantic validation against actual provider item/question IDs and declared capabilities. |
 | `providers/google/client.ts` | The only code that talks to `forms.googleapis.com`, including bounded `forms.get` parsing. |
 | `errors.ts`, `edit-errors.ts`, `logging.ts` | Structured errors with HTTP statuses; secret-safe logging and request ids. |
-| `../../src/lib/forms.ts`, `../../src/lib/form-edit.ts` | Browser-safe contracts and defensive parsers for creation and edit review. |
+| `../../src/lib/forms.ts`, `../../src/lib/form-edit.ts` | Browser-safe contracts and defensive parsers for creation, edit review and library records. |
+| `../../src/app/FormLibrary.tsx`, `../../src/app/pages/LibraryPage.tsx` | Dedicated Form Library with search, filtering, sorting, details drawer, live verification, archive/restore, and import modal. |
 | `../../src/app/FormEditWorkspace.tsx` | Existing-form selection, fresh-state preview, conversational revision and explicit confirmation UI. |
-| `../../db/migrations/002_forms.sql`, `../../db/migrations/004_form_edit_drafts.sql` | Owned form records and durable edit-draft state. |
+| `../../db/migrations/002_forms.sql`, `../../db/migrations/004_form_edit_drafts.sql`, `../../db/migrations/005_form_library.sql` | Owned form records, durable edit-draft state, and library metadata. |
 
 ## The form specification
 
@@ -425,6 +426,30 @@ line in `providers/google/adapter.ts` `failure()`.
 - **Abuse and quota:** one creation in flight per user and 12 per 10 minutes (in memory, per process).
 - **Model independence:** the engine accepts only a typed specification.
 
+## Form Library & Management (Phase 8)
+
+The Form Library provides a unified view of all forms owned by the user—whether created through Intake or imported from their connected Google account.
+
+### Endpoints
+
+| Method & Path | Auth & CSRF | Purpose |
+| --- | --- | --- |
+| `GET /api/forms/library` | Session only | Lists library forms for the authenticated user. Supports `query`, `source` (`'all' \| 'created' \| 'imported'`), `archived` (`'false' \| 'true' \| 'all'`), `sort` (`'newest' \| 'oldest' \| 'title_asc' \| 'title_desc' \| 'updated' \| 'synced'`), and `limit`. |
+| `GET /api/forms/library/:id` | Session only | Returns detailed metadata for a specific owned form record. |
+| `POST /api/forms/library/:id/refresh` | Session + CSRF | Verifies live provider status and syncs current title, description, and URLs without altering ownership. |
+| `POST /api/forms/library/:id/archive` | Session + CSRF | Archives the form in Intake; hides it from active listings. |
+| `POST /api/forms/library/:id/unarchive` | Session + CSRF | Restores an archived form back to the active library. |
+| `DELETE /api/forms/library/:id` | Session + CSRF | Removes the Intake library reference. **Never** calls external deletion on Google Forms. |
+| `POST /api/forms/library/import` | Session + CSRF | Imports an existing Google Form by edit URL (`https://docs.google.com/forms/d/FORM_ID/edit`), verifying provider accessibility and preventing duplicate records. |
+
+### Core Guarantees
+
+- **Ownership:** Every library query and mutation enforces `WHERE user_id = $1`. Users can never view, update, archive, or remove another user's forms.
+- **Provider Connection Resilience:** Local records are never deleted when a provider is disconnected or tokens expire. Disconnected states are flagged with actionable reconnection guidance.
+- **Live Provider Verification:** Distinguishes between `accessible`, `missing` (404 in Google Forms), `unavailable` (transient Google outage or rate limit), and `reconnection_required` (expired or revoked OAuth grant). Transient errors never mark forms as deleted.
+- **Removal Semantics:** Intake requests only `https://www.googleapis.com/auth/forms.body` (not full Drive scope). Intake cannot and does not delete external Google Forms. Removal removes only the local library reference and requires explicit confirmation.
+- **No Fake Analytics:** Intake displays only substantiated timestamps (`createdAt`, `updatedAt`, `lastSyncedAt`). No fake response counts, fake completion percentages, or simulated engagement metrics are generated.
+
 ## Testing
 
 `npm test` (builds the client first). Nothing needs a Google or Microsoft account, OAuth credentials, Neon, or Vercel.
@@ -443,6 +468,9 @@ line in `providers/google/adapter.ts` `failure()`.
 | `forms-engine.test.mjs` | The logger (masking, bounds, event names), request ids, the error-code/status table, the engine turning a bug into a safe `internal_error`, and rejected-token reporting. |
 | `forms-contract.test.mjs` | The browser-side parsers and link checks in `src/lib/forms.ts`: unknown fields dropped, unsafe links become `null`, unreadable bodies never read as success. |
 | `forms-page.test.mjs` | The workspace page under jsdom: every state, safe links, no sign-in redirect on provider problems, invalid JSON never sent. |
+| `forms-library-storage.test.mjs` | The `005_form_library.sql` migration, Postgres and memory store library queries, filtering, sorting, indexing, archive, removal, and touchSync. |
+| `forms-library-routes.test.mjs` | Library API routes: user isolation, CSRF enforcement, search/filter query parameters, archive/unarchive, removal without provider deletion, live status verification, and URL import validation. |
+| `forms-library-page.test.mjs` | The library page under jsdom: cards, badges, search, filter, details drawer, live verification, confirmation modals, archive/restore, and transitioning to edit workspace. |
 | `frontend.test.mjs`, `routes.test.mjs` | `/app/forms` route ownership and rendering; the real server process failing closed without a database. |
 
 Database: `npm test` checks the migration text and the store against a fake pool. As a one-off, outside the repository and

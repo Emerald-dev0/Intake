@@ -9,6 +9,8 @@ From `apps/landing`, with a real `DATABASE_URL` and the other required auth vari
    - `001_provider_connections.sql` creates `provider_connection` and `provider_oauth_transaction`.
    - `002_forms.sql` creates `form`: one row per form Intake created in a connected provider account.
    - `003_form_drafts.sql` creates `form_draft`: a validated, user-owned current specification, optimistic revision version and atomic one-shot creation claim. No conversation transcript or credentials.
+   - `004_form_edit_drafts.sql` creates `form_edit_draft`: server-owned edit snapshots and optimistic one-shot confirmation state for existing-form revisions.
+   - `005_form_library.sql` extends `form` with `description`, `source` (`'created'` or `'imported'`), `last_synced_at`, `archived_at`, relaxes NOT NULL on `specification` for imported forms, and adds `form_user_library_idx`.
 
 `npm run db:generate` writes a reviewable Better Auth SQL snapshot to `db/auth.sql`. It does not apply it, and it does not include Intake provider tables. Do not point Better Auth at the provider tables.
 
