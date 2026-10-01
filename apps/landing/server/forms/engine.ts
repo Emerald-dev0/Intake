@@ -1,13 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { isProviderId, type ProviderId } from '../../src/lib/connections';
-import type { FormWarning, PublicCreatedForm, PublicFormSummary } from '../../src/lib/forms';
+import type { FormWarning, PublicCreatedForm, PublicFormSummary, PublicLibraryForm } from '../../src/lib/forms';
 import { logSafe } from '../providers/oauth';
 import { isMissingTable } from '../providers/service';
 import { FormEngineError, type FormErrorInfo } from './errors';
+import { FormEditError } from './edit-errors';
+import { extractGoogleFormId } from './edit-engine';
 import { createFormLogger, newRequestId, type FormLogger } from './logging';
 import type { CreatedForm, FormsProviders } from './provider';
 import { SPEC_VERSION, type FormSpecification } from './specification';
-import type { FormStore, FormSummaryRecord, IncompleteStage, NewFormRecord } from './store';
+import type { FormLibraryFilter, FormLibraryRecord, FormRecord, FormStore, FormSummaryRecord, IncompleteStage, NewFormRecord } from './store';
 import { parseFormSpecification } from './validation';
 
 const LIST_LIMIT = 20;
@@ -59,9 +61,33 @@ export type CreateFormOutcome =
 
 export type ListFormsOutcome = { ok: true; forms: PublicFormSummary[] } | { ok: false; error: FormErrorInfo };
 
+export type ListLibraryOutcome = { ok: true; forms: PublicLibraryForm[] } | { ok: false; error: FormErrorInfo };
+
+export type GetFormOutcome = { ok: true; form: PublicLibraryForm } | { ok: false; error: FormErrorInfo };
+
+export type RefreshFormStatus = 'accessible' | 'reconnection_required' | 'inaccessible' | 'missing' | 'unavailable' | 'unknown';
+
+export type RefreshFormOutcome =
+  | { ok: true; status: 'accessible'; form: PublicLibraryForm }
+  | { ok: false; status: RefreshFormStatus; error: string; form?: PublicLibraryForm };
+
+export type ArchiveFormOutcome = { ok: true; archived: boolean } | { ok: false; error: FormErrorInfo };
+
+export type RemoveFormOutcome = { ok: true; removed: boolean; message: string } | { ok: false; error: FormErrorInfo };
+
+export type ImportFormOutcome =
+  | { ok: true; form: PublicLibraryForm; alreadyExists: boolean }
+  | { ok: false; error: FormErrorInfo };
+
 export interface FormEngine {
   createForm(input: { userId: string; provider: unknown; specification: unknown; requestId?: string }): Promise<CreateFormOutcome>;
   listForms(userId: string): Promise<ListFormsOutcome>;
+  listLibrary(userId: string, filter?: FormLibraryFilter): Promise<ListLibraryOutcome>;
+  getForm(userId: string, id: string): Promise<GetFormOutcome>;
+  refreshForm(userId: string, id: string, requestId?: string): Promise<RefreshFormOutcome>;
+  archiveForm(userId: string, id: string, archived: boolean): Promise<ArchiveFormOutcome>;
+  removeForm(userId: string, id: string): Promise<RemoveFormOutcome>;
+  importForm(userId: string, url: string, requestId?: string): Promise<ImportFormOutcome>;
 }
 
 export function createFormEngine(deps: FormEngineDeps): FormEngine {
@@ -193,6 +219,186 @@ export function createFormEngine(deps: FormEngineDeps): FormEngine {
         return { ok: false, error: { code: 'storage_unavailable', message: 'Intake could not load your forms right now. Try again in a moment.', retryable: true } };
       }
     },
+
+    async listLibrary(userId, filter = {}) {
+      try {
+        const rows = await deps.store.listLibrary(userId, filter);
+        return { ok: true, forms: rows.map(publicLibrary) };
+      } catch (error) {
+        logSafe('Listing library forms failed', error);
+        return { ok: false, error: { code: 'storage_unavailable', message: 'Intake could not load your form library right now. Try again in a moment.', retryable: true } };
+      }
+    },
+
+    async getForm(userId, id) {
+      try {
+        const record = await deps.store.getForUser(userId, id);
+        if (!record) {
+          return { ok: false, error: { code: 'invalid_request', message: 'That form is not available in your Intake account.', retryable: false } };
+        }
+        return { ok: true, form: publicLibrary(record) };
+      } catch (error) {
+        logSafe('Retrieving form failed', error);
+        return { ok: false, error: { code: 'storage_unavailable', message: 'Intake could not load the form details right now. Try again in a moment.', retryable: true } };
+      }
+    },
+
+    async refreshForm(userId, id, requestId = newRequestId()) {
+      let existing: FormRecord | null = null;
+      try {
+        existing = await deps.store.getForUser(userId, id);
+      } catch (error) {
+        logSafe('Looking up form before refresh failed', error);
+        return { ok: false, status: 'unavailable', error: 'Intake storage is temporarily unavailable.' };
+      }
+      if (!existing) {
+        return { ok: false, status: 'missing', error: 'Form not found in your Intake account.' };
+      }
+
+      if (existing.provider !== 'google') {
+        return { ok: false, status: 'unknown', error: 'Live status verification is only available for Google Forms.', form: publicLibrary(existing) };
+      }
+
+      const adapter = deps.providers.google;
+      if (!adapter?.retrieveForm) {
+        return { ok: false, status: 'unavailable', error: 'Google Forms provider cannot retrieve form state.', form: publicLibrary(existing) };
+      }
+
+      try {
+        log('form.library.refresh_started', { requestId, userId, formId: existing.providerFormId, recordId: id });
+        const loaded = await adapter.retrieveForm(userId, existing.providerFormId, { requestId, log });
+        const currentTitle = loaded.current.title || existing.title;
+        const currentDescription = loaded.current.description ?? existing.description;
+        const currentEdit = loaded.current.editUrl || existing.editUrl;
+        const currentResponder = loaded.current.responderUrl ?? existing.responderUrl;
+
+        await deps.store.touchSync(userId, id, {
+          title: currentTitle,
+          description: currentDescription,
+          editUrl: currentEdit ?? null,
+          responderUrl: currentResponder,
+        }, now());
+
+        const refreshed = await deps.store.getForUser(userId, id);
+        log('form.library.refresh_completed', { requestId, userId, formId: existing.providerFormId, recordId: id, status: 'accessible' });
+        return { ok: true, status: 'accessible', form: publicLibrary(refreshed ?? existing) };
+      } catch (error) {
+        logSafe('Live form status check failed', error);
+        const code = error instanceof FormEditError ? error.info.code : error instanceof FormEngineError ? error.info.code : undefined;
+        let status: RefreshFormStatus = 'unknown';
+        let message = 'Could not verify the current form status with Google Forms.';
+
+        if (code === 'form_not_found') {
+          status = 'missing';
+          message = 'Google Forms could not find this form. It may have been deleted or moved in your Google account.';
+        } else if (code === 'form_not_editable' || code === 'provider_permission_denied') {
+          status = 'inaccessible';
+          message = 'Your connected Google account does not have permission to access or edit this form.';
+        } else if (code === 'provider_not_connected' || code === 'provider_reauthorization_required') {
+          status = 'reconnection_required';
+          message = 'Google account reconnection required. Reconnect Google to verify form access.';
+        } else if (code === 'provider_unavailable' || code === 'provider_rate_limited') {
+          status = 'unavailable';
+          message = 'Google Forms is temporarily unreachable. Your Intake record is preserved.';
+        }
+
+        log('form.library.refresh_failed', { requestId, userId, formId: existing.providerFormId, recordId: id, status, code });
+        return { ok: false, status, error: message, form: publicLibrary(existing) };
+      }
+    },
+
+    async archiveForm(userId, id, archived) {
+      try {
+        const existing = await deps.store.getForUser(userId, id);
+        if (!existing) {
+          return { ok: false, error: { code: 'invalid_request', message: 'That form is not available in your Intake account.', retryable: false } };
+        }
+        await deps.store.archive(userId, id, archived, now());
+        return { ok: true, archived };
+      } catch (error) {
+        logSafe('Archiving form failed', error);
+        return { ok: false, error: { code: 'storage_unavailable', message: 'Intake could not update the archive status right now.', retryable: true } };
+      }
+    },
+
+    async removeForm(userId, id) {
+      try {
+        const existing = await deps.store.getForUser(userId, id);
+        if (!existing) {
+          return { ok: false, error: { code: 'invalid_request', message: 'That form is not available in your Intake account.', retryable: false } };
+        }
+        await deps.store.remove(userId, id);
+        return { ok: true, removed: true, message: 'Form removed from your Intake library. The form remains in your Google account.' };
+      } catch (error) {
+        logSafe('Removing form from library failed', error);
+        return { ok: false, error: { code: 'storage_unavailable', message: 'Intake could not remove the form reference right now.', retryable: true } };
+      }
+    },
+
+    async importForm(userId, url, requestId = newRequestId()) {
+      const formId = extractGoogleFormId(url);
+      if (!formId) {
+        return {
+          ok: false,
+          error: {
+            code: 'invalid_request',
+            message: 'Provide a valid Google Forms edit URL (e.g. https://docs.google.com/forms/d/FORM_ID/edit). Short links and invalid URLs are rejected.',
+            retryable: false,
+          },
+        };
+      }
+
+      try {
+        const existing = await deps.store.getByProviderFormId(userId, 'google', formId);
+        if (existing) {
+          return { ok: true, form: publicLibrary(existing), alreadyExists: true };
+        }
+
+        const adapter = deps.providers.google;
+        if (!adapter?.retrieveForm) {
+          return { ok: false, error: { code: 'provider_not_supported', message: 'Google Forms provider cannot retrieve forms.', retryable: false } };
+        }
+
+        log('form.library.import_started', { requestId, userId, formId });
+        const loaded = await adapter.retrieveForm(userId, formId, { requestId, log });
+
+        const record: NewFormRecord = {
+          id: newId(),
+          userId,
+          provider: 'google',
+          externalAccountId: loaded.externalAccountId,
+          providerFormId: loaded.current.providerFormId,
+          title: loaded.current.title || 'Untitled Google Form',
+          description: loaded.current.description ?? null,
+          status: 'created',
+          editUrl: loaded.current.editUrl,
+          responderUrl: loaded.current.responderUrl ?? null,
+          failureStage: null,
+          requestId,
+          specification: null,
+          specificationVersion: SPEC_VERSION,
+          source: 'imported',
+          lastSyncedAt: now(),
+          archivedAt: null,
+        };
+
+        const saved = await deps.store.save(record, now());
+        log('form.library.import_completed', { requestId, userId, formId, recordId: saved.id });
+        return { ok: true, form: publicLibrary(saved), alreadyExists: false };
+      } catch (error) {
+        logSafe('Importing Google Form failed', error);
+        log('form.library.import_failed', { requestId, userId, formId });
+        if (error instanceof FormEditError || error instanceof FormEngineError) {
+          const code = error.info.code;
+          const mappedCode =
+            code === 'form_not_found' || code === 'form_not_editable' || code === 'invalid_form_url' || code === 'edit_unsupported' || code === 'edit_draft_conflict' || code === 'edit_draft_locked' || code === 'edit_draft_not_found' || code === 'edit_plan_invalid' || code === 'edit_stale'
+              ? 'invalid_request'
+              : code;
+          return { ok: false, error: { code: mappedCode as FormErrorInfo['code'], message: error.info.message, retryable: error.info.retryable } };
+        }
+        return { ok: false, error: { code: 'internal_error', message: 'Intake could not import this Google Form. Check your connection and try again.', retryable: false } };
+      }
+    },
   };
 }
 
@@ -215,6 +421,10 @@ async function save(
     externalAccountId: created.externalAccountId,
     providerFormId: created.providerFormId,
     title: created.title,
+    description: input.specification.description ?? null,
+    source: 'created',
+    lastSyncedAt: now(),
+    archivedAt: null,
     status: input.status,
     editUrl: created.editUrl ?? null,
     responderUrl: input.status === 'created' ? (created.responderUrl ?? null) : null,
@@ -266,5 +476,24 @@ function publicSummary(row: FormSummaryRecord): PublicFormSummary {
     editUrl: row.editUrl,
     responderUrl: row.responderUrl,
     createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function publicLibrary(row: FormLibraryRecord | FormRecord): PublicLibraryForm {
+  return {
+    id: row.id,
+    provider: row.provider,
+    providerFormId: row.providerFormId,
+    title: row.title,
+    description: row.description ?? null,
+    status: row.status,
+    failureStage: row.failureStage,
+    editUrl: row.editUrl,
+    responderUrl: row.responderUrl,
+    source: row.source ?? 'created',
+    lastSyncedAt: row.lastSyncedAt ? row.lastSyncedAt.toISOString() : null,
+    archivedAt: row.archivedAt ? row.archivedAt.toISOString() : null,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   };
 }

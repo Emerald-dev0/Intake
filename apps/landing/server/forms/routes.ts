@@ -6,9 +6,11 @@ import type { SessionUser } from '../providers/service';
 import type { FormEngine } from './engine';
 import { statusFor, toFailureBody, type FormErrorInfo } from './errors';
 import { createFormLogger, newRequestId, type FormLogger } from './logging';
+import type { FormLibraryFilter } from './store';
 
 const MAX_BODY = '100kb';
 const ALLOWED_KEYS = ['provider', 'specification'] as const;
+const RECORD_ID = /^[A-Za-z0-9_-]{1,80}$/;
 
 export interface FormsRouterDeps {
   engine: FormEngine;
@@ -21,13 +23,52 @@ function safeKey(key: string): string {
   return key.replace(/[^A-Za-z0-9_$-]/g, '_').slice(0, 40) || '_';
 }
 
+function parseLibraryFilter(query: Request['query']): FormLibraryFilter {
+  const filter: FormLibraryFilter = {};
+  if (typeof query.query === 'string' && query.query.trim().length <= 100) {
+    filter.query = query.query.trim();
+  }
+  if (query.provider === 'google' || query.provider === 'microsoft' || query.provider === 'all') {
+    filter.provider = query.provider;
+  }
+  if (query.source === 'created' || query.source === 'imported' || query.source === 'all') {
+    filter.source = query.source;
+  }
+  if (query.archived === 'true') {
+    filter.archived = true;
+  } else if (query.archived === 'all') {
+    filter.archived = 'all';
+  } else if (query.archived === 'false') {
+    filter.archived = false;
+  }
+  if (
+    query.sort === 'newest' ||
+    query.sort === 'oldest' ||
+    query.sort === 'title_asc' ||
+    query.sort === 'title_desc' ||
+    query.sort === 'updated' ||
+    query.sort === 'synced'
+  ) {
+    filter.sort = query.sort;
+  }
+  if (typeof query.limit === 'string') {
+    const num = Number.parseInt(query.limit, 10);
+    if (!Number.isNaN(num) && num > 0) filter.limit = Math.min(num, 100);
+  }
+  return filter;
+}
+
 /**
- * POST /api/forms  { provider, specification }  -> create a form in the user's connected account
- * GET  /api/forms                                -> the signed-in user's recent forms
- *
- * The Intake user comes from the session and nowhere else. The request may not name a token, a
- * provider account, a connection or a user: any property other than `provider` and `specification`
- * is rejected, so a client cannot even attempt to supply one.
+ * Forms router:
+ * POST /api/forms                 -> create a form in the user's connected account
+ * GET  /api/forms                 -> recent forms (or filtered library if requested)
+ * GET  /api/forms/library         -> rich library list with search, filter, and sort
+ * GET  /api/forms/library/:id     -> inspect an individual form record
+ * POST /api/forms/library/import  -> import an existing Google Form by URL
+ * POST /api/forms/library/:id/refresh   -> live status verification & metadata refresh
+ * POST /api/forms/library/:id/archive   -> archive a form record
+ * POST /api/forms/library/:id/unarchive -> restore an archived form record
+ * DELETE /api/forms/library/:id         -> remove reference from Intake (never deletes provider form)
  */
 export function createFormsRouter(deps: FormsRouterDeps): Router {
   const router = Router();
@@ -55,12 +96,135 @@ export function createFormsRouter(deps: FormsRouterDeps): Router {
     }
   });
 
-  router.get('/', async (_req, res) => {
+  // Recent forms list (or library search when query params provided)
+  router.get('/', async (req, res) => {
     const requestId = res.locals.requestId as string;
     const user = res.locals.user as SessionUser;
+
+    const hasFilterParams = Boolean(
+      req.query.query || req.query.provider || req.query.source || req.query.archived || req.query.sort || req.query.mode === 'library',
+    );
+
+    if (hasFilterParams) {
+      const outcome = await deps.engine.listLibrary(user.id, parseLibraryFilter(req.query));
+      if (!outcome.ok) return send(res, outcome.error, requestId);
+      return sendJson(res, 200, { requestId, forms: outcome.forms });
+    }
+
     const outcome = await deps.engine.listForms(user.id);
     if (!outcome.ok) return send(res, outcome.error, requestId);
     return sendJson(res, 200, { requestId, forms: outcome.forms });
+  });
+
+  // Dedicated Form Library list endpoint
+  router.get('/library', async (req, res) => {
+    const requestId = res.locals.requestId as string;
+    const user = res.locals.user as SessionUser;
+    const outcome = await deps.engine.listLibrary(user.id, parseLibraryFilter(req.query));
+    if (!outcome.ok) return send(res, outcome.error, requestId);
+    return sendJson(res, 200, { requestId, forms: outcome.forms });
+  });
+
+  // Import existing Google Form by URL into library
+  router.post(
+    '/library/import',
+    (req, res, next) => {
+      const requestId = res.locals.requestId as string;
+      const user = res.locals.user as SessionUser;
+      if (!trustedMutation(req, deps.env)) {
+        log('form.library.import_rejected', { requestId, userId: user.id, reason: 'untrusted_origin' });
+        return send(res, { code: 'forbidden', message: 'This request did not come from Intake, so it was rejected. No form was imported.' }, requestId);
+      }
+      return next();
+    },
+    express.json({ limit: MAX_BODY, strict: true }),
+    async (req, res) => {
+      const requestId = res.locals.requestId as string;
+      const user = res.locals.user as SessionUser;
+      const body = req.body;
+      if (!body || typeof body !== 'object' || typeof body.url !== 'string' || !body.url.trim()) {
+        return send(res, { code: 'invalid_request', message: 'Provide a valid Google Forms URL to import.' }, requestId);
+      }
+      const outcome = await deps.engine.importForm(user.id, body.url.trim(), requestId);
+      if (!outcome.ok) return send(res, outcome.error, requestId);
+      return sendJson(res, outcome.alreadyExists ? 200 : 201, { requestId, form: outcome.form, alreadyExists: outcome.alreadyExists });
+    },
+  );
+
+  // Retrieve individual form record by ID
+  router.get('/library/:id', async (req, res) => {
+    const requestId = res.locals.requestId as string;
+    const user = res.locals.user as SessionUser;
+    const id = req.params.id;
+    if (!RECORD_ID.test(id)) {
+      return send(res, { code: 'invalid_request', message: 'Invalid form ID.' }, requestId, 404);
+    }
+    const outcome = await deps.engine.getForm(user.id, id);
+    if (!outcome.ok) return send(res, outcome.error, requestId, 404);
+    return sendJson(res, 200, { requestId, form: outcome.form });
+  });
+
+  // Live status verification & metadata refresh
+  router.post('/library/:id/refresh', async (req, res) => {
+    const requestId = res.locals.requestId as string;
+    const user = res.locals.user as SessionUser;
+    if (!trustedMutation(req, deps.env)) {
+      return send(res, { code: 'forbidden', message: 'This request did not come from Intake. Request rejected.' }, requestId);
+    }
+    const id = req.params.id;
+    if (!RECORD_ID.test(id)) {
+      return send(res, { code: 'invalid_request', message: 'Invalid form ID.' }, requestId, 404);
+    }
+    const outcome = await deps.engine.refreshForm(user.id, id, requestId);
+    return sendJson(res, 200, { requestId, ...outcome });
+  });
+
+  // Archive a form in library
+  router.post('/library/:id/archive', async (req, res) => {
+    const requestId = res.locals.requestId as string;
+    const user = res.locals.user as SessionUser;
+    if (!trustedMutation(req, deps.env)) {
+      return send(res, { code: 'forbidden', message: 'This request did not come from Intake. Request rejected.' }, requestId);
+    }
+    const id = req.params.id;
+    if (!RECORD_ID.test(id)) {
+      return send(res, { code: 'invalid_request', message: 'Invalid form ID.' }, requestId, 404);
+    }
+    const outcome = await deps.engine.archiveForm(user.id, id, true);
+    if (!outcome.ok) return send(res, outcome.error, requestId);
+    return sendJson(res, 200, { requestId, ok: true, archived: true });
+  });
+
+  // Unarchive a form in library
+  router.post('/library/:id/unarchive', async (req, res) => {
+    const requestId = res.locals.requestId as string;
+    const user = res.locals.user as SessionUser;
+    if (!trustedMutation(req, deps.env)) {
+      return send(res, { code: 'forbidden', message: 'This request did not come from Intake. Request rejected.' }, requestId);
+    }
+    const id = req.params.id;
+    if (!RECORD_ID.test(id)) {
+      return send(res, { code: 'invalid_request', message: 'Invalid form ID.' }, requestId, 404);
+    }
+    const outcome = await deps.engine.archiveForm(user.id, id, false);
+    if (!outcome.ok) return send(res, outcome.error, requestId);
+    return sendJson(res, 200, { requestId, ok: true, archived: false });
+  });
+
+  // Remove a form reference from Intake library (never deletes provider form)
+  router.delete('/library/:id', async (req, res) => {
+    const requestId = res.locals.requestId as string;
+    const user = res.locals.user as SessionUser;
+    if (!trustedMutation(req, deps.env)) {
+      return send(res, { code: 'forbidden', message: 'This request did not come from Intake. Request rejected.' }, requestId);
+    }
+    const id = req.params.id;
+    if (!RECORD_ID.test(id)) {
+      return send(res, { code: 'invalid_request', message: 'Invalid form ID.' }, requestId, 404);
+    }
+    const outcome = await deps.engine.removeForm(user.id, id);
+    if (!outcome.ok) return send(res, outcome.error, requestId);
+    return sendJson(res, 200, { requestId, ok: true, removed: true, message: outcome.message });
   });
 
   // Cross-site requests are refused before the body is read.
@@ -107,6 +271,36 @@ export function createFormsRouter(deps: FormsRouterDeps): Router {
       return send(res, outcome.error, requestId);
     },
   );
+
+  // Single record direct access: GET /:id and DELETE /:id
+  router.get('/:id', async (req, res) => {
+    const requestId = res.locals.requestId as string;
+    const user = res.locals.user as SessionUser;
+    const id = req.params.id;
+    if (!RECORD_ID.test(id)) {
+      return res.status(404).json({ error: 'Not found', code: 'invalid_request', requestId });
+    }
+    const outcome = await deps.engine.getForm(user.id, id);
+    if (!outcome.ok) {
+      return res.status(404).json({ error: outcome.error.message, code: 'invalid_request', requestId });
+    }
+    return sendJson(res, 200, { requestId, form: outcome.form });
+  });
+
+  router.delete('/:id', async (req, res) => {
+    const requestId = res.locals.requestId as string;
+    const user = res.locals.user as SessionUser;
+    if (!trustedMutation(req, deps.env)) {
+      return send(res, { code: 'forbidden', message: 'This request did not come from Intake. Request rejected.' }, requestId);
+    }
+    const id = req.params.id;
+    if (!RECORD_ID.test(id)) {
+      return res.status(404).json({ error: 'Not found', code: 'invalid_request', requestId });
+    }
+    const outcome = await deps.engine.removeForm(user.id, id);
+    if (!outcome.ok) return send(res, outcome.error, requestId);
+    return sendJson(res, 200, { requestId, ok: true, removed: true, message: outcome.message });
+  });
 
   router.use((_req, res) => {
     res.status(404).json({ error: 'Not found', code: 'invalid_request', requestId: (res.locals.requestId as string | undefined) ?? '' });

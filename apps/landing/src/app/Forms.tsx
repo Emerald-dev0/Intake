@@ -8,6 +8,7 @@ import { parseConfirmedResponse, parseDraftLoad, parseInterpretResponse, type Pu
 import type { PublicProvider } from '../lib/connections';
 import type { ProviderLoad } from './Connections';
 import { FormEditWorkspace } from './FormEditWorkspace';
+import { FormLibrary } from './FormLibrary';
 
 type Busy = 'loading' | 'interpreting' | 'revising' | 'creating' | 'cancelling' | null;
 export type RecentFormsState = { status: 'loading' | 'error' | 'ready'; forms: PublicFormSummary[] };
@@ -81,7 +82,8 @@ async function post(path: string, data: unknown): Promise<{ status: number; body
 
 export function Forms({ providers, reloadProviders }: { providers: ProviderLoad; reloadProviders: () => void }) {
   const location = useLocation();
-  const initialPrompt = (location.state as { initialPrompt?: unknown } | null)?.initialPrompt;
+  const locationState = location.state as { initialPrompt?: unknown; mode?: unknown; initialRecordId?: unknown } | null;
+  const initialPrompt = locationState?.initialPrompt;
   const [prompt, setPrompt] = useState(typeof initialPrompt === 'string' && initialPrompt.length <= 3000 ? initialPrompt : '');
   const [revision, setRevision] = useState('');
   const [editing, setEditing] = useState(false);
@@ -94,7 +96,12 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
   const [failure, setFailure] = useState<FormFailure | null>(null);
   const [unsupported, setUnsupported] = useState('');
   const [result, setResult] = useState<CreateFormResult | null>(null);
-  const [workspaceMode, setWorkspaceMode] = useState<'create' | 'edit'>('create');
+  const [workspaceMode, setWorkspaceMode] = useState<'create' | 'edit' | 'library'>(
+    locationState?.mode === 'edit' ? 'edit' : locationState?.mode === 'library' ? 'library' : 'create'
+  );
+  const [selectedEditRecordId, setSelectedEditRecordId] = useState<string | undefined>(
+    typeof locationState?.initialRecordId === 'string' ? locationState.initialRecordId : undefined
+  );
   const recent = useRecentForms();
   const alive = useAlive();
   const google = providers.providers?.find(provider => provider.id === 'google');
@@ -267,10 +274,30 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
   const workspaceSwitch = <nav className="forms-mode-switch" aria-label="Form workflow">
     <button type="button" className={workspaceMode === 'create' ? 'selected' : ''} aria-current={workspaceMode === 'create' ? 'page' : undefined} onClick={() => setWorkspaceMode('create')}>Create a new form</button>
     <button type="button" className={workspaceMode === 'edit' ? 'selected' : ''} aria-current={workspaceMode === 'edit' ? 'page' : undefined} onClick={() => setWorkspaceMode('edit')}>Edit an existing form</button>
+    <button type="button" className={workspaceMode === 'library' ? 'selected' : ''} aria-current={workspaceMode === 'library' ? 'page' : undefined} onClick={() => setWorkspaceMode('library')}>Form library</button>
   </nav>;
+  if (workspaceMode === 'library') return <>
+    {workspaceSwitch}
+    <FormLibrary
+      providers={providers}
+      reloadProviders={reloadProviders}
+      initialForms={recent.state.forms}
+      onSelectMode={(mode, formRecordId) => {
+        if (formRecordId) setSelectedEditRecordId(formRecordId);
+        setWorkspaceMode(mode);
+      }}
+    />
+  </>;
   if (workspaceMode === 'edit') return <>
     {workspaceSwitch}
-    <FormEditWorkspace providers={providers} reloadProviders={reloadProviders} forms={recent.state.forms} formsStatus={recent.state.status} reloadForms={recent.load} />
+    <FormEditWorkspace
+      providers={providers}
+      reloadProviders={reloadProviders}
+      forms={recent.state.forms}
+      formsStatus={recent.state.status}
+      reloadForms={recent.load}
+      initialRecordId={selectedEditRecordId}
+    />
   </>;
 
   return <>
@@ -323,7 +350,11 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
       {finished && <button className="btn btn-ghost draft-start-again" type="button" onClick={reset}>Start another form →</button>}
     </>}
 
-    <section className="forms-recent" aria-labelledby="recent-forms-title"><h2 id="recent-forms-title" className="forms-legend">RECENT FORMS</h2>
+    <section className="forms-recent" aria-labelledby="recent-forms-title">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <h2 id="recent-forms-title" className="forms-legend" style={{ margin: 0 }}>RECENT FORMS</h2>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setWorkspaceMode('library')}>Open Form Library →</button>
+      </div>
       {recent.state.status === 'loading' && <p className="fine-print" role="status">Loading your forms…</p>}
       {recent.state.status === 'error' && <div className="form-banner bad" role="alert"><p>Intake couldn’t load your recent forms. This does not mean they are gone.</p><button className="btn btn-ghost btn-sm" type="button" onClick={() => void recent.load()}>Try again</button></div>}
       {recent.state.status === 'ready' && recent.state.forms.length === 0 && <p className="fine-print">Forms you create here will be listed.</p>}

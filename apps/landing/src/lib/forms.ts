@@ -108,6 +108,14 @@ export interface PublicFormSummary {
   createdAt: string;
 }
 
+export interface PublicLibraryForm extends PublicFormSummary {
+  description: string | null;
+  source: 'created' | 'imported';
+  lastSyncedAt: string | null;
+  archivedAt: string | null;
+  updatedAt: string;
+}
+
 export type CreateFormResult =
   | { ok: true; requestId: string; form: PublicCreatedForm; warnings: FormWarning[] }
   | { ok: false; failure: FormFailure };
@@ -266,6 +274,50 @@ export function parseFormList(data: unknown): PublicFormSummary[] | null {
       responderUrl: safeFormUrl(form.responderUrl),
       createdAt,
     });
+  }
+  return forms;
+}
+
+export function parseLibraryForm(data: unknown): PublicLibraryForm | null {
+  const form = record(data);
+  if (!form) return null;
+  const id = text(form.id, 80);
+  const providerFormId = text(form.providerFormId, 255);
+  const title = text(form.title, 300);
+  const createdAt = typeof form.createdAt === 'string' && !Number.isNaN(new Date(form.createdAt).getTime()) ? form.createdAt : null;
+  if (!id || !providerFormId || !title || !createdAt || !isProviderId(typeof form.provider === 'string' ? form.provider : null)) return null;
+  if (form.status !== 'created' && form.status !== 'incomplete') return null;
+  const description = typeof form.description === 'string' ? form.description : null;
+  const source = form.source === 'imported' ? 'imported' : 'created';
+  const lastSyncedAt = typeof form.lastSyncedAt === 'string' && !Number.isNaN(new Date(form.lastSyncedAt).getTime()) ? form.lastSyncedAt : null;
+  const archivedAt = typeof form.archivedAt === 'string' && !Number.isNaN(new Date(form.archivedAt).getTime()) ? form.archivedAt : null;
+  const updatedAt = typeof form.updatedAt === 'string' && !Number.isNaN(new Date(form.updatedAt).getTime()) ? form.updatedAt : createdAt;
+  return {
+    id,
+    provider: form.provider as ProviderId,
+    providerFormId,
+    title,
+    description,
+    status: form.status,
+    failureStage: isFormStage(form.failureStage) ? form.failureStage : null,
+    editUrl: safeFormUrl(form.editUrl),
+    responderUrl: form.status === 'created' ? safeFormUrl(form.responderUrl) : null,
+    source,
+    lastSyncedAt,
+    archivedAt,
+    createdAt,
+    updatedAt,
+  };
+}
+
+export function parseLibraryFormList(data: unknown): PublicLibraryForm[] | null {
+  const row = record(data);
+  if (!row || !Array.isArray(row.forms)) return null;
+  const forms: PublicLibraryForm[] = [];
+  for (const item of row.forms.slice(0, 100)) {
+    const parsed = parseLibraryForm(item);
+    if (!parsed) return null;
+    forms.push(parsed);
   }
   return forms;
 }

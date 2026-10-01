@@ -38,7 +38,16 @@ export type FormLogEvent =
   | 'form.edit.apply_completed'
   | 'form.edit.completed'
   | 'form.edit.apply_failed'
-  | 'form.edit.result_not_saved';
+  | 'form.edit.result_not_saved'
+  | 'form.library.refresh_started'
+  | 'form.library.refresh_completed'
+  | 'form.library.refresh_failed'
+  | 'form.library.import_started'
+  | 'form.library.import_completed'
+  | 'form.library.import_failed'
+  | 'form.library.import_rejected'
+  | 'form.library.archive'
+  | 'form.library.remove';
 
 type LogValue = string | number | boolean | null | undefined | readonly string[];
 export type FormLogFields = Record<string, LogValue>;
@@ -81,6 +90,15 @@ const LEVELS: Record<FormLogEvent, LogLevel> = {
   'form.edit.completed': 'info',
   'form.edit.apply_failed': 'error',
   'form.edit.result_not_saved': 'error',
+  'form.library.refresh_started': 'info',
+  'form.library.refresh_completed': 'info',
+  'form.library.refresh_failed': 'warn',
+  'form.library.import_started': 'info',
+  'form.library.import_completed': 'info',
+  'form.library.import_failed': 'warn',
+  'form.library.import_rejected': 'warn',
+  'form.library.archive': 'info',
+  'form.library.remove': 'info',
 };
 
 function cleanString(value: string): string {

@@ -45,16 +45,17 @@ function shouldReconnect(failure: FormEditFailure): boolean {
 }
 
 export function FormEditWorkspace({
-  providers, reloadProviders, forms, formsStatus, reloadForms,
+  providers, reloadProviders, forms, formsStatus, reloadForms, initialRecordId,
 }: {
   providers: ProviderLoad;
   reloadProviders: () => void;
   forms: PublicFormSummary[];
   formsStatus: 'loading' | 'error' | 'ready';
   reloadForms: () => void;
+  initialRecordId?: string;
 }) {
   const [source, setSource] = useState<Source>('recent');
-  const [selectedRecordId, setSelectedRecordId] = useState('');
+  const [selectedRecordId, setSelectedRecordId] = useState(initialRecordId ?? '');
   const [formUrl, setFormUrl] = useState('');
   const [request, setRequest] = useState('');
   const [revision, setRevision] = useState('');
@@ -79,8 +80,13 @@ export function FormEditWorkspace({
     return () => { alive.current = false; };
   }, []);
   useEffect(() => {
-    if (!selectedRecordId && googleForms.length) setSelectedRecordId(googleForms[0].id);
-  }, [googleForms, selectedRecordId]);
+    if (initialRecordId && googleForms.some(form => form.id === initialRecordId)) {
+      setSelectedRecordId(initialRecordId);
+      setSource('recent');
+    } else if (!selectedRecordId && googleForms.length) {
+      setSelectedRecordId(googleForms[0].id);
+    }
+  }, [googleForms, selectedRecordId, initialRecordId]);
 
   function selectedTarget(): Target | null {
     if (source === 'recent') return googleForms.some(form => form.id === selectedRecordId) ? { kind: 'record', formRecordId: selectedRecordId } : null;

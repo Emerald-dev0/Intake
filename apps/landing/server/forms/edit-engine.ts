@@ -238,11 +238,19 @@ export function createFormEditEngine(deps: FormEditEngineDeps) {
         }
         updatedSnapshot = updated.current;
         let recordUpdated = false;
-        if (claimed.formRecordId) {
+        let targetRecordId = claimed.formRecordId;
+        if (!targetRecordId && deps.forms.getByProviderFormId) {
           try {
-            recordUpdated = await deps.forms.updateMetadata({ userId, id: claimed.formRecordId, providerFormId: claimed.providerFormId,
+            const found = await deps.forms.getByProviderFormId(userId, 'google', claimed.providerFormId);
+            if (found) targetRecordId = found.id;
+          } catch { /* ignore */ }
+        }
+        if (targetRecordId) {
+          try {
+            recordUpdated = await deps.forms.updateMetadata({ userId, id: targetRecordId, providerFormId: claimed.providerFormId,
               externalAccountId: claimed.externalAccountId, title: updated.current.title, editUrl: updated.current.editUrl,
-              responderUrl: updated.current.responderUrl ?? claimed.current.responderUrl }, now());
+              responderUrl: updated.current.responderUrl ?? claimed.current.responderUrl,
+              description: updated.current.description }, now());
           } catch (error) {
             logSafe('Could not update Intake form metadata after Google confirmed the edit', error);
           }
