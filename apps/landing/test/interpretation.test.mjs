@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { assessInterpretation, InterpretationError } from '../server/forms/interpretation/interpreter.ts';
-import { createOpenAIFormInterpreter, INTERPRETATION_SCHEMA } from '../server/forms/interpretation/openai.ts';
+import { createGroqFormInterpreter, INTERPRETATION_SCHEMA } from '../server/forms/interpretation/groq.ts';
 import { planGoogleForm } from '../server/forms/providers/google/plan.ts';
 import { parseFormSpecification } from '../server/forms/validation.ts';
 
@@ -108,14 +108,14 @@ function modelResponse(output, { finish_reason = 'stop' } = {}) {
   return new Response(JSON.stringify({ choices: [{ finish_reason, message: { content: typeof output === 'string' ? output : JSON.stringify(output) } }] }), { status: 200 });
 }
 
-test('the OpenAI boundary requests strict structured output, never exposes its key in the model input, and uses the current spec for revisions', async () => {
+test('the Groq boundary requests strict structured output, never exposes its key in the model input, and uses the current spec for revisions', async () => {
   const calls = [];
   const fetchImpl = async (url, init) => { calls.push({ url, init }); return modelResponse(ready()); };
-  const interpreter = createOpenAIFormInterpreter({ env: { OPENAI_API_KEY: 'server-test-key', OPENAI_MODEL: 'gpt-4o-mini' }, fetchImpl });
+  const interpreter = createGroqFormInterpreter({ env: { GROQ_API_KEY: 'server-test-key', GROQ_MODEL: 'openai/gpt-oss-20b' }, fetchImpl });
   const result = await interpreter.interpret({ mode: 'revise', request: 'Make email optional.', specification: assessInterpretation(ready()).specification, provider: 'google' });
   assert.equal(result.status, 'ready');
   const [{ url, init }] = calls;
-  assert.equal(url, 'https://api.openai.com/v1/chat/completions');
+  assert.equal(url, 'https://api.groq.com/openai/v1/chat/completions');
   assert.equal(init.redirect, 'error');
   assert.equal(init.headers.authorization, 'Bearer server-test-key');
   const body = JSON.parse(init.body);
@@ -132,10 +132,25 @@ test('the OpenAI boundary requests strict structured output, never exposes its k
   assert.equal(JSON.parse(body.messages[1].content).request, 'Make email optional.');
 });
 
+test('the Groq interpreter defaults to the configured strict-JSON model', async () => {
+  let request;
+  const interpreter = createGroqFormInterpreter({
+    env: { GROQ_API_KEY: 'server-test-key' },
+    fetchImpl: async (url, init) => {
+      request = { url, body: JSON.parse(init.body) };
+      return modelResponse(ready());
+    },
+  });
+  await interpreter.interpret({ mode: 'new', request: 'Make a registration form.', provider: 'google' });
+  assert.equal(request.url, 'https://api.groq.com/openai/v1/chat/completions');
+  assert.equal(request.body.model, 'openai/gpt-oss-20b');
+  assert.equal(request.body.response_format.json_schema.strict, true);
+});
+
 test('missing credentials fail clearly without fake inference or network access', async () => {
   let calls = 0;
-  const interpreter = createOpenAIFormInterpreter({ env: {}, fetchImpl: async () => { calls++; return modelResponse(ready()); } });
-  await assert.rejects(interpreter.interpret({ mode: 'new', request: 'Register', provider: 'google' }), error => error.code === 'model_not_configured' && /OPENAI_API_KEY/.test(error.message));
+  const interpreter = createGroqFormInterpreter({ env: {}, fetchImpl: async () => { calls++; return modelResponse(ready()); } });
+  await assert.rejects(interpreter.interpret({ mode: 'new', request: 'Register', provider: 'google' }), error => error.code === 'model_not_configured' && /GROQ_API_KEY/.test(error.message));
   assert.equal(calls, 0);
 });
 
@@ -150,10 +165,10 @@ test('the model boundary handles provider errors, refusal, truncation, invalid J
     [new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { refusal: 'No', content: null } }] }), { status: 200 }), 'model_invalid_output'],
   ]) {
     let calls = 0;
-    const interpreter = createOpenAIFormInterpreter({ env: { OPENAI_API_KEY: 'test-key' }, fetchImpl: async () => { calls++; return response; } });
+    const interpreter = createGroqFormInterpreter({ env: { GROQ_API_KEY: 'test-key' }, fetchImpl: async () => { calls++; return response; } });
     await assert.rejects(interpreter.interpret(input), error => error.code === expected);
     assert.equal(calls, 1, 'no automatic model retry');
   }
-  const timeout = createOpenAIFormInterpreter({ env: { OPENAI_API_KEY: 'test-key' }, fetchImpl: async () => { throw Object.assign(new Error('timeout secret'), { name: 'TimeoutError' }); } });
+  const timeout = createGroqFormInterpreter({ env: { GROQ_API_KEY: 'test-key' }, fetchImpl: async () => { throw Object.assign(new Error('timeout secret'), { name: 'TimeoutError' }); } });
   await assert.rejects(timeout.interpret(input), error => error.code === 'model_timeout' && !error.message.includes('secret'));
 });

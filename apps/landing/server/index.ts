@@ -16,11 +16,14 @@ import { createFormEditRouter } from './forms/edit-routes';
 import { createInterpretationLimiter } from './forms/interpretation/routes';
 import { createFormsRouter } from './forms/routes';
 import { createPostgresDraftStore } from './forms/draft-postgres-store';
-import { createOpenAIFormEditInterpreter, createOpenAIFormInterpreter } from './forms/interpretation/openai';
+import { createGroqFormEditInterpreter, createGroqFormInterpreter } from './forms/interpretation/groq';
 import { createFormDraftRouter } from './forms/interpretation/routes';
 import { createPostgresRateLimitStore } from './security/rate-limit';
 import { logSafe } from './providers/oauth';
 import { newRequestId } from './forms/logging';
+import { createAdminRouter } from './admin/routes';
+import { createPostgresAdminStore } from './admin/postgres-store';
+import { createPostgresAiOperationWriter } from './admin/ai-operations';
 const app = express();
 app.disable('x-powered-by');
 if (serverConfig.trustProxyHops > 0) app.set('trust proxy', serverConfig.trustProxyHops);
@@ -66,6 +69,8 @@ const getSession = async (req: express.Request): Promise<SessionUser | null> => 
   if (!session?.user?.id) return null;
   return { id: session.user.id, email: session.user.email, name: session.user.name };
 };
+const adminStore = createPostgresAdminStore(pool, providerEnv);
+app.use('/api/admin', createAdminRouter({ store: adminStore, getSession, rateLimiter: abuseLimiter, env: providerEnv }));
 app.use('/api/providers', createProviderRouter({ service: providerService, env: providerEnv, getSession, abuseLimiter }));
 
 // Form creation and safe edits share the same provider service, user-scoped metadata store,
@@ -73,8 +78,9 @@ app.use('/api/providers', createProviderRouter({ service: providerService, env: 
 const formsProviders = createFormsProviders({ env: providerEnv });
 const formStore = createPostgresFormStore(pool);
 const formsEngine = createFormEngine({ providers: formsProviders, store: formStore });
-const formInterpreter = createOpenAIFormInterpreter({ env: providerEnv });
-const formEditInterpreter = createOpenAIFormEditInterpreter({ env: providerEnv });
+const recordAiOperation = createPostgresAiOperationWriter(pool);
+const formInterpreter = createGroqFormInterpreter({ env: providerEnv, recordOperation: recordAiOperation });
+const formEditInterpreter = createGroqFormEditInterpreter({ env: providerEnv, recordOperation: recordAiOperation });
 const interpretationLimiter = createInterpretationLimiter();
 // Phase 6 creation drafts: confirmation still delegates to the same creation engine.
 app.use('/api/forms', createFormDraftRouter({
@@ -101,7 +107,7 @@ app.use('/api/forms', createFormsRouter({ engine: formsEngine, getSession, env: 
 const providerSetup = supportedProviders(providerEnv).map(provider => `${provider.id} ${isProviderConfigured(provider, providerEnv) ? 'configured' : 'not configured'}`).join(', ');
 console.log(`Provider connections: ${providerSetup}`);
 console.log('Form creation: google enabled, microsoft pending (no supported Microsoft Forms API)');
-console.log(`Form interpretation: ${providerEnv.OPENAI_API_KEY?.trim() ? 'configured' : 'not configured (OPENAI_API_KEY missing)'}`);
+console.log(`Form interpretation: ${providerEnv.GROQ_API_KEY?.trim() ? 'configured' : 'not configured (GROQ_API_KEY missing)'}`);
 
 app.get('/api/me', async (req, res) => {
   res.set('Cache-Control', 'no-store');

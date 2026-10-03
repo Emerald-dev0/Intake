@@ -141,7 +141,8 @@ export function createFormEditEngine(deps: FormEditEngineDeps) {
       let result;
       try {
         result = assessFormEditInterpretation(await deps.interpreter.interpret({ current: loaded.current, request: input.request,
-          ...(input.clarification ? { clarification: input.clarification } : {}) }), loaded.current);
+          ...(input.clarification ? { clarification: input.clarification } : {}),
+          telemetry: { userId, requestId, route: '/api/forms/edit/interpret' } }), loaded.current);
       } catch (error) {
         const failure = interpretFailure(error);
         log('form.edit.interpret.failed', { requestId, userId, provider: 'google', formId: loaded.current.providerFormId, code: failure.info.code, durationMs: Math.round(performance.now() - started) });
@@ -188,7 +189,8 @@ export function createFormEditEngine(deps: FormEditEngineDeps) {
       let result;
       try {
         result = assessFormEditInterpretation(await deps.interpreter.interpret({ current: latest.current, request: input.request,
-          ...(input.clarification ? { clarification: input.clarification } : {}), existingPlan: draft.plan }), latest.current);
+          ...(input.clarification ? { clarification: input.clarification } : {}), existingPlan: draft.plan,
+          telemetry: { userId, requestId, route: '/api/forms/edit/revise' } }), latest.current);
       } catch (error) {
         const failure = interpretFailure(error);
         log('form.edit.interpret.failed', { requestId, userId, provider: 'google', formId: draft.providerFormId, code: failure.info.code, durationMs: Math.round(performance.now() - started) });

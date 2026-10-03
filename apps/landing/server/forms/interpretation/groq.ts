@@ -1,9 +1,12 @@
 import { QUESTION_TYPES } from '../specification';
 import { InterpretationError, type FormInterpreter, type InterpretationInput } from './interpreter';
 import type { FormEditInterpreter, FormEditInterpretationInput } from './edit-interpreter';
+import type { AiOperationContext, RecordAiOperation } from '../../admin/ai-operations';
+import type { AdminOperation } from '../../admin/contracts';
+import { DEFAULT_GROQ_MODEL } from './provider-config';
 
 /**
- * OpenAI Chat Completions structured-output boundary shared by creation and editing. There is one
+ * Groq Chat Completions structured-output boundary shared by creation and editing. There is one
  * server-side key/model/configuration path, no SDK, browser key, tool calling, or provider access.
  */
 const nullable = (schema: object) => ({ anyOf: [schema, { type: 'null' }] });
@@ -84,13 +87,15 @@ Available operations: update_title; update_description (empty string clears the 
 Capabilities are included per item. Use only advertised capabilities. The API can update ordinary question title, description and required state; change basic text/choice types or choice options when allowed; add, delete, and move questions only where the current form's section/branch structure allows it. A form with section routing cannot have items added, deleted, or moved by this editor. Do not edit a question with custom routing/options if its capability list does not allow that change. Do not alter response collection settings, publishing/sharing, linked sheets, images, videos, or document title.
 Positions are zero-based indices in the Google Forms item array (section breaks and non-question items count). Operations are applied in the order you return them; each later position refers to the structure after earlier operations. For add_question, position=null means append. For move_question, give the resulting item index after removing the target first. Keep a question in its existing section. Preserve all unaffected questions and their provider IDs. Do not make unrelated changes. When revising a proposal, the current proposed operations are supplied; keep them unless the new instruction changes or cancels them, then return the FULL revised operation list. The original form remains unchanged until the user explicitly confirms.`;
 
-export interface OpenAIInterpreterOptions {
+export interface GroqInterpreterOptions {
   env: NodeJS.ProcessEnv;
   fetchImpl?: (input: string, init: RequestInit) => Promise<Response>;
   timeoutMs?: number;
+  /** Best-effort metadata sink. No request or response content is passed to it. */
+  recordOperation?: RecordAiOperation;
 }
 
-const ENDPOINT = 'https://api.openai.com/v1/chat/completions';
+const ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const MAX_RESPONSE_BYTES = 120_000;
 
 async function limitedText(response: Response): Promise<string> {
@@ -111,59 +116,138 @@ async function limitedText(response: Response): Promise<string> {
   return new TextDecoder().decode(Buffer.concat(chunks));
 }
 
-async function requestStructuredOutput(options: OpenAIInterpreterOptions, name: string, schema: object, system: string, input: unknown): Promise<unknown> {
-  const apiKey = options.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) throw new InterpretationError('model_not_configured', 'Live interpretation is not configured on this Intake server (OPENAI_API_KEY is missing). No changes were made.');
-  const model = options.env.OPENAI_MODEL?.trim() || 'gpt-4o-mini';
-  let response: Response;
-  let body: string;
+function tokens(value: unknown): number | null {
+  return Number.isSafeInteger(value) && (value as number) >= 0 ? value as number : null;
+}
+
+async function recordOperation(
+  options: GroqInterpreterOptions,
+  context: AiOperationContext | undefined,
+  operation: AdminOperation,
+  model: string,
+  status: 'succeeded' | 'failed',
+  failureCode: 'model_not_configured' | 'model_timeout' | 'model_unavailable' | 'model_invalid_output' | null,
+  startedAt: Date,
+  startedClock: number,
+  usage: { inputTokens: number | null; outputTokens: number | null },
+): Promise<void> {
+  if (!context || !options.recordOperation) return;
   try {
-    response = await (options.fetchImpl ?? fetch)(ENDPOINT, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'system', content: system }, { role: 'user', content: JSON.stringify(input) }],
-        response_format: { type: 'json_schema', json_schema: { name, strict: true, schema } },
-        max_completion_tokens: 6000,
-      }),
-      redirect: 'error', signal: AbortSignal.timeout(options.timeoutMs ?? 30_000),
+    await options.recordOperation({
+      ...context,
+      operation,
+      provider: 'groq',
+      model,
+      status,
+      failureCode,
+      latencyMs: Math.max(0, Math.round(performance.now() - startedClock)),
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      startedAt,
+      completedAt: new Date(),
     });
-    body = await limitedText(response);
-  } catch (error) {
-    if (error instanceof InterpretationError) throw error;
-    const errorName = error instanceof Error ? error.name : '';
-    if (errorName === 'TimeoutError' || errorName === 'AbortError') throw new InterpretationError('model_timeout', 'Understanding the request took too long. No changes were made. Try again.');
-    throw new InterpretationError('model_unavailable', 'Intake could not reach the interpretation service. No changes were made. Try again later.');
-  }
-  if (!response.ok) {
-    if (response.status === 401 || response.status === 403) throw new InterpretationError('model_not_configured', 'The model service rejected Intake’s credentials. An operator needs to check OPENAI_API_KEY. No changes were made.');
-    if (response.status === 400 || response.status === 404 || response.status === 422) throw new InterpretationError('model_not_configured', 'The model service rejected Intake’s model or structured-output settings. An operator needs to check OPENAI_MODEL. No changes were made.');
-    throw new InterpretationError('model_unavailable', response.status === 429 ? 'The interpretation service is busy. Wait a moment and try again.' : 'The interpretation service is unavailable. No changes were made. Try again later.');
-  }
-  try {
-    const json = JSON.parse(body) as { choices?: { finish_reason?: unknown; message?: { content?: unknown; refusal?: unknown } }[] };
-    const choice = json?.choices?.[0];
-    if (choice?.finish_reason !== 'stop' || choice.message?.refusal || typeof choice.message?.content !== 'string') throw new Error('no complete response');
-    return JSON.parse(choice.message.content) as unknown;
   } catch {
-    throw new InterpretationError('model_invalid_output', 'Intake could not validate the model response. No changes were made. Try again or rephrase your request.');
+    // Usage recording must never prevent a successful form proposal or replace the real AI error.
   }
 }
 
-export function createOpenAIFormInterpreter(options: OpenAIInterpreterOptions): FormInterpreter {
+function normalizedError(error: unknown): InterpretationError {
+  if (error instanceof InterpretationError) return error;
+  const errorName = error instanceof Error ? error.name : '';
+  if (errorName === 'TimeoutError' || errorName === 'AbortError') {
+    return new InterpretationError('model_timeout', 'Understanding the request took too long. No changes were made. Try again.');
+  }
+  return new InterpretationError('model_unavailable', 'Intake could not reach the interpretation service. No changes were made. Try again later.');
+}
+
+async function requestStructuredOutput(
+  options: GroqInterpreterOptions,
+  name: string,
+  schema: object,
+  system: string,
+  input: unknown,
+  operation: AdminOperation,
+  telemetry?: AiOperationContext,
+): Promise<unknown> {
+  const model = options.env.GROQ_MODEL?.trim() || DEFAULT_GROQ_MODEL;
+  const startedAt = new Date();
+  const startedClock = performance.now();
+  let usage = { inputTokens: null as number | null, outputTokens: null as number | null };
+  try {
+    const apiKey = options.env.GROQ_API_KEY?.trim();
+    if (!apiKey) throw new InterpretationError('model_not_configured', 'Live interpretation is not configured on this Intake server (GROQ_API_KEY is missing). No changes were made.');
+
+    let response: Response;
+    let body: string;
+    try {
+      response = await (options.fetchImpl ?? fetch)(ENDPOINT, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'system', content: system }, { role: 'user', content: JSON.stringify(input) }],
+          response_format: { type: 'json_schema', json_schema: { name, strict: true, schema } },
+          max_completion_tokens: 6000,
+        }),
+        redirect: 'error', signal: AbortSignal.timeout(options.timeoutMs ?? 30_000),
+      });
+      body = await limitedText(response);
+    } catch (error) {
+      throw normalizedError(error);
+    }
+
+    let decoded: {
+      choices?: { finish_reason?: unknown; message?: { content?: unknown; refusal?: unknown } }[];
+      usage?: { prompt_tokens?: unknown; completion_tokens?: unknown; input_tokens?: unknown; output_tokens?: unknown };
+    };
+    try {
+      decoded = JSON.parse(body) as typeof decoded;
+      usage = {
+        inputTokens: tokens(decoded.usage?.prompt_tokens ?? decoded.usage?.input_tokens),
+        outputTokens: tokens(decoded.usage?.completion_tokens ?? decoded.usage?.output_tokens),
+      };
+    } catch {
+      if (response.ok) throw new InterpretationError('model_invalid_output', 'Intake could not validate the model response. No changes were made. Try again or rephrase your request.');
+      decoded = {};
+    }
+
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) throw new InterpretationError('model_not_configured', 'The model service rejected Intake’s credentials. An operator needs to check GROQ_API_KEY. No changes were made.');
+      if (response.status === 400 || response.status === 404 || response.status === 422) throw new InterpretationError('model_not_configured', 'The model service rejected Intake’s model or structured-output settings. An operator needs to check GROQ_MODEL. No changes were made.');
+      throw new InterpretationError('model_unavailable', response.status === 429 ? 'The interpretation service is busy. Wait a moment and try again.' : 'The interpretation service is unavailable. No changes were made. Try again later.');
+    }
+
+    const choice = decoded.choices?.[0];
+    if (choice?.finish_reason !== 'stop' || choice.message?.refusal || typeof choice.message?.content !== 'string') {
+      throw new InterpretationError('model_invalid_output', 'Intake could not validate the model response. No changes were made. Try again or rephrase your request.');
+    }
+    let result: unknown;
+    try { result = JSON.parse(choice.message.content) as unknown; }
+    catch {
+      throw new InterpretationError('model_invalid_output', 'Intake could not validate the model response. No changes were made. Try again or rephrase your request.');
+    }
+    await recordOperation(options, telemetry, operation, model, 'succeeded', null, startedAt, startedClock, usage);
+    return result;
+  } catch (error) {
+    const normalized = normalizedError(error);
+    await recordOperation(options, telemetry, operation, model, 'failed', normalized.code, startedAt, startedClock, usage);
+    throw normalized;
+  }
+}
+
+export function createGroqFormInterpreter(options: GroqInterpreterOptions): FormInterpreter {
   return {
     interpret(input: InterpretationInput): Promise<unknown> {
       return requestStructuredOutput(options, 'intake_form_interpretation', INTERPRETATION_SCHEMA, SYSTEM, {
         task: input.mode, target: input.provider, request: input.request,
         ...(input.clarification ? { clarification: input.clarification } : {}),
         ...(input.specification ? { currentSpecification: input.specification } : {}),
-      });
+      }, 'form_interpretation', input.telemetry);
     },
   };
 }
 
-export function createOpenAIFormEditInterpreter(options: OpenAIInterpreterOptions): FormEditInterpreter {
+export function createGroqFormEditInterpreter(options: GroqInterpreterOptions): FormEditInterpreter {
   return {
     interpret(input: FormEditInterpretationInput): Promise<unknown> {
       return requestStructuredOutput(options, 'intake_form_edit_interpretation', FORM_EDIT_INTERPRETATION_SCHEMA, EDIT_SYSTEM, {
@@ -183,7 +267,7 @@ export function createOpenAIFormEditInterpreter(options: OpenAIInterpreterOption
           })),
         },
         ...(input.existingPlan ? { currentProposedSummary: input.existingPlan.summary, currentProposedOperations: input.existingPlan.operations } : {}),
-      });
+      }, 'form_edit_interpretation', input.telemetry);
     },
   };
 }

@@ -21,7 +21,7 @@ test('Render is API-only and fails closed when Neon is unavailable', async () =>
       DATABASE_URL: 'postgresql://invalid:invalid@127.0.0.1:1/intake?connect_timeout=1',
       BETTER_AUTH_SECRET: randomBytes(32).toString('base64'),
       BETTER_AUTH_URL: `http://localhost:${port}`,
-      OPENAI_API_KEY: '', // prove an absent model credential cannot bypass session checks
+      GROQ_API_KEY: '', // prove an absent model credential cannot bypass session checks
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

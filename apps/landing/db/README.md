@@ -12,6 +12,7 @@ From `apps/landing`, with a real `DATABASE_URL` and the other required auth vari
    - `004_form_edit_drafts.sql` creates `form_edit_draft`: server-owned edit snapshots and optimistic one-shot confirmation state for existing-form revisions.
    - `005_form_library.sql` extends `form` with `description`, `source` (`'created'` or `'imported'`), `last_synced_at`, `archived_at`, relaxes NOT NULL on `specification` for imported forms, and adds `form_user_library_idx`.
    - `006_production_hardening.sql` creates hashed-subject distributed abuse counters and enforces that an edit draft's referenced form record belongs to the same user. It is additive but deliberately validates historical ownership; use the read-only preflight in [`../PRODUCTION.md`](../PRODUCTION.md) before release.
+   - `007_ai_operations.sql` records interpreter-operation metadata (operation, model, outcome, latency, request id, and any returned token counts) without prompts or provider content. A failed preflight can be recorded before an external Groq call; missing Groq-reported usage stays null. It adds indexes for admin usage/search paths. No plan, credit, billing, or revenue tables are introduced because none existed in this checkout.
 
 `npm run db:generate` writes a reviewable Better Auth SQL snapshot to `db/auth.sql`. It does not apply it, and it does not include Intake provider tables. Do not point Better Auth at the provider tables.
 

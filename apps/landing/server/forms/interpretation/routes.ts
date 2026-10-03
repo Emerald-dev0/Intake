@@ -137,7 +137,14 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
     const started = performance.now();
     log('form.interpret.started', { requestId: id, userId: person.id, provider: input.provider, mode: input.mode });
     try {
-      const result = assessInterpretation(await deps.interpreter.interpret(input));
+      const result = assessInterpretation(await deps.interpreter.interpret({
+        ...input,
+        telemetry: {
+          userId: person.id,
+          requestId: id,
+          route: input.mode === 'revise' ? '/api/forms/revise' : '/api/forms/interpret',
+        },
+      }));
       const fields = { requestId: id, userId: person.id, mode: input.mode, durationMs: Math.round(performance.now() - started) };
       if (result.status === 'ready') log('form.interpret.completed', { ...fields, questionCount: result.specification.questions.length, assumptionCount: result.assumptions.length });
       else if (result.status === 'needs_clarification') log('form.interpret.clarification', fields);

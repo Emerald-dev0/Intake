@@ -10,12 +10,21 @@ test('deployment routes reserve API before the generic SPA fallback', async () =
   assert.deepEqual(config.routes[0].env, ['BACKEND_URL']);
   assert.equal(config.routes[0].dest, '${BACKEND_URL}/api/$1');
   const api = new RegExp(`^${config.routes[0].src}`);
-  const frontend = new RegExp(`^${config.rewrites[0].source}$`);
+  const admin = new RegExp(`^${config.rewrites[0].source}$`);
+  const frontend = new RegExp(`^${config.rewrites[1].source}$`);
+  assert.equal(config.rewrites[0].destination, '/admin.html');
   for (const route of ['/api', '/api/providers', '/api/auth/get-session', '/api/providers/google/callback']) {
     assert.ok(api.test(route));
     assert.ok(!frontend.test(route));
   }
+  for (const route of ['/admin', '/admin/users', '/admin/users/user-1']) {
+    assert.ok(admin.test(route));
+    assert.equal(config.rewrites[0].destination, '/admin.html');
+  }
   for (const route of ['/', '/auth/sign-up', '/app/connections', '/app/forms']) assert.ok(frontend.test(route));
+  const privateDocument = await readFile('admin.html', 'utf8');
+  assert.match(privateDocument, /name="robots" content="noindex, nofollow, noarchive"/);
+  assert.doesNotMatch(privateDocument, /property="og:|rel="canonical"/);
 });
 
 test('production Vite output serves direct and repeated document requests; API proxy preserves methods, queries and cookies', async () => {
@@ -28,11 +37,16 @@ test('production Vite output serves direct and repeated document requests; API p
   const server = await preview({ preview: { port: 0, proxy: { '^/api(?:/|$)': { target: `http://127.0.0.1:${backend.address().port}` } } } });
   const base = `http://127.0.0.1:${server.httpServer.address().port}`;
   try {
-    for (const path of ['/', '/auth/sign-in', '/auth/sign-up', '/app', '/app/connections', '/app/account']) {
+    for (const path of ['/', '/auth/sign-in', '/auth/sign-up', '/app', '/app/connections', '/app/account', '/admin', '/admin/users/owner-id']) {
       for (let attempt = 0; attempt < 2; attempt++) {
         const res = await fetch(base + path);
         assert.equal(res.status, 200);
-        assert.match(await res.text(), /<div id="root"><\/div>/);
+        const html = await res.text();
+        assert.match(html, /<div id="root"><\/div>/);
+        if (path.startsWith('/admin')) {
+          assert.match(html, /name="robots" content="noindex, nofollow, noarchive"/);
+          assert.doesNotMatch(html, /property="og:|rel="canonical"/);
+        }
       }
     }
     for (const path of ['/api/providers', '/api/auth/get-session', '/api/providers/google/callback?code=test&state=test']) {
@@ -68,7 +82,7 @@ test('the production browser bundle contains no model client, model key name or 
     const body = await readFile(`dist/assets/${asset}`, 'utf8');
     // Better Auth's public client bundle itself contains the literal name BETTER_AUTH_SECRET
     // in a generic environment getter; a name is not the secret value. Test our new boundary.
-    for (const secretBoundary of ['api.openai.com', 'OPENAI_API_KEY', 'forms.googleapis.com', 'GOOGLE_OAUTH_CLIENT_SECRET']) {
+    for (const secretBoundary of ['api.groq.com', 'GROQ_API_KEY', 'ADMIN_EMAILS', 'forms.googleapis.com', 'GOOGLE_OAUTH_CLIENT_SECRET']) {
       assert.equal(body.includes(secretBoundary), false, `${asset} bundled ${secretBoundary}`);
     }
   }
