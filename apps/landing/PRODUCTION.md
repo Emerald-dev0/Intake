@@ -141,7 +141,21 @@ Run from `apps/landing` unless noted:
 | `npm audit --omit=dev` | Passed; 0 vulnerabilities reported. |
 | `git diff --check` (repository root) | Passed. |
 
-Credit behavior was verified with `node --test --import tsx`: plans, grants, no-rollover, daily-first consumption, the downgrade guard, pricing, idempotent replay, concurrent consumption and the public projection (`test/credits.test.mjs`); one-charge-per-logical-operation, affordability pre-checks and zero cost for failures/non-results (`test/ai-operations.test.mjs`); the HTTP surface, 402 behavior and usage rows (`test/credits-routes.test.mjs`); and fail-closed client balance parsing with the out-of-credits wording (`test/credits-client.test.mjs`). These run against the in-memory store; the PostgreSQL transaction and index behavior of `007` was not exercised against Neon.
+### Phase 11 verification record (2026-10-03)
+
+Run from `apps/landing`:
+
+| Command | Result |
+| --- | --- |
+| `npm run typecheck` | Passed for browser and server TypeScript projects. |
+| `npm test` | Passed; 327/327 tests with 0 failures, including the new Google sign-in, provider and credit suites. |
+| `npm run build` | Passed; TypeScript checks and production Vite build completed. |
+| `npm audit --omit=dev` | Passed; 0 vulnerabilities reported. |
+| `git diff --check` (repository root) | Passed. |
+
+Credit behavior was verified with `node --test --import tsx`: plans, grants, no-rollover, daily-first consumption, the downgrade guard, pricing, idempotent replay, concurrent consumption, the migration contract and the public projection (`test/credits.test.mjs`); one-charge-per-logical-operation, affordability pre-checks and zero cost for failures/non-results (`test/ai-operations.test.mjs`); the HTTP surface, 402 behavior, usage rows, Pro bucket order and a metered edit interpretation whose provider write is not charged again (`test/credits-routes.test.mjs`); and fail-closed client balance parsing with the out-of-credits wording (`test/credits-client.test.mjs`). Provider abstraction and failure taxonomy: `test/ai-provider.test.mjs`, `test/interpretation.test.mjs`. Google sign-in configuration, callback registration and browser-token absence: `test/auth-google-signin.test.mjs`.
+
+These run against the in-memory store and a mocked model. The PostgreSQL transaction, row lock and partial unique indexes of `007_ai_credits.sql` were **not** exercised against Neon, no live Google OAuth exchange was performed, and no live Groq/OpenAI completion was made from this repository.
 
 There is no lint script. Migration `001` through `006` was additionally applied to an ephemeral in-memory PGlite/PostgreSQL-compatible database outside the repository; `006` re-applied idempotently, both new constraints were validated, a historical cross-owner edit reference was rejected, and deleting a referenced form set only `form_record_id` to null while preserving the draft owner. This is useful SQL-semantic coverage but is **not** a Neon migration or production-data test.
 
