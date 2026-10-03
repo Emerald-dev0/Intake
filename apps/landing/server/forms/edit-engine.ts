@@ -7,12 +7,16 @@ import type { FormsProviders, LoadedEditableForm } from './provider';
 import type { FormEditDraftRecord, FormEditDraftStore, NewFormEditDraft, StoredEditStatus } from './edit-store';
 import { FormEditError, toFormEditFailure } from './edit-errors';
 import { createFormLogger, newRequestId, type FormLogger } from './logging';
-import { assessFormEditInterpretation, type FormEditInterpreter } from './interpretation/edit-interpreter';
+import { assessFormEditInterpretation, type FormEditInterpreter, type FormEditInterpretationResult } from './interpretation/edit-interpreter';
 import { InterpretationError } from './interpretation/interpreter';
+import type { AiOperationRunner } from '../ai/operations';
+import { CreditError, type CreditService } from '../credits/service';
+import { costForFormEdit, editComplexity } from '../credits/pricing';
 
 export type FormEditTarget = { kind: 'record'; formRecordId: string } | { kind: 'url'; formUrl: string };
 export type EditInterpretationOutcome =
-  | { status: 'ready'; draft: PublicFormEditDraft }
+  // `credits` is the server-owned balance after the single charge for this logical operation.
+  | { status: 'ready'; draft: PublicFormEditDraft; credits?: unknown }
   | { status: 'needs_clarification'; question: string }
   | { status: 'unsupported'; explanation: string };
 
@@ -24,6 +28,10 @@ export interface FormEditEngineDeps {
   log?: FormLogger;
   now?: () => Date;
   newId?: () => string;
+  /** Server-side AI credit accounting. Absent only in isolated tests. */
+  operations?: AiOperationRunner;
+  /** Used to build the public balance returned with a successful operation. */
+  credits?: CreditService;
 }
 
 const FORM_RECORD_ID = /^[A-Za-z0-9_-]{1,80}$/;
@@ -129,24 +137,71 @@ export function createFormEditEngine(deps: FormEditEngineDeps) {
     return { loaded, formRecordId };
   }
 
+  /**
+   * One logical edit operation. The engine keeps owning the model call and its strict assessment; this
+   * wrapper adds provider-independent usage accounting and, only for a validated plan, one credit charge.
+   */
+  async function interpretPlan(input: {
+    userId: string;
+    operationType: 'form_edit' | 'form_revise';
+    operationId?: string;
+    current: FormEditSnapshot;
+    request: string;
+    clarification?: string;
+    existingPlan?: { summary: string; operations: unknown };
+  }): Promise<{ result: FormEditInterpretationResult; credits: unknown }> {
+    const execute = async (): Promise<{ kind: 'usable'; value: FormEditInterpretationResult; cost: number } | { kind: 'no_result'; value: FormEditInterpretationResult }> => {
+      const assessed = assessFormEditInterpretation(await deps.interpreter.interpret({
+        current: input.current,
+        request: input.request,
+        ...(input.clarification ? { clarification: input.clarification } : {}),
+        ...(input.existingPlan ? { existingPlan: input.existingPlan as never } : {}),
+      }), input.current);
+      return assessed.status === 'ready'
+        ? { kind: 'usable', value: assessed, cost: costForFormEdit(editComplexity(assessed.plan)) }
+        : { kind: 'no_result', value: assessed };
+    };
+    if (!deps.operations) {
+      const outcome = await execute();
+      return { result: outcome.value, credits: undefined };
+    }
+    const outcome = await deps.operations.run({
+      userId: input.userId,
+      operationType: input.operationType,
+      operationKey: deps.operations.operationKey(input.operationId),
+      execute,
+    });
+    if (!outcome.ok) {
+      if (outcome.error instanceof CreditError) {
+        throw new FormEditError({ code: outcome.error.code, message: outcome.error.message, outcome: 'not_applied', retryable: outcome.error.code !== 'insufficient_credits' });
+      }
+      throw interpretFailure(outcome.error);
+    }
+    return { result: outcome.value, credits: outcome.charge.balance };
+  }
+
   return {
     inspect(userId: string, target: FormEditTarget, requestId?: string) {
       return inspect(userId, target, requestId);
     },
 
-    async interpret(userId: string, input: { target: FormEditTarget; request: string; clarification?: string }, requestId = newRequestId()): Promise<EditInterpretationOutcome> {
+    async interpret(userId: string, input: { target: FormEditTarget; request: string; clarification?: string; operationId?: string }, requestId = newRequestId()): Promise<EditInterpretationOutcome> {
       const started = performance.now();
       const { loaded, formRecordId } = await inspect(userId, input.target, requestId);
       log('form.edit.interpret.started', { requestId, userId, provider: 'google', formId: loaded.current.providerFormId, mode: 'new' });
-      let result;
+      let interpreted;
       try {
-        result = assessFormEditInterpretation(await deps.interpreter.interpret({ current: loaded.current, request: input.request,
-          ...(input.clarification ? { clarification: input.clarification } : {}) }), loaded.current);
+        interpreted = await interpretPlan({
+          userId, operationType: 'form_edit', current: loaded.current, request: input.request,
+          ...(input.operationId ? { operationId: input.operationId } : {}),
+          ...(input.clarification ? { clarification: input.clarification } : {}),
+        });
       } catch (error) {
-        const failure = interpretFailure(error);
+        const failure = error instanceof FormEditError ? error : interpretFailure(error);
         log('form.edit.interpret.failed', { requestId, userId, provider: 'google', formId: loaded.current.providerFormId, code: failure.info.code, durationMs: Math.round(performance.now() - started) });
         throw failure;
       }
+      const result = interpreted.result;
       if (result.status === 'needs_clarification') {
         log('form.edit.interpret.clarification', { requestId, userId, provider: 'google', formId: loaded.current.providerFormId, durationMs: Math.round(performance.now() - started) });
         return result;
@@ -165,10 +220,10 @@ export function createFormEditEngine(deps: FormEditEngineDeps) {
         throw new FormEditError({ code: 'storage_unavailable', message: 'Intake could not save the proposal. The Google Form was not changed. Try again.', outcome: 'not_applied', retryable: true });
       }
       log('form.edit.interpret.completed', { requestId, userId, provider: 'google', formId: loaded.current.providerFormId, operationCount: result.plan.operations.length, durationMs: Math.round(performance.now() - started) });
-      return { status: 'ready', draft: publicDraft(saved) };
+      return { status: 'ready', draft: publicDraft(saved), ...(interpreted.credits ? { credits: interpreted.credits } : {}) };
     },
 
-    async revise(userId: string, input: { draftId: string; version: number; request: string; clarification?: string }, requestId = newRequestId()): Promise<EditInterpretationOutcome> {
+    async revise(userId: string, input: { draftId: string; version: number; request: string; clarification?: string; operationId?: string }, requestId = newRequestId()): Promise<EditInterpretationOutcome> {
       if (!DRAFT_ID.test(input.draftId)) throw new FormEditError({ code: 'edit_draft_not_found', message: 'This edit proposal is not available in your Intake account.', outcome: 'not_applied', retryable: false });
       const draft = await deps.drafts.get(userId, input.draftId);
       if (!draft) throw new FormEditError({ code: 'edit_draft_not_found', message: 'This edit proposal is not available in your Intake account.', outcome: 'not_applied', retryable: false });
@@ -185,15 +240,19 @@ export function createFormEditEngine(deps: FormEditEngineDeps) {
       }
       const started = performance.now();
       log('form.edit.interpret.started', { requestId, userId, provider: 'google', formId: draft.providerFormId, mode: 'revise' });
-      let result;
+      let interpreted;
       try {
-        result = assessFormEditInterpretation(await deps.interpreter.interpret({ current: latest.current, request: input.request,
-          ...(input.clarification ? { clarification: input.clarification } : {}), existingPlan: draft.plan }), latest.current);
+        interpreted = await interpretPlan({
+          userId, operationType: 'form_revise', current: latest.current, request: input.request, existingPlan: draft.plan,
+          ...(input.operationId ? { operationId: input.operationId } : {}),
+          ...(input.clarification ? { clarification: input.clarification } : {}),
+        });
       } catch (error) {
-        const failure = interpretFailure(error);
+        const failure = error instanceof FormEditError ? error : interpretFailure(error);
         log('form.edit.interpret.failed', { requestId, userId, provider: 'google', formId: draft.providerFormId, code: failure.info.code, durationMs: Math.round(performance.now() - started) });
         throw failure;
       }
+      const result = interpreted.result;
       if (result.status !== 'ready') {
         log(result.status === 'needs_clarification' ? 'form.edit.interpret.clarification' : 'form.edit.interpret.unsupported', { requestId, userId, provider: 'google', formId: draft.providerFormId, durationMs: Math.round(performance.now() - started) });
         return result;
@@ -201,7 +260,7 @@ export function createFormEditEngine(deps: FormEditEngineDeps) {
       const updated = await deps.drafts.revise(userId, draft.id, draft.version, result.plan, now());
       if (!updated) throw new FormEditError({ code: 'edit_draft_conflict', message: 'This proposal changed while Intake was revising it. Reload the proposal before continuing.', outcome: 'not_applied', retryable: false });
       log('form.edit.revised', { requestId, userId, provider: 'google', formId: draft.providerFormId, operationCount: result.plan.operations.length, version: updated.version });
-      return { status: 'ready', draft: publicDraft(updated) };
+      return { status: 'ready', draft: publicDraft(updated), ...(interpreted.credits ? { credits: interpreted.credits } : {}) };
     },
 
     async getDraft(userId: string, id: string): Promise<PublicFormEditDraft | null> {

@@ -142,7 +142,10 @@ test('clarification is a focused follow-up and its answer is sent with the origi
   await page.click(page.button('Continue →'));
   await page.until(() => page.$('#review-title'), 'a draft appears');
   const second = JSON.parse(page.posts('/interpret')[1].init.body);
-  assert.deepEqual(second, { provider: 'google', request: 'List our departments.', clarification: 'Computer Science, Economics, Statistics' });
+  // Every submission carries its own idempotency key so a retry can never be charged twice.
+  const { operationId: secondKey, ...secondBody } = second;
+  assert.match(secondKey, /^[A-Za-z0-9_-]{8,64}$/, 'a valid server-accepted operation id is sent');
+  assert.deepEqual(secondBody, { provider: 'google', request: 'List our departments.', clarification: 'Computer Science, Economics, Statistics' });
 }));
 
 test('unsupported requests and model failures are recoverable without inventing a draft', () => withPage({ handlers: {
@@ -224,7 +227,9 @@ test('revising an edit replaces its preview, resets confirmation, and never appl
   await page.until(() => page.$('#edit-review-title')?.textContent === 'Change the form title', 'revised preview replaces the old one');
   assert.equal(page.$('.edit-confirm-check input[type="checkbox"]').checked, false);
   assert.equal(page.button('Confirm and apply edit →').disabled, true);
-  assert.deepEqual(JSON.parse(page.posts('/edit/revise')[0].init.body), { draftId: EDIT_DRAFT_ID, version: 1, request: 'Use “Project showcase registration” instead.' });
+  const { operationId: reviseKey, ...revisedEdit } = JSON.parse(page.posts('/edit/revise')[0].init.body);
+  assert.match(reviseKey, /^[A-Za-z0-9_-]{8,64}$/);
+  assert.deepEqual(revisedEdit, { draftId: EDIT_DRAFT_ID, version: 1, request: 'Use “Project showcase registration” instead.' });
   assert.equal(page.posts('/edit/confirm').length, 0);
   assert.equal(page.posts('/confirm').length, 0);
 }));
@@ -247,7 +252,9 @@ test('editing with Intake sends only the draft id/version and instruction; prese
   await page.until(() => page.$$('.draft-item').length === SPEC.questions.length + 1, 'updated review');
   assert.match(page.$('.draft-review').textContent, /Student ID/);
   assert.equal(page.$$('.draft-item').find(item => item.textContent.includes('Email address')).textContent.includes('Optional'), true);
-  assert.deepEqual(JSON.parse(page.posts('/revise')[0].init.body), { draftId: ID, version: 1, request: 'Make email optional and add a student ID question.' });
+  const { operationId: revisionKey, ...revision } = JSON.parse(page.posts('/revise')[0].init.body);
+  assert.match(revisionKey, /^[A-Za-z0-9_-]{8,64}$/);
+  assert.deepEqual(revision, { draftId: ID, version: 1, request: 'Make email optional and add a student ID question.' });
   assert.equal(page.posts('/confirm').length, 0);
   await page.click(page.button('Edit with Intake'));
   assert.ok(page.$('#revision-request'), 'another revision can be requested');

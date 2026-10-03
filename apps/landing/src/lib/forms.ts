@@ -43,7 +43,10 @@ export const FORM_ERROR_CODES = [
   'model_not_configured',
   'model_timeout',
   'model_unavailable',
+  'model_rate_limited',
+  'model_provider_error',
   'model_invalid_output',
+  'insufficient_credits',
   'internal_error',
 ] as const;
 export type FormErrorCode = (typeof FORM_ERROR_CODES)[number];

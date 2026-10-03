@@ -9,6 +9,9 @@ import type { PublicProvider } from '../lib/connections';
 import type { ProviderLoad } from './Connections';
 import { FormEditWorkspace } from './FormEditWorkspace';
 import { FormLibrary } from './FormLibrary';
+import { useCredits } from './hooks/useCredits';
+import { createOperationTracker } from '../lib/operation-id';
+import { insufficientCreditsMessage, isInsufficientCredits } from '../lib/credits';
 
 type Busy = 'loading' | 'interpreting' | 'revising' | 'creating' | 'cancelling' | null;
 export type RecentFormsState = { status: 'loading' | 'error' | 'ready'; forms: PublicFormSummary[] };
@@ -104,6 +107,9 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
   );
   const recent = useRecentForms();
   const alive = useAlive();
+  const credits = useCredits();
+  // Stable idempotency keys for AI operations: one key per distinct submission.
+  const operations = useRef(createOperationTracker()).current;
   const google = providers.providers?.find(provider => provider.id === 'google');
 
   async function loadDraft(id: string) {
@@ -139,11 +145,16 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
     setBusy(mode === 'new' ? 'interpreting' : 'revising');
     setFailure(null);
     setUnsupported('');
+    const signature = [mode, mode === 'revise' ? `${draft?.id ?? ''}:${draft?.version ?? ''}` : '', request, clarification ?? ''].join('|');
+    // One logical operation, one idempotency key: a retry of this exact submission is never charged twice.
+    const operationId = operations.id(signature);
     try {
       const { status, body } = await post(mode === 'new' ? '/api/forms/interpret' : '/api/forms/revise',
-        mode === 'new' ? { provider: 'google', request, ...(clarification ? { clarification } : {}) }
-          : { draftId: draft!.id, version: draft!.version, request, ...(clarification ? { clarification } : {}) });
+        mode === 'new' ? { provider: 'google', request, operationId, ...(clarification ? { clarification } : {}) }
+          : { draftId: draft!.id, version: draft!.version, request, operationId, ...(clarification ? { clarification } : {}) });
       if (!alive.current) return;
+      operations.settle();
+      credits.note(body);
       const parsed = parseInterpretResponse(status, body);
       if (parsed.status === 'ready') {
         setDraft(parsed.draft);
@@ -161,9 +172,12 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
         setPending(null);
         setUnsupported(parsed.explanation);
       } else {
-        setFailure(parsed.failure);
+        const outOfCredits = isInsufficientCredits(parsed.failure.code);
+        setFailure(outOfCredits ? { ...parsed.failure, error: insufficientCreditsMessage(credits.state.credits) } : parsed.failure);
+        if (outOfCredits) credits.reload();
       }
     } catch {
+      // The key is deliberately kept: if the server did process this submission, the retry cannot charge twice.
       if (alive.current) setFailure({ error: 'Intake could not confirm the interpretation result. No Google Form was created by this step. If you were revising, check the draft status before trying again.', code: 'model_unavailable', requestId: '', outcome: 'not_created', retryable: true });
     } finally {
       busyRef.current = false;

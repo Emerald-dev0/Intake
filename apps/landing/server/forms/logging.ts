@@ -20,6 +20,7 @@ export type FormLogEvent =
   | 'form.interpret.unsupported'
   | 'form.interpret.failed'
   | 'form.draft.revised'
+  | 'form.credits.rejected'
   | 'form.draft.validation_failed'
   | 'form.draft.create_started'
   | 'form.draft.create_completed'
@@ -71,6 +72,7 @@ const LEVELS: Record<FormLogEvent, LogLevel> = {
   'form.interpret.unsupported': 'warn',
   'form.interpret.failed': 'error',
   'form.draft.revised': 'info',
+  'form.credits.rejected': 'warn',
   'form.draft.validation_failed': 'warn',
   'form.draft.create_started': 'info',
   'form.draft.create_completed': 'info',

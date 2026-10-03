@@ -4,10 +4,13 @@ import { LogoMark } from '../../reel/parts';
 import { authClient as client } from '../../lib/auth';
 import { useSession } from '../hooks/useSession';
 import { useProviders } from '../Connections';
+import { CreditsProvider, useCreditsSource } from '../hooks/useCredits';
+import { creditSummary, resetLabel } from '../../lib/credits';
 
 export function WorkspaceLayout() {
   const { user, clearSession } = useSession();
   const providers = useProviders(true);
+  const credits = useCreditsSource();
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -29,6 +32,7 @@ export function WorkspaceLayout() {
 
   const page = useLocation().pathname.split('/')[2] || 'home';
   return (
+    <CreditsProvider value={{ state: credits.state, reload: credits.reload, note: credits.note }}>
     <div className="workspace">
       <aside className={`app-sidebar ${mobileOpen ? 'open' : ''}`}>
         <a href="/app" className="app-logo"><LogoMark size={28} /><span>intake</span><small>WORKSPACE</small></a>
@@ -39,16 +43,25 @@ export function WorkspaceLayout() {
           <a className={page === 'forms' ? 'active' : ''} href="/app/forms"><span aria-hidden>✎</span> Forms</a>
           <a className={page === 'connections' ? 'active' : ''} href="/app/connections"><span aria-hidden>◇</span> Connections</a>
         </nav>
+        <div className="sidebar-credits" aria-live="polite">
+          <span className="sidebar-label">AI CREDITS</span>
+          {credits.state.status === 'ready'
+            ? <><strong>{creditSummary(credits.state.credits)}</strong><span>{resetLabel(credits.state.credits.nextDailyReset)}</span></>
+            : credits.state.status === 'loading'
+              ? <span>Checking your credits…</span>
+              : <button type="button" className="sidebar-credits-retry" onClick={() => credits.reload()}>Credits unavailable — retry</button>}
+        </div>
         <div className="sidebar-bottom"><div className="side-note"><span className="rec" /> INTAKE / EARLY STAGE<p>Describe a form, review the draft, then confirm creation in your own Google account. Connect Google separately from your Intake login.</p></div><a href="/" className="site-link">← Visit website</a></div>
       </aside>
       {mobileOpen && <button className="mobile-shade" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
       <div className="app-body">
         <header className="app-topbar"><button className="mobile-trigger" onClick={() => setMobileOpen(true)} aria-label="Open navigation">☰</button><div className="topbar-path">WORKSPACE <span>/</span> {page === 'home' ? 'OVERVIEW' : page === 'connections' ? 'CONNECTIONS' : page === 'library' ? 'LIBRARY' : page === 'forms' ? 'FORMS' : 'ACCOUNT'}</div><div className="account-wrap"><button className="account-trigger" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}><span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span><span className="account-name">{user.name}</span><span aria-hidden>⌄</span></button>{menuOpen && <div className="account-menu"><div className="account-identity"><strong>{user.name}</strong><span>{user.email}</span></div><a href="/app/account">Account</a><button disabled={signingOut} onClick={() => void signOut()}>{signingOut ? 'Signing out…' : 'Sign out →'}</button>{signOutError && <p role="alert">{signOutError}</p>}</div>}</div></header>
         <main className="app-content">
-          <Outlet context={{ user, providers: providers.state, reloadProviders: providers.load }} />
+          <Outlet context={{ user, providers: providers.state, reloadProviders: providers.load, credits: credits.state, reloadCredits: credits.reload, noteCredits: credits.note }} />
         </main>
         <footer className="app-bottom">INTAKE <span>Built for the forms you already use.</span></footer>
       </div>
     </div>
+    </CreditsProvider>
   );
 }

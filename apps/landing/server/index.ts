@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import { toNodeHandler, fromNodeHeaders } from 'better-auth/node';
-import { auth, pool, serverConfig } from './auth';
+import { auth, googleSignInEnabled, pool, serverConfig } from './auth';
 import { createTokenCipher } from './providers/crypto';
 import { createProviderHttp } from './providers/http';
 import { createProviderRouter } from './providers/routes';
@@ -16,9 +16,15 @@ import { createFormEditRouter } from './forms/edit-routes';
 import { createInterpretationLimiter } from './forms/interpretation/routes';
 import { createFormsRouter } from './forms/routes';
 import { createPostgresDraftStore } from './forms/draft-postgres-store';
-import { createOpenAIFormEditInterpreter, createOpenAIFormInterpreter } from './forms/interpretation/openai';
+import { aiProviderLabel, resolveAiProvider } from './ai/registry';
+import { createAiOperationRunner } from './ai/operations';
+import { createCreditService } from './credits/service';
+import { createPostgresCreditStore } from './credits/ledger';
+import { createCreditRouter } from './credits/routes';
+import { createFormEditInterpreter, createFormInterpreter } from './forms/interpretation/provider-interpreter';
 import { createFormDraftRouter } from './forms/interpretation/routes';
 import { createPostgresRateLimitStore } from './security/rate-limit';
+import { createSignInRouter } from './sign-in/routes';
 import { logSafe } from './providers/oauth';
 import { newRequestId } from './forms/logging';
 const app = express();
@@ -36,6 +42,8 @@ app.use('/api', (_req, res, next) => {
   next();
 });
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
+// Public sign-in capabilities (booleans only). Mounted before the API 404 below.
+app.use('/api/sign-in', createSignInRouter({ env: process.env }));
 // This route must precede application body middleware. The parsers enforce the bound for both
 // declared and chunked bodies; Better Auth's Node adapter safely re-serializes req.body.
 const authHandler = toNodeHandler(auth);
@@ -73,8 +81,13 @@ app.use('/api/providers', createProviderRouter({ service: providerService, env: 
 const formsProviders = createFormsProviders({ env: providerEnv });
 const formStore = createPostgresFormStore(pool);
 const formsEngine = createFormEngine({ providers: formsProviders, store: formStore });
-const formInterpreter = createOpenAIFormInterpreter({ env: providerEnv });
-const formEditInterpreter = createOpenAIFormEditInterpreter({ env: providerEnv });
+// Provider-independent: routes and drafts never learn which vendor produced the structured output.
+const aiProvider = resolveAiProvider({ env: providerEnv });
+const formInterpreter = createFormInterpreter({ provider: aiProvider });
+const formEditInterpreter = createFormEditInterpreter({ provider: aiProvider });
+// Credits are server-owned: the browser never submits a user, a plan, a price or a balance.
+const creditService = createCreditService({ store: createPostgresCreditStore(pool), onError: (label, error) => logSafe(label, error) });
+const aiOperations = createAiOperationRunner({ credits: creditService, onError: (label, error) => logSafe(label, error) });
 const interpretationLimiter = createInterpretationLimiter();
 // Phase 6 creation drafts: confirmation still delegates to the same creation engine.
 app.use('/api/forms', createFormDraftRouter({
@@ -85,6 +98,7 @@ app.use('/api/forms', createFormDraftRouter({
   env: providerEnv,
   limiter: interpretationLimiter,
   abuseLimiter,
+  operations: aiOperations,
 }));
 // Phase 7 edit proposals are separate from creation drafts and only target a known Google Form.
 app.use('/api/forms', createFormEditRouter({
@@ -96,12 +110,16 @@ app.use('/api/forms', createFormEditRouter({
   env: providerEnv,
   limiter: interpretationLimiter,
   abuseLimiter,
+  operations: aiOperations,
 }));
+// Balance only: plan, remaining daily/monthly credits, and the next reset instants.
+app.use('/api/credits', createCreditRouter({ credits: creditService, getSession }));
 app.use('/api/forms', createFormsRouter({ engine: formsEngine, getSession, env: providerEnv, abuseLimiter, allowDirectCreation: false }));
 const providerSetup = supportedProviders(providerEnv).map(provider => `${provider.id} ${isProviderConfigured(provider, providerEnv) ? 'configured' : 'not configured'}`).join(', ');
+console.log(`Sign-in: email/password enabled, google ${googleSignInEnabled ? 'configured' : 'not configured'}`);
 console.log(`Provider connections: ${providerSetup}`);
 console.log('Form creation: google enabled, microsoft pending (no supported Microsoft Forms API)');
-console.log(`Form interpretation: ${providerEnv.OPENAI_API_KEY?.trim() ? 'configured' : 'not configured (OPENAI_API_KEY missing)'}`);
+console.log(`Form interpretation: ${aiProviderLabel(providerEnv)}`);
 
 app.get('/api/me', async (req, res) => {
   res.set('Cache-Control', 'no-store');
