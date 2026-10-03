@@ -16,57 +16,57 @@ interface Example {
 
 const EXAMPLES: Example[] = [
   {
-    id: 'acc',
+    id: 'yes-no',
     label: 'Yes / No',
-    sentence: 'Ask if they need accommodation. If they say yes, ask what type of accommodation they need.',
+    sentence: 'Ask if the attendee needs accommodation. If they answer yes, ask what support they need.',
     highlights: [
-      { text: 'if they need accommodation', kind: 'field', tag: 'yes / no' },
-      { text: 'If they say yes', kind: 'logic', tag: 'condition' },
-      { text: 'what type of accommodation they need', kind: 'field', tag: 'follow-up' },
+      { text: 'if the attendee needs accommodation', kind: 'field', tag: 'multiple choice' },
+      { text: 'If they answer yes', kind: 'logic', tag: 'supported section route' },
+      { text: 'what support they need', kind: 'field', tag: 'follow-up' },
     ],
     fields: [
-      { id: 'need_accommodation', label: 'Do you need accommodation?', type: 'single_choice', required: true, options: ['Yes', 'No'] },
-      { id: 'accommodation_type', label: 'What type of accommodation do you need?', type: 'single_choice', required: true, options: ['Hostel', 'Hotel', 'Host family'], when: { field: 'need_accommodation', op: 'eq', value: 'Yes' } },
+      { id: 'need_accommodation', label: 'Do you need accommodation?', type: 'multiple_choice', required: true, options: ['Yes', 'No'] },
+      { id: 'accommodation_support', label: 'What accommodation support do you need?', type: 'long_text', required: false, when: { field: 'need_accommodation', op: 'eq', value: 'Yes' } },
     ],
     branches: [
-      { label: 'Yes', to: 'accommodation_type' },
+      { label: 'Yes', to: 'accommodation_support' },
       { label: 'No', to: null },
     ],
   },
   {
-    id: 'rate',
-    label: 'Low rating',
-    sentence: 'Ask them to rate the delivery out of 5. If they give it less than 3, ask what went wrong.',
+    id: 'dropdown',
+    label: 'Dropdown',
+    sentence: 'Ask which workshop track they prefer. If they choose Design, ask which tools they use.',
     highlights: [
-      { text: 'rate the delivery out of 5', kind: 'field', tag: 'rating' },
-      { text: 'If they give it less than 3', kind: 'logic', tag: '< 3' },
-      { text: 'ask what went wrong', kind: 'field', tag: 'follow-up' },
+      { text: 'which workshop track they prefer', kind: 'field', tag: 'dropdown' },
+      { text: 'If they choose Design', kind: 'logic', tag: 'supported section route' },
+      { text: 'which tools they use', kind: 'field', tag: 'follow-up' },
     ],
     fields: [
-      { id: 'delivery_rating', label: 'How would you rate the delivery?', type: 'rating', required: true },
-      { id: 'what_went_wrong', label: 'Sorry! What went wrong?', type: 'long_text', required: false, when: { field: 'delivery_rating', op: 'lt', value: 3 } },
+      { id: 'track', label: 'Which workshop track do you prefer?', type: 'dropdown', required: true, options: ['Design', 'Development', 'Product'] },
+      { id: 'design_tools', label: 'Which design tools do you use?', type: 'short_text', required: false, when: { field: 'track', op: 'eq', value: 'Design' } },
     ],
     branches: [
-      { label: '1–2 ★', to: 'what_went_wrong' },
-      { label: '3–5 ★', to: null },
+      { label: 'Design', to: 'design_tools' },
+      { label: 'Other tracks', to: null },
     ],
   },
   {
-    id: 'media',
-    label: 'Checkboxes',
-    sentence: 'Ask which teams they want to join: media, ushering or welfare. If they pick media, ask for a portfolio link.',
+    id: 'multiple-choice',
+    label: 'Multiple choice',
+    sentence: 'Ask which role they are applying for. If they choose Engineering, ask which languages they use.',
     highlights: [
-      { text: 'which teams they want to join: media, ushering or welfare', kind: 'field', tag: 'checkboxes' },
-      { text: 'If they pick media', kind: 'logic', tag: 'includes' },
-      { text: 'ask for a portfolio link', kind: 'field', tag: 'follow-up' },
+      { text: 'which role they are applying for', kind: 'field', tag: 'multiple choice' },
+      { text: 'If they choose Engineering', kind: 'logic', tag: 'supported section route' },
+      { text: 'which languages they use', kind: 'field', tag: 'follow-up' },
     ],
     fields: [
-      { id: 'teams', label: 'Which teams do you want to join?', type: 'multiple_choice', required: true, options: ['Media', 'Ushering', 'Welfare'] },
-      { id: 'portfolio', label: 'Link to your portfolio', type: 'short_text', required: false, when: { field: 'teams', op: 'has', value: 'Media' } },
+      { id: 'role', label: 'Which role are you applying for?', type: 'multiple_choice', required: true, options: ['Engineering', 'Design', 'Product'] },
+      { id: 'languages', label: 'Which programming languages do you use?', type: 'short_text', required: false, when: { field: 'role', op: 'eq', value: 'Engineering' } },
     ],
     branches: [
-      { label: 'Media ticked', to: 'portfolio' },
-      { label: 'otherwise', to: null },
+      { label: 'Engineering', to: 'languages' },
+      { label: 'Other roles', to: null },
     ],
   },
 ];
@@ -79,17 +79,14 @@ export function Logic() {
   const open = isVisible(child, answers);
 
   return (
-    <section className="section logic" id="logic">
+    <section className="section logic" id="logic" aria-labelledby="logic-title">
       <div className="wrap">
         <SectionHead
           n="05"
-          kicker="Follow-up questions"
-          title={
-            <>
-              Say <em>“if.”</em> It just works.
-            </>
-          }
-          lede="Follow-up questions are the fiddliest part of making a form. Intake can plan supported Google Forms section routing from your description; it will flag logic the Google API cannot express. Microsoft creation is not supported."
+          kicker="Google Forms follow-up routing"
+          titleId="logic-title"
+          title={<>Describe a follow-up. Intake plans the <em>supported routing.</em></>}
+          lede="For supported Google Forms questions, Intake can translate conditional requests into section routing. Google does not support every kind of per-question show-or-hide logic; the workspace flags structures it cannot safely express instead of claiming to apply them."
         />
         <div className="logic-grid">
           <div className="logic-left">

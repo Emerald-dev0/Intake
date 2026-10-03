@@ -1,25 +1,24 @@
-import { AnimatePresence, motion, useScroll, useTransform, type MotionValue } from 'motion/react';
-import { useRef, useState } from 'react';
+import { motion, useScroll, useTransform, type MotionValue } from 'motion/react';
+import { useRef } from 'react';
 import { SectionHead, Reveal } from '../components/SectionHead';
 import { LogoMark } from '../reel/parts';
 import { REPO } from './Hero';
 import { Waitlist } from './Waitlist';
-import type { FieldType } from '../lib/types';
+import { CREATOR, FAQS } from '../content/site';
 
 /* ───────────── Statement ───────────── */
 
 const STATEMENT: { w: string; accent?: boolean }[] = [
   { w: 'You' },
-  { w: 'say', accent: true },
+  { w: 'describe', accent: true },
   { w: 'it.' },
   { w: 'Intake' },
-  { w: 'builds', accent: true },
+  { w: 'drafts', accent: true },
   { w: 'it.' },
-  { w: 'Google' },
-  { w: 'or' },
-  { w: 'Microsoft' },
-  { w: 'hosts', accent: true },
-  { w: 'it.' },
+  { w: 'You' },
+  { w: 'review' },
+  { w: 'and' },
+  { w: 'confirm.', accent: true },
 ];
 
 function Word({ w, accent, range, p }: { w: string; accent: boolean; range: [number, number]; p: MotionValue<number> }) {
@@ -32,18 +31,18 @@ function Word({ w, accent, range, p }: { w: string; accent: boolean; range: [num
 }
 
 export function Statement() {
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLHeadingElement>(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start 85%', 'end 50%'] });
   return (
-    <section className="section statement">
+    <section className="section statement" aria-labelledby="statement-title">
       <div className="wrap">
-        <div className="stmt" ref={ref}>
+        <h2 className="stmt" id="statement-title" ref={ref}>
           {STATEMENT.map((x, i) => (
             <Word key={i} w={x.w} accent={!!x.accent} p={scrollYProgress} range={[i / STATEMENT.length, (i + 1) / STATEMENT.length]} />
           ))}
-        </div>
+        </h2>
         <Reveal className="stmt-sub">
-          <p>Create in your own Google account, not on another form platform. Intake supports natural-language changes to a draft before creation; editing an existing Google form through Intake is future work.</p>
+          <p>Intake can create a new Google Form or prepare supported natural-language edits to an existing one. Review the proposal; Intake changes your connected Google account only after you explicitly confirm.</p>
         </Reveal>
       </div>
     </section>
@@ -53,25 +52,22 @@ export function Statement() {
 /* ───────────── Where your forms live ───────────── */
 
 const PROMISES = [
-  ['It’s your form', 'Confirm to create in the Google account you separately connected. Microsoft creation is not available.'],
-  ['Responses stay put', 'Google hosts the responder form and responses; Intake does not collect them.'],
-  ['Edit it anywhere', 'Revise your Intake draft before creation; edit a created form directly in Google Forms.'],
-  ['You’re in control', 'Connecting Google is a separate permission from your Intake sign-in; creation needs explicit confirmation.'],
+  ['Your Google account', 'Authorize Google separately from Intake sign-in. Only the account you connect can be used for form operations.'],
+  ['Responses stay with Google', 'Google hosts the responder page and collects responses. Intake stores form specifications and management metadata, not respondent answers.'],
+  ['Review before apply', 'AI interpretation and draft revisions do not contact Google Forms. Confirm only after you have inspected the proposal.'],
+  ['Existing forms stay the same', 'An edit proposal updates the selected Google Form after confirmation; Intake does not make an edit by creating a replacement form.'],
 ];
 
 export function Where() {
   return (
-    <section className="section where" id="where">
+    <section className="section where" id="where" aria-labelledby="where-title">
       <div className="wrap">
         <SectionHead
           n="07"
-          kicker="Where your forms live"
-          title={
-            <>
-              Your forms. <em>Your</em> account.
-            </>
-          }
-          lede="Intake asks you to connect Google separately from your login, then creates a Google Form only after you review and confirm. This workspace workflow is implemented but has not been verified against a real Google account. Microsoft creation is unavailable."
+          kicker="Google Forms integration"
+          titleId="where-title"
+          title={<>Your forms. <em>Your</em> account.</>}
+          lede="Intake uses an authorized Google connection to create real Google Forms and propose supported edits to existing forms. Signing in to Intake is separate from Google authorization. Live use requires Google OAuth and Forms API configuration; every provider change still waits for your explicit confirmation."
         />
         <div className="where-grid">
           <Reveal className="pv-card is-google">
@@ -79,27 +75,27 @@ export function Where() {
               <span className="pv-name">
                 <i /> Google Forms
               </span>
-              <span className="pv-status">Google target</span>
+              <span className="pv-status">Create · review · confirm</span>
             </div>
-            <h3>Connect Google Forms.</h3>
-            <p>Connect Google separately, review your draft and confirm to create there. Google hosts the responses; live end-to-end verification is still pending.</p>
+            <h3>Create a real Google Form.</h3>
+            <p>Describe what to collect. Intake generates a structured proposal; after you review and confirm, the form is created in your connected Google account.</p>
             <div className="pv-mock">
               <span className="pv-mock-dot" />
-              <code>docs.google.com/forms/d/…/edit</code>
+              <code>Google hosts the form and responses</code>
             </div>
           </Reveal>
-          <Reveal className="pv-card is-ms" delay={0.08}>
+          <Reveal className="pv-card is-google" delay={0.08}>
             <div className="pv-top">
               <span className="pv-name">
-                <i /> Microsoft Forms
+                <i /> Existing Google Forms
               </span>
-              <span className="pv-status">Creation unavailable</span>
+              <span className="pv-status">Edit · review · confirm</span>
             </div>
-            <h3>Connect Microsoft Forms.</h3>
-            <p>A Microsoft account can be connected, but Microsoft does not publish a supported Forms creation API. Intake does not create Microsoft Forms.</p>
+            <h3>Update the form you already have.</h3>
+            <p>Choose a form from your Intake library or provide its Google Forms edit URL. Intake reads its current structure and applies supported edits to that same form only after you confirm.</p>
             <div className="pv-mock">
               <span className="pv-mock-dot" />
-              <code>forms.office.com/r/…</code>
+              <code>Requires Google editor access</code>
             </div>
           </Reveal>
         </div>
@@ -119,7 +115,9 @@ export function Where() {
 
 /* ───────────── Capabilities ───────────── */
 
-function MiniWidget({ type }: { type: FieldType }) {
+type CapabilityPreviewType = 'short_text' | 'long_text' | 'email_text' | 'one_choice' | 'checkboxes' | 'dropdown';
+
+function MiniWidget({ type }: { type: CapabilityPreviewType }) {
   switch (type) {
     case 'short_text':
       return (
@@ -135,22 +133,9 @@ function MiniWidget({ type }: { type: FieldType }) {
           <i style={{ width: '40%' }} />
         </div>
       );
-    case 'email':
-      return (
-        <div className="mw-line mw-email">
-          ada@<span>example</span>.com <b>✓</b>
-        </div>
-      );
-    case 'phone':
-      return <div className="mw-line">+234 803 555 0142</div>;
-    case 'number':
-      return (
-        <div className="mw-line mw-num">
-          <span>24</span>
-          <em>▴▾</em>
-        </div>
-      );
-    case 'single_choice':
+    case 'email_text':
+      return <div className="mw-line mw-email">ada@example.com</div>;
+    case 'one_choice':
       return (
         <div className="mw-opts">
           <span className="on">
@@ -161,7 +146,7 @@ function MiniWidget({ type }: { type: FieldType }) {
           </span>
         </div>
       );
-    case 'multiple_choice':
+    case 'checkboxes':
       return (
         <div className="mw-opts is-check">
           <span className="on">
@@ -181,61 +166,28 @@ function MiniWidget({ type }: { type: FieldType }) {
           Midfielder <em>▾</em>
         </div>
       );
-    case 'date':
-      return (
-        <div className="mw-cal">
-          {Array.from({ length: 14 }).map((_, i) => (
-            <i key={i} className={i === 9 ? 'on' : ''} />
-          ))}
-        </div>
-      );
-    case 'time':
-      return (
-        <div className="mw-clock">
-          <i />
-        </div>
-      );
-    case 'rating':
-      return (
-        <div className="mw-stars">
-          {[0, 1, 2, 3, 4].map((i) => (
-            <span key={i} style={{ animationDelay: `${i * 0.18}s` }}>
-              ★
-            </span>
-          ))}
-        </div>
-      );
   }
 }
 
-const TYPES: [FieldType, string, string][] = [
-  ['short_text', 'Short answer', '“their name”'],
+const TYPES: readonly [CapabilityPreviewType, string, string][] = [
+  ['short_text', 'Short answer', '“their name or phone number”'],
   ['long_text', 'Paragraph', '“anything we could improve”'],
-  ['email', 'Email', '“their email”'],
-  ['phone', 'Phone', '“WhatsApp number”'],
-  ['number', 'Number', '“how many guests”'],
-  ['single_choice', 'Yes / no & choices', '“whether they need a bus”'],
-  ['multiple_choice', 'Checkboxes', '“which teams they’d join”'],
-  ['dropdown', 'Dropdown', '“playing position”'],
-  ['date', 'Date', '“date of birth”'],
-  ['time', 'Time', '“arrival time”'],
-  ['rating', 'Rating', '“out of 5”'],
+  ['email_text', 'Email address · plain text', '“their email address”'],
+  ['one_choice', 'Multiple choice · one answer', '“whether they need a bus”'],
+  ['checkboxes', 'Checkboxes · several answers', '“which teams they’d join”'],
+  ['dropdown', 'Dropdown · one answer', '“playing position”'],
 ];
 
 export function Capabilities() {
   return (
-    <section className="section caps" id="capabilities">
+    <section className="section caps" id="capabilities" aria-labelledby="capabilities-title">
       <div className="wrap">
         <SectionHead
           n="08"
-          kicker="Say it your way"
-          title={
-            <>
-              Say what matters.
-              <br />Skip the <em>settings.</em>
-            </>
-          }
-          lede="Say “their WhatsApp number” and you get a phone question. Say “out of 5” and you get a star rating. Intake is designed to choose the appropriate question type for you."
+          kicker="Supported Google Forms question types"
+          titleId="capabilities-title"
+          title={<>Describe what to ask. Intake maps it to a <em>supported type.</em></>}
+          lede="Supported questions include short answers, paragraphs, one-answer multiple choice, checkboxes, and dropdowns. Email and phone requests become plain text fields without format-specific validation. Number, date, and rating controls are not supported; Intake flags unsupported requests instead of applying them. Conditional logic is limited to section-routing patterns Google Forms can express."
         />
         <div className="caps-grid">
           {TYPES.map(([t, name, said], i) => (
@@ -252,7 +204,7 @@ export function Capabilities() {
           <Reveal delay={0.18} className="cap cap-more">
             <span className="cap-name">It also handles</span>
             <div className="cap-tags">
-              {['Required questions', 'Descriptions', 'Sections', 'Question order', 'Follow-up questions', 'Skip logic', 'Thank-you message'].map((x) => (
+              {['Form title and description', 'Required questions', 'Question descriptions', 'Question order', 'Google-supported section routing'].map((x) => (
                 <span key={x}>{x}</span>
               ))}
             </div>
@@ -265,45 +217,23 @@ export function Capabilities() {
 
 /* ───────────── FAQ ───────────── */
 
-const FAQS = [
-  ['Is Intake another form builder?', 'No. The authenticated workspace proposes a form and can create it in your connected Google account only after you confirm. The landing demos are scripted; the live integration still needs credentials and verification.'],
-  ['Where will responses go?', 'Google Forms hosts the responder page and its responses. Intake stores only your specification and created-form metadata, not respondent data.'],
-  ['Will I be able to edit the form myself?', 'Yes, in Google Forms. Before creation, you can revise your Intake draft in natural language. Editing an already-created form through Intake is not implemented.'],
-  ['What access will Intake need?', 'Connect Google separately from Intake sign-in to grant form-creation access. Intake checks that connection again when you confirm; signing in alone does not grant Google access.'],
-  ['What if my request is vague?', 'The server-side interpreter can ask a focused question when an important detail is missing. The landing demo is scripted and does not call the model or create a form.'],
-  ['Does it work with Microsoft Forms?', 'No. Microsoft does not publish a supported Forms creation API. Intake does not fabricate Microsoft form links or use its undocumented API.'],
-];
-
 export function FAQ() {
-  const [open, setOpen] = useState<number | null>(0);
   return (
-    <section className="section faq" id="faq">
+    <section className="section faq" id="faq" aria-labelledby="faq-title">
       <div className="wrap faq-grid">
         <SectionHead
           n="09"
-          kicker="Questions"
-          title={
-            <>
-              Fair <em>questions.</em>
-            </>
-          }
-          lede="The short answers to what people usually ask first."
+          kicker="Frequently asked questions"
+          titleId="faq-title"
+          title={<>Clear answers about <em>Intake.</em></>}
+          lede="Product, Google Forms access, AI-assisted creation, editing, and review-before-apply."
         />
         <div className="faq-list">
-          {FAQS.map(([q, a], i) => (
-            <div key={q} className={`faq-item ${open === i ? 'is-open' : ''}`}>
-              <button className="faq-q" onClick={() => setOpen(open === i ? null : i)} aria-expanded={open === i}>
-                <span>{q}</span>
-                <i className="faq-plus" />
-              </button>
-              <AnimatePresence initial={false}>
-                {open === i && (
-                  <motion.div className="faq-a" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}>
-                    <p>{a}</p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+          {FAQS.map(({ question, answer }) => (
+            <section key={question} className="faq-item" aria-labelledby={`faq-${question.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
+              <h3 className="faq-q" id={`faq-${question.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>{question}</h3>
+              <p className="faq-a">{answer}</p>
+            </section>
           ))}
         </div>
       </div>
@@ -329,7 +259,7 @@ export function CTA() {
           </h2>
         </Reveal>
         <Reveal delay={0.1}>
-          <p className="cta-sub">Create an Intake account, connect Google separately, and review a form before confirming. Live use needs server configuration and a connected Google account; the demos here are scripted.</p>
+          <p className="cta-sub">Create an Intake account, authorize Google separately, and review a creation or edit proposal before confirming. Live use requires an active, configured Intake service and the right Google permissions; the demos here are scripted.</p>
         </Reveal>
         <Reveal delay={0.16}>
           <Waitlist />
@@ -358,18 +288,18 @@ export function Footer() {
             <LogoMark size={26} />
             <span>intake</span>
           </a>
-          <p>Say what you need. Review a draft and choose when to create it in your connected Google account.</p>
+          <p>Describe a form or a change. Review the proposal and confirm before Intake applies it to Google Forms.</p>
         </div>
         <div className="foot-cols">
           <div>
-            <h5>Product</h5>
-            <a href="#how">How it works</a>
-            <a href="#demo">Demos</a>
-            <a href="#try">Try it</a>
-            <a href="#faq">FAQ</a>
+            <h2>Product</h2>
+            <a href="#how">How Intake works</a>
+            <a href="#demo">Workflow demos</a>
+            <a href="#try">Local form preview</a>
+            <a href="#faq">Frequently asked questions</a>
           </div>
           <div>
-            <h5>Project</h5>
+            <h2>Project</h2>
             <a href={REPO} target="_blank" rel="noreferrer">
               GitHub
             </a>
@@ -384,11 +314,9 @@ export function Footer() {
             </a>
           </div>
           <div>
-            <h5>Status</h5>
-            <span className="foot-status">
-              <i /> In the works
-            </span>
-            <span className="foot-small">Google creation · Microsoft unavailable</span>
+            <h2>Google Forms</h2>
+            <span className="foot-status">Create and edit workflows are implemented.</span>
+            <span className="foot-small">Live use requires an active service configuration and Google authorization.</span>
           </div>
         </div>
       </div>
@@ -397,7 +325,7 @@ export function Footer() {
       </div>
       <div className="wrap foot-bottom">
         <span>© {new Date().getFullYear()} Intake</span>
-        <span>No questions were dragged or dropped in the making of this page.</span>
+        <span>Built by <a className="creator-attribution" href={CREATOR.github} target="_blank" rel="noreferrer">{CREATOR.displayName}</a></span>
       </div>
     </footer>
   );

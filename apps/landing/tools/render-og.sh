@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+convert -size 1200x630 xc:'#0c0c0b' \
+  -fill '#ff5a1f10' -stroke none -draw 'circle 1070,545 850,545' \
+  -fill none -stroke '#f1ece20c' -strokewidth 1 \
+  -draw 'line 0,48 1200,48 line 0,96 1200,96 line 0,144 1200,144 line 0,192 1200,192 line 0,240 1200,240 line 0,288 1200,288 line 0,336 1200,336 line 0,384 1200,384 line 0,432 1200,432 line 0,480 1200,480 line 0,528 1200,528 line 0,576 1200,576 line 48,0 48,630 line 96,0 96,630 line 144,0 144,630 line 192,0 192,630 line 240,0 240,630 line 288,0 288,630 line 336,0 336,630 line 384,0 384,630 line 432,0 432,630 line 480,0 480,630 line 528,0 528,630 line 576,0 576,630 line 624,0 624,630 line 672,0 672,630 line 720,0 720,630 line 768,0 768,630 line 816,0 816,630 line 864,0 864,630 line 912,0 912,630 line 960,0 960,630 line 1008,0 1008,630 line 1056,0 1056,630 line 1104,0 1104,630 line 1152,0 1152,630' \
+  -fill '#1c1b18' -stroke none -draw 'roundrectangle 64,48 110,94 13,13' \
+  -fill '#ff5a1f' -draw 'circle 87,63 92,63' \
+  -fill '#f1ece2' -draw 'roundrectangle 76,73 98,78.5 2.75,2.75 roundrectangle 76,83 91,88.5 2.75,2.75' \
+  -font DejaVu-Sans-Bold -pointsize 27 -fill '#f1ece2' -annotate +124+81 'Intake' \
+  -font DejaVu-Sans-Bold -pointsize 54 -fill '#f1ece2' -annotate +64+202 'Describe a form.' \
+  -annotate +64+270 'Review the plan.' \
+  -annotate +64+338 'Confirm to' \
+  -font DejaVu-Serif -pointsize 54 -fill '#ff5a1f' -annotate +405+338 'create.' \
+  -font DejaVu-Sans -pointsize 19 -fill '#c9c5bc' -annotate +66+398 'AI-assisted creation and editing for Google Forms.' \
+  -font DejaVu-Sans -pointsize 16 -fill '#aaa69e' -annotate +66+428 'Describe, review, and confirm before a Google Forms change.' \
+  -fill '#181815' -stroke '#555149' -strokewidth 1 -draw 'roundrectangle 64,522 248,564 21,21' \
+  -fill '#8f62e0' -stroke none -draw 'roundrectangle 80,538 90,548 3,3' \
+  -font DejaVu-Sans -pointsize 15 -fill '#f1ece2' -annotate +100+549 'Google Forms' \
+  -font DejaVu-Sans-Mono -pointsize 12 -fill '#8d8981' -annotate +64+592 'Separate Google authorization - review before apply' \
+  -fill '#ff5a1f' -stroke none -draw 'roundrectangle 659,36 1158,122 14,14' \
+  -font DejaVu-Sans -pointsize 15 -fill '#1a0b04' -annotate +679+67 'Registration for a youth conference. Ask who needs' \
+  -annotate +679+91 'transportation and where they should be picked up.' \
+  -fill '#f5f0e6' -stroke none -draw 'roundrectangle 632,139 1158,630 16,16' \
+  -fill '#ebe4d6' -draw 'roundrectangle 632,139 1158,178 16,16' \
+  -fill '#6d3fc0' -draw 'roundrectangle 650,153 660,163 3,3' \
+  -font DejaVu-Sans-Bold -pointsize 13 -fill '#302d28' -annotate +669+162 'Google Forms' \
+  -fill '#f7f3eb' -stroke none -draw 'roundrectangle 1012,148 1141,173 13,13' \
+  -font DejaVu-Sans-Mono -pointsize 9 -fill '#5e513b' -annotate +1021+164 'EXAMPLE - NOT APPLIED' \
+  -fill '#6d3fc0' -draw 'rectangle 632,178 1158,185' \
+  -font DejaVu-Serif -pointsize 24 -fill '#1b1a17' -annotate +658+222 'Youth Conference Registration' \
+  -fill '#fbf8f2' -stroke '#d9d0bf' -strokewidth 1 -draw 'roundrectangle 654,242 1136,311 9,9' \
+  -font DejaVu-Sans-Bold -pointsize 14 -fill '#25231f' -stroke none -annotate +671+266 'Full name *' \
+  -font DejaVu-Sans-Mono -pointsize 10 -fill '#71695d' -annotate +671+290 'Short answer' \
+  -stroke '#d9d0bf' -draw 'line 671,299 1119,299' \
+  -fill '#fbf8f2' -stroke '#d9d0bf' -draw 'roundrectangle 654,320 1136,396 9,9' \
+  -font DejaVu-Sans-Bold -pointsize 14 -fill '#25231f' -stroke none -annotate +671+344 'Age group' \
+  -fill none -stroke '#9b9284' -strokewidth 1.5 -draw 'circle 678,372 685,372 circle 760,372 767,372 circle 844,372 851,372' \
+  -font DejaVu-Sans -pointsize 12 -fill '#38352e' -stroke none -annotate +691+377 '13-17' -annotate +773+377 '18-24' -annotate +857+377 '25+' \
+  -fill '#fbf8f2' -stroke '#d9d0bf' -strokewidth 1 -draw 'roundrectangle 654,405 1136,484 9,9' \
+  -font DejaVu-Sans-Bold -pointsize 14 -fill '#25231f' -stroke none -annotate +671+430 'Do you need transportation?' \
+  -fill none -stroke '#6d3fc0' -strokewidth 1.7 -draw 'circle 678,460 685,460' -fill '#6d3fc0' -stroke none -draw 'circle 678,460 681.5,460' \
+  -fill none -stroke '#9b9284' -strokewidth 1.5 -draw 'circle 748,460 755,460' \
+  -font DejaVu-Sans -pointsize 12 -fill '#38352e' -stroke none -annotate +691+465 'Yes' -annotate +761+465 'No' \
+  -fill '#fbf8f2' -stroke '#d9d0bf' -strokewidth 1 -draw 'roundrectangle 670,493 1136,609 9,9' \
+  -stroke '#6d3fc0' -strokewidth 3 -draw 'line 671,494 671,608' \
+  -font DejaVu-Sans-Mono -pointsize 10 -fill '#4b5bd6' -stroke none -annotate +687+517 'SUPPORTED YES SECTION ROUTE' \
+  -font DejaVu-Sans-Bold -pointsize 14 -fill '#25231f' -annotate +687+544 'Where should we pick you up?' \
+  -font DejaVu-Sans-Mono -pointsize 10 -fill '#71695d' -annotate +687+572 'Short answer' \
+  -stroke '#d9d0bf' -draw 'line 687,587 1119,587' \
+  -define png:compression-level=9 public/og.png

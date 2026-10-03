@@ -1672,9 +1672,10 @@ npm run build      # type-check + production build to dist/
 
 | Variable | What it does |
 | --- | --- |
-| `VITE_SITE_URL` | Absolute site URL for canonical and link-preview tags. Picked up automatically on Vercel and Netlify. |
 | `VITE_WAITLIST_URL` | Where the "Get early access" box posts to. A Google Form's `…/formResponse` URL works, as do Formspree-style endpoints. |
 | `VITE_WAITLIST_FIELD` | The field name for the email, e.g. `entry.123456789` for a Google Form, or `email`. |
+
+The production canonical/social origin is centralized in [`apps/landing/src/content/site.ts`](apps/landing/src/content/site.ts) and is not overridden by preview environment variables. If the production domain changes, update it together with `public/robots.txt`, `public/sitemap.xml`, and the API's `BETTER_AUTH_URL`.
 
 ---
 
@@ -1701,12 +1702,12 @@ The browser uses same-origin `/api/auth/*` for Better Auth, `/api/me` for accoun
 See [`apps/landing/.env.example`](apps/landing/.env.example). Only `VITE_` variables are public browser configuration. Database credentials, auth secrets, provider encryption keys and OAuth secrets must never use that prefix.
 
 - Render (server secrets): `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` (public Vercel origin). Live interpretation requires `OPENAI_API_KEY` (optional `OPENAI_MODEL`, default `gpt-4o-mini`). Google connection and actual form creation require `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`; Microsoft OAuth optionally uses `MICROSOFT_OAUTH_CLIENT_ID`, `MICROSOFT_OAUTH_CLIENT_SECRET` and `MICROSOFT_OAUTH_TENANT` but Microsoft form creation remains unsupported. `PROVIDER_TOKEN_KEY` is recommended. Render supplies `PORT`; `API_TRUST_PROXY_HOPS` must match only a verified proxy chain and otherwise stays `0`. Blank model/provider variables are honest configuration errors, never fake success. A changed domain requires updating `BETTER_AUTH_URL`, the provider redirect URIs in the provider consoles, and restarting the server.
-- Vercel: `BACKEND_URL` (actual HTTPS Render origin, routing only); optional `VITE_SITE_URL` and existing public waitlist settings.
+- Vercel: `BACKEND_URL` (actual HTTPS Render origin, routing only); existing public waitlist settings. The production canonical/social origin is fixed in `apps/landing/src/content/site.ts`, not a deploy-time preview URL.
 - Local: optional `API_PROXY_TARGET` changes Vite's backend target without changing browser URLs.
 
 # Deployment
 
-Vercel root: `apps/landing`; framework: Vite; build: `npm run build`; output: `dist`. Set `BACKEND_URL` and deploy the checked-in configuration: API proxy plus one generic SPA fallback.
+Vercel root: `apps/landing`; framework: Vite; build: `npm run build`; output: `dist`. Set `BACKEND_URL` and deploy the checked-in low-level route pipeline: API proxy, noindex private document, filesystem pass-through, then generic public SPA fallback. Production canonical/social URLs come from `src/content/site.ts`; preview hostnames are never used.
 
 Render root: `apps/landing`; build: `npm ci`; start: `npm start`; see `render.yaml`. Set `BETTER_AUTH_URL` to the exact Vercel origin, not Render. Keep all server secrets on Render.
 

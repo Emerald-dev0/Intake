@@ -3,8 +3,8 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { PROVIDERS, type Provider } from '../lib/providers';
 
 /**
- * Mobile-only demo. Instead of shrinking the desktop reels, the phone gets a
- * chat you'd actually see on a phone, told as tap-through "stories".
+ * Mobile-only scripted preview. It illustrates form-request and edit-proposal
+ * flows without connecting an account or calling Google Forms.
  */
 
 interface Row {
@@ -18,11 +18,9 @@ interface Base {
   id: string;
   label: string;
   provider: Provider;
-  account: string;
   prompt: string;
   reply: string;
   title: string;
-  url: string;
 }
 interface CreateStory extends Base {
   kind: 'create';
@@ -42,36 +40,16 @@ const STORIES: Story[] = [
     kind: 'create',
     label: 'Make a form',
     provider: 'google',
-    account: 'ada.okafor@gmail.com',
     prompt: 'Registration for our youth conference. Name, phone, age group, church, and if they need a bus, ask where to pick them up.',
     reply: 'Got it. 6 questions, plus a follow-up for anyone who needs the bus.',
     title: 'Youth Conference Registration',
-    url: 'forms.gle/yc26-register',
     rows: [
       { label: 'Full name', type: 'Short answer', required: true },
-      { label: 'Phone number', type: 'Phone', required: true },
-      { label: 'Age group', type: 'Choice' },
+      { label: 'Phone number', type: 'Short answer', required: true },
+      { label: 'Age group', type: 'Multiple choice · one answer' },
       { label: 'Church', type: 'Short answer' },
-      { label: 'Need transportation?', type: 'Yes / No' },
+      { label: 'Need transportation?', type: 'Multiple choice · one answer' },
       { label: 'Pickup location', type: 'Short answer', cond: 'only if they say Yes' },
-    ],
-  },
-  {
-    id: 'ms',
-    kind: 'create',
-    label: 'Microsoft too',
-    provider: 'microsoft',
-    account: 'hello@mamaputkitchen.ng',
-    prompt: 'Feedback form for Mama Put Kitchen. Rate the food and service out of 5. If service is below 3, ask what went wrong. Keep it anonymous.',
-    reply: 'On it. Star ratings, no names, and a follow-up only after a bad score.',
-    title: 'How was your meal?',
-    url: 'forms.office.com/r/MamaPut5',
-    rows: [
-      { label: 'Rate the food', type: 'Rating ★' },
-      { label: 'Rate the service', type: 'Rating ★' },
-      { label: 'What went wrong?', type: 'Paragraph', cond: 'only if service is below 3' },
-      { label: 'What did you order?', type: 'Short answer' },
-      { label: 'Anything we could improve?', type: 'Paragraph' },
     ],
   },
   {
@@ -79,19 +57,17 @@ const STORIES: Story[] = [
     kind: 'edit',
     label: 'Change it',
     provider: 'google',
-    account: 'kemi.events@gmail.com',
     prompt: 'Make email optional and ask how they heard about it.',
-    reply: 'Done. Saved to your Google Form.',
+    reply: 'Here is a change proposal. Review it before confirming the update.',
     title: 'Rooftop Launch · RSVP',
-    url: 'forms.gle/rooftop-rsvp',
     rows: [
       { label: 'Full name', type: 'Short answer', required: true },
-      { label: 'Email', type: 'Email', required: true },
-      { label: 'Age', type: 'Number' },
-      { label: 'Bringing a guest?', type: 'Yes / No' },
+      { label: 'Email address', type: 'Short answer · no format validation', required: true },
+      { label: 'Age group', type: 'Multiple choice · one answer' },
+      { label: 'Bringing a guest?', type: 'Multiple choice · one answer' },
     ],
     optionalIndex: 1,
-    added: { label: 'How did you hear about it?', type: 'Choice' },
+    added: { label: 'How did you hear about it?', type: 'Multiple choice · one answer' },
   },
 ];
 
@@ -107,8 +83,7 @@ function timeline(s: Story) {
     const card = reply + 0.45;
     const rowAt = s.rows.map((_, i) => card + 0.45 + i * 0.3);
     const live = rowAt[rowAt.length - 1] + 0.7;
-    const copied = live + 1.3;
-    return { typeStart, typeEnd, send, dots, reply, card, rowAt, live, copied, change: 0, end: live + 3.4 };
+    return { typeStart, typeEnd, send, dots, reply, card, rowAt, live, change: 0, end: live + 3.4 };
   }
   const change = reply - 0.25;
   return { typeStart, typeEnd, send, dots, reply, card: 0, rowAt: [], live: 0, copied: 0, change, end: reply + 3.6 };
@@ -220,7 +195,7 @@ export function Stories() {
                 </svg>
               </span>
               <b>What do you want to ask people?</b>
-              <span>Intake builds it in your {P.name}.</span>
+              <span>Intake prepares a {P.name} proposal for review.</span>
             </motion.div>
           )}
         </AnimatePresence>
@@ -228,7 +203,7 @@ export function Stories() {
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.div key={s.id} className="ms-msgs" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
               <div className="ms-sys">
-                Signed in as <b>{s.account}</b>
+                Scripted example · no real Google account is connected
               </div>
 
               {s.kind === 'edit' && <FormCard s={s} t={t} tl={tl} />}
@@ -284,9 +259,9 @@ export function Stories() {
 function FormCard({ s, t, tl }: { s: Story; t: number; tl: ReturnType<typeof timeline> }) {
   const P = PROVIDERS[s.provider];
   const isEdit = s.kind === 'edit';
-  const live = isEdit || t >= tl.live;
   const changed = isEdit && t >= tl.change;
-  const saving = isEdit && t >= tl.send && t < tl.change + 0.3;
+  const complete = isEdit ? changed : t >= tl.live;
+  const proposing = isEdit && t >= tl.send && t < tl.change + 0.3;
   const rows: (Row & { isNew?: boolean; flash?: boolean })[] = isEdit
     ? [
         ...s.rows.map((r, i) => (changed && i === (s as EditStory).optionalIndex ? { ...r, required: false, flash: true } : r)),
@@ -301,21 +276,17 @@ function FormCard({ s, t, tl }: { s: Story; t: number; tl: ReturnType<typeof tim
           <i /> {P.name}
         </span>
         <span className="mcard-state">
-          {saving ? (
+          {proposing ? (
             <>
-              <span className="spin sm" /> Saving…
+              <span className="spin sm" /> Preparing proposal…
             </>
-          ) : live ? (
-            <>
-              <svg width="9" height="9" viewBox="0 0 12 12" aria-hidden>
-                <rect x="2" y="5.5" width="8" height="5.5" rx="1.3" fill="currentColor" />
-                <path d="M4 5.5V4a2 2 0 0 1 4 0v1.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
-              </svg>
-              {isEdit ? 'Live · 38 responses' : 'Live'}
-            </>
+          ) : complete ? (
+            <>{isEdit ? 'Proposal · not applied' : 'Example · not created'}</>
+          ) : isEdit ? (
+            <>Existing form · example</>
           ) : (
             <>
-              <span className="spin sm" /> Creating in your account…
+              <span className="spin sm" /> Preparing example…
             </>
           )}
         </span>
@@ -349,12 +320,9 @@ function FormCard({ s, t, tl }: { s: Story; t: number; tl: ReturnType<typeof tim
       </div>
       <AnimatePresence>
         {!isEdit && t >= tl.live && (
-          <motion.div className="mcard-share" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-            <div className="mcard-share-in">
-              <code>{s.url}</code>
-              <span className={t >= tl.copied ? 'is-copied' : ''}>{t >= tl.copied ? 'Copied ✓' : 'Copy link'}</span>
-            </div>
-          </motion.div>
+          <motion.p className="mcard-share" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+            Scripted example only. No Google Form or responder link is created here.
+          </motion.p>
         )}
       </AnimatePresence>
     </motion.div>

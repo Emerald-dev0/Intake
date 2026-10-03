@@ -1,17 +1,6 @@
-export type FieldType =
-  | 'short_text'
-  | 'long_text'
-  | 'email'
-  | 'phone'
-  | 'number'
-  | 'single_choice'
-  | 'multiple_choice'
-  | 'dropdown'
-  | 'date'
-  | 'time'
-  | 'rating';
+export type FieldType = 'short_text' | 'long_text' | 'email' | 'multiple_choice' | 'dropdown' | 'checkboxes';
 
-export type Cond = { field: string; op: 'eq' | 'lt' | 'has'; value: string | number };
+export type Cond = { field: string; op: 'eq'; value: string };
 
 export interface Field {
   id: string;
@@ -37,29 +26,20 @@ export interface Highlight {
   tag: string;
 }
 
-export type AnswerValue = string | number | string[];
+export type AnswerValue = string | string[];
 export type Answers = Record<string, AnswerValue | undefined>;
 
 export function isVisible(f: Field, answers: Answers): boolean {
   if (!f.when) return true;
   const a = answers[f.when.field];
   if (a === undefined || a === '') return false;
-  switch (f.when.op) {
-    case 'eq':
-      return a === f.when.value;
-    case 'lt':
-      return typeof a === 'number' && a > 0 && a < Number(f.when.value);
-    case 'has':
-      return Array.isArray(a) && a.includes(String(f.when.value));
-  }
+  return a === f.when.value;
 }
 
 export function condLabel(c: Cond, fields: Field[]): string {
   const parent = fields.find((f) => f.id === c.field);
   const name = parent ? shortLabel(parent.label) : c.field;
-  if (c.op === 'lt') return `“${name}” is below ${c.value}`;
-  if (c.op === 'has') return `they tick “${c.value}”`;
-  return `they answer “${c.value}”`;
+  return `“${name}” is answered “${c.value}”`;
 }
 
 export function shortLabel(label: string): string {
@@ -70,15 +50,10 @@ export function shortLabel(label: string): string {
 export const TYPE_LABEL: Record<FieldType, string> = {
   short_text: 'Short answer',
   long_text: 'Paragraph',
-  email: 'Email',
-  phone: 'Phone',
-  number: 'Number',
-  single_choice: 'Choice',
-  multiple_choice: 'Checkboxes',
-  dropdown: 'Dropdown',
-  date: 'Date',
-  time: 'Time',
-  rating: 'Rating',
+  email: 'Short answer · email text',
+  multiple_choice: 'Multiple choice · one answer',
+  dropdown: 'Dropdown · one answer',
+  checkboxes: 'Checkboxes · several answers',
 };
 
 /** Pretty JSON-ish lines for the spec panel, one block per field. */
@@ -90,7 +65,7 @@ export function specToJson(spec: FormSpec): string {
       questions: spec.fields.map((f) => {
         const o: Record<string, unknown> = { id: f.id, type: f.type, label: f.label, required: f.required };
         if (f.options) o.options = f.options;
-        if (f.when) o.visibility = { when: { question: f.when.field, [f.when.op === 'eq' ? 'equals' : f.when.op === 'lt' ? 'lessThan' : 'includes']: f.when.value } };
+        if (f.when) o.visibility = { when: { question: f.when.field, equals: f.when.value } };
         return o;
       }),
     },

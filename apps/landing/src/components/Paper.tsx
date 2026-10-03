@@ -203,8 +203,6 @@ const PLACEHOLDER: Partial<Record<Field['type'], string>> = {
   short_text: 'Your answer',
   long_text: 'Your answer',
   email: 'name@example.com',
-  phone: '+234 800 000 0000',
-  number: '0',
 };
 
 function Widget({
@@ -222,8 +220,6 @@ function Widget({
   switch (f.type) {
     case 'short_text':
     case 'email':
-    case 'phone':
-    case 'number':
     case 'long_text': {
       const long = f.type === 'long_text';
       if (live) {
@@ -234,37 +230,40 @@ function Widget({
             value={(value as string) ?? ''}
             onChange={(e) => onAnswer!(f.id, e.target.value)}
             rows={2}
+            aria-label={f.label}
           />
         ) : (
           <input
             className="pw-input"
-            type={f.type === 'email' ? 'email' : f.type === 'number' ? 'number' : f.type === 'phone' ? 'tel' : 'text'}
+            type="text"
             placeholder={PLACEHOLDER[f.type]}
             value={(value as string) ?? ''}
             onChange={(e) => onAnswer!(f.id, e.target.value)}
+            aria-label={f.label}
           />
         );
       }
       const v = typeof value === 'string' ? value : '';
       return (
-        <div className={`pw-input ${long ? 'is-long' : ''} ${typing ? 'is-focus' : ''}`} data-input={f.id}>
+        <div className={`pw-input ${long ? 'is-long' : ''} ${typing ? 'is-focus' : ''}`} data-input={f.id} aria-label={f.label}>
           {v ? <span className="pw-val">{v}</span> : <span className="pw-ph">{PLACEHOLDER[f.type]}</span>}
           {typing && <i className="caret dark" />}
         </div>
       );
     }
-    case 'single_choice':
-    case 'multiple_choice': {
-      const multi = f.type === 'multiple_choice';
+    case 'multiple_choice':
+    case 'checkboxes': {
+      const multi = f.type === 'checkboxes';
       const sel = (o: string) => (multi ? Array.isArray(value) && value.includes(o) : value === o);
       return (
-        <div className="pw-opts">
+        <div className="pw-opts" role="group" aria-label={f.label}>
           {(f.options ?? []).map((o) => (
             <button
               type="button"
               key={o}
               tabIndex={live ? 0 : -1}
               className={`pw-opt ${sel(o) ? 'is-on' : ''}`}
+              aria-pressed={!!sel(o)}
               data-opt={`${f.id}:${o}`}
               onClick={
                 live
@@ -287,7 +286,7 @@ function Widget({
     case 'dropdown': {
       if (live) {
         return (
-          <select className="pw-select is-live" value={(value as string) ?? ''} onChange={(e) => onAnswer!(f.id, e.target.value)}>
+          <select className="pw-select is-live" value={(value as string) ?? ''} onChange={(e) => onAnswer!(f.id, e.target.value)} aria-label={f.label}>
             <option value="">Choose</option>
             {(f.options ?? []).map((o) => (
               <option key={o}>{o}</option>
@@ -306,40 +305,6 @@ function Widget({
               <span key={o}>{o}</span>
             ))}
           </div>
-        </div>
-      );
-    }
-    case 'date':
-    case 'time': {
-      if (live) return <input className="pw-input" type={f.type} value={(value as string) ?? ''} onChange={(e) => onAnswer!(f.id, e.target.value)} />;
-      return (
-        <div className="pw-input pw-dt">
-          <span className="pw-ph">{f.type === 'date' ? 'dd / mm / yyyy' : '-- : --'}</span>
-          {f.type === 'date' ? (
-            <svg width="14" height="14" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="11" rx="2" fill="none" stroke="currentColor" strokeWidth="1.3" /><path d="M2 7h12M5.5 1.5v3M10.5 1.5v3" stroke="currentColor" strokeWidth="1.3" /></svg>
-          ) : (
-            <svg width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.3" /><path d="M8 4.5V8l2.5 1.5" fill="none" stroke="currentColor" strokeWidth="1.3" /></svg>
-          )}
-        </div>
-      );
-    }
-    case 'rating': {
-      const n = typeof value === 'number' ? value : 0;
-      return (
-        <div className="pw-stars">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <button
-              type="button"
-              key={i}
-              tabIndex={live ? 0 : -1}
-              data-opt={`${f.id}:${i}`}
-              className={`pw-star ${i <= n ? 'is-on' : ''}`}
-              onClick={live ? () => onAnswer!(f.id, i) : undefined}
-              aria-label={`${i} star${i > 1 ? 's' : ''}`}
-            >
-              <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z" /></svg>
-            </button>
-          ))}
         </div>
       );
     }
