@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import { toNodeHandler, fromNodeHeaders } from 'better-auth/node';
-import { auth, pool, serverConfig } from './auth';
+import { auth, googleSignInEnabled, pool, serverConfig } from './auth';
 import { createTokenCipher } from './providers/crypto';
 import { createProviderHttp } from './providers/http';
 import { createProviderRouter } from './providers/routes';
@@ -19,6 +19,7 @@ import { createPostgresDraftStore } from './forms/draft-postgres-store';
 import { createOpenAIFormEditInterpreter, createOpenAIFormInterpreter } from './forms/interpretation/openai';
 import { createFormDraftRouter } from './forms/interpretation/routes';
 import { createPostgresRateLimitStore } from './security/rate-limit';
+import { createSignInRouter } from './sign-in/routes';
 import { logSafe } from './providers/oauth';
 import { newRequestId } from './forms/logging';
 const app = express();
@@ -36,6 +37,8 @@ app.use('/api', (_req, res, next) => {
   next();
 });
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
+// Public sign-in capabilities (booleans only). Mounted before the API 404 below.
+app.use('/api/sign-in', createSignInRouter({ env: process.env }));
 // This route must precede application body middleware. The parsers enforce the bound for both
 // declared and chunked bodies; Better Auth's Node adapter safely re-serializes req.body.
 const authHandler = toNodeHandler(auth);
@@ -99,6 +102,7 @@ app.use('/api/forms', createFormEditRouter({
 }));
 app.use('/api/forms', createFormsRouter({ engine: formsEngine, getSession, env: providerEnv, abuseLimiter, allowDirectCreation: false }));
 const providerSetup = supportedProviders(providerEnv).map(provider => `${provider.id} ${isProviderConfigured(provider, providerEnv) ? 'configured' : 'not configured'}`).join(', ');
+console.log(`Sign-in: email/password enabled, google ${googleSignInEnabled ? 'configured' : 'not configured'}`);
 console.log(`Provider connections: ${providerSetup}`);
 console.log('Form creation: google enabled, microsoft pending (no supported Microsoft Forms API)');
 console.log(`Form interpretation: ${providerEnv.OPENAI_API_KEY?.trim() ? 'configured' : 'not configured (OPENAI_API_KEY missing)'}`);
