@@ -181,6 +181,33 @@ test('interpretation builds a validated, human-readable proposal targeting real 
   assertNoSecrets(api, response.json);
 }));
 
+test('the workspace target shape is accepted, and a mismatched discriminator is rejected', () => withApi({}, async api => {
+  const batches = count(api.world, 'forms.batchUpdate');
+  const providerCalls = api.world.fake.calls.length;
+  // The browser keeps its own discriminated union: { kind, formRecordId } / { kind, formUrl }.
+  const clientShape = await api.interpret({ target: { kind: 'record', formRecordId: RECORD_ID }, request: 'Rename the form.' });
+  assert.equal(clientShape.status, 201, clientShape.text);
+  assert.equal(clientShape.json.draft.current.providerFormId, api.source.providerFormId);
+  const byUrl = await api.interpret({ target: { kind: 'url', formUrl: `https://docs.google.com/forms/d/${api.source.providerFormId}/edit` }, request: 'Rename the form.' });
+  assert.equal(byUrl.status, 201, byUrl.text);
+  assert.equal(byUrl.json.draft.current.providerFormId, api.source.providerFormId);
+  // A discriminator that disagrees with the payload, an unknown kind, or an extra key is refused
+  // before any provider read, so the server — never the client — decides what a selection means.
+  for (const bad of [
+    { kind: 'url', formRecordId: RECORD_ID },
+    { kind: 'record', formUrl: `https://docs.google.com/forms/d/${api.source.providerFormId}/edit` },
+    { kind: 'provider', formRecordId: RECORD_ID },
+    { kind: 'record', formRecordId: RECORD_ID, userId: 'user-b' },
+  ]) {
+    const rejected = await api.interpret({ target: bad, request: 'Rename the form.' });
+    assert.equal(rejected.status, 400, JSON.stringify(bad));
+    assert.equal(rejected.json.code, 'invalid_request');
+  }
+  assert.equal(api.world.fake.calls.length - providerCalls, 2, 'only the two valid selections reached Google');
+  assert.equal(count(api.world, 'forms.batchUpdate'), batches, 'interpretation never writes');
+  assertNoSecrets(api, clientShape.json);
+}));
+
 test('unknown question targets ask for clarification, while invalid options/conflicts are rejected before writes', () => withApi({
   interpret: (input, count) => count === 1
     ? ready('Change a question', [{ type: 'update_question', questionId: 'model-invented-id', changes: { required: false } }])

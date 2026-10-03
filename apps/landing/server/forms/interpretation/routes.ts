@@ -165,24 +165,35 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
           ? { kind: 'usable', value: result, cost: costForFormCreation(creationComplexity(result.specification)) }
           : { kind: 'no_result', value: result };
       };
+      let result: InterpretationResult;
+      let creditCost: number | null = null;
       if (!deps.operations) {
-        const outcome = await execute();
-        return outcome.value;
+        // Isolated and database-less deployments still interpret; nothing is charged and no key exists.
+        result = (await execute()).value;
+      } else {
+        const outcome = await deps.operations.run({ userId: person.id, operationType: operation.type, operationKey: operation.key, execute });
+        if (!outcome.ok) {
+          const code = outcome.error instanceof InterpretationError ? outcome.error.code : outcome.error instanceof CreditError ? outcome.error.code : 'model_unavailable';
+          log('form.interpret.failed', { requestId: id, userId: person.id, mode: input.mode, code, durationMs: Math.round(performance.now() - started) });
+          if (code === 'model_invalid_output') log('form.draft.validation_failed', { requestId: id, userId: person.id, reason: 'model_output_invalid' });
+          return sendOperationFailure(res, outcome.error);
+        }
+        result = outcome.value;
+        res.locals.credits = outcome.charge.balance;
+        creditCost = outcome.charge.cost;
       }
-      const outcome = await deps.operations.run({ userId: person.id, operationType: operation.type, operationKey: operation.key, execute });
-      if (!outcome.ok) {
-        const code = outcome.error instanceof InterpretationError ? outcome.error.code : outcome.error instanceof CreditError ? outcome.error.code : 'model_unavailable';
-        log('form.interpret.failed', { requestId: id, userId: person.id, mode: input.mode, code, durationMs: Math.round(performance.now() - started) });
-        if (code === 'model_invalid_output') log('form.draft.validation_failed', { requestId: id, userId: person.id, reason: 'model_output_invalid' });
-        return sendOperationFailure(res, outcome.error);
-      }
-      const result = outcome.value;
-      res.locals.credits = outcome.charge.balance;
-      const fields = { requestId: id, userId: person.id, mode: input.mode, durationMs: Math.round(performance.now() - started), creditCost: outcome.charge.cost };
+      const fields = { requestId: id, userId: person.id, mode: input.mode, durationMs: Math.round(performance.now() - started), ...(creditCost === null ? {} : { creditCost }) };
       if (result.status === 'ready') log('form.interpret.completed', { ...fields, questionCount: result.specification.questions.length, assumptionCount: result.assumptions.length });
       else if (result.status === 'needs_clarification') log('form.interpret.clarification', fields);
       else log('form.interpret.unsupported', fields);
       return result;
+    } catch (error) {
+      // A failure raised outside the runner (unmetered router, or a pre-runner throw) still maps to the
+      // same taxonomy and is logged exactly once.
+      const code = error instanceof InterpretationError ? error.code : error instanceof CreditError ? error.code : 'model_unavailable';
+      log('form.interpret.failed', { requestId: id, userId: person.id, mode: input.mode, code, durationMs: Math.round(performance.now() - started) });
+      if (code === 'model_invalid_output') log('form.draft.validation_failed', { requestId: id, userId: person.id, reason: 'model_output_invalid' });
+      return sendOperationFailure(res, error);
     } finally {
       slot.release();
     }

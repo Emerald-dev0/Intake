@@ -133,7 +133,9 @@ test('the browser auth client keeps the session in cookies and never stores toke
   const page = await readFile('src/app/pages/AuthPage.tsx', 'utf8');
   assert.match(page, /signIn\.social\(\{ provider: 'google', callbackURL: '\/app'/);
   assert.equal(/[A-Za-z0-9_-]{3,}\.apps\.googleusercontent\.com/.test(page), false, 'no client id may reach the browser bundle');
-  // OAuth errors are mapped to plain language; raw codes are never rendered.
-  assert.match(page, /account_not_linked/);
-  assert.equal(/error_description/.test(page), false, 'raw provider error text must not be rendered');
+  // OAuth errors are mapped to plain language in one shared module; raw codes are never rendered.
+  const errors = await readFile('src/lib/sign-in-errors.ts', 'utf8');
+  assert.match(errors, /account_not_linked/);
+  assert.match(page, /oauthErrorMessage/);
+  assert.equal(/error_description/.test(page + errors), false, 'raw provider error text must not be rendered');
 });

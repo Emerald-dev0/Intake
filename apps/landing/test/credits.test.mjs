@@ -207,3 +207,26 @@ test('allocation helpers follow the documented daily-then-monthly order', () => 
   assert.equal(affordable(3, { daily: 1, monthly: 2 }), true);
   assert.equal(affordable(3, { daily: 1, monthly: 1 }), false);
 });
+
+test('the credit migration is additive, idempotent, and stores no credentials or model text', async () => {
+  const { readFile, readdir } = await import('node:fs/promises');
+  const files = (await readdir(new URL('../db/migrations/', import.meta.url))).filter(name => name.endsWith('.sql')).sort();
+  assert.equal(files.at(-1), '007_ai_credits.sql', 'credits are the newest additive migration');
+  const text = await readFile(new URL('../db/migrations/007_ai_credits.sql', import.meta.url), 'utf8');
+  const sql = text.replace(/--.*$/gm, '');
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS user_entitlement \(/);
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS credit_ledger \(/);
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS ai_operation \(/);
+  assert.match(sql, /plan text NOT NULL DEFAULT 'free' CHECK \(plan IN \('free', 'pro'\)\)/);
+  assert.match(sql, /entry_type IN \('daily_grant', 'monthly_grant', 'ai_consumption', 'manual_adjustment', 'expiration'\)/);
+  assert.match(sql, /bucket text CHECK \(bucket IS NULL OR bucket IN \('daily', 'monthly'\)\)/);
+  assert.match(sql, /CHECK \(bucket IS NOT NULL\)/, 'every stored row belongs to a bucket');
+  assert.match(sql, /credits integer NOT NULL CHECK \(credits <> 0\)/, 'a ledger row always moves at least one credit');
+  assert.match(sql, /CREATE UNIQUE INDEX IF NOT EXISTS credit_ledger_grant_unique/, 'one grant per period');
+  assert.match(sql, /CREATE UNIQUE INDEX IF NOT EXISTS credit_ledger_operation_unique[\s\S]*WHERE entry_type = 'ai_consumption'/, 'one charge per operation and bucket');
+  assert.match(sql, /UNIQUE \(user_id, operation_key\)/, 'one usage row per operation key');
+  assert.match(sql, /REFERENCES "user"\(id\) ON DELETE CASCADE/, 'credits are owned and cascade with the account');
+  assert.doesNotMatch(sql, /^\s*(DROP|ALTER|TRUNCATE|DELETE|UPDATE)\b/im, 'the migration never rewrites or deletes rows');
+  assert.doesNotMatch(sql, /prompt|completion|message|content|token_count|api_key|credential/i, 'no prompt text, model output or credentials are stored');
+  for (const statement of sql.match(/CREATE (TABLE|INDEX)[^;]*/g) ?? []) assert.match(statement, /IF NOT EXISTS/);
+});

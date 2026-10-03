@@ -7,6 +7,10 @@ import { createFormDraftRouter, createInterpretationLimiter } from '../server/fo
 import { createAiOperationRunner } from '../server/ai/operations.ts';
 import { createCreditRouter } from '../server/credits/routes.ts';
 import { createMemoryCreditStore } from '../server/credits/ledger.ts';
+import { createMemoryFormEditDraftStore } from '../server/forms/edit-memory-store.ts';
+import { createFormEditRouter } from '../server/forms/edit-routes.ts';
+import { createGoogleForm } from './helpers/forms-harness.mjs';
+import { parseFormSpecification } from '../server/forms/validation.ts';
 import { createCreditService } from '../server/credits/service.ts';
 import { createWorld, ORIGIN } from './helpers/forms-harness.mjs';
 
@@ -198,3 +202,66 @@ test('metering can be absent without breaking interpretation (isolated or databa
   assert.equal(app.store.all().length, 1);
   assert.equal((await app.balance()).json.credits.dailyRemaining, 20);
 }));
+
+test('an edit interpretation is a metered logical operation, and applying the plan is not', async () => {
+  const world = createWorld();
+  await world.connect('user-a');
+  const { formStore } = world.engine();
+  const parsed = parseFormSpecification({ title: 'Project registration', questions: [
+    { id: 'name', title: 'Full name', type: 'short_text', required: true },
+    { id: 'role', title: 'Role', type: 'multiple_choice', required: true, options: ['Student', 'Staff'] },
+  ] });
+  assert.equal(parsed.ok, true);
+  const source = await createGoogleForm(world, parsed.specification, 'user-a');
+  await formStore.save({ id: 'existing-form-01', userId: 'user-a', provider: 'google', externalAccountId: source.externalAccountId,
+    providerFormId: source.providerFormId, title: source.title, status: 'created', editUrl: source.editUrl ?? null,
+    responderUrl: source.responderUrl ?? null, failureStage: null, requestId: 'req_form_create',
+    specification: parsed.specification, specificationVersion: 1 }, world.now());
+
+  const creditStore = createMemoryCreditStore();
+  const credits = createCreditService({ store: creditStore, now: () => NOW });
+  const operations = createAiOperationRunner({ credits, now: () => NOW });
+  const drafts = createMemoryFormEditDraftStore();
+  let interpretations = 0;
+  const interpreter = { async interpret() {
+    interpretations += 1;
+    return { status: 'ready', summary: 'Rename the form', operations: [{ type: 'update_title', title: 'Project registration 2027' }], question: null, explanation: null };
+  } };
+  const app = express();
+  app.use('/api/forms', createFormEditRouter({
+    providers: world.providers(), forms: formStore, drafts, interpreter, env: world.env, log: world.log, now: world.now,
+    newId: () => `00000000-0000-4000-8000-${String(drafts.all?.().length ?? 0 + 1).padStart(12, '0')}`,
+    operations, credits, getSession: async () => ({ id: 'user-a', email: 'ada@example.test', name: 'Ada' }),
+  }));
+  const server = createServer(app);
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${server.address().port}/api/forms`;
+  const post = async (path, data) => {
+    const response = await fetch(base + path, { method: 'POST', headers: { origin: ORIGIN, 'content-type': 'application/json' }, body: JSON.stringify(data) });
+    const text = await response.text();
+    return { status: response.status, json: (() => { try { return JSON.parse(text); } catch { return null; } })(), text };
+  };
+  try {
+    const first = await post('/edit/interpret', { target: { kind: 'record', formRecordId: 'existing-form-01' }, request: 'Rename the form.', operationId: 'operation-key-edit1' });
+    assert.equal(first.status, 201, first.text);
+    assert.equal(first.json.credits.dailyRemaining, 19, 'a single-change edit costs 1 credit');
+    const draft = first.json.draft;
+
+    // Replaying the identical interpretation is not charged again, even though the model runs.
+    const replay = await post('/edit/interpret', { target: { kind: 'record', formRecordId: 'existing-form-01' }, request: 'Rename the form.', operationId: 'operation-key-edit1' });
+    assert.equal(replay.status, 201, replay.text);
+    assert.equal(replay.json.credits.dailyRemaining, 19);
+    assert.equal(interpretations, 2);
+
+    // Applying the reviewed plan is a provider write, not an AI operation: no extra credits.
+    const applied = await post('/edit/confirm', { draftId: draft.id, version: draft.version, confirm: true });
+    assert.equal(applied.status, 200, applied.text);
+    assert.equal(applied.json.credits, undefined, 'a provider write never reports a credit change');
+    assert.equal((await credits.balance('user-a')).dailyRemaining, 19);
+
+    const usage = await creditStore.usage('user-a');
+    assert.deepEqual(usage.map(row => [row.operationType, row.creditCost]), [['form_edit', 1]]);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+});

@@ -32,11 +32,26 @@ function phrase(value: unknown, limit: number): value is string { return typeof 
 function version(value: unknown): value is number { return typeof value === 'number' && Number.isSafeInteger(value) && value > 0; }
 function requestId(res: Response): string { return res.locals.requestId as string; }
 function user(res: Response): SessionUser { return res.locals.user as SessionUser; }
+/**
+ * A selection is either one owned form record or one strictly parsed Google Forms URL.
+ *
+ * The workspace sends the discriminator it keeps in its own state (`kind`); older clients send only
+ * the id or URL. Both are accepted, but the discriminator must agree with the payload and no other
+ * key may ride along, so the server still decides what the target means.
+ */
 function target(value: unknown): FormEditTarget | null {
   const row = isRecord(value) ? value : null;
   if (!row) return null;
-  if (Object.keys(row).length === 1 && typeof row.formRecordId === 'string' && RECORD_ID.test(row.formRecordId)) return { kind: 'record', formRecordId: row.formRecordId };
-  if (Object.keys(row).length === 1 && typeof row.formUrl === 'string' && row.formUrl.length <= 2048) return { kind: 'url', formUrl: row.formUrl };
+  const kind = row.kind === undefined || row.kind === 'record' || row.kind === 'url' ? row.kind : null;
+  if (kind === null) return null;
+  const keys = Object.keys(row);
+  const only = (...allowed: string[]) => keys.every(key => key === 'kind' || allowed.includes(key));
+  if (typeof row.formRecordId === 'string' && RECORD_ID.test(row.formRecordId) && (kind === undefined || kind === 'record') && only('formRecordId')) {
+    return { kind: 'record', formRecordId: row.formRecordId };
+  }
+  if (typeof row.formUrl === 'string' && row.formUrl.length <= 2048 && (kind === undefined || kind === 'url') && only('formUrl')) {
+    return { kind: 'url', formUrl: row.formUrl };
+  }
   return null;
 }
 
