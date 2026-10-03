@@ -92,26 +92,32 @@ interface TypeGuess {
   label?: string;
   options?: string[];
   required?: boolean;
+  note?: string;
 }
 
 function guessType(itemRaw: string): TypeGuess {
   const it = itemRaw.toLowerCase();
   const has = (re: RegExp) => re.test(it);
-  if (has(/\be-?mail/)) return { type: 'email', label: 'Email address', required: true };
-  if (has(/phone|mobile|whatsapp|contact number|telephone/)) return { type: 'phone', label: 'Phone number', required: true };
-  if (has(/date of birth|birthday|\bdob\b/)) return { type: 'date', label: 'Date of birth' };
-  if (has(/age (group|range|bracket)/)) return { type: 'single_choice', label: 'Age group', options: ['Under 18', '18–24', '25–34', '35+'] };
-  if (has(/^(the )?age$|\bage\b(?! group)/) && it.split(/\s+/).length <= 3) return { type: 'number', label: 'Age' };
-  if (has(/\bdate\b|\bday\b|when (?:they|you)/)) return { type: 'date' };
-  if (has(/\btime\b|arrival|what time/)) return { type: 'time' };
-  if (has(/how many|number of|quantity|guests|headcount|years of experience/)) return { type: 'number' };
-  if (has(/rate|rating|stars|score|out of (5|five|10)|satisfaction/)) return { type: 'rating' };
-  if (has(/gender|\bsex\b/)) return { type: 'single_choice', label: 'Gender', options: ['Male', 'Female', 'Prefer not to say'] };
+  if (has(/\be-?mail/)) return { type: 'email', label: 'Email address', required: true, note: 'Google Forms will show this as a plain short answer; email-format validation is not enabled.' };
+  if (has(/phone|mobile|whatsapp|contact number|telephone/))
+    return { type: 'short_text', label: 'Phone number', required: true, note: 'Phone details are shown as plain short answers in this preview; there is no phone-specific validation.' };
+  if (has(/date of birth|birthday|\bdob\b/))
+    return { type: 'short_text', label: 'Date of birth', note: 'Date-specific controls are not available in this preview; this is plain text.' };
+  if (has(/age (group|range|bracket)/)) return { type: 'multiple_choice', label: 'Age group', options: ['Under 18', '18–24', '25–34', '35+'] };
+  if (has(/^(the )?age$|\bage\b(?! group)/) && it.split(/\s+/).length <= 3)
+    return { type: 'short_text', label: 'Age', note: 'Numeric controls are not available in this preview; this is plain text.' };
+  if (has(/\bdate\b|\bday\b/)) return { type: 'short_text', note: 'Date-specific controls are not available in this preview; this is plain text.' };
+  if (has(/\btime\b|arrival|what time/)) return { type: 'short_text', note: 'Time-specific controls are not available in this preview; this is plain text.' };
+  if (has(/how many|number of|quantity|guests|headcount|years of experience/))
+    return { type: 'short_text', note: 'Numeric controls are not available in this preview; this is plain text.' };
+  if (has(/rate|rating|stars|score|out of (5|five|10)|satisfaction/))
+    return { type: 'short_text', note: 'A rating control is not supported; this preview shows a plain text answer instead.' };
+  if (has(/gender|\bsex\b/)) return { type: 'multiple_choice', label: 'Gender', options: ['Male', 'Female', 'Prefer not to say'] };
   if (has(/t-?shirt|shirt size|\bsize\b/)) return { type: 'dropdown', label: 'T-shirt size', options: ['XS', 'S', 'M', 'L', 'XL', 'XXL'] };
   if (has(/\bposition\b/)) return { type: 'dropdown', label: 'Position', options: ['Goalkeeper', 'Defender', 'Midfielder', 'Forward'] };
-  if (has(/dietary|diet|allerg/)) return { type: 'multiple_choice', label: 'Dietary requirements', options: ['None', 'Vegetarian', 'Vegan', 'Halal', 'Gluten-free'] };
-  if (has(/heard|hear about|found us|find us|referr/)) return { type: 'single_choice', label: 'How did you hear about us?', options: ['Social media', 'A friend', 'Flyer or poster', 'Other'] };
-  if (has(/experience\b/) && has(/how was|overall/)) return { type: 'single_choice', label: 'How was your experience?', options: ['Excellent', 'Good', 'Average', 'Poor'] };
+  if (has(/dietary|diet|allerg/)) return { type: 'checkboxes', label: 'Dietary requirements', options: ['None', 'Vegetarian', 'Vegan', 'Halal', 'Gluten-free'] };
+  if (has(/heard|hear about|found us|find us|referr/)) return { type: 'multiple_choice', label: 'How did you hear about us?', options: ['Social media', 'A friend', 'Flyer or poster', 'Other'] };
+  if (has(/experience\b/) && has(/how was|overall/)) return { type: 'multiple_choice', label: 'How was your experience?', options: ['Excellent', 'Good', 'Average', 'Poor'] };
   if (has(/department|faculty/)) return { type: 'dropdown', options: ['Engineering', 'Design', 'Operations', 'Other'] };
   if (has(/country|state of origin/)) return { type: 'dropdown', options: ['Nigeria', 'Ghana', 'Kenya', 'South Africa', 'Other'] };
   if (has(/comment|feedback|suggest|explain|describe|why|notes?\b|message|improve|anything else|bio|about (yourself|you)|cover letter|address/))
@@ -120,15 +126,7 @@ function guessType(itemRaw: string): TypeGuess {
   return { type: 'short_text' };
 }
 
-function labelFor(item: string, type?: FieldType): string {
-  if (type === 'rating') {
-    const noun = item
-      .replace(/^(ask\s+)?(them\s+)?(to\s+)?/i, '')
-      .replace(/\b(rate|rating|out of \w+|stars?|score|from 1 to \d+|on a scale of \d+)\b/gi, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-    return `How would you rate ${swap(noun) || 'us'}?`;
-  }
+function labelFor(item: string): string {
   let s = item
     .trim()
     .replace(/^(and|also|plus|then)\s+/i, '')
@@ -187,9 +185,9 @@ function templateFor(text: string): { fields: Field[]; title: string } | null {
       title: /wedding/.test(tx) ? 'Wedding RSVP' : 'RSVP',
       fields: [
         F('full_name', 'Full name', 'short_text', true),
-        F('attending', 'Will you attend?', 'single_choice', true, { options: ['Joyfully accept', 'Regretfully decline'] }),
-        F('guests', 'How many guests are you bringing?', 'number', false, { when: { field: 'attending', op: 'eq', value: 'Joyfully accept' } }),
-        F('dietary', 'Dietary requirements', 'multiple_choice', false, { options: ['None', 'Vegetarian', 'Vegan', 'Halal'] }),
+        F('attending', 'Will you attend?', 'multiple_choice', true, { options: ['Joyfully accept', 'Regretfully decline'] }),
+        F('guests', 'How many guests are you bringing? (enter as text)', 'short_text', false, { when: { field: 'attending', op: 'eq', value: 'Joyfully accept' } }),
+        F('dietary', 'Dietary requirements', 'checkboxes', false, { options: ['None', 'Vegetarian', 'Vegan', 'Halal'] }),
         F('message', 'A note for the hosts', 'long_text'),
       ],
     };
@@ -197,9 +195,9 @@ function templateFor(text: string): { fields: Field[]; title: string } | null {
     return {
       title: 'Customer Feedback',
       fields: [
-        F('overall', 'How would you rate us overall?', 'rating', true),
-        F('experience', 'How was your experience?', 'single_choice', true, { options: ['Excellent', 'Good', 'Average', 'Poor'] }),
-        F('improve', 'What could we improve?', 'long_text', false, { when: { field: 'overall', op: 'lt', value: 4 } }),
+        F('experience', 'How was your experience?', 'multiple_choice', true, { options: ['Excellent', 'Good', 'Average', 'Needs improvement'] }),
+        F('improve', 'What could we improve?', 'long_text', false, { when: { field: 'experience', op: 'eq', value: 'Needs improvement' } }),
+        F('heard_us', 'How did you hear about us?', 'multiple_choice', false, { options: ['Social media', 'A friend', 'Other'] }),
         F('email', 'Email (if you’d like a reply)', 'email'),
       ],
     };
@@ -210,7 +208,7 @@ function templateFor(text: string): { fields: Field[]; title: string } | null {
         F('full_name', 'Full name', 'short_text', true),
         F('email', 'Email address', 'email', true),
         F('role', 'Which role are you applying for?', 'dropdown', true, { options: ['Engineering', 'Design', 'Operations', 'Sales'] }),
-        F('years', 'Years of experience', 'number'),
+        F('years', 'Years of experience (enter as text)', 'short_text'),
         F('portfolio', 'Portfolio or LinkedIn URL', 'short_text'),
         F('why', 'Why do you want to join?', 'long_text'),
       ],
@@ -222,11 +220,11 @@ function templateFor(text: string): { fields: Field[]; title: string } | null {
       title: 'Order Form',
       fields: [
         F('full_name', 'Full name', 'short_text', true),
-        F('phone', 'Phone number', 'phone', true),
+        F('phone', 'Phone number', 'short_text', true),
         F('item', 'What would you like to order?', 'long_text', true),
-        F('delivery', 'Delivery or pickup?', 'single_choice', true, { options: ['Delivery', 'Pickup'] }),
+        F('delivery', 'Delivery or pickup?', 'multiple_choice', true, { options: ['Delivery', 'Pickup'] }),
         F('address', 'Delivery address', 'long_text', true, { when: { field: 'delivery', op: 'eq', value: 'Delivery' } }),
-        F('date', 'When do you need it?', 'date', true),
+        F('date', 'When do you need it? (enter as text)', 'short_text', true),
       ],
     };
   return null;
@@ -277,8 +275,8 @@ export function plan(input: string): Plan {
     const condText = m[1].trim().toLowerCase();
     const followRaw = m[2].trim();
     let parent: Field | null = null;
-    let value: string | number = 'Yes';
-    let op: Cond['op'] = 'eq';
+    let value = 'Yes';
+    const op: Cond['op'] = 'eq';
     // option match: "if they pick media", "if they select Other"
     const opt = condText.match(/(?:pick|select|choose|chose|say|answer|tick)\s+["“]?([\w\s-]+?)["”]?$/i);
     if (opt && !/^yes$/i.test(opt[1])) {
@@ -286,7 +284,6 @@ export function plan(input: string): Plan {
       parent = [...fields].reverse().find((f) => f.options?.some((x) => x.toLowerCase() === o)) ?? null;
       if (parent) {
         value = parent.options!.find((x) => x.toLowerCase() === o)!;
-        op = parent.type === 'multiple_choice' ? 'has' : 'eq';
       } else if (/other/.test(o)) {
         parent = [...fields].reverse().find((f) => f.options) ?? null;
         if (parent) {
@@ -295,13 +292,9 @@ export function plan(input: string): Plan {
         }
       }
     }
-    const below = condText.match(/(?:rate|rating|score|give).*?(?:below|under|less than|lower than)\s+(\d)/i);
-    if (!parent && below) {
-      parent = [...fields].reverse().find((f) => f.type === 'rating') ?? null;
-      if (parent) {
-        op = 'lt';
-        value = +below[1];
-      }
+    if (/(?:rate|rating|score|give).*?(?:below|under|less than|lower than)\s+\d/i.test(condText)) {
+      notes.push('Score-threshold follow-ups are not available in Google Forms routing. Use a supported single-answer choice and a section route instead.');
+      return false;
     }
     if (!parent) {
       const words = condText.split(/\W+/).filter((w) => w.length > 3 && !/they|them|their|yes|have|will|would|answer|says?/.test(w));
@@ -309,11 +302,17 @@ export function plan(input: string): Plan {
       if (/^(no|not)\b|say no|answer no/.test(condText) && parent) value = 'No';
     }
     if (!parent) return false;
+    if (parent.type === 'checkboxes') {
+      notes.push('Google Forms cannot route a section from a multi-select checkbox answer. Use a single-answer multiple-choice or dropdown question for this follow-up.');
+      return false;
+    }
+    if (parent.type !== 'multiple_choice' && parent.type !== 'dropdown') return false;
     const label = /^(what|which|where|when|why|how|who)\b/i.test(followRaw.replace(/^(them|to)\s+/i, '')) ? whQuestion(followRaw.replace(/^(them|to)\s+/i, '')) : labelFor(followRaw.replace(/^(them\s+)?to\s+/i, ''));
     const g = guessType(followRaw);
+    if (g.note) notes.push(g.note);
     const finalLabel = /explain|describe|specify/i.test(followRaw) && label.split(' ').length <= 3 ? 'Please explain' : label;
     const f = addField({ id: slug(finalLabel), label: finalLabel, type: g.type === 'short_text' && /explain|describe|why|went wrong/i.test(followRaw) ? 'long_text' : g.type, required: false, options: g.options, when: { field: parent.id, op, value } });
-    if (f) highlights.push({ text: raw, kind: 'logic', tag: `if ${op === 'lt' ? '< ' + value : String(value).toLowerCase()} →` });
+    if (f) highlights.push({ text: raw, kind: 'logic', tag: `if ${String(value).toLowerCase()} →` });
     return !!f;
   };
 
@@ -380,7 +379,7 @@ export function plan(input: string): Plan {
         if (!item || /^(for|to|with|me|a form|form)$/i.test(item)) continue;
         if (/^(whether|if)\b/i.test(item) && !/\bask\b/i.test(item)) {
           const label = toQuestion(item);
-          const f = addField({ id: slug(label), label, type: 'single_choice', required: false, options: ['Yes', 'No'] }, itemRaw, 'yes / no');
+          const f = addField({ id: slug(label), label, type: 'multiple_choice', required: false, options: ['Yes', 'No'] }, itemRaw, 'multiple choice');
           if (f) lastYesNo = f;
           continue;
         }
@@ -391,14 +390,16 @@ export function plan(input: string): Plan {
         if (item.split(/\s+/).length > 12) continue;
         const { base, options } = extractOptions(item);
         const g = guessType(base);
-        const label = g.label && base.split(/\s+/).length <= 3 ? g.label : labelFor(base, g.type);
+        if (g.note) notes.push(g.note);
+        const label = g.label && base.split(/\s+/).length <= 3 ? g.label : labelFor(base);
         let type = g.type;
         let opts = g.options;
         if (options) {
           opts = options;
-          type = /interest|areas?|skills|days|topics|select all|any of/i.test(base) ? 'multiple_choice' : options.length > 5 ? 'dropdown' : 'single_choice';
+          type = /interest|areas?|skills|days|topics|select all|any of/i.test(base) ? 'checkboxes' : options.length > 5 ? 'dropdown' : 'multiple_choice';
         }
-        const f = addField({ id: slug(label), label, type, required: !!g.required, options: opts }, itemRaw, options ? `${type === 'multiple_choice' ? 'checkboxes' : 'choice'} ×${options.length}` : undefined);
+        const typeTag = type === 'checkboxes' ? 'checkboxes' : type === 'dropdown' ? 'dropdown' : 'multiple choice';
+        const f = addField({ id: slug(label), label, type, required: !!g.required, options: opts }, itemRaw, options ? `${typeTag} ×${options.length}` : undefined);
         if (f && opts?.includes('Yes')) lastYesNo = f;
       }
     }
@@ -452,6 +453,6 @@ export function plan(input: string): Plan {
   return {
     spec: { title: finalTitle, description: `Generated by Intake from ${text.split(/\s+/).length} words.`, fields },
     highlights,
-    notes,
+    notes: [...new Set(notes)],
   };
 }

@@ -12,9 +12,10 @@ export default function App() {
   const mobile = useIsMobile();
   return (
     <>
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       <div className="grain" aria-hidden />
       <Nav />
-      <main>
+      <main id="main-content">
         <Hero />
         {mobile ? (
           // Phone: one calm card per idea. The tap-through stories in the hero carry the demo.

@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { forwardRef, type CSSProperties, type ReactNode } from 'react';
 import { PROVIDERS, type Provider } from '../lib/providers';
 
-export function StageTop({ title, status, provider, account }: { title: string; status: string; provider?: Provider; account?: string }) {
+export function StageTop({ title, status, provider }: { title: string; status: string; provider?: Provider }) {
   return (
     <div className="st-top">
       <div className="st-dots">
@@ -25,10 +25,10 @@ export function StageTop({ title, status, provider, account }: { title: string; 
         <div className="st-conn" style={{ '--pv': PROVIDERS[provider].color } as CSSProperties}>
           <span className="st-conn-dot" />
           {PROVIDERS[provider].name}
-          <span className="st-conn-acc">{account}</span>
+          <span className="st-conn-acc">not connected · scripted preview</span>
         </div>
       )}
-      <div className={`st-status is-${status.toLowerCase()}`}>
+      <div className="st-status is-preview" aria-label={status}>
         <i />
         <AnimatePresence mode="wait">
           <motion.span key={status} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}>
@@ -96,122 +96,66 @@ export function Check({ on, label }: { on: boolean; label: string }) {
   );
 }
 
-export const ReadyCard = forwardRef<HTMLDivElement, { url: string; provider: Provider }>(function ReadyCard({ url, provider }, ref) {
+export const ReadyCard = forwardRef<HTMLDivElement, { provider: Provider }>(function ReadyCard({ provider }, ref) {
   const P = PROVIDERS[provider];
   return (
     <motion.div ref={ref} layout className="ready" initial={{ opacity: 0, y: 18, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 300, damping: 24 }}>
       <div className="ready-top">
-        <span className="ready-dot" /> Done. It’s in your {P.name}.
+        <span className="ready-dot" /> Example proposal ready · not applied
       </div>
-      <div className="ready-url">
-        <span>https://{url}</span>
-        <span className="ready-copy">Copy</span>
-      </div>
+      <p className="ready-meta">Scripted {P.name} preview only. No form or responder link was created.</p>
       <div className="ready-btns">
-        <span className="rb rb-primary">Share link ↗</span>
-        <span className="rb">Open in {P.name}</span>
+        <span className="rb rb-primary">Review the example</span>
+        <span className="rb">Confirmation required in Intake</span>
       </div>
     </motion.div>
   );
 });
 
-const EXISTING: Record<Provider, [string, string][]> = {
-  google: [
-    ['Choir rehearsal RSVP', '3 weeks ago · 41 responses'],
-    ['Sunday school attendance', '2 months ago · 118 responses'],
-  ],
-  microsoft: [
-    ['Staff lunch orders', 'last week · 23 responses'],
-    ['Supplier contact sheet', '4 months ago · 9 responses'],
-  ],
-};
-
-export function AccountPanel({
-  provider,
-  account,
-  newTitle,
-  state,
-  progress,
-  shareUrl,
-  editUrl,
-}: {
+export function AccountPanel({ provider, newTitle, state, progress }: {
   provider: Provider;
-  account: string;
   newTitle: string;
-  state: 'waiting' | 'draft' | 'creating' | 'live';
+  state: 'waiting' | 'draft' | 'preparing' | 'ready';
   progress: number;
-  shareUrl: string;
-  editUrl: string;
 }) {
   const P = PROVIDERS[provider];
+  const status = {
+    waiting: 'Waiting for an example request',
+    draft: 'Example draft · not applied',
+    preparing: 'Preparing a local preview…',
+    ready: 'Ready for review · not applied',
+  }[state];
   return (
     <div className="acct" style={{ '--pv': P.color } as CSSProperties}>
       <div className="spec-head">
         <span className="spec-file">
-          <span className="acct-app" /> Your {P.name}
+          <span className="acct-app" /> {P.name} workflow
         </span>
-        <span className="spec-badge is-valid">connected</span>
+        <span className="spec-badge">Scripted example</span>
       </div>
       <div className="acct-user">
-        <span className="acct-av">{account[0].toUpperCase()}</span>
+        <span className="acct-av" aria-hidden>G</span>
         <div>
-          <b>{account}</b>
-          <span>Signed in with {P.signin}</span>
+          <b>Google account not connected</b>
+          <span>Google authorization is separate from Intake sign-in.</span>
         </div>
       </div>
-      <div className="acct-label">Recent forms</div>
+      <div className="acct-label">Example proposal</div>
       <div className="acct-list">
-        <AnimatePresence initial={false}>
-          {(state === 'creating' || state === 'live') && (
-            <motion.div key="new" className={`acct-row is-new ${state === 'live' ? 'is-live' : ''}`} initial={{ opacity: 0, height: 0, y: -8 }} animate={{ opacity: 1, height: 'auto', y: 0 }} exit={{ opacity: 0, height: 0 }}>
-              <div className="acct-row-in">
-                <span className="acct-doc" />
-                <div className="acct-row-t">
-                  <b>{newTitle}</b>
-                  <span>{state === 'live' ? 'Just now · by Intake · 0 responses' : 'Creating…'}</span>
-                </div>
-                {state === 'live' ? <span className="acct-new">new</span> : <span className="spin sm" />}
-              </div>
-              {state === 'creating' && (
-                <div className="op-bar">
-                  <i style={{ transform: `scaleX(${progress})` }} />
-                </div>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
-        {EXISTING[provider].map(([t, m]) => (
-          <div key={t} className="acct-row">
-            <div className="acct-row-in">
-              <span className="acct-doc" />
-              <div className="acct-row-t">
-                <b>{t}</b>
-                <span>{m}</span>
-              </div>
+        <div className={`acct-row ${state === 'ready' ? 'is-new' : ''}`}>
+          <div className="acct-row-in">
+            <span className="acct-doc" />
+            <div className="acct-row-t">
+              <b>{newTitle}</b>
+              <span>{status}</span>
             </div>
+            {state === 'preparing' && <span className="spin sm" />}
           </div>
-        ))}
+          {state === 'preparing' && <div className="op-bar"><i style={{ transform: `scaleX(${progress})` }} /></div>}
+        </div>
       </div>
-      <AnimatePresence>
-        {state === 'live' && (
-          <motion.div className="acct-links" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            <div className="acct-link">
-              <span>Share link</span>
-              <code>{shareUrl}</code>
-            </div>
-            <div className="acct-link">
-              <span>Edit link</span>
-              <code>{editUrl}</code>
-            </div>
-            <div className="acct-link">
-              <span>Responses</span>
-              <code>go straight to {P.name}</code>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
       <div className="spec-foot">
-        <span>{state === 'waiting' ? 'waiting for your request' : state === 'draft' ? 'draft · not created yet' : state === 'creating' ? 'creating…' : '✓ in your account'}</span>
+        <span>No form or responder link is created in this demo.</span>
       </div>
     </div>
   );
