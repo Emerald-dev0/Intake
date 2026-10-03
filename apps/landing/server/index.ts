@@ -27,6 +27,9 @@ import { createPostgresRateLimitStore } from './security/rate-limit';
 import { createSignInRouter } from './sign-in/routes';
 import { logSafe } from './providers/oauth';
 import { newRequestId } from './forms/logging';
+import { createAdminRouter } from './admin/routes';
+import { createPostgresAdminStore } from './admin/postgres-store';
+import { createPostgresAiOperationWriter } from './admin/ai-operations';
 const app = express();
 app.disable('x-powered-by');
 if (serverConfig.trustProxyHops > 0) app.set('trust proxy', serverConfig.trustProxyHops);
@@ -74,6 +77,8 @@ const getSession = async (req: express.Request): Promise<SessionUser | null> => 
   if (!session?.user?.id) return null;
   return { id: session.user.id, email: session.user.email, name: session.user.name };
 };
+const adminStore = createPostgresAdminStore(pool, providerEnv);
+app.use('/api/admin', createAdminRouter({ store: adminStore, getSession, rateLimiter: abuseLimiter, env: providerEnv }));
 app.use('/api/providers', createProviderRouter({ service: providerService, env: providerEnv, getSession, abuseLimiter }));
 
 // Form creation and safe edits share the same provider service, user-scoped metadata store,

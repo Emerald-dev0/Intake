@@ -1,6 +1,7 @@
 import type { AiFailureCode } from '../../ai/provider';
 import type { FormWarning } from '../../../src/lib/forms';
 import type { FormSpecification } from '../specification';
+import type { AiOperationContext } from '../../admin/ai-operations';
 import { planGoogleForm } from '../providers/google/plan';
 import { parseFormSpecification } from '../validation';
 
@@ -12,6 +13,8 @@ export interface InterpretationInput {
   /** Only the server's current, user-owned draft; never a client-supplied specification. */
   specification?: FormSpecification;
   provider: 'google';
+  /** Request/user context is used only for secret-free server-side usage metadata. */
+  telemetry?: AiOperationContext;
 }
 
 export interface FormInterpreter {

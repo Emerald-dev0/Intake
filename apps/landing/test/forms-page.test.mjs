@@ -151,14 +151,14 @@ test('clarification is a focused follow-up and its answer is sent with the origi
 test('unsupported requests and model failures are recoverable without inventing a draft', () => withPage({ handlers: {
   'POST /api/forms/interpret': (_init, calls) => calls.filter(call => call.url === '/api/forms/interpret').length === 1
     ? json({ status: 'unsupported', explanation: 'File uploads cannot be created through this Google adapter.' })
-    : failure({ code: 'model_not_configured', error: 'OPENAI_API_KEY is missing. Nothing was created.' }, 503),
+    : failure({ code: 'model_not_configured', error: 'GROQ_API_KEY is missing. Nothing was created.' }, 503),
 } }, async page => {
   await page.type(page.$('#form-request'), 'Collect a file');
   await page.click(page.button('Understand my form →'));
   assert.match(page.text(), /File uploads cannot be created/);
   assert.equal(page.$('#review-title'), null);
   await page.click(page.button('Understand my form →'));
-  assert.match(page.text(), /OPENAI_API_KEY is missing/);
+  assert.match(page.text(), /GROQ_API_KEY is missing/);
   assert.ok(!page.button('Understand my form →').disabled);
   assert.equal(page.posts('/confirm').length, 0);
 }));

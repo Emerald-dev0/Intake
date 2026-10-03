@@ -50,11 +50,16 @@ test('production Vite output serves direct and repeated document requests; API p
   const server = await preview({ preview: { port: 0, proxy: { '^/api(?:/|$)': { target: `http://127.0.0.1:${backend.address().port}` } } } });
   const base = `http://127.0.0.1:${server.httpServer.address().port}`;
   try {
-    for (const path of ['/', '/auth/sign-in', '/auth/sign-up', '/app', '/app/connections', '/app/account']) {
+    for (const path of ['/', '/auth/sign-in', '/auth/sign-up', '/app', '/app/connections', '/app/account', '/admin', '/admin/users/owner-id']) {
       for (let attempt = 0; attempt < 2; attempt++) {
         const res = await fetch(base + path);
         assert.equal(res.status, 200);
-        assert.match(await res.text(), /<div id="root"><\/div>/);
+        const html = await res.text();
+        assert.match(html, /<div id="root"><\/div>/);
+        if (path.startsWith('/admin')) {
+          assert.match(html, /name="robots" content="noindex, nofollow, noarchive"/);
+          assert.doesNotMatch(html, /property="og:|rel="canonical"/);
+        }
       }
     }
     for (const path of ['/api/providers', '/api/auth/get-session', '/api/providers/google/callback?code=test&state=test']) {

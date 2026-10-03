@@ -15,6 +15,7 @@ import './styles/app.css';
 import './styles/drafts.css';
 import './styles/edit-forms.css';
 import './styles/library.css';
+import './styles/admin.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

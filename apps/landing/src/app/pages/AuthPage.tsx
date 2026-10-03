@@ -43,7 +43,8 @@ export function AuthPage({ signUp = false }: { signUp?: boolean }) {
         setError(signUp ? (result.error.message || 'Could not create your account. Please try again.') : 'Could not sign in. Check your details and try again.');
         return;
       }
-      window.location.replace('/app');
+      const returnTarget = new URLSearchParams(window.location.search).get('redirect');
+      window.location.replace(!signUp && returnTarget === '/admin' ? '/admin' : '/app');
     } catch {
       setError('Unable to reach Intake right now. Please try again.');
     } finally {

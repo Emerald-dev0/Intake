@@ -1,6 +1,6 @@
 # Production security and recovery guide
 
-This guide describes the controls implemented in this repository. It is not evidence that a particular Render, Vercel, Neon, Google, Microsoft, or OpenAI deployment has been configured correctly. Complete the live checks in `DEPLOYMENT.md` before calling a release production-ready.
+This guide describes the controls implemented in this repository. It is not evidence that a particular Render, Vercel, Neon, Google, Microsoft, or Groq deployment has been configured correctly. Complete the live checks in `DEPLOYMENT.md` before calling a release production-ready.
 
 ## Required release order
 
@@ -20,6 +20,7 @@ The API validates core settings before constructing auth, encryption, or the lis
 | `DATABASE_URL` | PostgreSQL URL with a database name. Production requires `sslmode=require`, `verify-ca`, or `verify-full`. |
 | `BETTER_AUTH_SECRET` | Unique, non-placeholder secret of at least 32 characters. Never rotate it without considering sessions and the token-key rule below. |
 | `BETTER_AUTH_URL` | Exact public frontend origin, with no credentials/path/query/hash. HTTPS is mandatory in production. This is also the CSRF/trusted origin and OAuth callback origin. |
+| `ADMIN_EMAILS` | Optional server-only comma-separated exact email allowlist for `/admin` and `/api/admin/*`. Empty means no administrator has access; allowlisted Better Auth accounts must also have `emailVerified=true`. Configure only on the API service; never use a `VITE_` variable. |
 | `PORT` | Optional integer from 1–65535; defaults to 3001 locally. |
 | `API_TRUST_PROXY_HOPS` | Optional integer from 0–4; defaults to 0. Set only to the verified number of trusted reverse-proxy hops. A wrong value can make network rate limiting ineffective or group users under one proxy address. |
 | `PROVIDER_TOKEN_KEY` | Strongly recommended dedicated 32+ byte random key for provider-token encryption. If omitted, a key is derived from `BETTER_AUTH_SECRET`; rotating that secret then invalidates stored provider grants. |
@@ -40,6 +41,8 @@ Do not prefix secrets with `VITE_`, place tokens in URLs, log environment object
 ## Security boundaries
 
 - Better Auth owns login and session cookies. Each provider, draft, form, edit, and library route independently resolves the session; a browser-supplied user/account/connection id is never authoritative.
+- Each `/api/admin/*` endpoint independently resolves the Better Auth session and then checks the current database identity: email verification must be true and the exact email must match server-only `ADMIN_EMAILS`. A regular/unverified account, client flag, URL parameter, `localStorage`, or frontend cookie cannot grant admin rights. `/admin` is a static noindex entry only; it grants no API access. This checkout does not deliver verification email; operators must allowlist existing, independently verified accounts.
+- Admin queries select bounded, privacy-safe projections. They do not return provider ciphertext, tokens, secrets, prompts, model responses, auth hashes, or raw request bodies. Read-only admin routes are rate-limited; no billing, email operations or arbitrary credit mutation is implemented.
 - PostgreSQL lookups and mutations include the owner. Migration `006` also binds `(user_id, form_record_id)` to the same owned form at the database layer.
 - OAuth uses short-lived, hashed, single-use state bound to user and provider, plus PKCE. Success, denial, and cancellation callbacks all consume valid state before their result is accepted. Redirect-following is disabled for OAuth/token/identity and Google Forms HTTP calls.
 - Provider access and refresh tokens are encrypted with authenticated encryption and owner/provider/field additional authenticated data. They are server-only and omitted from responses and safe logs.
@@ -59,8 +62,11 @@ These are operational abuse ceilings, not plans, billing quotas, or user entitle
 | Confirmed form creation | 12 | 1,200 | 10 minutes |
 | Provider-backed reads/import/refresh | 30 | 3,000 | 10 minutes |
 | Confirmed edits / OAuth disconnect | 20 | 2,000 | 10 minutes |
+| Admin reads (per allowlisted user) | 120 | — | 1 minute |
+| Admin searches (per allowlisted user) | 60 | — | 1 minute |
+| Admin analytics (per allowlisted user) | 30 | — | 1 minute |
 
-Expensive model/provider operations fail closed if limiter storage is unavailable. A rejection uses HTTP 429 and `Retry-After`; a limiter outage uses a retryable 503 before external work. Model interpretation also retains one in-flight call per user per process. Confirmed write limits apply only while a draft is ready and before its atomic claim, so replaying a terminal result does not create or mutate anything and does not consume a write attempt.
+Expensive model/provider operations fail closed if limiter storage is unavailable. Admin endpoints also fail closed when shared limiter storage is unavailable; admin quotas are per authenticated administrator and intentionally have no separate network bucket. A rejection uses HTTP 429 and `Retry-After`; a limiter outage uses a retryable 503 before external work. Model interpretation also retains one in-flight call per user per process. Confirmed write limits apply only while a draft is ready and before its atomic claim, so replaying a terminal result does not create or mutate anything and does not consume a write attempt.
 
 `API_TRUST_PROXY_HOPS=0` deliberately ignores forwarded addresses. Verify the actual proxy chain before changing it. Monitor whether many users resolve to one proxy address; if they do, the network ceiling is shared. Do not trust arbitrary `X-Forwarded-For` input.
 

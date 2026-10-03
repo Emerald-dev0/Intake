@@ -1,6 +1,7 @@
 import type { FormEditOperation, FormEditPlan, FormEditSnapshot } from '../../../src/lib/form-edit';
 import { validateFormEditPlan } from '../edit-validation';
 import { InterpretationError } from './interpreter';
+import type { AiOperationContext } from '../../admin/ai-operations';
 
 export interface FormEditInterpretationInput {
   request: string;
@@ -8,6 +9,8 @@ export interface FormEditInterpretationInput {
   current: FormEditSnapshot;
   /** On a revision the model receives its own prior proposal, not a client-authored plan. */
   existingPlan?: FormEditPlan;
+  /** Request/user context is used only for secret-free server-side usage metadata. */
+  telemetry?: AiOperationContext;
 }
 
 export interface FormEditInterpreter {
