@@ -25,8 +25,13 @@ The API validates core settings before constructing auth, encryption, or the lis
 | `PROVIDER_TOKEN_KEY` | Strongly recommended dedicated 32+ byte random key for provider-token encryption. If omitted, a key is derived from `BETTER_AUTH_SECRET`; rotating that secret then invalidates stored provider grants. |
 | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` | Required for Google connection and Forms access. Register the exact callback under `BETTER_AUTH_URL`. |
 | `MICROSOFT_OAUTH_CLIENT_ID`, `MICROSOFT_OAUTH_CLIENT_SECRET` | Optional connection support only; Microsoft Forms creation/editing is not implemented. |
-| `OPENAI_API_KEY` | Required for live interpretation, server-only. Missing configuration fails visibly and never fabricates a draft. |
-| `OPENAI_MODEL` | Optional strict-structured-output-capable model; current default is `gpt-4o-mini`. |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Optional Google **sign-in** (identity only). Both or neither; a half-configured pair is a startup error. Register exactly `${BETTER_AUTH_URL}/api/auth/callback/google`. Use a different Google Cloud client from the Forms connection below. |
+| `GROQ_API_KEY` | Primary AI provider credential, server-only. Missing configuration fails visibly (`model_not_configured`) and never fabricates a draft. |
+| `GROQ_MODEL` | Optional; default `openai/gpt-oss-120b` (Groq strict JSON-schema model). |
+| `GROQ_REASONING_EFFORT` | Optional `low`, `medium`, or `high`. |
+| `AI_PROVIDER` | Optional explicit `groq` or `openai`. A missing credential for the chosen provider is a startup error; there is no request-time failover. |
+| `AI_MAX_COMPLETION_TOKENS` | Optional 256–32768 ceiling per model call; default 6000. |
+| `OPENAI_API_KEY`, `OPENAI_MODEL` | Optional alternate provider, used only when explicitly selected or when it is the sole credential. |
 
 Do not prefix secrets with `VITE_`, place tokens in URLs, log environment objects, or expose the API service directly under a different browser origin. Browser calls use same-origin relative `/api` paths through the frontend proxy; the API does not enable wildcard CORS.
 

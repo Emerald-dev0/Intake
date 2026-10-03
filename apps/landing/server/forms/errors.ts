@@ -27,7 +27,10 @@ export const FORM_ERROR_STATUS: Record<FormErrorCode, number> = {
   model_not_configured: 503,
   model_timeout: 504,
   model_unavailable: 503,
+  model_rate_limited: 429,
+  model_provider_error: 502,
   model_invalid_output: 502,
+  insufficient_credits: 402,
   internal_error: 500,
 };
 

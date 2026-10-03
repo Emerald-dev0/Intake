@@ -16,7 +16,8 @@ import { createFormEditRouter } from './forms/edit-routes';
 import { createInterpretationLimiter } from './forms/interpretation/routes';
 import { createFormsRouter } from './forms/routes';
 import { createPostgresDraftStore } from './forms/draft-postgres-store';
-import { createOpenAIFormEditInterpreter, createOpenAIFormInterpreter } from './forms/interpretation/openai';
+import { aiProviderLabel, resolveAiProvider } from './ai/registry';
+import { createFormEditInterpreter, createFormInterpreter } from './forms/interpretation/provider-interpreter';
 import { createFormDraftRouter } from './forms/interpretation/routes';
 import { createPostgresRateLimitStore } from './security/rate-limit';
 import { createSignInRouter } from './sign-in/routes';
@@ -76,8 +77,10 @@ app.use('/api/providers', createProviderRouter({ service: providerService, env: 
 const formsProviders = createFormsProviders({ env: providerEnv });
 const formStore = createPostgresFormStore(pool);
 const formsEngine = createFormEngine({ providers: formsProviders, store: formStore });
-const formInterpreter = createOpenAIFormInterpreter({ env: providerEnv });
-const formEditInterpreter = createOpenAIFormEditInterpreter({ env: providerEnv });
+// Provider-independent: routes and drafts never learn which vendor produced the structured output.
+const aiProvider = resolveAiProvider({ env: providerEnv });
+const formInterpreter = createFormInterpreter({ provider: aiProvider });
+const formEditInterpreter = createFormEditInterpreter({ provider: aiProvider });
 const interpretationLimiter = createInterpretationLimiter();
 // Phase 6 creation drafts: confirmation still delegates to the same creation engine.
 app.use('/api/forms', createFormDraftRouter({
@@ -105,7 +108,7 @@ const providerSetup = supportedProviders(providerEnv).map(provider => `${provide
 console.log(`Sign-in: email/password enabled, google ${googleSignInEnabled ? 'configured' : 'not configured'}`);
 console.log(`Provider connections: ${providerSetup}`);
 console.log('Form creation: google enabled, microsoft pending (no supported Microsoft Forms API)');
-console.log(`Form interpretation: ${providerEnv.OPENAI_API_KEY?.trim() ? 'configured' : 'not configured (OPENAI_API_KEY missing)'}`);
+console.log(`Form interpretation: ${aiProviderLabel(providerEnv)}`);
 
 app.get('/api/me', async (req, res) => {
   res.set('Cache-Control', 'no-store');

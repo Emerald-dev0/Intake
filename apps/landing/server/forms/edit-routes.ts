@@ -45,7 +45,8 @@ const STATUS: Record<string, number> = {
   provider_not_configured: 503, provider_not_connected: 409, provider_reauthorization_required: 409,
   provider_unavailable: 503, provider_permission_denied: 502, provider_rate_limited: 429, provider_rejected: 502,
   provider_error: 502, storage_unavailable: 503, rate_limited: 429, model_not_configured: 503,
-  model_timeout: 504, model_unavailable: 503, model_invalid_output: 502, form_not_found: 404,
+  model_timeout: 504, model_unavailable: 503, model_rate_limited: 429, model_provider_error: 502,
+  model_invalid_output: 502, insufficient_credits: 402, form_not_found: 404,
   form_not_editable: 403, invalid_form_url: 400, edit_unsupported: 422, edit_plan_invalid: 422,
   edit_stale: 409, edit_draft_not_found: 404, edit_draft_conflict: 409, edit_draft_locked: 409, internal_error: 500,
 };
