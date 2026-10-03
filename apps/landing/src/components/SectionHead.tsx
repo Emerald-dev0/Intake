@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 import type { ReactNode } from 'react';
 
-export function SectionHead({ n, kicker, title, lede, center = false }: { n: string; kicker: string; type?: string; title: ReactNode; lede?: ReactNode; center?: boolean }) {
+export function SectionHead({ n, kicker, title, lede, center = false, titleId }: { n: string; kicker: string; title: ReactNode; lede?: ReactNode; center?: boolean; titleId?: string }) {
   return (
     <motion.div
       className={`sh ${center ? 'is-center' : ''}`}
@@ -15,7 +15,7 @@ export function SectionHead({ n, kicker, title, lede, center = false }: { n: str
         <span className="sh-k">{kicker}</span>
         <span className="sh-req">*</span>
       </div>
-      <h2 className="sh-title">{title}</h2>
+      <h2 className="sh-title" id={titleId}>{title}</h2>
       {lede && <p className="sh-lede">{lede}</p>}
     </motion.div>
   );

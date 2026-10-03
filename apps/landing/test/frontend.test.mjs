@@ -78,14 +78,23 @@ test('public auth pages and protected pages render with shared authentication en
     ]) {
       let sessionCalls = 0;
       let providerCalls = 0;
+      let creditCalls = 0;
       globalThis.fetch = async path => {
         if (path === '/api/providers') {
           providerCalls++;
           return new Response(JSON.stringify({ providers: [fixtureProvider('google'), fixtureProvider('microsoft')] }), { status: 200 });
         }
         if (path === '/api/forms') return new Response(JSON.stringify({ forms: [] }), { status: 200 });
-        sessionCalls++;
+        // The shared workspace shell also reads the public credit balance.
+        if (path === '/api/credits') {
+          creditCalls++;
+          return new Response(JSON.stringify({ credits: { plan: 'free', dailyRemaining: 20, monthlyRemaining: 0,
+            nextDailyReset: '2026-10-04T00:00:00.000Z', nextMonthlyReset: '2026-11-01T00:00:00.000Z' } }), { status: 200 });
+        }
+        // Sign-in configuration is a public, unauthenticated probe used to decide whether to show Google.
+        if (path === '/api/sign-in/config') return new Response(JSON.stringify({ providers: { google: false } }), { status: 200 });
         assert.equal(path, '/api/me');
+        sessionCalls++;
         return new Response(JSON.stringify({ user: { id: 'test', name: 'Test User', email: 'test@example.com' } }), { status });
       };
       const router = createMemoryRouter(routes, { initialEntries: [path] });
@@ -101,6 +110,7 @@ test('public auth pages and protected pages render with shared authentication en
         if (path.startsWith('/app') && status === 200) {
           assert.equal(sessionCalls, 1, `${path}: session revalidated once`);
           assert.equal(providerCalls, 1, `${path}: providers loaded once by the shared workspace shell`);
+          assert.equal(creditCalls, 1, `${path}: the credit balance is read once by the shared workspace shell`);
         }
         if (status === 401 && path.startsWith('/app')) assert.equal(router.state.location.pathname, '/auth/sign-in');
       } finally { await act(async () => root.unmount()); router.dispose(); }

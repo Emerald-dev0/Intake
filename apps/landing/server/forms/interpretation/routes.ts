@@ -8,6 +8,9 @@ import type { FormEngine } from '../engine';
 import { statusFor, toFailureBody, type FormErrorInfo } from '../errors';
 import { createFormLogger, newRequestId, type FormLogger } from '../logging';
 import { consumeRequestLimit, setRateLimitHeaders, type RateLimitStore } from '../../security/rate-limit';
+import type { AiOperationRunner } from '../../ai/operations';
+import { CreditError } from '../../credits/service';
+import { costForFormCreation, creationComplexity } from '../../credits/pricing';
 import { assessInterpretation, InterpretationError, type FormInterpreter, type InterpretationInput, type InterpretationResult } from './interpreter';
 
 const MAX_REQUEST = 3000;
@@ -55,6 +58,11 @@ export interface DraftRouterDeps {
   limiter?: InterpretationLimiter;
   /** PostgreSQL-backed in production; omitted by isolated unit tests. */
   abuseLimiter?: RateLimitStore;
+  /**
+   * Server-side credit accounting. When absent (isolated unit tests, or a deployment with no
+   * database) interpretation still works, but nothing is charged: production always provides it.
+   */
+  operations?: AiOperationRunner;
 }
 
 function publicDraft(draft: DraftRecord) {
@@ -116,7 +124,20 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
     next();
   };
 
-  async function infer(input: InterpretationInput, req: Request, res: Response): Promise<InterpretationResult | null> {
+  /** One stable place where a failed AI operation becomes an application error. */
+  function sendOperationFailure(res: Response, error: unknown): null {
+    if (error instanceof CreditError) {
+      log('form.credits.rejected', { requestId: requestId(res), userId: user(res).id, reason: error.code });
+      send(res, { code: error.code, message: error.message, retryable: error.code !== 'insufficient_credits', outcome: 'not_created' });
+      return null;
+    }
+    const code = error instanceof InterpretationError ? error.code : 'model_unavailable';
+    const message = error instanceof InterpretationError ? error.message : 'Intake could not interpret this request right now. Your draft was not changed.';
+    send(res, { code, message, retryable: code !== 'model_not_configured', outcome: 'not_created' });
+    return null;
+  }
+
+  async function infer(input: InterpretationInput, req: Request, res: Response, operation: { type: 'form_create' | 'form_revise'; key: string }): Promise<InterpretationResult | null> {
     const person = user(res);
     const id = requestId(res);
     const distributed = await consumeRequestLimit(deps.abuseLimiter, 'ai.interpret', person.id, req);
@@ -137,46 +158,68 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
     const started = performance.now();
     log('form.interpret.started', { requestId: id, userId: person.id, provider: input.provider, mode: input.mode });
     try {
-      const result = assessInterpretation(await deps.interpreter.interpret({
-        ...input,
-        telemetry: {
-          userId: person.id,
-          requestId: id,
-          route: input.mode === 'revise' ? '/api/forms/revise' : '/api/forms/interpret',
-        },
-      }));
-      const fields = { requestId: id, userId: person.id, mode: input.mode, durationMs: Math.round(performance.now() - started) };
+      const execute = async (): Promise<{ kind: 'usable'; value: InterpretationResult; cost: number } | { kind: 'no_result'; value: InterpretationResult }> => {
+        const result = assessInterpretation(await deps.interpreter.interpret(input));
+        // The price is a deterministic function of the validated result, never of the raw model output.
+        return result.status === 'ready'
+          ? { kind: 'usable', value: result, cost: costForFormCreation(creationComplexity(result.specification)) }
+          : { kind: 'no_result', value: result };
+      };
+      let result: InterpretationResult;
+      let creditCost: number | null = null;
+      if (!deps.operations) {
+        // Isolated and database-less deployments still interpret; nothing is charged and no key exists.
+        result = (await execute()).value;
+      } else {
+        const outcome = await deps.operations.run({ userId: person.id, operationType: operation.type, operationKey: operation.key, execute });
+        if (!outcome.ok) {
+          const code = outcome.error instanceof InterpretationError ? outcome.error.code : outcome.error instanceof CreditError ? outcome.error.code : 'model_unavailable';
+          log('form.interpret.failed', { requestId: id, userId: person.id, mode: input.mode, code, durationMs: Math.round(performance.now() - started) });
+          if (code === 'model_invalid_output') log('form.draft.validation_failed', { requestId: id, userId: person.id, reason: 'model_output_invalid' });
+          return sendOperationFailure(res, outcome.error);
+        }
+        result = outcome.value;
+        res.locals.credits = outcome.charge.balance;
+        creditCost = outcome.charge.cost;
+      }
+      const fields = { requestId: id, userId: person.id, mode: input.mode, durationMs: Math.round(performance.now() - started), ...(creditCost === null ? {} : { creditCost }) };
       if (result.status === 'ready') log('form.interpret.completed', { ...fields, questionCount: result.specification.questions.length, assumptionCount: result.assumptions.length });
       else if (result.status === 'needs_clarification') log('form.interpret.clarification', fields);
       else log('form.interpret.unsupported', fields);
       return result;
     } catch (error) {
-      const code = error instanceof InterpretationError ? error.code : 'model_unavailable';
+      // A failure raised outside the runner (unmetered router, or a pre-runner throw) still maps to the
+      // same taxonomy and is logged exactly once.
+      const code = error instanceof InterpretationError ? error.code : error instanceof CreditError ? error.code : 'model_unavailable';
       log('form.interpret.failed', { requestId: id, userId: person.id, mode: input.mode, code, durationMs: Math.round(performance.now() - started) });
       if (code === 'model_invalid_output') log('form.draft.validation_failed', { requestId: id, userId: person.id, reason: 'model_output_invalid' });
-      const message = error instanceof InterpretationError ? error.message : 'Intake could not interpret this request right now. Your draft was not changed.';
-      send(res, { code, message, retryable: code !== 'model_not_configured', outcome: 'not_created' });
-      return null;
+      return sendOperationFailure(res, error);
     } finally {
       slot.release();
     }
   }
 
+  /** Successful responses carry the new balance so the workspace can update without another request. */
+  function withCredits(res: Response, body: Record<string, unknown>): Record<string, unknown> {
+    return res.locals.credits ? { ...body, credits: res.locals.credits } : body;
+  }
+
   router.post('/interpret', auth, mutation, express.json({ limit: MAX_BODY, strict: true }), asyncRoute(async (req, res) => {
-    const body = readInput(req.body, ['provider', 'request', 'clarification']);
+    const body = readInput(req.body, ['provider', 'request', 'clarification', 'operationId']);
     if (!body || !phrase(body.request, MAX_REQUEST) || (body.clarification !== undefined && !phrase(body.clarification, MAX_CLARIFICATION))) {
-      return send(res, invalidRequest(`Describe the form in up to ${MAX_REQUEST} characters. Only provider, request and optional clarification are accepted.`));
+      return send(res, invalidRequest(`Describe the form in up to ${MAX_REQUEST} characters. Only provider, request, optional clarification and optional operationId are accepted.`));
     }
     if (body.provider !== 'google') return send(res, { code: 'provider_not_supported', message: 'Only Google Forms creation is available. Microsoft Forms creation is not supported.', outcome: 'not_created', retryable: false });
-    const result = await infer({ mode: 'new', provider: 'google', request: body.request.trim(), ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}) }, req, res);
+    const key = deps.operations ? deps.operations.operationKey(body.operationId) : 'unmetered';
+    const result = await infer({ mode: 'new', provider: 'google', request: body.request.trim(), ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}) }, req, res, { type: 'form_create', key });
     if (!result) return;
     if (result.status !== 'ready') return sendJson(res, 200, { requestId: requestId(res), status: result.status, ...(result.status === 'needs_clarification' ? { question: result.question } : { explanation: result.explanation }) });
     const draft = await deps.store.create({ id: newId(), userId: user(res).id, provider: 'google', specification: result.specification, assumptions: result.assumptions, warnings: result.warnings }, now());
-    sendJson(res, 201, { requestId: requestId(res), status: 'ready', draft: publicDraft(draft) });
+    sendJson(res, 201, withCredits(res, { requestId: requestId(res), status: 'ready', draft: publicDraft(draft) }));
   }));
 
   router.post('/revise', auth, mutation, express.json({ limit: MAX_BODY, strict: true }), asyncRoute(async (req, res) => {
-    const body = readInput(req.body, ['draftId', 'version', 'request', 'clarification']);
+    const body = readInput(req.body, ['draftId', 'version', 'request', 'clarification', 'operationId']);
     if (!body || !(typeof body.draftId === 'string' && DRAFT_ID.test(body.draftId)) || !version(body.version) || !phrase(body.request, MAX_REQUEST) ||
         (body.clarification !== undefined && !phrase(body.clarification, MAX_CLARIFICATION))) {
       return send(res, invalidRequest('Send a valid draft id, version and change request (up to 3000 characters). Nothing was changed.'));
@@ -185,15 +228,16 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
     if (!draft) return send(res, missingDraft);
     if (draft.status !== 'ready') return send(res, locked);
     if (draft.version !== body.version) return send(res, conflict);
+    const key = deps.operations ? deps.operations.operationKey(body.operationId) : 'unmetered';
     const result = await infer({ mode: 'revise', provider: draft.provider, request: body.request.trim(),
-      ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}), specification: draft.specification }, req, res);
+      ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}), specification: draft.specification }, req, res, { type: 'form_revise', key });
     if (!result) return;
     if (result.status !== 'ready') return sendJson(res, 200, { requestId: requestId(res), status: result.status, ...(result.status === 'needs_clarification' ? { question: result.question } : { explanation: result.explanation }) });
     const updated = await deps.store.revise(user(res).id, draft.id, draft.version,
       { specification: result.specification, assumptions: result.assumptions, warnings: result.warnings }, now());
     if (!updated) return send(res, conflict);
     log('form.draft.revised', { requestId: requestId(res), userId: user(res).id, draftId: draft.id, version: updated.version, questionCount: updated.specification.questions.length });
-    sendJson(res, 200, { requestId: requestId(res), status: 'ready', draft: publicDraft(updated) });
+    sendJson(res, 200, withCredits(res, { requestId: requestId(res), status: 'ready', draft: publicDraft(updated) }));
   }));
 
   router.get('/draft/:id', auth, asyncRoute(async (req, res) => {

@@ -41,27 +41,22 @@ export function Problem() {
   const decisions = useCount(12, inView, 1600);
 
   return (
-    <section className="section problem" id="problem">
+    <section className="section problem" id="what-is-intake" aria-labelledby="what-is-intake-title">
       <div className="wrap">
         <SectionHead
           n="01"
-          kicker="The problem"
-          title={
-            <>
-              You know what to ask.
-              <br />
-              Building it is the <em>tedious part.</em>
-            </>
-          }
-          lede="Take a final-year student: even with their questions ready, they might spend 20–30 minutes clicking through fields and settings. That's an illustration, not a measured saving. Intake is designed to remove that repetitive setup."
+          kicker="What is Intake?"
+          titleId="what-is-intake-title"
+          title={<>A natural-language workspace for creating and editing Google Forms.</>}
+          lede="Intake turns a plain-language request into a structured Google Forms draft. Review and revise it before confirming creation. Intake also prepares reviewable, natural-language edits to existing Google Forms."
         />
 
         <div className="cmp" ref={cmp}>
           <div className="cmp-col cmp-old">
             <div className="cmp-head">
-              <span className="cmp-tag">The usual way</span>
+              <span className="cmp-tag">Manual setup · illustration</span>
               <span className="cmp-count">
-                <b>{decisions}</b> steps
+                <b>{decisions}</b> of 12 example tasks
               </span>
             </div>
             <ol className="cmp-steps">
@@ -86,7 +81,7 @@ export function Problem() {
             <div className="cmp-head">
               <span className="cmp-tag is-accent">With Intake</span>
               <span className="cmp-count">
-                <b>1</b> message
+                <b>1</b> starting request
               </span>
             </div>
             <motion.blockquote
@@ -103,15 +98,15 @@ export function Problem() {
                 <span className="cmp-out-dot" />
                 <div>
                   <b>One request → a structured form</b>
-                  <span>Concept example · future Google Forms creation</span>
+                  <span>Illustrative plan · no live Google Form</span>
                 </div>
               </div>
-              <div className="cmp-fields" aria-label="Example form structure, not a live form">
-                <span>PLANNED QUESTIONS / EXAMPLE</span>
+              <figure className="cmp-fields">
+                <figcaption className="cmp-fields-k">Example form plan · not live</figcaption>
                 <p>Name · Email · Department · Level · Phone number</p>
                 <p>Need accommodation? <b>Yes / No</b></p>
                 <p className="cmp-conditional">↳ If yes: What type of accommodation?</p>
-              </div>
+              </figure>
             </motion.div>
           </div>
         </div>
@@ -133,15 +128,15 @@ function Translation() {
   return (
     <div className="trans" ref={ref}>
       <Reveal>
-        <span className="trans-k">Nobody thinks</span>
+        <span className="trans-k">Describe the information</span>
       </Reveal>
       <motion.p className="trans-old" style={{ opacity: fade }}>
         <motion.span className="trans-strike-wrap" style={{ backgroundSize: strike }}>
-          “I need a multiple-choice question with three options.”
+          “Use a multiple-choice question with three options.”
         </motion.span>
       </motion.p>
       <motion.span className="trans-k" style={{ opacity: rise }}>
-        They think
+        Then ask in your own words
       </motion.span>
       <motion.p className="trans-new" style={{ opacity: rise, y }}>
         “I need to know whether the person is <em>coming by bus.</em>”

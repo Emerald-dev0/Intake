@@ -1,3 +1,4 @@
+import type { AiFailureCode } from '../../ai/provider';
 import type { FormWarning } from '../../../src/lib/forms';
 import type { FormSpecification } from '../specification';
 import type { AiOperationContext } from '../../admin/ai-operations';
@@ -25,7 +26,8 @@ export type InterpretationResult =
   | { status: 'needs_clarification'; question: string }
   | { status: 'unsupported'; explanation: string };
 
-export type InterpretationErrorCode = 'model_not_configured' | 'model_timeout' | 'model_unavailable' | 'model_invalid_output';
+/** One taxonomy for provider and application failures. See server/ai/provider.ts. */
+export type InterpretationErrorCode = AiFailureCode;
 
 export class InterpretationError extends Error {
   constructor(readonly code: InterpretationErrorCode, message: string) {

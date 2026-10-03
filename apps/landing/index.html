@@ -3,34 +3,51 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Intake — say what you need, skip the form builder</title>
-    <meta name="description" content="For final-year projects, research, events and more: describe what you need to collect. Intake is being built to create real forms in your Google or Microsoft account." />
+    <meta name="application-name" content="Intake" />
+    <meta name="author" content="Oluwadare Daniel — Emerald" />
+    <meta name="robots" content="index,follow,max-image-preview:large" />
+    <meta name="description" content="Create and edit Google Forms with AI. Describe a form or requested change, review Intake’s proposal, and confirm before it is applied in your connected Google account." />
     <meta name="theme-color" content="#0c0c0b" />
     <meta name="color-scheme" content="dark" />
+    <title>%HOMEPAGE_TITLE%</title>
     <link rel="canonical" href="%SITE_URL%/" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-    <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Intake" />
-    <meta property="og:title" content="Intake: say what you need. It's already a form." />
-    <meta property="og:description" content="Know what you need to ask? Intake is being built to make real forms in your Google or Microsoft account. Provider connections are coming later." />
+    <meta property="og:title" content="Intake — Create &amp; Edit Google Forms with AI" />
+    <meta property="og:description" content="Describe a form or the change you need. Review Intake’s structured proposal, then confirm before it is applied in your Google account." />
     <meta property="og:url" content="%SITE_URL%/" />
     <meta property="og:image" content="%SITE_URL%/og.png" />
+    <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Concept demo of a typed request becoming a Google Form." />
+    <meta property="og:image:alt" content="Intake’s illustrative Google Forms proposal, labeled “EXAMPLE - NOT APPLIED.”" />
 
-    <!-- Twitter / X -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Intake: say what you need. It's already a form." />
-    <meta name="twitter:description" content="Know what you need to ask? Intake is being built to make real forms in your Google or Microsoft account. Provider connections are coming later." />
+    <meta name="twitter:title" content="Intake — Create &amp; Edit Google Forms with AI" />
+    <meta name="twitter:description" content="Describe a form or the change you need. Review Intake’s structured proposal, then confirm before it is applied in your Google account." />
     <meta name="twitter:image" content="%SITE_URL%/og.png" />
+    <meta name="twitter:image:alt" content="Intake’s illustrative Google Forms proposal, labeled “EXAMPLE - NOT APPLIED.”" />
 
+    <script id="intake-structured-data" type="application/ld+json">%STRUCTURED_DATA%</script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <style>
+        body { margin: 0; background: #0c0c0b; color: #f1ece2; font: 16px/1.65 system-ui, sans-serif; }
+        .seo-fallback { max-width: 860px; margin: 0 auto; padding: 32px 24px 64px; }
+        .seo-fallback a { color: #ff7b47; }
+        .seo-fallback h1, .seo-fallback h2 { line-height: 1.2; }
+        .seo-fallback h1 { margin-top: 56px; font-size: clamp(2rem, 6vw, 3.5rem); }
+        .seo-fallback section { padding: 22px 0; border-top: 1px solid #383832; }
+        .seo-fallback li, .seo-fallback p { color: #d2cec4; }
+        .seo-fallback footer { margin-top: 32px; color: #aaa69e; }
+      </style>
+      %NOSCRIPT_CONTENT%
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

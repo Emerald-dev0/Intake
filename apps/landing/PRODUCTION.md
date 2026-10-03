@@ -7,7 +7,7 @@ This guide describes the controls implemented in this repository. It is not evid
 1. Use Node 22.12 or newer and PostgreSQL 15 or newer, then install with `npm ci`. Migration `006` uses PostgreSQL 15's column-specific `ON DELETE SET NULL` syntax.
 2. Set the API-service variables below. Keep every non-`VITE_` secret off the browser/Vercel frontend.
 3. Back up the intended database and run Better Auth migrations with `npm run db:migrate`.
-4. Run `npm run db:migrate:intake`. Migration `006_production_hardening.sql` adds distributed abuse-control storage and validates that every edit draft's optional form record belongs to the same user. Migration `007_ai_operations.sql` adds metadata-only AI operation telemetry and indexes used by the admin console; it does not rewrite application rows or store prompt/response content or credentials. Migration `006` intentionally fails if historical ownership data violates its constraint; investigate rather than bypassing or deleting records.
+4. Run `npm run db:migrate:intake`. Migration `006_production_hardening.sql` adds distributed abuse-control storage and validates that every edit draft's optional form record belongs to the same user. Migration `007_ai_credits.sql` adds `user_entitlement`, `credit_ledger` and `ai_operation`; it is additive and issues no grants by itself (the first credit read or AI operation issues that period's grant). Neither migration rewrites or deletes application rows. `006` intentionally fails if historical ownership data violates that constraint; investigate rather than bypassing or deleting records.
 5. Run `npm run typecheck`, `npm test`, and `npm audit --omit=dev` from `apps/landing`.
 6. Deploy the API, then the frontend proxy. Verify the acceptance checklist in `DEPLOYMENT.md` with non-production accounts and forms.
 
@@ -26,8 +26,15 @@ The API validates core settings before constructing auth, encryption, or the lis
 | `PROVIDER_TOKEN_KEY` | Strongly recommended dedicated 32+ byte random key for provider-token encryption. If omitted, a key is derived from `BETTER_AUTH_SECRET`; rotating that secret then invalidates stored provider grants. |
 | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` | Required for Google connection and Forms access. Register the exact callback under `BETTER_AUTH_URL`. |
 | `MICROSOFT_OAUTH_CLIENT_ID`, `MICROSOFT_OAUTH_CLIENT_SECRET` | Optional connection support only; Microsoft Forms creation/editing is not implemented. |
-| `GROQ_API_KEY` | Required for live interpretation, server-only. Missing configuration fails visibly and never fabricates a draft. |
-| `GROQ_MODEL` | Optional strict-structured-output-capable model; current default is `openai/gpt-oss-20b`. |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Optional Google **sign-in** (identity only). Both or neither; a half-configured pair is a startup error. Register exactly `${BETTER_AUTH_URL}/api/auth/callback/google`. Use a different Google Cloud client from the Forms connection below. |
+| `GROQ_API_KEY` | Primary AI provider credential, server-only. Missing configuration fails visibly (`model_not_configured`) and never fabricates a draft. |
+| `GROQ_MODEL` | Optional; default `openai/gpt-oss-120b` (Groq strict JSON-schema model). |
+| `GROQ_REASONING_EFFORT` | Optional `low`, `medium`, or `high`. |
+| `AI_PROVIDER` | Optional explicit `groq` or `openai`. A missing credential for the chosen provider is a startup error; there is no request-time failover. |
+| `AI_MAX_COMPLETION_TOKENS` | Optional 256–32768 ceiling per model call; default 6000. |
+| `OPENAI_API_KEY`, `OPENAI_MODEL` | Optional alternate provider, used only when explicitly selected or when it is the sole credential. |
+
+AI credits have no environment variables: plan, grants and spend live in PostgreSQL (`user_entitlement`, `credit_ledger`, `ai_operation`) and are read and written only by the server. There is no billing integration yet, so changing a plan is a deliberate server-side operation, never a client request.
 
 Do not prefix secrets with `VITE_`, place tokens in URLs, log environment objects, or expose the API service directly under a different browser origin. Browser calls use same-origin relative `/api` paths through the frontend proxy; the API does not enable wildcard CORS.
 
@@ -63,6 +70,35 @@ Expensive model/provider operations fail closed if limiter storage is unavailabl
 
 `API_TRUST_PROXY_HOPS=0` deliberately ignores forwarded addresses. Verify the actual proxy chain before changing it. Monitor whether many users resolve to one proxy address; if they do, the network ceiling is shared. Do not trust arbitrary `X-Forwarded-For` input.
 
+## AI credits and entitlements
+
+Credits are user entitlements (what a plan allows), separate from the technical abuse controls above (how fast a user may ask). Both are enforced server-side and both fail closed. Free accounts receive 20 credits per UTC day; Pro adds a 500-credit monthly reserve for the billing period. Nothing rolls over, consumption takes daily credits first, and every reset instant is computed on the server.
+
+- Prices are decided by Intake from the *validated* result, never from raw model output and never from a request field: 1 credit for a simple change, 2 for a normal creation or moderate edit, 3–5 for large or conditional operations. One logical operation is one charge no matter how many internal model calls, validations or corrections it takes.
+- Failed, timed-out, invalid, clarifying or unsupported AI attempts cost nothing. Publishing an already-reviewed draft against the Google Forms API costs nothing extra; the charge belongs to the AI operation, not the provider write.
+- `credit_ledger` is append-only and is the source of truth (`daily_grant`, `monthly_grant`, `ai_consumption`, `manual_adjustment`, `expiration`); `ai_operation` records one row per attempt with provider, model, tokens, latency, outcome, error category and credits charged. A charge runs in one transaction that locks the user's `user_entitlement` row, so concurrent requests cannot overdraw or double charge, and no balance can go negative.
+- `GET /api/credits` returns only `plan`, `dailyRemaining`, `monthlyRemaining`, `nextDailyReset` and `nextMonthlyReset`, with `Cache-Control: no-store`. Successful AI responses repeat that projection so the workspace meter stays current. An exhausted account gets HTTP 402 `insufficient_credits` before any model call, with nothing charged, created or changed.
+- If credit storage is unavailable, the operation is refused with `storage_unavailable`; Intake never charges without a durable ledger row and never gives credits away when it cannot record them.
+- A user who is downgraded stops being able to spend a monthly reserve the current plan does not grant; historical ledger rows are kept, not deleted.
+- No payment provider is integrated. `CreditService.setPlan` is the deliberate hook for future Bachs.io or admin work; no route exposes it, and no admin dashboard or purchase flow exists in this phase.
+
+Operational queries:
+
+```sql
+-- Current balance per bucket for one user (grants minus consumption, per bucket)
+SELECT bucket, SUM(credits) AS remaining FROM credit_ledger WHERE user_id = $1 GROUP BY bucket;
+
+-- Why a specific operation was charged (or not)
+SELECT operation_key, operation_type, provider, model, outcome, error_category, credit_cost, latency_ms
+FROM ai_operation WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20;
+
+-- Accounts whose plan grants a bucket that is not enabled by their current plan
+SELECT user_id, plan, daily_enabled, monthly_enabled FROM user_entitlement
+WHERE plan = 'free' AND monthly_enabled;
+```
+
+Do not hand-edit `credit_ledger` rows to fix a balance: add a `manual_adjustment` entry with an operator note in the deployment log, so the audit trail stays intact.
+
 ## Failure and recovery rules
 
 | Condition | Behavior | Operator/user action |
@@ -74,6 +110,9 @@ Expensive model/provider operations fail closed if limiter storage is unavailabl
 | Edit current state/revision changed | Draft is stale; no provider mutation. | Re-inspect and prepare a new edit against fresh state. |
 | Edit times out after a mutation may have reached Google | Outcome is blocked/unknown; no blind retry. | Inspect the exact Google form and prepare a fresh proposal only after verifying state. |
 | Provider succeeds but the result cannot be persisted | Durable claim remains locked, preventing a duplicate. | Reconcile provider state and database state using the request ID; do not reset claims casually. |
+| User has no affordable credits | Request is refused before the model call with 402 `insufficient_credits`; nothing is charged, created or changed. | Wait for the daily reset shown in the workspace, or change the plan deliberately; do not retry in a loop. |
+| Credit ledger or entitlements unavailable | The AI operation is refused with a retryable 503 `storage_unavailable`; nothing is charged. | Restore database availability (migration `007` must be applied) and retry deliberately. No model call was made. |
+| Usage recording fails after a successful charge | The user keeps their result; the failure is logged safely and never fails the request. | Inspect application logs; the ledger row remains the source of truth for what was charged. |
 | Refresh token is rejected/revoked | Ciphertext is cleared and reconnection is required. | Reconnect the same external account. |
 | Disconnect revocation fails | Local credentials are still removed; response states revocation was not confirmed. | Revoke Intake from the provider security console if required. |
 | Archive/remove library record | Changes local metadata only. | External Google Forms remain untouched and can be re-imported. |
@@ -108,21 +147,23 @@ Run from `apps/landing` unless noted:
 | `npm audit --omit=dev` | Passed; 0 vulnerabilities reported. |
 | `git diff --check` (repository root) | Passed. |
 
-There is no lint script. Migrations `001` through `006` were additionally applied to an ephemeral in-memory PGlite/PostgreSQL-compatible database outside the repository; `006` re-applied idempotently, both new constraints were validated, a historical cross-owner edit reference was rejected, and deleting a referenced form set only `form_record_id` to null while preserving the draft owner. This is useful SQL-semantic coverage but is **not** a Neon migration or production-data test.
+### Phase 11 verification record (2026-10-03)
 
-## Phase 12 local verification record (2026-10-03)
-
-Run from `apps/landing` unless noted:
+Run from `apps/landing`:
 
 | Command | Result |
 | --- | --- |
 | `npm run typecheck` | Passed for browser and server TypeScript projects. |
-| `npm test` | Passed; production Vite prebuild succeeded and 300/300 mocked/local tests passed with 0 failures, skips, or cancellations. Both `dist/index.html` and the dedicated noindex `dist/admin.html` were built. |
-| `npm run build` | Passed; TypeScript checks and both production HTML entries completed. |
+| `npm test` | Passed; 327/327 tests with 0 failures, including the new Google sign-in, provider and credit suites. |
+| `npm run build` | Passed; TypeScript checks and production Vite build completed. |
 | `npm audit --omit=dev` | Passed; 0 vulnerabilities reported. |
 | `git diff --check` (repository root) | Passed. |
 
-Migration `007_ai_operations.sql` was **not** applied to a database. Its schema/privacy assertions are source-level tests only; this environment has no `psql`, Docker, or installed PGlite package for disposable SQL execution, and no Neon connection was provided. The migration must be reviewed and applied in a disposable PostgreSQL-compatible environment before production rollout, then verified through `/admin/system` and an actual Groq operation. No migration has been applied to production.
+Credit behavior was verified with `node --test --import tsx`: plans, grants, no-rollover, daily-first consumption, the downgrade guard, pricing, idempotent replay, concurrent consumption, the migration contract and the public projection (`test/credits.test.mjs`); one-charge-per-logical-operation, affordability pre-checks and zero cost for failures/non-results (`test/ai-operations.test.mjs`); the HTTP surface, 402 behavior, usage rows, Pro bucket order and a metered edit interpretation whose provider write is not charged again (`test/credits-routes.test.mjs`); and fail-closed client balance parsing with the out-of-credits wording (`test/credits-client.test.mjs`). Provider abstraction and failure taxonomy: `test/ai-provider.test.mjs`, `test/interpretation.test.mjs`. Google sign-in configuration, callback registration and browser-token absence: `test/auth-google-signin.test.mjs`.
+
+These run against the in-memory store and a mocked model. The PostgreSQL transaction, row lock and partial unique indexes of `007_ai_credits.sql` were **not** exercised against Neon, no live Google OAuth exchange was performed, and no live Groq/OpenAI completion was made from this repository.
+
+There is no lint script. Migration `001` through `006` was additionally applied to an ephemeral in-memory PGlite/PostgreSQL-compatible database outside the repository; `006` re-applied idempotently, both new constraints were validated, a historical cross-owner edit reference was rejected, and deleting a referenced form set only `form_record_id` to null while preserving the draft owner. This is useful SQL-semantic coverage but is **not** a Neon migration or production-data test.
 
 ## Known limitations and verification gaps
 
@@ -131,5 +172,6 @@ Migration `007_ai_operations.sql` was **not** applied to a database. Its schema/
 - Fixed-window limits can produce boundary bursts. Network identity depends on a correctly verified proxy depth.
 - OAuth revocation is best-effort. Microsoft revocation and Microsoft Forms create/edit are not claimed as supported.
 - The application stores form structure/metadata, not respondent answers. Provider and model services still receive the data required for their operations under their own policies.
-- Mocked tests cannot verify real cookie forwarding, Neon behavior, cloud headers, OAuth dashboards, provider scopes/consent, Google API semantics, Groq availability/quality, or external service quotas.
-- Migrations, live sign-in, OAuth, real forms, edits, and recovery drills must be exercised against non-production resources before release. No test result in this repository substitutes for those checks.
+- Mocked tests cannot verify real cookie forwarding, Neon behavior, cloud headers, OAuth dashboards, provider scopes/consent, Google API semantics, AI-provider availability/quality, or external service quotas. Google **sign-in** was never exercised against Google's consent screen with real credentials, and no live Groq (or OpenAI) completion was made from this repository.
+- Credit tests use the in-memory store. The PostgreSQL transaction, per-user row lock and partial unique indexes in `007_ai_credits.sql` were not exercised against a real database, and no plan has ever been changed by a billing provider.
+- Migrations, live sign-in, OAuth, real forms, edits, real inference, and recovery drills must be exercised against non-production resources before release. No test result in this repository substitutes for those checks.

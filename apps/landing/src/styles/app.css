@@ -21,6 +21,13 @@
 .auth-card input:focus { border-color:var(--accent); box-shadow:0 0 0 3px #ff5a1f22; }
 .auth-card input:disabled { opacity:.6; }
 .auth-card .auth-submit { width:100%; margin-top:9px; border-radius:7px; }
+.credit-line { font:12px var(--mono); color:var(--cream-3); letter-spacing:.02em; margin:14px 0 0; }
+.auth-google { width:100%; border-radius:7px; background:#fffaf2; color:var(--paper-ink); border:1px solid var(--paper-line); font-weight:600; }
+.auth-google:hover { border-color:var(--paper-ink); }
+.auth-google:disabled { opacity:.6; box-shadow:none; cursor:not-allowed; }
+.auth-google > span { font-weight:700; color:#4285f4; }
+.auth-or { display:flex; align-items:center; gap:12px; margin:20px 0 22px; color:var(--paper-mute); font-size:12px; letter-spacing:.04em; text-transform:uppercase; }
+.auth-or::before, .auth-or::after { content:''; flex:1; height:1px; background:var(--paper-line); }
 .form-error { color:#9a3113; background:#ff5a1f18; padding:10px; border-radius:6px; font-size:13px; }
 .auth-card > .form-error { margin: -8px 0 22px; }
 .auth-switch { border-top:1px solid var(--paper-line); margin-top:30px; padding-top:20px; color:var(--paper-mute); font-size:13px; text-align:center; }
@@ -36,7 +43,10 @@
 .side-nav a small { font:9px var(--mono); margin-left:auto; color:var(--cream-3); }
 .side-nav a:hover, .side-nav a.active { background:var(--ink-3); color:var(--cream); }
 .side-nav a.active { box-shadow:inset 2px 0 var(--accent); }
-.sidebar-bottom { margin-top:auto; }
+.sidebar-credits { margin-top:auto; border:1px solid var(--line-2); border-radius:8px; padding:14px 16px; display:flex; flex-direction:column; gap:5px; font:11px var(--mono); color:var(--cream-3); letter-spacing:.04em; }
+.sidebar-credits strong { font:13px var(--sans); font-weight:600; color:var(--cream); letter-spacing:0; }
+.sidebar-credits-retry { background:none; border:0; padding:0; color:var(--accent); font:11px var(--mono); text-align:left; text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
+.sidebar-bottom { margin-top:14px; }
 .side-note { border:1px solid var(--line-2); border-radius:8px; padding:18px; font:10px var(--mono); color:var(--cream-2); letter-spacing:.04em; }
 .side-note .rec { margin-right:4px; width:5px; height:5px; }
 .side-note p { font:13px/1.5 var(--sans); color:var(--cream-3); letter-spacing:0; margin:12px 0 0; }

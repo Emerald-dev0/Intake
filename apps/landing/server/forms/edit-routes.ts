@@ -32,11 +32,26 @@ function phrase(value: unknown, limit: number): value is string { return typeof 
 function version(value: unknown): value is number { return typeof value === 'number' && Number.isSafeInteger(value) && value > 0; }
 function requestId(res: Response): string { return res.locals.requestId as string; }
 function user(res: Response): SessionUser { return res.locals.user as SessionUser; }
+/**
+ * A selection is either one owned form record or one strictly parsed Google Forms URL.
+ *
+ * The workspace sends the discriminator it keeps in its own state (`kind`); older clients send only
+ * the id or URL. Both are accepted, but the discriminator must agree with the payload and no other
+ * key may ride along, so the server still decides what the target means.
+ */
 function target(value: unknown): FormEditTarget | null {
   const row = isRecord(value) ? value : null;
   if (!row) return null;
-  if (Object.keys(row).length === 1 && typeof row.formRecordId === 'string' && RECORD_ID.test(row.formRecordId)) return { kind: 'record', formRecordId: row.formRecordId };
-  if (Object.keys(row).length === 1 && typeof row.formUrl === 'string' && row.formUrl.length <= 2048) return { kind: 'url', formUrl: row.formUrl };
+  const kind = row.kind === undefined || row.kind === 'record' || row.kind === 'url' ? row.kind : null;
+  if (kind === null) return null;
+  const keys = Object.keys(row);
+  const only = (...allowed: string[]) => keys.every(key => key === 'kind' || allowed.includes(key));
+  if (typeof row.formRecordId === 'string' && RECORD_ID.test(row.formRecordId) && (kind === undefined || kind === 'record') && only('formRecordId')) {
+    return { kind: 'record', formRecordId: row.formRecordId };
+  }
+  if (typeof row.formUrl === 'string' && row.formUrl.length <= 2048 && (kind === undefined || kind === 'url') && only('formUrl')) {
+    return { kind: 'url', formUrl: row.formUrl };
+  }
   return null;
 }
 
@@ -45,7 +60,8 @@ const STATUS: Record<string, number> = {
   provider_not_configured: 503, provider_not_connected: 409, provider_reauthorization_required: 409,
   provider_unavailable: 503, provider_permission_denied: 502, provider_rate_limited: 429, provider_rejected: 502,
   provider_error: 502, storage_unavailable: 503, rate_limited: 429, model_not_configured: 503,
-  model_timeout: 504, model_unavailable: 503, model_invalid_output: 502, form_not_found: 404,
+  model_timeout: 504, model_unavailable: 503, model_rate_limited: 429, model_provider_error: 502,
+  model_invalid_output: 502, insufficient_credits: 402, form_not_found: 404,
   form_not_editable: 403, invalid_form_url: 400, edit_unsupported: 422, edit_plan_invalid: 422,
   edit_stale: 409, edit_draft_not_found: 404, edit_draft_conflict: 409, edit_draft_locked: 409, internal_error: 500,
 };
@@ -103,7 +119,7 @@ export function createFormEditRouter(deps: FormEditRouterDeps): Router {
   }));
 
   router.post('/edit/interpret', ...jsonMutation, asyncRoute(async (req, res) => {
-    const body = bodyWithKeys(req.body, ['target', 'request', 'clarification']);
+    const body = bodyWithKeys(req.body, ['target', 'request', 'clarification', 'operationId']);
     const selection = body && target(body.target);
     if (!body || !selection || !phrase(body.request, MAX_REQUEST) || (body.clarification !== undefined && !phrase(body.clarification, MAX_CLARIFICATION))) {
       return send(res, new FormEditError({ code: 'invalid_request', message: `Describe the form changes in up to ${MAX_REQUEST} characters and select a current form. No changes were made.`, outcome: 'not_applied', retryable: false }));
@@ -112,13 +128,15 @@ export function createFormEditRouter(deps: FormEditRouterDeps): Router {
     const slot = limiter.acquire(user(res).id, now().getTime());
     if (!slot.ok) return send(res, new FormEditError({ code: 'rate_limited', message: slot.reason === 'in_progress' ? 'Intake is already interpreting an edit for your account. Wait for it to finish.' : 'Too many interpretations in a short time. Wait a few minutes and try again.', outcome: 'not_applied', retryable: true }));
     try {
-      const result = await engine.interpret(user(res).id, { target: selection, request: body.request.trim(), ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}) }, requestId(res));
+      const result = await engine.interpret(user(res).id, { target: selection, request: body.request.trim(),
+        ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}),
+        ...(typeof body.operationId === 'string' ? { operationId: body.operationId } : {}) }, requestId(res));
       return sendJson(res, result.status === 'ready' ? 201 : 200, { requestId: requestId(res), ...result });
     } finally { slot.release(); }
   }));
 
   router.post('/edit/revise', ...jsonMutation, asyncRoute(async (req, res) => {
-    const body = bodyWithKeys(req.body, ['draftId', 'version', 'request', 'clarification']);
+    const body = bodyWithKeys(req.body, ['draftId', 'version', 'request', 'clarification', 'operationId']);
     if (!body || typeof body.draftId !== 'string' || !DRAFT_ID.test(body.draftId) || !version(body.version) || !phrase(body.request, MAX_REQUEST) ||
         (body.clarification !== undefined && !phrase(body.clarification, MAX_CLARIFICATION))) {
       return send(res, new FormEditError({ code: 'invalid_request', message: 'Send a current edit proposal and a change request of up to 3,000 characters. No changes were made.', outcome: 'not_applied', retryable: false }));
@@ -127,7 +145,9 @@ export function createFormEditRouter(deps: FormEditRouterDeps): Router {
     const slot = limiter.acquire(user(res).id, now().getTime());
     if (!slot.ok) return send(res, new FormEditError({ code: 'rate_limited', message: slot.reason === 'in_progress' ? 'Intake is already interpreting an edit for your account. Wait for it to finish.' : 'Too many interpretations in a short time. Wait a few minutes and try again.', outcome: 'not_applied', retryable: true }));
     try {
-      const result = await engine.revise(user(res).id, { draftId: body.draftId, version: body.version, request: body.request.trim(), ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}) }, requestId(res));
+      const result = await engine.revise(user(res).id, { draftId: body.draftId, version: body.version, request: body.request.trim(),
+        ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}),
+        ...(typeof body.operationId === 'string' ? { operationId: body.operationId } : {}) }, requestId(res));
       return sendJson(res, 200, { requestId: requestId(res), ...result });
     } finally { slot.release(); }
   }));

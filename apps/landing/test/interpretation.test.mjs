@@ -1,7 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { assessInterpretation, InterpretationError } from '../server/forms/interpretation/interpreter.ts';
-import { createGroqFormInterpreter, INTERPRETATION_SCHEMA } from '../server/forms/interpretation/groq.ts';
+import { createFormInterpreter } from '../server/forms/interpretation/provider-interpreter.ts';
+import { createOpenAiProvider } from '../server/ai/openai.ts';
+import { INTERPRETATION_SCHEMA } from '../server/forms/interpretation/prompts.ts';
+
+/** The interpretation layer is provider-agnostic; these boundary tests use the OpenAI provider. */
+const openAiInterpreter = options => createFormInterpreter({ provider: createOpenAiProvider(options) });
 import { planGoogleForm } from '../server/forms/providers/google/plan.ts';
 import { parseFormSpecification } from '../server/forms/validation.ts';
 
@@ -111,7 +116,7 @@ function modelResponse(output, { finish_reason = 'stop' } = {}) {
 test('the Groq boundary requests strict structured output, never exposes its key in the model input, and uses the current spec for revisions', async () => {
   const calls = [];
   const fetchImpl = async (url, init) => { calls.push({ url, init }); return modelResponse(ready()); };
-  const interpreter = createGroqFormInterpreter({ env: { GROQ_API_KEY: 'server-test-key', GROQ_MODEL: 'openai/gpt-oss-20b' }, fetchImpl });
+  const interpreter = openAiInterpreter({ env: { OPENAI_API_KEY: 'server-test-key', OPENAI_MODEL: 'gpt-4o-mini' }, fetchImpl });
   const result = await interpreter.interpret({ mode: 'revise', request: 'Make email optional.', specification: assessInterpretation(ready()).specification, provider: 'google' });
   assert.equal(result.status, 'ready');
   const [{ url, init }] = calls;
@@ -149,8 +154,8 @@ test('the Groq interpreter defaults to the configured strict-JSON model', async 
 
 test('missing credentials fail clearly without fake inference or network access', async () => {
   let calls = 0;
-  const interpreter = createGroqFormInterpreter({ env: {}, fetchImpl: async () => { calls++; return modelResponse(ready()); } });
-  await assert.rejects(interpreter.interpret({ mode: 'new', request: 'Register', provider: 'google' }), error => error.code === 'model_not_configured' && /GROQ_API_KEY/.test(error.message));
+  const interpreter = openAiInterpreter({ env: {}, fetchImpl: async () => { calls++; return modelResponse(ready()); } });
+  await assert.rejects(interpreter.interpret({ mode: 'new', request: 'Register', provider: 'google' }), error => error.code === 'model_not_configured' && /OPENAI_API_KEY/.test(error.message));
   assert.equal(calls, 0);
 });
 
@@ -159,16 +164,18 @@ test('the model boundary handles provider errors, refusal, truncation, invalid J
   for (const [response, expected] of [
     [new Response('unauthorized', { status: 401 }), 'model_not_configured'],
     [new Response('invalid schema', { status: 400 }), 'model_not_configured'],
-    [new Response('busy', { status: 429 }), 'model_unavailable'],
+    [new Response('busy', { status: 429 }), 'model_rate_limited'],
+    [new Response('down', { status: 503 }), 'model_unavailable'],
+    [new Response('teapot', { status: 418 }), 'model_provider_error'],
     [modelResponse('{not-json'), 'model_invalid_output'],
     [modelResponse(ready(), { finish_reason: 'length' }), 'model_invalid_output'],
     [new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { refusal: 'No', content: null } }] }), { status: 200 }), 'model_invalid_output'],
   ]) {
     let calls = 0;
-    const interpreter = createGroqFormInterpreter({ env: { GROQ_API_KEY: 'test-key' }, fetchImpl: async () => { calls++; return response; } });
+    const interpreter = openAiInterpreter({ env: { OPENAI_API_KEY: 'test-key' }, fetchImpl: async () => { calls++; return response; } });
     await assert.rejects(interpreter.interpret(input), error => error.code === expected);
     assert.equal(calls, 1, 'no automatic model retry');
   }
-  const timeout = createGroqFormInterpreter({ env: { GROQ_API_KEY: 'test-key' }, fetchImpl: async () => { throw Object.assign(new Error('timeout secret'), { name: 'TimeoutError' }); } });
+  const timeout = openAiInterpreter({ env: { OPENAI_API_KEY: 'test-key' }, fetchImpl: async () => { throw Object.assign(new Error('timeout secret'), { name: 'TimeoutError' }); } });
   await assert.rejects(timeout.interpret(input), error => error.code === 'model_timeout' && !error.message.includes('secret'));
 });

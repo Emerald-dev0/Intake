@@ -4,15 +4,15 @@ import { Paper } from '../components/Paper';
 import { Highlighted } from '../components/Highlighted';
 import { plan, type Plan } from '../lib/planner';
 import { type Answers, type AnswerValue } from '../lib/types';
-import { PROVIDERS, type Provider } from '../lib/providers';
+import { PROVIDERS } from '../lib/providers';
 import { SectionHead } from '../components/SectionHead';
 
 const EXAMPLES = [
   { label: 'Final-year project', text: 'Create a registration form for my final-year project. Ask for full name, email, department (Science, Arts, Engineering), level, phone number, and whether they need accommodation. If they select yes, ask what type of accommodation they need.' },
-  { label: 'Workshop signup', text: 'Workshop signup with name, email, t-shirt size, dietary needs and whether they need a laptop. If yes, ask which OS they prefer.' },
-  { label: 'Cake orders', text: 'Order form for my cake business. Ask for name, phone number, cake flavour (chocolate, vanilla, red velvet), pickup date, and whether they want delivery. If yes, ask for their address. Make everything required.' },
-  { label: 'Clinic intake', text: 'Patient intake form for a dental clinic. Collect full name, date of birth, phone, email, reason for visit, and whether they have any allergies. If yes, ask them to describe the allergies. Make email optional.' },
-  { label: 'Hackathon', text: 'Registration form for a weekend hackathon. Ask for full name, email, team name, role (designer, developer, product), years of experience, and whether they need accommodation — if yes, ask how many nights.' },
+  { label: 'Workshop signup', text: 'Workshop signup with name, email, t-shirt size, dietary needs and whether they need a laptop. If yes, ask which operating system they prefer.' },
+  { label: 'Cake orders', text: 'Order form for my cake business. Ask for name, phone number, cake flavour (chocolate, vanilla, red velvet), preferred pickup window (morning, afternoon, evening), and whether they want delivery. If yes, ask for their address. Make everything required.' },
+  { label: 'Customer feedback', text: 'Customer feedback form. Ask how their visit went (Excellent, Okay, Needs improvement). If they choose Needs improvement, ask what we could improve. Ask how they heard about us.' },
+  { label: 'Hackathon', text: 'Registration form for a weekend hackathon. Ask for full name, email, team name, role (designer, developer, product), preferred track (web, mobile, hardware), and whether they need accommodation. If yes, ask what support they need.' },
   { label: 'Just “wedding rsvp”', text: 'wedding rsvp' },
 ];
 
@@ -21,8 +21,6 @@ export function Playground() {
   const [result, setResult] = useState<Plan | null>(null);
   const [shown, setShown] = useState(0);
   const [phase, setPhase] = useState<'idle' | 'thinking' | 'building' | 'done'>('idle');
-  const [provider, setProvider] = useState<Provider>('google');
-  const [note, setNote] = useState(false);
   const [mode, setMode] = useState<'builder' | 'preview'>('builder');
   const [answers, setAnswers] = useState<Answers>({});
   const timers = useRef<number[]>([]);
@@ -41,7 +39,6 @@ export function Playground() {
     setShown(0);
     setAnswers({});
     setMode('builder');
-    setNote(false);
     setPhase('thinking');
     timers.current.push(
       window.setTimeout(() => {
@@ -94,7 +91,7 @@ export function Playground() {
   const key = result ? result.spec.title + result.spec.fields.length + text.length : '';
   const conds = result?.spec.fields.filter((f) => f.when).length ?? 0;
   const req = result?.spec.fields.filter((f) => f.required).length ?? 0;
-  const P = PROVIDERS[provider];
+  const P = PROVIDERS.google;
   const summary = result
     ? [
         `${result.spec.fields.length} question${result.spec.fields.length === 1 ? '' : 's'}`,
@@ -104,17 +101,14 @@ export function Playground() {
     : [];
 
   return (
-    <section className="section play" id="try" ref={sectionRef}>
+    <section className="section play" id="try" ref={sectionRef} aria-labelledby="create-with-ai-title">
       <div className="wrap">
         <SectionHead
           n="04"
-          kicker="Try it"
-          title={
-            <>
-              Your turn. Type <em>any</em> form.
-            </>
-          }
-          lede="Describe a form and watch it take shape. This browser-only preview uses a simple example parser, not the future AI agent. Nothing gets created or sent to a provider. The goal is to build a real form in your connected account."
+          kicker="Create Google Forms with AI"
+          titleId="create-with-ai-title"
+          title={<>Describe what your form needs.</>}
+          lede="In the workspace, server-side AI interprets your request and prepares a structured Google Forms draft for review. This interactive browser-only preview uses a simple example parser, not the AI model; it sends nothing to Google and never creates a form."
         />
 
         <div className="play-grid">
@@ -127,10 +121,12 @@ export function Playground() {
               }}
             >
               <div className="play-composer-top">
-                <span className="play-dot" /> what do you want to ask people?
-                <span className="play-count">{text.length} chars</span>
+                <span className="play-dot" aria-hidden />
+                <label className="play-input-label" htmlFor="playground-request">What should the form ask?</label>
+                <span className="play-count">{text.length} characters</span>
               </div>
               <textarea
+                id="playground-request"
                 ref={taRef}
                 value={text}
                 onChange={(e) => setText(e.target.value)}
@@ -170,7 +166,7 @@ export function Playground() {
               {result && (
                 <motion.div key={key} className="play-heard" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                   <div className="play-label">
-                    What Intake heard
+                    What this local parser inferred
                     <span className="legend">
                       <i className="lg-field" /> question <i className="lg-logic" /> follow-up <i className="lg-rule" /> rule <i className="lg-meta" /> title
                     </span>
@@ -201,14 +197,9 @@ export function Playground() {
 
           <div className="play-right">
             <div className="play-toolbar">
-              <div className="tabs pv-tabs">
-                {(['google', 'microsoft'] as Provider[]).map((k) => (
-                  <button key={k} className={provider === k ? 'on' : ''} onClick={() => setProvider(k)} style={{ ['--pv' as string]: PROVIDERS[k].color }}>
-                    <i className="pv-tab-dot" />
-                    {PROVIDERS[k].name}
-                  </button>
-                ))}
-              </div>
+              <span className="play-provider-label" style={{ ['--pv' as string]: P.color }}>
+                <i className="pv-tab-dot" /> Google Forms · local preview
+              </span>
               <div className="tabs tabs-sm">
                 <button className={mode === 'builder' ? 'on' : ''} onClick={() => setMode('builder')}>
                   Questions
@@ -223,7 +214,7 @@ export function Playground() {
               <div className="play-paper">
                 {result ? (
                   <Paper
-                    provider={provider}
+                    provider="google"
                     stripState="preview"
                     title={result.spec.title}
                     description={phase === 'thinking' ? 'Thinking…' : result.spec.description}
@@ -249,19 +240,11 @@ export function Playground() {
               </div>
             </div>
             <div className="play-create">
-              <button className="btn play-create-btn" style={{ ['--pv' as string]: P.color }} disabled={phase !== 'done'} onClick={() => setNote(true)}>
-                <i className="pv-tab-dot" /> Create in {P.name} · planned
-              </button>
-              <AnimatePresence>
-                {note && (
-                  <motion.p className="play-create-note" initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}>
-                    Connecting accounts is coming soon.{' '}
-                    <a href="#waitlist">Join the waitlist</a> to be first in.
-                  </motion.p>
-                )}
-              </AnimatePresence>
+              <a className="btn play-create-btn" href="/auth/sign-up" style={{ ['--pv' as string]: P.color }}>
+                Use Intake to create or edit a Google Form →
+              </a>
             </div>
-            <p className="play-foot">Demo only · runs in your browser · nothing you type is sent anywhere.</p>
+            <p className="play-foot">Demo only · local parser · nothing you type is sent to AI, Google, or a server.</p>
           </div>
         </div>
       </div>

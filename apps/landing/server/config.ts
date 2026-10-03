@@ -1,5 +1,10 @@
 const PLACEHOLDER = /^(?:change[-_ ]?me|placeholder(?:[-_ ].*)?|example(?:[-_ ].*)?|todo(?:[-_ ].*)?|your(?:[-_ <].*)?|x{3,})$/i;
 
+/** Shared credential hygiene check: operators must not ship obvious placeholder secrets. */
+export function isPlaceholderValue(value: string): boolean {
+  return PLACEHOLDER.test(value);
+}
+
 export interface CoreServerConfig {
   databaseUrl: string;
   authSecret: string;

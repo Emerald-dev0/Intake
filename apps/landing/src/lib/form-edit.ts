@@ -8,7 +8,8 @@ export type FormEditErrorCode =
   | 'provider_not_configured' | 'provider_not_connected' | 'provider_reauthorization_required'
   | 'provider_unavailable' | 'provider_permission_denied' | 'provider_rate_limited' | 'provider_rejected'
   | 'provider_error' | 'storage_unavailable' | 'rate_limited' | 'model_not_configured' | 'model_timeout'
-  | 'model_unavailable' | 'model_invalid_output' | 'form_not_found' | 'form_not_editable' | 'invalid_form_url'
+  | 'model_unavailable' | 'model_rate_limited' | 'model_provider_error' | 'model_invalid_output'
+  | 'insufficient_credits' | 'form_not_found' | 'form_not_editable' | 'invalid_form_url'
   | 'edit_unsupported' | 'edit_plan_invalid' | 'edit_stale' | 'edit_draft_not_found'
   | 'edit_draft_conflict' | 'edit_draft_locked' | 'internal_error';
 

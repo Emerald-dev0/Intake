@@ -4,7 +4,8 @@ import { createServer } from 'node:http';
 import express from 'express';
 import { createMemoryDraftStore } from '../server/forms/draft-memory-store.ts';
 import { createFormDraftRouter, createInterpretationLimiter } from '../server/forms/interpretation/routes.ts';
-import { createGroqFormInterpreter } from '../server/forms/interpretation/groq.ts';
+import { createFormInterpreter } from '../server/forms/interpretation/provider-interpreter.ts';
+import { createUnconfiguredProvider } from '../server/ai/provider.ts';
 import { createFormsRouter } from '../server/forms/routes.ts';
 import { createWorld, ORIGIN } from './helpers/forms-harness.mjs';
 
@@ -337,12 +338,12 @@ test('cancel discards only a ready draft and never deletes a provider form', () 
 
 test('a missing live model key returns an explicit configuration error without inventing an inference result', () => {
   let calls = 0;
-  const interpreter = createGroqFormInterpreter({ env: {}, fetchImpl: async () => { calls++; throw new Error('must not call model'); } });
+  const interpreter = createFormInterpreter({ provider: createUnconfiguredProvider('GROQ_API_KEY is not configured.') });
   return withApi({ interpreter }, async app => {
     const response = await app.interpret();
     assert.equal(response.status, 503);
     assert.equal(response.json.code, 'model_not_configured');
-    assert.match(response.json.error, /GROQ_API_KEY/);
+    assert.match(response.json.error, /GROQ_API_KEY/, 'the message names the credential an operator must set');
     assert.equal(calls, 0);
     assert.equal(app.store.all().length, 0);
     assert.equal(app.world.fake.calls.length, 0);
