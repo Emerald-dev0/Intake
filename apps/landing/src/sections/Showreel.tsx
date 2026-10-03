@@ -9,23 +9,18 @@ export function Showreel() {
   const [i, setI] = useState(0);
   const scene = galleryScenes[i];
   return (
-    <section className="section showreel" id="reels">
+    <section className="section showreel" id="reels" aria-labelledby="reels-title">
       <div className="wrap">
         <SectionHead
           n="03"
-          kicker="Watch it work"
-          title={
-            <>
-              Three requests.
-              <br />
-              Three <em>form concepts.</em>
-            </>
-          }
-          lede="Scripted concept demos, not real inference or provider calls; some show future capabilities. The authenticated workspace supports Google creation after review and confirmation. Pause, scrub through or skip ahead."
+          kicker="Illustrative workflow demos"
+          titleId="reels-title"
+          title={<>Google Forms, explained with <em>examples.</em></>}
+          lede="These timelines are scripted illustrations: they do not call AI or Google, connect an account, create a form, or apply an edit. Actual workspace actions use a reviewed proposal and explicit confirmation. Pause, scrub through, or skip ahead."
         />
-        <div className="sr-tabs" role="tablist">
+        <div className="sr-tabs" role="tablist" aria-label="Illustrative workflow demos">
           {galleryScenes.map((s, k) => (
-            <button key={s.id} role="tab" aria-selected={k === i} className={`sr-tab ${k === i ? 'is-on' : ''}`} onClick={() => setI(k)}>
+            <button key={s.id} id={`gallery-tab-${s.id}`} role="tab" aria-controls="gallery-panel" aria-selected={k === i} className={`sr-tab ${k === i ? 'is-on' : ''}`} onClick={() => setI(k)}>
               <span className="sr-n">{String(k + 1).padStart(2, '0')}</span>
               <span className="sr-name">{s.name}</span>
               <span className="sr-pv" style={{ ['--pv' as string]: PROVIDERS[s.provider].color }}>
@@ -36,7 +31,7 @@ export function Showreel() {
           ))}
         </div>
       </div>
-      <div className="wrap-wide">
+      <div className="wrap-wide" id="gallery-panel" role="tabpanel" aria-labelledby={`gallery-tab-${scene.id}`} tabIndex={0}>
         <Reel key={scene.id} scene={scene} loop={false} onEnd={() => setI((v) => (v + 1) % galleryScenes.length)} />
       </div>
     </section>
@@ -45,18 +40,15 @@ export function Showreel() {
 
 export function Edits() {
   return (
-    <section className="section edits" id="edits">
+    <section className="section edits" id="edits" aria-labelledby="edits-title">
       <div className="wrap">
         <div className="edits-head">
           <SectionHead
             n="06"
-            kicker="Editing"
-            title={
-              <>
-                What can I ask <em>Intake to do?</em>
-              </>
-            }
-            lede="Creation is only the start. Intake is designed to let you change the real form in your provider account with another message, instead of hunting through menus. Editing is not live yet."
+            kicker="Edit existing Google Forms"
+            titleId="edits-title"
+            title={<>Describe the change. <em>Review it.</em></>}
+            lede="Choose a form from your Intake library or provide its Google Forms edit URL. Intake reads the current form and prepares a structured proposal for supported changes. Review it, then confirm to update that same form; Intake does not create a replacement. This timeline is scripted and does not edit a real form."
           />
           <ExampleCommands />
         </div>

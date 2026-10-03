@@ -29,11 +29,13 @@ Apply to the existing frontend project:
 | Build | `npm run build` |
 | Output | `dist` |
 | `BACKEND_URL` | Actual Render HTTPS origin, no path/trailing slash |
-| Optional `VITE_SITE_URL` | `https://intake-six-blue.vercel.app` |
+| Production canonical/social origin | `https://intake-six-blue.vercel.app` (centralized in `src/content/site.ts`; never replaced by a preview hostname) |
 
-Set variables for the intended deployment scope and redeploy. No actual Render URL or linked Vercel project was supplied.
+Set variables for the intended deployment scope and redeploy. No actual Render URL or linked Vercel project settings were supplied.
 
-`vercel.json` uses documented route `env` expansion for `${BACKEND_URL}` (not shell interpolation in rewrites): https://vercel.com/docs/project-configuration/vercel-json#routes. The API rule reserves `/api` and `/api/*`; a single non-API rewrite supplies the SPA fallback. Static files retain filesystem precedence. Unknown frontend routes show React's not-found page. Do not add individual page rules or deploy Express as a Vercel function.
+The canonical, Open Graph, X, and Schema.org origin is fixed in `src/content/site.ts` to `https://intake-six-blue.vercel.app`; preview environment variables cannot replace it. That URL responded during this audit and matches the repository's deployment notes, but confirm its Production Domain assignment in Vercel before release. If the production domain changes, update `SITE_URL`, `public/robots.txt`, `public/sitemap.xml`, and the API's `BETTER_AUTH_URL` together. The sitemap intentionally lists only `/`; robots exclusions and `noindex` headers/meta reduce indexing of private surfaces but are not access control.
+
+`vercel.json` uses documented route `env` expansion for `${BACKEND_URL}` (not shell interpolation in rewrites): https://vercel.com/docs/project-configuration/vercel-json#routes. The API route reserves `/api` and `/api/*`; a specific noindex document route handles `/auth`, `/app`, and `/admin`, then a filesystem pass-through serves static files before one generic public SPA fallback. Keep these in the single low-level `routes` pipeline rather than mixing it with Vercel's `rewrites` or top-level `headers`. Unknown frontend routes show React's not-found page. Do not add individual page rules or deploy Express as a Vercel function.
 
 ## Render settings
 

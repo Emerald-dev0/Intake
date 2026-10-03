@@ -39,12 +39,11 @@ export function CreateStage({
     const act = a.action;
     if (act.kind === 'click') {
       const f = s.spec.fields.find((x) => x.id === act.field);
-      if (f?.type === 'multiple_choice') {
+      if (f?.type === 'checkboxes') {
         const cur = (answers[act.field] as string[] | undefined) ?? [];
         answers[act.field] = [...cur, act.option];
       } else answers[act.field] = act.option;
-    } else if (act.kind === 'star') answers[act.field] = act.value;
-    else {
+    } else {
       answers[act.field] = act.text.slice(0, countBefore(a.typeTimes, t));
       if (t < a.done + 1.2) typingField = act.field;
     }
@@ -58,8 +57,7 @@ export function CreateStage({
     focusAlign = 'center';
   }
 
-  const status =
-    t < tl.typeStart ? 'Ready' : !sent ? 'Typing' : t < tl.planStart ? 'Thinking' : t < tl.validateStart ? 'Drafting' : t < tl.createStart ? 'Checking' : t < tl.ready ? 'Creating' : 'Live';
+  const status = 'Scripted preview';
 
   const chapter = [...tl.chapters].reverse().find((c) => t >= c.start) ?? tl.chapters[0];
   const chapterIdx = tl.chapters.indexOf(chapter);
@@ -73,11 +71,11 @@ export function CreateStage({
     const rest = { x: canvas.clientWidth * 0.82, y: canvas.clientHeight * 0.86 };
     const measure = (a: RespondAction | undefined) => {
       if (!a) return null;
-      const sel = a.kind === 'type' ? `[data-input="${a.field}"]` : a.kind === 'star' ? `[data-opt="${a.field}:${a.value}"]` : `[data-opt="${a.field}:${a.option}"]`;
+      const sel = a.kind === 'type' ? `[data-input="${a.field}"]` : `[data-opt="${a.field}:${a.option}"]`;
       const el = canvas.querySelector<HTMLElement>(sel);
       if (!el) return null;
       const r = el.getBoundingClientRect();
-      const x = (r.left - cb.left) / scale + (a.kind === 'type' ? 40 : a.kind === 'star' ? r.width / scale / 2 : 16);
+      const x = (r.left - cb.left) / scale + (a.kind === 'type' ? 40 : 16);
       const y = (r.top - cb.top) / scale + r.height / scale / 2;
       return { x, y };
     };
@@ -113,12 +111,12 @@ export function CreateStage({
 
   return (
     <div className={`st ${portrait ? 'st--portrait' : ''}`}>
-      <StageTop title={t >= tl.titleEnd ? s.spec.title : 'New form'} status={status} provider={s.provider} account={s.account} />
+      <StageTop title={t >= tl.titleEnd ? s.spec.title : 'Example form plan'} status={status} provider={s.provider} />
       <div className="st-body">
         <aside className="st-chat">
           <div className="st-thread">
             <motion.div layout className="sys-line" style={{ '--pv': P.color } as CSSProperties}>
-              <span className="st-conn-dot" /> Connected to {P.name} · {s.account}
+              <span className="st-conn-dot" /> {P.name} · not connected in this scripted preview
             </motion.div>
             <AnimatePresence initial={false}>
               {sent && (
@@ -178,7 +176,7 @@ export function CreateStage({
                 </Step>
               )}
               {t >= tl.createStart && (
-                <Step key="create" open={createOpen} done={t >= tl.createEnd - 0.15} label={createOpen ? `Creating it in your ${P.name}` : `Created in your ${P.name}`}>
+                <Step key="create" open={createOpen} done={t >= tl.createEnd - 0.15} label={createOpen ? 'Preparing a local example proposal' : 'Example proposal ready · not applied'}>
                   <div className="ops">
                     {tl.ops.map((o, i) =>
                       t >= tl.opTimes[i] ? (
@@ -194,7 +192,7 @@ export function CreateStage({
                   </div>
                 </Step>
               )}
-              {t >= tl.ready && <ReadyCard key="ready" url={s.url} provider={s.provider} />}
+              {t >= tl.ready && <ReadyCard key="ready" provider={s.provider} />}
             </AnimatePresence>
           </div>
           <Composer text={typed} active={t >= tl.typeStart - 0.3 && !sent} pressing={t >= tl.send - 0.18 && t < tl.send + 0.1} />
@@ -223,8 +221,7 @@ export function CreateStage({
                 <motion.div key="paper" className="st-paper-anim" initial={{ opacity: 0, y: 40, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}>
                   <Paper
                     provider={s.provider}
-                    stripState={t >= tl.ready ? 'live' : t >= tl.createStart ? 'creating' : 'draft'}
-                    stripUrl={mode === 'preview' ? s.url : s.editUrl}
+                    stripState="preview"
                     title={s.spec.title.slice(0, titleChars)}
                     showTitleCaret={t < tl.titleEnd + 0.2}
                     description={t >= tl.titleEnd ? s.spec.description : undefined}
@@ -237,7 +234,8 @@ export function CreateStage({
                     focusAlign={focusAlign}
                     autoScroll
                     stamp={t >= tl.ready + 0.2}
-                    syncing={t >= tl.createStart && t < tl.ready}
+                    stampLabel="Example"
+                    stampSub="Not applied"
                     scan={t >= tl.validateStart && t < tl.validateEnd ? prog(t, tl.validateStart, tl.validateEnd - tl.validateStart) : null}
                   />
                 </motion.div>
@@ -247,12 +245,9 @@ export function CreateStage({
           {!portrait && (
             <AccountPanel
               provider={s.provider}
-              account={s.account}
               newTitle={s.spec.title}
-              state={t < tl.planStart ? 'waiting' : t < tl.createStart ? 'draft' : t < tl.ready ? 'creating' : 'live'}
+              state={t < tl.planStart ? 'waiting' : t < tl.createStart ? 'draft' : t < tl.ready ? 'preparing' : 'ready'}
               progress={prog(t, tl.createStart, tl.createEnd - tl.createStart)}
-              shareUrl={s.url}
-              editUrl={s.editUrl}
             />
           )}
           <div className={`cursor ${t >= tl.previewAt + 0.35 ? 'is-on' : ''}`} ref={cursorRef}>

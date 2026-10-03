@@ -6,8 +6,8 @@
  * and nothing that has not passed validation.ts reaches an adapter.
  *
  * Vocabulary note: `multiple_choice` means ONE answer from a list (Google Forms calls this
- * "Multiple choice"). Several answers is `checkboxes`. The landing page demo in src/lib/types.ts
- * uses `single_choice` and calls checkboxes `multiple_choice`; that vocabulary is not used here.
+ * "Multiple choice"). Several answers is `checkboxes`. The browser-only landing preview mirrors
+ * these question type names, but it is not this server specification and never calls the provider.
  */
 
 export const QUESTION_TYPES = ['short_text', 'long_text', 'email', 'multiple_choice', 'dropdown', 'checkboxes'] as const;

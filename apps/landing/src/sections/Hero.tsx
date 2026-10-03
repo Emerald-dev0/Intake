@@ -23,11 +23,11 @@ export function Nav() {
           <LogoMark size={26} />
           <span>intake</span>
         </a>
-        <nav className="nav-links">
-          <a href="#how">How it works</a>
-          <a href="#reels">Demos</a>
-          <a href="#try">Try it</a>
-          <a href="#where">Google &amp; Microsoft</a>
+        <nav className="nav-links" aria-label="Main navigation">
+          <a href="#how">How Intake works</a>
+          <a href="#demo">Demos</a>
+          <a href="#try">Try the demo</a>
+          <a href="#where">Google Forms</a>
           <a href="#faq">FAQ</a>
         </nav>
         <div className="nav-cta">
@@ -48,7 +48,7 @@ const IDEAS = [
   'RSVP for Tolu’s 30th — plus-ones and dietary needs',
   'Job application for a junior designer, with portfolio link',
   'Parent consent form for the school trip to Lekki',
-  'Weekly check-in for my team: mood 1–5 and blockers',
+  'Weekly check-in for my team: mood, energy, and blockers',
   'Registration for a church retreat, ask if they need a bus',
 ];
 
@@ -89,6 +89,7 @@ function HeroComposer() {
   return (
     <form
       className={`hero-composer ${focused ? 'is-focus' : ''}`}
+      aria-label="Local scripted form preview"
       onSubmit={(e) => {
         e.preventDefault();
         submit();
@@ -110,6 +111,7 @@ function HeroComposer() {
           <svg width="14" height="14" viewBox="0 0 16 16"><path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </button>
       </div>
+      <p className="hc-note">Scripted local preview only: this input sends no request and creates no Google Form.</p>
     </form>
   );
 }
@@ -122,54 +124,54 @@ const line = {
 export function Hero() {
   const mobile = useIsMobile();
   return (
-    <section className="hero" id="top">
+    <section className="hero" id="top" aria-labelledby="hero-title">
       <div className="hero-bg" aria-hidden>
         <div className="hero-grid" />
         <div className="hero-glow" />
       </div>
       <div className="wrap hero-top">
-        <motion.a href="#where" className="hero-badge" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }}>
+        <motion.a href="#where" className="hero-badge" initial={{ opacity: 1, y: 0 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }}>
           <span className="hb-live">
-            <i /> in the works
+            <i /> Google Forms
           </span>
-          <span className="hb-text">Concept preview · no connection or form created here</span>
+          <span className="hb-text">Create or edit · review before apply</span>
           <span className="hb-arrow">→</span>
         </motion.a>
 
-        <h1 className="hero-title">
+        <h1 className="hero-title" id="hero-title">
           <span className="ht-line">
             <motion.span custom={0} variants={line} initial="hidden" animate="show">
-              Say what you need.
+              Create and edit
             </motion.span>
           </span>
           <span className="ht-line">
             <motion.span custom={1} variants={line} initial="hidden" animate="show">
-              It’s already a <em>form.</em>
+              Google Forms with AI.
             </motion.span>
           </span>
         </h1>
 
-        <motion.div className="hero-row" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.55 }}>
+        <motion.div className="hero-row" initial={{ opacity: 1, y: 0 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.55 }}>
           {mobile ? (
             <div>
               <p className="hero-sub">
-                For a final-year project, event or business: describe what you need, review Intake’s draft, then choose whether to create it in your Google account. Microsoft Forms creation is not available.
+                Intake is an AI-assisted Google Forms workspace. Describe a new form or a change in natural language; Intake proposes a structured plan for you to review and confirm before it is applied in your connected Google account.
               </p>
-              <p className="hero-status">Google-only workspace implemented · the demo below is scripted · live use needs setup and verification.</p>
+              <p className="hero-status">Google Forms create and edit workflows are implemented. Live use depends on deployment configuration and separate Google authorization; this page’s previews are scripted and make no provider changes.</p>
               <div className="hero-actions">
                 <a className="btn btn-accent" href="/auth/sign-up">
                   Create account
                 </a>
                 <a className="btn btn-ghost" href="#try">
-                  Try it
+                  Try the demo
                 </a>
               </div>
             </div>
           ) : (
             <>
               <div>
-                <p className="hero-sub">You already know what you want to ask. Building every field is the tedious part. In the authenticated workspace, Intake turns a description into a draft you can review and revise, then creates the <b>real form in your own Google account</b> only when you confirm. Microsoft Forms creation is not available.</p>
-                <p className="hero-status">Google-only workspace implemented · the demo below is scripted · live use needs setup and verification.</p>
+                <p className="hero-sub">Intake is an AI-assisted Google Forms workspace. Describe a new form or a change in natural language; Intake proposes a structured plan for you to review and confirm before it is applied in your connected Google account.</p>
+                <p className="hero-status">Google Forms create and edit workflows are implemented. Live use depends on deployment configuration and separate Google authorization; this page’s previews are scripted and make no provider changes.</p>
               </div>
               <HeroComposer />
             </>
@@ -180,7 +182,7 @@ export function Hero() {
       {mobile && (
         <motion.div id="demo" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}>
           <Stories />
-          <p className="ms-hint">Concept demo · no live form is created · tap to skip</p>
+          <p className="ms-hint">Scripted preview · no real form is created or changed · tap to skip</p>
         </motion.div>
       )}
 
@@ -206,7 +208,7 @@ const PROMPTS = [
   'Volunteer signup for Saturday’s cleanup',
   'RSVP with plus-ones',
   'Customer feedback, anonymous',
-  'Hackathon registration with team size',
+  'Hackathon registration for the team lead and members',
   'Parent consent for the school trip',
   'Cake order form with delivery address',
   'Patient intake with allergy follow-up',

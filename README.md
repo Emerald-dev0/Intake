@@ -1674,9 +1674,10 @@ npm run build      # type-check + production build to dist/
 
 | Variable | What it does |
 | --- | --- |
-| `VITE_SITE_URL` | Absolute site URL for canonical and link-preview tags. Picked up automatically on Vercel and Netlify. |
 | `VITE_WAITLIST_URL` | Where the "Get early access" box posts to. A Google Form's `…/formResponse` URL works, as do Formspree-style endpoints. |
 | `VITE_WAITLIST_FIELD` | The field name for the email, e.g. `entry.123456789` for a Google Form, or `email`. |
+
+The production canonical/social origin is centralized in [`apps/landing/src/content/site.ts`](apps/landing/src/content/site.ts) and is not overridden by preview environment variables. If the production domain changes, update it together with `public/robots.txt`, `public/sitemap.xml`, and the API's `BETTER_AUTH_URL`.
 
 ---
 
@@ -1708,7 +1709,7 @@ See [`apps/landing/.env.example`](apps/landing/.env.example). Only `VITE_` varia
 
 # Deployment
 
-Vercel root: `apps/landing`; framework: Vite; build: `npm run build`; output: `dist`. Set `BACKEND_URL` and deploy the checked-in configuration: API proxy plus one generic SPA fallback.
+Vercel root: `apps/landing`; framework: Vite; build: `npm run build`; output: `dist`. Set `BACKEND_URL` and deploy the checked-in low-level route pipeline: API proxy, noindex private document, filesystem pass-through, then generic public SPA fallback. Production canonical/social URLs come from `src/content/site.ts`; preview hostnames are never used.
 
 Render root: `apps/landing`; build: `npm ci`; start: `npm start`; see `render.yaml`. Set `BETTER_AUTH_URL` to the exact Vercel origin, not Render. Keep all server secrets on Render.
 

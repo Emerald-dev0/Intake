@@ -7,15 +7,37 @@ import { createServer } from 'node:http';
 test('deployment routes reserve API before the generic SPA fallback', async () => {
   const config = JSON.parse(await readFile('vercel.json', 'utf8'));
   assert.equal(config.outputDirectory, 'dist');
-  assert.deepEqual(config.routes[0].env, ['BACKEND_URL']);
-  assert.equal(config.routes[0].dest, '${BACKEND_URL}/api/$1');
-  const api = new RegExp(`^${config.routes[0].src}`);
-  const frontend = new RegExp(`^${config.rewrites[0].source}$`);
+  assert.equal(config.rewrites, undefined, 'use the low-level route pipeline without mixing Vercel routing modes');
+  assert.equal(config.headers, undefined, 'route-specific noindex headers belong on the private route');
+
+  const apiRule = config.routes.find(rule => rule.src?.startsWith('/api'));
+  const privateRule = config.routes.find(rule => rule.dest === '/private.html');
+  const filesystemRule = config.routes.find(rule => rule.handle === 'filesystem');
+  const publicFallback = config.routes.find(rule => rule.dest === '/index.html');
+  assert.ok(apiRule, 'API requests must proxy to the backend');
+  assert.ok(privateRule, 'authenticated and account routes must use the noindex document');
+  assert.ok(filesystemRule, 'static assets, robots and sitemap must retain filesystem precedence');
+  assert.ok(publicFallback, 'public frontend routes must use the indexable document');
+  assert.deepEqual(apiRule.env, ['BACKEND_URL']);
+  assert.equal(apiRule.dest, '${BACKEND_URL}/api/$1');
+  assert.equal(apiRule.headers['Cache-Control'], 'no-store');
+  assert.equal(privateRule.headers['X-Robots-Tag'], 'noindex, nofollow');
+  assert.ok(config.routes.indexOf(apiRule) < config.routes.indexOf(privateRule));
+  assert.ok(config.routes.indexOf(privateRule) < config.routes.indexOf(filesystemRule));
+  assert.ok(config.routes.indexOf(filesystemRule) < config.routes.indexOf(publicFallback));
+
+  const api = new RegExp(`^${apiRule.src}`);
+  const privatePage = new RegExp(`^${privateRule.src}$`);
+  const publicPage = new RegExp(`^${publicFallback.src}$`);
   for (const route of ['/api', '/api/providers', '/api/auth/get-session', '/api/providers/google/callback']) {
     assert.ok(api.test(route));
-    assert.ok(!frontend.test(route));
+    assert.ok(!privatePage.test(route));
+    assert.ok(!publicPage.test(route));
   }
-  for (const route of ['/', '/auth/sign-up', '/app/connections', '/app/forms']) assert.ok(frontend.test(route));
+  for (const route of ['/auth/sign-in', '/auth/sign-up', '/app', '/app/connections', '/app/forms', '/admin']) {
+    assert.ok(privatePage.test(route), `${route} must use the private document`);
+  }
+  for (const route of ['/', '/about', '/faq']) assert.ok(publicPage.test(route), `${route} must use the public document`);
 });
 
 test('production Vite output serves direct and repeated document requests; API proxy preserves methods, queries and cookies', async () => {

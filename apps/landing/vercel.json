@@ -10,9 +10,16 @@
       "dest": "${BACKEND_URL}/api/$1",
       "env": ["BACKEND_URL"],
       "headers": { "Cache-Control": "no-store" }
+    },
+    {
+      "src": "/((?:app|admin|auth)(?:/|$).*)",
+      "dest": "/private.html",
+      "headers": { "X-Robots-Tag": "noindex, nofollow" }
+    },
+    { "handle": "filesystem" },
+    {
+      "src": "/((?!api(?:/|$)).*)",
+      "dest": "/index.html"
     }
-  ],
-  "rewrites": [
-    { "source": "/((?!api(?:/|$)).*)", "destination": "/index.html" }
   ]
 }
