@@ -17,6 +17,10 @@ import { createInterpretationLimiter } from './forms/interpretation/routes';
 import { createFormsRouter } from './forms/routes';
 import { createPostgresDraftStore } from './forms/draft-postgres-store';
 import { aiProviderLabel, resolveAiProvider } from './ai/registry';
+import { createAiOperationRunner } from './ai/operations';
+import { createCreditService } from './credits/service';
+import { createPostgresCreditStore } from './credits/ledger';
+import { createCreditRouter } from './credits/routes';
 import { createFormEditInterpreter, createFormInterpreter } from './forms/interpretation/provider-interpreter';
 import { createFormDraftRouter } from './forms/interpretation/routes';
 import { createPostgresRateLimitStore } from './security/rate-limit';
@@ -81,6 +85,9 @@ const formsEngine = createFormEngine({ providers: formsProviders, store: formSto
 const aiProvider = resolveAiProvider({ env: providerEnv });
 const formInterpreter = createFormInterpreter({ provider: aiProvider });
 const formEditInterpreter = createFormEditInterpreter({ provider: aiProvider });
+// Credits are server-owned: the browser never submits a user, a plan, a price or a balance.
+const creditService = createCreditService({ store: createPostgresCreditStore(pool), onError: (label, error) => logSafe(label, error) });
+const aiOperations = createAiOperationRunner({ credits: creditService, onError: (label, error) => logSafe(label, error) });
 const interpretationLimiter = createInterpretationLimiter();
 // Phase 6 creation drafts: confirmation still delegates to the same creation engine.
 app.use('/api/forms', createFormDraftRouter({
@@ -91,6 +98,7 @@ app.use('/api/forms', createFormDraftRouter({
   env: providerEnv,
   limiter: interpretationLimiter,
   abuseLimiter,
+  operations: aiOperations,
 }));
 // Phase 7 edit proposals are separate from creation drafts and only target a known Google Form.
 app.use('/api/forms', createFormEditRouter({
@@ -102,7 +110,10 @@ app.use('/api/forms', createFormEditRouter({
   env: providerEnv,
   limiter: interpretationLimiter,
   abuseLimiter,
+  operations: aiOperations,
 }));
+// Balance only: plan, remaining daily/monthly credits, and the next reset instants.
+app.use('/api/credits', createCreditRouter({ credits: creditService, getSession }));
 app.use('/api/forms', createFormsRouter({ engine: formsEngine, getSession, env: providerEnv, abuseLimiter, allowDirectCreation: false }));
 const providerSetup = supportedProviders(providerEnv).map(provider => `${provider.id} ${isProviderConfigured(provider, providerEnv) ? 'configured' : 'not configured'}`).join(', ');
 console.log(`Sign-in: email/password enabled, google ${googleSignInEnabled ? 'configured' : 'not configured'}`);

@@ -104,7 +104,7 @@ export function createFormEditRouter(deps: FormEditRouterDeps): Router {
   }));
 
   router.post('/edit/interpret', ...jsonMutation, asyncRoute(async (req, res) => {
-    const body = bodyWithKeys(req.body, ['target', 'request', 'clarification']);
+    const body = bodyWithKeys(req.body, ['target', 'request', 'clarification', 'operationId']);
     const selection = body && target(body.target);
     if (!body || !selection || !phrase(body.request, MAX_REQUEST) || (body.clarification !== undefined && !phrase(body.clarification, MAX_CLARIFICATION))) {
       return send(res, new FormEditError({ code: 'invalid_request', message: `Describe the form changes in up to ${MAX_REQUEST} characters and select a current form. No changes were made.`, outcome: 'not_applied', retryable: false }));
@@ -113,13 +113,15 @@ export function createFormEditRouter(deps: FormEditRouterDeps): Router {
     const slot = limiter.acquire(user(res).id, now().getTime());
     if (!slot.ok) return send(res, new FormEditError({ code: 'rate_limited', message: slot.reason === 'in_progress' ? 'Intake is already interpreting an edit for your account. Wait for it to finish.' : 'Too many interpretations in a short time. Wait a few minutes and try again.', outcome: 'not_applied', retryable: true }));
     try {
-      const result = await engine.interpret(user(res).id, { target: selection, request: body.request.trim(), ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}) }, requestId(res));
+      const result = await engine.interpret(user(res).id, { target: selection, request: body.request.trim(),
+        ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}),
+        ...(typeof body.operationId === 'string' ? { operationId: body.operationId } : {}) }, requestId(res));
       return sendJson(res, result.status === 'ready' ? 201 : 200, { requestId: requestId(res), ...result });
     } finally { slot.release(); }
   }));
 
   router.post('/edit/revise', ...jsonMutation, asyncRoute(async (req, res) => {
-    const body = bodyWithKeys(req.body, ['draftId', 'version', 'request', 'clarification']);
+    const body = bodyWithKeys(req.body, ['draftId', 'version', 'request', 'clarification', 'operationId']);
     if (!body || typeof body.draftId !== 'string' || !DRAFT_ID.test(body.draftId) || !version(body.version) || !phrase(body.request, MAX_REQUEST) ||
         (body.clarification !== undefined && !phrase(body.clarification, MAX_CLARIFICATION))) {
       return send(res, new FormEditError({ code: 'invalid_request', message: 'Send a current edit proposal and a change request of up to 3,000 characters. No changes were made.', outcome: 'not_applied', retryable: false }));
@@ -128,7 +130,9 @@ export function createFormEditRouter(deps: FormEditRouterDeps): Router {
     const slot = limiter.acquire(user(res).id, now().getTime());
     if (!slot.ok) return send(res, new FormEditError({ code: 'rate_limited', message: slot.reason === 'in_progress' ? 'Intake is already interpreting an edit for your account. Wait for it to finish.' : 'Too many interpretations in a short time. Wait a few minutes and try again.', outcome: 'not_applied', retryable: true }));
     try {
-      const result = await engine.revise(user(res).id, { draftId: body.draftId, version: body.version, request: body.request.trim(), ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}) }, requestId(res));
+      const result = await engine.revise(user(res).id, { draftId: body.draftId, version: body.version, request: body.request.trim(),
+        ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}),
+        ...(typeof body.operationId === 'string' ? { operationId: body.operationId } : {}) }, requestId(res));
       return sendJson(res, 200, { requestId: requestId(res), ...result });
     } finally { slot.release(); }
   }));

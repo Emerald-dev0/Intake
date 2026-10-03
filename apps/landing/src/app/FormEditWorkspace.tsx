@@ -11,6 +11,9 @@ import {
 } from '../lib/form-edit';
 import type { PublicFormSummary } from '../lib/forms';
 import type { ProviderLoad } from './Connections';
+import { useCredits } from './hooks/useCredits';
+import { createOperationTracker } from '../lib/operation-id';
+import { insufficientCreditsMessage, isInsufficientCredits } from '../lib/credits';
 
 // Kept provider-independent at the UI boundary; the server resolves all targets against the signed-in user.
 type Target = { kind: 'record'; formRecordId: string } | { kind: 'url'; formUrl: string };
@@ -54,6 +57,9 @@ export function FormEditWorkspace({
   reloadForms: () => void;
   initialRecordId?: string;
 }) {
+  const credits = useCredits();
+  // One stable idempotency key per distinct edit submission.
+  const operations = useRef(createOperationTracker()).current;
   const [source, setSource] = useState<Source>('recent');
   const [selectedRecordId, setSelectedRecordId] = useState(initialRecordId ?? '');
   const [formUrl, setFormUrl] = useState('');
@@ -160,14 +166,20 @@ export function FormEditWorkspace({
     setFailure(null);
     setUnsupported('');
     try {
+      const targetKeyPart = mode === 'new' ? JSON.stringify(fixedTarget ?? target) : `${fixedDraft?.id ?? draft!.id}:${fixedDraft?.version ?? draft!.version}`;
+      const signature = [mode, targetKeyPart, instruction, clarification ?? ''].join('|');
+      const operationId = operations.id(signature);
       const body = mode === 'new'
-        ? { target: fixedTarget ?? target, request: instruction, ...(clarification ? { clarification } : {}) }
-        : { draftId: fixedDraft?.id ?? draft!.id, version: fixedDraft?.version ?? draft!.version, request: instruction, ...(clarification ? { clarification } : {}) };
+        ? { target: fixedTarget ?? target, request: instruction, operationId, ...(clarification ? { clarification } : {}) }
+        : { draftId: fixedDraft?.id ?? draft!.id, version: fixedDraft?.version ?? draft!.version, request: instruction, operationId, ...(clarification ? { clarification } : {}) };
       const response = await fetch(mode === 'new' ? '/api/forms/edit/interpret' : '/api/forms/edit/revise', {
         method: 'POST', credentials: 'same-origin', cache: 'no-store',
         headers: { accept: 'application/json', 'content-type': 'application/json' }, body: JSON.stringify(body),
       });
-      const parsed = parseFormEditInterpret(response.status, await response.json().catch(() => null));
+      const payload = await response.json().catch(() => null);
+      operations.settle();
+      credits.note(payload);
+      const parsed = parseFormEditInterpret(response.status, payload);
       if (!alive.current) return;
       if (parsed.status === 'ready') {
         setDraft(parsed.draft);
@@ -187,10 +199,13 @@ export function FormEditWorkspace({
         setPending(null);
         setUnsupported(parsed.explanation);
       } else {
-        setFailure(parsed.failure);
+        const outOfCredits = isInsufficientCredits(parsed.failure.code);
+        setFailure(outOfCredits ? { ...parsed.failure, error: insufficientCreditsMessage(credits.state.credits) } : parsed.failure);
+        if (outOfCredits) credits.reload();
         if (shouldReconnect(parsed.failure)) reloadProviders();
       }
     } catch {
+      // The operation key is kept, so a retry after a lost response cannot charge twice.
       if (alive.current) setFailure(textFailure('Intake could not confirm the edit interpretation. The Google Form has not been changed by interpretation. Check the proposal status before submitting another request.', 'model_unavailable', 'not_applied'));
     } finally {
       busyRef.current = false;

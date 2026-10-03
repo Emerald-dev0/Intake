@@ -27,6 +27,7 @@ and capability checks before anything is stored or executed.
 | `openai.ts` | OpenAI endpoint, `OPENAI_API_KEY`, `OPENAI_MODEL` (default `gpt-4o-mini`) |
 | `registry.ts` | Deterministic provider selection + safe status description |
 | `usage-scope.ts` | Per-operation collection of model calls (tokens, latency, outcome) |
+| `operations.ts` | One logical operation: affordability check, metering, single charge, usage record |
 
 ## Configuration
 
@@ -51,6 +52,15 @@ non-OK) · `model_invalid_output` (unparseable, truncated, refused, wrong shape)
 
 Raw provider bodies are never surfaced: each code has one safe, user-facing sentence, and the HTTP
 status map lives in `server/forms/errors.ts` and `server/forms/edit-routes.ts`.
+
+## Metering
+
+`operations.ts` (`createAiOperationRunner`) is how every AI feature is billed. It refuses a request
+the user cannot afford *before* the first model call, runs the work inside a model-call collector,
+charges once when — and only when — the operation produced a usable result, and records an
+`ai_operation` row for successes, failures and honest non-results alike. Idempotency comes from the
+client's `operationId` (validated server-side, otherwise generated), so a retried submission is never
+charged twice. Plans, prices, buckets and the ledger live in `server/credits/README.md`.
 
 ## Rules
 
