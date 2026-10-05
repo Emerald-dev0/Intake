@@ -6,6 +6,17 @@
   "outputDirectory": "dist",
   "routes": [
     {
+      "src": "/(.*)",
+      "continue": true,
+      "headers": {
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "X-Frame-Options": "DENY",
+        "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+        "Strict-Transport-Security": "max-age=31536000"
+      }
+    },
+    {
       "src": "/api(?:/(.*))?$",
       "dest": "${BACKEND_URL}/api/$1",
       "env": ["BACKEND_URL"],

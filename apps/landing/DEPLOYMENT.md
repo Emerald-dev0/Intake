@@ -1,5 +1,10 @@
 # PR 04: Routing and deployment foundation
 
+> **First deployment?** Follow [LAUNCH.md](LAUNCH.md) instead: it is the ordered Neon → Google Cloud →
+> Groq → Render → Vercel → migrations → verification procedure, with the rollback and free-tier
+> reality that this file only summarises. Everything below documents how the routing and deployment
+> contracts are built.
+
 ## Code ownership
 
 - `src/main.tsx`: BrowserRouter and Suspense entry.
@@ -29,20 +34,20 @@ Apply to the existing frontend project:
 | Build | `npm run build` |
 | Output | `dist` |
 | `BACKEND_URL` | Actual Render HTTPS origin, no path/trailing slash |
-| Production canonical/social origin | `https://intake-six-blue.vercel.app` (centralized in `src/content/site.ts`; never replaced by a preview hostname) |
+| `VITE_SITE_URL` | Optional build-time canonical origin (canonical link, Open Graph, JSON-LD, `robots.txt`, `sitemap.xml`). Unset falls back to the documented default in `src/lib/site-url.ts`. Must be an exact lowercase HTTPS origin; a malformed value fails the build. |
 
 Set variables for the intended deployment scope and redeploy. No actual Render URL or linked Vercel project settings were supplied.
 
-The canonical, Open Graph, X, and Schema.org origin is fixed in `src/content/site.ts` to `https://intake-six-blue.vercel.app`; preview environment variables cannot replace it. That URL responded during this audit and matches the repository's deployment notes, but confirm its Production Domain assignment in Vercel before release. If the production domain changes, update `SITE_URL`, the public sitemap and the API's `BETTER_AUTH_URL` together. The sitemap lists `/` and `/pricing`; robots exclusions and `noindex` headers/meta reduce indexing of private surfaces but are not access control.
+The canonical, Open Graph, X and Schema.org origin is resolved once at build time: `VITE_SITE_URL` when the operator sets it, otherwise the documented default (`DEFAULT_SITE_URL` in `src/lib/site-url.ts`). Preview hostnames are never substituted automatically, and a value that is not an exact lowercase HTTPS origin (path, trailing slash, query, credentials, uppercase host) fails the build rather than shipping wrong metadata. `robots.txt` and `sitemap.xml` are generated into `dist/` from that same origin, so there is no second place to update. Keep the frontend origin and the API's `BETTER_AUTH_URL` on the same origin — the auth/CSRF/callback origin is exact, not a pattern. The sitemap lists `/` and `/pricing`; robots exclusions and `noindex` headers/meta reduce indexing of private surfaces but are not access control.
 
-`vercel.json` uses documented route `env` expansion for `${BACKEND_URL}` (not shell interpolation in rewrites): https://vercel.com/docs/project-configuration/vercel-json#routes. The API route reserves `/api` and `/api/*`; a specific noindex document route handles `/auth`, `/app`, and `/admin`; `/pricing` maps to its own crawlable `pricing.html`; then a filesystem pass-through serves static files before one generic public SPA fallback. Keep these in the single low-level `routes` pipeline rather than mixing it with Vercel's `rewrites` or top-level `headers`. Unknown frontend routes show React's not-found page. Do not add further per-page rules or deploy Express as a Vercel function.
+`vercel.json` uses documented route `env` expansion for `${BACKEND_URL}` (not shell interpolation in rewrites): https://vercel.com/docs/project-configuration/vercel-json#routes. A first header-only route applies the baseline frontend security headers (`X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: DENY`, `Permissions-Policy`, HSTS) with `"continue": true`, which is the documented way to attach headers in the `routes` pipeline without terminating routing. The API route reserves `/api` and `/api/*`; a specific noindex document route handles `/auth`, `/app`, and `/admin`; `/pricing` maps to its own crawlable `pricing.html`; then a filesystem pass-through serves static files before one generic public SPA fallback. Keep these in the single low-level `routes` pipeline rather than mixing it with Vercel's `rewrites` or top-level `headers`. Unknown frontend routes show React's not-found page. Do not add further per-page rules or deploy Express as a Vercel function.
 
 ## Render settings
 
 Apply root `render.yaml` to the existing service; avoid creating an accidental duplicate:
 
 - Root `apps/landing`; build `npm ci`; start `npm start`; Node 22.x.
-- Health `/api/health` is process liveness, not database readiness.
+- Health `/api/health` is process liveness (always 200). `GET /api/health?deep=1` additionally probes PostgreSQL with a bounded read and returns 503 `{ok:false,database:'unavailable'}` when it cannot, without exposing credentials, hosts or versions. Use the deep form for readiness checks and `npm run preflight -- --db` for migration-level verification.
 - Set TLS `DATABASE_URL`, random 32+ character `BETTER_AUTH_SECRET`, and `BETTER_AUTH_URL=https://intake-six-blue.vercel.app` (the exact public frontend origin). Set server-only `ADMIN_EMAILS` to a comma-separated list of exact, independently verified Better Auth administrator accounts; an empty allowlist denies everyone, malformed entries never authorize, and `emailVerified` must be true. This checkout does not send verification email. Never expose it as `VITE_ADMIN_EMAILS`. Production startup rejects insecure/placeholder auth/database values.
 - Render supplies `PORT`; server validates it and binds `0.0.0.0`; local default is 3001. `API_TRUST_PROXY_HOPS` defaults to 0; change it only after verifying the exact proxy chain, as described in [PRODUCTION.md](PRODUCTION.md).
 - Use a PostgreSQL 15+ Neon project. Run `npm run db:migrate` against the intended database before release, then `npm run db:migrate:intake`. The second command applies `db/migrations/*.sql` in filename order: `001` provider connections, `002` owned form records, `003` creation drafts/one-shot claims, `004` edit snapshots/claims, `005` library metadata, `006` distributed abuse controls plus composite edit-draft ownership, `007_ai_credits` entitlements/ledger/logical operations, the historical `007_ai_operations` no-op, `008_ai_operation_compat` archive-and-backfill for Phase 12 telemetry, and `009_admin_indexes`. Migrations are tracked and additive; the compatibility migration preserves the legacy table and maps only safe operation metadata. `006` intentionally fails if historical edit/form ownership is inconsistent; investigate rather than deleting or rewriting rows. `007` adds no rows for existing accounts: the first credit read issues that UTC day's grant. The edit workflow uses the already-requested Google `forms.body` scope, selects Intake records or a user-supplied strict Google Forms URL, and does not request Drive-wide discovery permission.

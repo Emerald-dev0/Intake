@@ -18,11 +18,18 @@ test('deployment routes reserve API before the generic SPA fallback', async () =
   assert.equal(config.rewrites, undefined, 'use the low-level route pipeline without mixing Vercel routing modes');
   assert.equal(config.headers, undefined, 'route-specific noindex headers belong on the private route');
 
+  const headerRule = config.routes.find(rule => rule.headers?.['X-Content-Type-Options'] === 'nosniff');
   const apiRule = config.routes.find(rule => rule.src?.startsWith('/api'));
   const privateRule = config.routes.find(rule => rule.dest === '/private.html');
   const pricingRule = config.routes.find(rule => rule.dest === '/pricing.html');
   const filesystemRule = config.routes.find(rule => rule.handle === 'filesystem');
   const publicFallback = config.routes.find(rule => rule.dest === '/index.html');
+  assert.ok(headerRule, 'frontend documents must carry baseline security headers');
+  assert.equal(headerRule.dest, undefined, 'a header rule must not rewrite the request');
+  assert.equal(headerRule.continue, true, 'a header rule must let routing continue');
+  assert.equal(headerRule.headers['X-Frame-Options'], 'DENY');
+  assert.equal(headerRule.headers['Referrer-Policy'], 'strict-origin-when-cross-origin');
+  assert.equal(headerRule.headers['Strict-Transport-Security'], 'max-age=31536000');
   assert.ok(apiRule, 'API requests must proxy to the backend');
   assert.ok(privateRule, 'authenticated and account routes must use the noindex document');
   assert.ok(pricingRule, 'the public pricing route must serve its dedicated metadata document');
@@ -32,6 +39,8 @@ test('deployment routes reserve API before the generic SPA fallback', async () =
   assert.equal(apiRule.dest, '${BACKEND_URL}/api/$1');
   assert.equal(apiRule.headers['Cache-Control'], 'no-store');
   assert.equal(privateRule.headers['X-Robots-Tag'], 'noindex, nofollow');
+  assert.equal(config.routes.indexOf(headerRule), 0, 'headers are applied before any routing decision');
+  assert.ok(config.routes.indexOf(headerRule) < config.routes.indexOf(apiRule));
   assert.ok(config.routes.indexOf(apiRule) < config.routes.indexOf(privateRule));
   assert.ok(config.routes.indexOf(privateRule) < config.routes.indexOf(pricingRule));
   assert.ok(config.routes.indexOf(pricingRule) < config.routes.indexOf(filesystemRule));

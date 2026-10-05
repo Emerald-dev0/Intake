@@ -1,4 +1,16 @@
-export const SITE_URL = 'https://intake-six-blue.vercel.app';
+import { DEFAULT_SITE_URL, normalizeSiteUrl } from '../lib/site-url';
+
+/**
+ * Canonical public origin. Builds through Vite inline `VITE_SITE_URL`; tooling that imports this
+ * module in Node (for example `vite.config.ts`) resolves the value through `loadEnv` and passes it
+ * to the plugins explicitly. The fallback keeps an unconfigured build honest rather than blank.
+ */
+function viteSiteUrl(): string | undefined {
+  const meta = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
+  return meta?.VITE_SITE_URL;
+}
+
+export const SITE_URL = normalizeSiteUrl(viteSiteUrl(), DEFAULT_SITE_URL);
 export const SITE_NAME = 'Intake';
 export const HOMEPAGE_TITLE = 'Intake — AI-Powered Google Forms Creation & Editing';
 export const META_DESCRIPTION = 'Create and edit Google Forms with AI. Describe a form or requested change, review Intake’s proposal, and confirm before it is applied in your connected Google account.';

@@ -44,7 +44,30 @@ app.use('/api', (_req, res, next) => {
   if (!res.get('X-Request-Id')) res.set('X-Request-Id', newRequestId());
   next();
 });
-app.get('/api/health', (_req, res) => res.json({ ok: true }));
+/**
+ * Liveness by default: what Render's health check needs, and nothing about internal architecture.
+ *
+ * `?deep=1` additionally probes PostgreSQL with a bounded read. It is opt-in so a database blip can
+ * never make Render recycle a healthy process, while operators and the production verification
+ * script still get a truthful readiness answer. No credential, hostname or version is ever returned.
+ */
+app.get('/api/health', async (req, res) => {
+  if (req.query.deep !== '1') return res.json({ ok: true });
+  const started = Date.now();
+  try {
+    await Promise.race([
+      pool.query('SELECT 1'),
+      new Promise((_resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('Database health probe timed out')), 4_000);
+        timer.unref?.();
+      }),
+    ]);
+    return res.json({ ok: true, database: 'ok', latencyMs: Date.now() - started });
+  } catch (error) {
+    logSafe('Database health probe failed', error);
+    return res.status(503).json({ ok: false, database: 'unavailable' });
+  }
+});
 // Public sign-in capabilities (booleans only). Mounted before the API 404 below.
 app.use('/api/sign-in', createSignInRouter({ env: process.env }));
 // This route must precede application body middleware. The parsers enforce the bound for both
