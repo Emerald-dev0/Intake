@@ -80,17 +80,32 @@ function noScriptContent(): string {
   const faq = FAQS.map(({ question, answer }) =>
     `<section><h3>${escapeHtml(question)}</h3><p>${escapeHtml(answer)}</p></section>`,
   ).join('');
+  const comparison = proPriceComparison();
+  const proMonthly = formatUsd(comparison.monthlyCents);
+  const proAnnual = formatUsd(comparison.annualCents);
 
   return `<main class="seo-fallback">
     <header><a href="/" aria-label="Intake home">Intake</a></header>
     <section aria-labelledby="fallback-title">
-      <h1 id="fallback-title">${escapeHtml(HOMEPAGE_TITLE.replace(/^Intake — /, ''))}</h1>
+      <h1 id="fallback-title">Tell Intake what you need. It builds the form for you.</h1>
       <p>${escapeHtml(PRODUCT_DESCRIPTION)}</p>
       <p>${escapeHtml(META_DESCRIPTION)}</p>
+    </section>
+    <section aria-labelledby="fallback-product">
+      <h2 id="fallback-product">Not another form builder.</h2>
+      <p>Intake is a natural-language control layer for real Google Forms. Describe the outcome, review a structured proposal, and confirm before creating a form or applying supported edits to one you already have.</p>
+      <p>Google hosts the responder page and responses. Intake is independent of Google and does not replace Google Forms.</p>
     </section>
     <section aria-labelledby="fallback-how">
       <h2 id="fallback-how">How Intake works</h2>
       <ol>${workflow}</ol>
+    </section>
+    <section aria-labelledby="fallback-pricing">
+      <h2 id="fallback-pricing">Plans and pricing</h2>
+      <h3>Free · $0</h3>
+      <p>${PLAN_CATALOG.free.dailyCredits} daily AI credits, Google Forms connection, AI creation and editing, a form library, and review before apply.</p>
+      <h3>Pro · ${escapeHtml(proMonthly)} per month or ${escapeHtml(proAnnual)} per year</h3>
+      <p>${PLAN_CATALOG.pro.dailyCredits} daily credits plus ${PLAN_CATALOG.pro.monthlyCredits} monthly credits. Pro includes the same supported form workflows as Free. Checkout and self-service plan changes are not available yet.</p>
     </section>
     <section id="faq" aria-labelledby="fallback-faq">
       <h2 id="fallback-faq">Frequently asked questions</h2>

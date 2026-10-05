@@ -20,70 +20,78 @@ export const CREATOR = {
 
 export const WORKFLOW_STEPS = [
   {
-    title: 'Describe the form or change',
-    body: 'Tell Intake in natural language what a new form should collect or what you want to change in an existing Google Form.',
+    title: 'Describe what you need',
+    body: 'Tell Intake in plain language what a new form should collect or what should change in an existing Google Form.',
   },
   {
-    title: 'Intake interprets your request',
+    title: 'Intake understands the request',
     body: 'Server-side AI turns the request into a structured form proposal and checks it against supported Google Forms capabilities.',
   },
   {
-    title: 'Review and revise the proposal',
-    body: 'Inspect the proposed questions and supported edits. You can ask Intake to revise the draft; Google Forms is not changed during this step.',
+    title: 'Review the proposal',
+    body: 'Inspect the proposed questions or supported edits. Revise the draft if needed; Google Forms is not changed during this step.',
   },
   {
-    title: 'Authorize the right Google account',
-    body: 'Sign in to Intake, then separately connect the Google account that owns the form or has editor access. Choose a form from your library or provide its Google Forms edit URL when editing.',
-  },
-  {
-    title: 'Confirm before anything is applied',
-    body: 'After your explicit confirmation, Intake creates a new Google Form or applies supported changes to the same existing form in that connected account.',
+    title: 'Confirm before applying',
+    body: 'Authorize Google separately, then confirm. Intake creates a real Google Form or applies supported edits to that same existing form.',
   },
 ] as const;
 
 export const FAQS = [
   {
     question: 'What is Intake?',
-    answer: 'Intake is an AI-assisted workspace for creating and editing Google Forms from natural-language requests. It turns your description into a structured proposal; you review it and confirm before Intake creates a new form or applies supported edits to an existing form in your Google account.',
+    answer: 'Intake is a natural-language control layer for real Google Forms. Describe a form or a change, review the structured proposal, and confirm before Intake creates or updates a form in your connected Google account.',
   },
   {
-    question: 'How do I create a Google Form with AI using Intake?',
-    answer: 'Describe the form in plain language. Intake interprets the request, generates and validates a structured form plan, and shows you a draft to review and revise. Connect your Google account separately, then explicitly confirm to create the real Google Form. The landing-page demos are scripted and do not create forms.',
+    question: 'What does Intake do?',
+    answer: 'Intake uses server-side AI to turn a plain-language request into a structured Google Forms proposal. It can create a new form or prepare supported edits to an existing form, with review and explicit confirmation before anything is applied.',
   },
   {
-    question: 'Does Intake create real Google Forms?',
-    answer: 'Yes. When the service is configured and you have authorized Google, Intake creates a real form in that connected Google account only after you review the proposal and confirm. Google hosts the responder form and responses; this website’s demos do not make provider calls.',
+    question: 'Can Intake create Google Forms?',
+    answer: 'Yes. When the Intake service and Google Forms connection are configured, Intake creates a real Google Form in your authorized Google account after you review the proposal and confirm. The examples on this page are illustrative and do not create forms.',
   },
   {
-    question: 'Can Intake edit an existing Google Form?',
-    answer: 'Yes. Intake can load a form from your Intake library or a Google Forms edit URL, read its current structure, and prepare supported changes in a reviewable draft. After you confirm, Intake updates that same form rather than creating a replacement. Your connected Google account must have editor access.',
+    question: 'Can Intake edit existing Google Forms?',
+    answer: 'Yes. Choose a form from your Intake library or provide its Google Forms edit URL. Intake reads its current structure and proposes supported changes; after you confirm, it updates that same form rather than making a replacement. Your Google account needs editor access.',
   },
   {
-    question: 'Which Google Forms question types does Intake support?',
-    answer: 'Current creation supports short answer, paragraph, multiple choice (one answer), checkboxes (multiple answers), and dropdown questions. Email or phone requests become ordinary text fields without format-specific validation. Number, date, and rating controls are not supported. Conditional requests are limited to section-routing patterns Google Forms can express; unsupported rules are flagged instead of applied.',
+    question: 'How does Intake create a Google Form?',
+    answer: 'Describe the form in plain language. Intake interprets the request, validates a structured proposal against supported form capabilities, and shows you a draft to review or revise. Connect Google separately, then confirm to create the real form in that account.',
   },
   {
     question: 'Do I need a Google account?',
-    answer: 'Yes, to create or edit a Google Form. You also need an Intake account. Signing in to Intake does not authorize Google access; connect the Google account that owns the form or has permission to edit it.',
-  },
-  {
-    question: 'Does Intake create Microsoft Forms?',
-    answer: 'No. Intake’s implemented form creation and editing workflow is for Google Forms. Intake does not claim or offer Microsoft Forms creation or editing.',
+    answer: 'Yes, to create or edit a Google Form. You also need an Intake account. Signing in to Intake is separate from authorizing the Google account that owns the form or has editor access.',
   },
   {
     question: 'Does Intake replace Google Forms?',
-    answer: 'No. Intake is a natural-language creation and editing layer for Google Forms, not a hosted respondent-form service. Google continues to host the form and collect responses. Intake stores form specifications and management metadata, not respondent answers.',
+    answer: 'No. Intake is a natural-language way to create and manage Google Forms, not another hosted form platform. Google hosts the responder page and collects responses; Intake stores form specifications and management metadata, not respondent answers.',
   },
   {
-    question: 'How does Intake use AI?',
-    answer: 'Server-side AI interprets a request and proposes a structured form specification or supported edits. Intake validates that proposal against its form rules and Google Forms capabilities. The model cannot access your Google credentials or call Google Forms; a provider change happens only after your explicit confirmation.',
+    question: 'Can I review changes before they are applied?',
+    answer: 'Yes. Intake shows a structured proposal before creating or editing a Google Form. Drafting and revising do not change Google Forms; the provider operation happens only after you explicitly confirm the reviewed proposal.',
   },
   {
-    question: 'Does Intake apply changes automatically?',
-    answer: 'No. Interpreting or revising a request changes only the Intake draft. Intake contacts Google Forms to create or update a form only after you explicitly confirm the reviewed proposal.',
+    question: 'Is Intake free?',
+    answer: 'The Free plan is $0 and includes 20 daily AI credits, Google Forms connection, AI creation and editing, a form library, and review-before-apply. Pro is displayed at $6.99 per month or $59.99 per year with an additional 500 monthly credits, but checkout and plan changes are not available yet.',
   },
   {
-    question: 'Who is Intake for?',
-    answer: 'Intake is for students, researchers, educators, event organizers, community groups, and small businesses that need to create or update Google Forms without manually configuring every question.',
+    question: 'What are Intake AI credits?',
+    answer: 'Credits measure successful AI-powered creation and editing interpretations. A simple edit costs 1 credit, a standard creation of about six questions costs 2, and larger or conditional creations cost 3–5. Failed, unsupported, or clarification-needed interpretations are not charged; applying an already-reviewed form costs no additional AI credits.',
+  },
+  {
+    question: 'What is the difference between Intake and a normal AI form builder?',
+    answer: 'Intake does not just generate a form on its own platform. It turns natural-language requests into reviewable proposals for actual Google Forms, can propose supported changes to forms you already have, and waits for your confirmation before applying them.',
+  },
+  {
+    question: 'Which Google Forms question types does Intake support?',
+    answer: 'Supported question types include short answer, paragraph, one-answer multiple choice, checkboxes, and dropdowns. Email and phone requests become ordinary text fields without format-specific validation. Number, date, and rating controls are not supported. Conditional requests are limited to supported Google Forms section-routing patterns; unsupported requests are flagged instead of applied.',
+  },
+  {
+    question: 'Can I upgrade to Pro now?',
+    answer: 'Not yet. Pro is listed at $6.99 per month or $59.99 per year, but Intake does not process payments or allow self-service plan changes yet. The displayed prices do not start a subscription.',
+  },
+  {
+    question: 'Does Intake create Microsoft Forms?',
+    answer: 'No. Intake’s implemented form creation and editing workflows are for Google Forms. Microsoft Forms creation and editing are not available.',
   },
 ] as const;

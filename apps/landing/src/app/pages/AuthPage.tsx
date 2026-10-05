@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { authClient as client } from '../../lib/auth';
 import { oauthErrorMessage } from '../../lib/sign-in-errors';
 import { useSignInConfig } from '../hooks/useSignInConfig';
-import { LogoMark } from '../../reel/parts';
+import { LogoMark } from '../../components/LogoMark';
 
 export function AuthPage({ signUp = false }: { signUp?: boolean }) {
   const [name, setName] = useState('');
