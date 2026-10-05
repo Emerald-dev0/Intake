@@ -60,7 +60,7 @@ export function AccountPage() {
         {credits?.plan === 'pro' && <>
           <p className="account-plan-summary">Pro includes {credits.dailyLimit} daily credits and a {credits.monthlyLimit}-credit monthly reserve. Unused credits do not roll over.</p>
           <p className="account-billing-status"><span>Billing status on record</span><strong>{billingStatusLabel(credits.subscriptionStatus)}</strong></p>
-          {credits.subscriptionStatus === 'none' && <p className="account-disclaimer">Pro access is enabled for this account, but Intake has no connected billing record. Payments and self-service plan changes are not available.</p>}
+          {credits.subscriptionStatus === 'none' && <p className="account-disclaimer">Pro access is switched on for this account, and no billing record is connected, so nothing is charged and there is nothing to cancel.</p>}
           {proPrice && <p className="account-price-reference">Published Pro pricing: {formatUsd(proPrice.month)} monthly or {formatUsd(proPrice.year)} yearly.</p>}
           <a className="btn btn-ghost btn-sm" href="/pricing?billing=annual">View Pro plan details <span aria-hidden>↗</span></a>
         </>}
@@ -99,7 +99,7 @@ export function AccountPage() {
         <li>Google Forms is contacted only after you review and explicitly confirm a proposal. Applying a reviewed proposal costs no extra credits.</li>
         <li>Daily credits refresh at 00:00 UTC. Monthly credits follow the reset time shown above; neither bucket rolls over.</li>
       </ul>
-      <p>Prices on the public page are display information only. Payments and plan changes are not implemented.</p>
+      <p>Plans and prices are listed on the <a href="/pricing">pricing page</a>. What this account can use right now is always the balance shown above.</p>
     </section>
 
     <section className="account-connections" aria-labelledby="signin-methods-title">
