@@ -35,8 +35,8 @@ test('the generated pricing document is crawlable, canonical, and matches its vi
   assert.ok(fallback);
   assert.match(fallback, /Free · \$0/);
   assert.match(fallback, /Pro · \$6\.99 per month or \$59\.99 per year/);
-  assert.match(fallback, /does not process payments/);
-  assert.match(fallback, /priority processing is not offered/);
+  assert.match(fallback, /Intake does not take payments yet/);
+  assert.match(fallback, /the Free plan is open now/);
 
   const graph = JSON.parse(structured);
   const page = graph['@graph'].find(entity => entity['@type'] === 'WebPage');

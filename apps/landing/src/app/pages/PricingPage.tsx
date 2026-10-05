@@ -7,7 +7,7 @@ import { PLAN_CATALOG, formatUsd, proPriceComparison } from '../../lib/plans';
 type BillingCadence = 'month' | 'year';
 
 const FREE_FEATURES = [
-  `${PLAN_CATALOG.free.dailyCredits} AI credits refreshed each day at 00:00 UTC`,
+  `${PLAN_CATALOG.free.dailyCredits} credits refreshed each day at 00:00 UTC`,
   'Create Google Forms from a description',
   'Review and revise a proposal before creating it',
   'Prepare supported edits to existing Google Forms',
@@ -15,7 +15,7 @@ const FREE_FEATURES = [
 ];
 
 const PRO_FEATURES = [
-  `${PLAN_CATALOG.pro.dailyCredits} daily AI credits, plus ${PLAN_CATALOG.pro.monthlyCredits} monthly credits`,
+  `${PLAN_CATALOG.pro.dailyCredits} daily credits, plus ${PLAN_CATALOG.pro.monthlyCredits} monthly credits`,
   'The same supported creation and edit workflows available on Free',
   'Daily credits are used before the monthly reserve',
   'Monthly credits reset each period and do not roll over',
@@ -63,26 +63,26 @@ export function PricingPage() {
         <article className="pricing-plan-card is-pro" aria-labelledby="pro-plan-title">
           <div className="pricing-plan-top"><span className="info-index">02 / MORE CREDITS</span><span className="pricing-plan-tag">PRO</span></div>
           <h2 id="pro-plan-title">{PLAN_CATALOG.pro.label}</h2>
-          <p className="pricing-plan-description">A larger monthly credit reserve for continued AI-assisted work.</p>
+          <p className="pricing-plan-description">A larger monthly credit reserve for the months when you build a lot.</p>
           <p className="pricing-amount" aria-live="polite" aria-atomic="true"><strong>{formatUsd(amount)}</strong><span>/{cadence === 'month' ? 'month' : 'year'}</span></p>
           {cadence === 'year' && <p className="pricing-equivalent">Equivalent to {formatUsd(comparison.monthlyEquivalentCents)} per month, billed annually.</p>}
           {cadence === 'month'
             ? <p className="pricing-compare">{formatUsd(comparison.monthlyCents)} each month · {formatUsd(comparison.monthlyBilledAnnualTotalCents)} over 12 months</p>
             : <p className="pricing-compare">{formatUsd(comparison.annualCents)} for 12 months · {formatUsd(comparison.annualSavingsCents)} less than 12 monthly payments</p>}
-          <button className="btn btn-accent pricing-plan-action" type="button" disabled aria-describedby="payment-status">Upgrade checkout is not available yet</button>
+          <a className="btn btn-accent pricing-plan-action" href={authenticated ? '/app' : '/auth/sign-up'} aria-describedby="payment-status">{authenticated ? 'Open Intake' : 'Create a free account'} <span aria-hidden>→</span></a>
           <ul>{PRO_FEATURES.map(feature => <li key={feature}>{feature}</li>)}</ul>
         </article>
       </section>
 
-      <p className="pricing-payment-note" id="payment-status"><strong>Payment status:</strong> Intake does not process payments or let you change plans yet. The cadence switch changes the price display only; it does not start a subscription or collect payment.</p>
+      <p className="pricing-payment-note" id="payment-status"><strong>One thing to know:</strong> Intake does not take payments yet. Pro shows what is planned and what it would cost, and the Free plan is open right now.</p>
 
       <section className="pricing-what-to-know" aria-labelledby="pricing-limits-title">
         <div><span className="info-index">WHAT TO KNOW</span><h2 id="pricing-limits-title">Credits, limits &amp; processing</h2></div>
         <ul>
           <li><strong>Credits are server-controlled.</strong> Intake calculates each operation’s cost from the validated proposal and shows your current balance and reset times in the workspace.</li>
           <li><strong>Unused credits do not roll over.</strong> Daily credits refresh at 00:00 UTC. Pro monthly credits refresh at the reset shown in your account.</li>
-          <li><strong>Same provider limits on both plans.</strong> Google and AI-provider rate limits still apply equally. Intake does not offer priority processing.</li>
-          <li><strong>Review before apply.</strong> AI interpretation can propose a draft; creating or editing a Google Form still waits for your explicit confirmation.</li>
+          <li><strong>Same limits on both plans.</strong> Google and provider rate limits apply equally. Intake does not offer priority processing.</li>
+          <li><strong>Review before apply.</strong> Intake can propose a draft; creating or editing a Google Form still waits for your explicit confirmation.</li>
         </ul>
       </section>
 

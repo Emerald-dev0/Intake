@@ -93,7 +93,7 @@ function deployment({ defects = {} } = {}) {
       return html(200, '<meta name="robots" content="noindex, nofollow" />', { 'X-Robots-Tag': 'noindex, nofollow' });
     }
     if (url.pathname === '/') {
-      return html(200, `<title>Intake — AI-Powered Google Forms Creation &amp; Editing</title><link rel="canonical" href="${origin}/" />`);
+      return html(200, `<title>Intake — Google Forms, built from a sentence</title><link rel="canonical" href="${origin}/" />`);
     }
     res.writeHead(404, { 'Content-Type': 'text/html' });
     return res.end('<!doctype html><title>404</title>');

@@ -35,13 +35,13 @@ function structuredData(siteUrl: string): string {
         url: `${siteUrl}/`,
         description: PRODUCT_DESCRIPTION,
         applicationCategory: 'BusinessApplication',
-        applicationSubCategory: 'AI-assisted Google Forms creation and editing',
+        applicationSubCategory: 'Google Forms creation and editing from a written description',
         inLanguage: 'en',
         featureList: [
-          'Create structured Google Forms from natural-language requests',
-          'Review and revise an AI-generated form proposal before creation',
-          'Propose and review supported changes to existing Google Forms',
-          'Manage Intake-created and imported Google Forms in a private library',
+          'Create a Google Form from a plain-English description',
+          'Review and change the proposed questions before anything is created',
+          'Propose and review changes to a Google Form you already have',
+          'Keep every form you make or import in a private library',
         ],
         creator: { '@id': creatorId },
         author: { '@id': creatorId },
@@ -93,8 +93,8 @@ function noScriptContent(): string {
     </section>
     <section aria-labelledby="fallback-product">
       <h2 id="fallback-product">Not another form builder.</h2>
-      <p>Intake is a natural-language control layer for real Google Forms. Describe the outcome, review a structured proposal, and confirm before creating a form or applying supported edits to one you already have.</p>
-      <p>Google hosts the responder page and responses. Intake is independent of Google and does not replace Google Forms.</p>
+      <p>Describe what you want to collect in a sentence. Intake turns it into a full list of questions, you adjust anything that does not fit, and the form is created in your own Google account.</p>
+      <p>Editing works the same way: point Intake at a form you already have, describe the change, and confirm it once the proposal looks right.</p>
     </section>
     <section aria-labelledby="fallback-how">
       <h2 id="fallback-how">How Intake works</h2>
@@ -103,15 +103,15 @@ function noScriptContent(): string {
     <section aria-labelledby="fallback-pricing">
       <h2 id="fallback-pricing">Plans and pricing</h2>
       <h3>Free · $0</h3>
-      <p>${PLAN_CATALOG.free.dailyCredits} daily AI credits, Google Forms connection, AI creation and editing, a form library, and review before apply.</p>
+      <p>${PLAN_CATALOG.free.dailyCredits} credits every day, form creation from a description, editing for the forms you already have, a library of everything you make, and a review step before anything is applied.</p>
       <h3>Pro · ${escapeHtml(proMonthly)} per month or ${escapeHtml(proAnnual)} per year</h3>
-      <p>${PLAN_CATALOG.pro.dailyCredits} daily credits plus ${PLAN_CATALOG.pro.monthlyCredits} monthly credits. Pro includes the same supported form workflows as Free. Checkout and self-service plan changes are not available yet.</p>
+      <p>${PLAN_CATALOG.pro.dailyCredits} credits a day plus ${PLAN_CATALOG.pro.monthlyCredits} a month, with every workflow from Free unchanged. Daily credits are used first and unused credits do not roll over.</p>
     </section>
     <section id="faq" aria-labelledby="fallback-faq">
       <h2 id="fallback-faq">Frequently asked questions</h2>
       ${faq}
     </section>
-    <footer>Built by <a href="${escapeHtml(CREATOR.github)}">${escapeHtml(CREATOR.displayName)}</a>.</footer>
+    <footer>Designed by <a href="${escapeHtml(CREATOR.github)}">${escapeHtml(CREATOR.credit)}</a>.</footer>
   </main>`;
 }
 
@@ -177,10 +177,10 @@ function pricingNoScriptContent(): string {
     <section aria-labelledby="pricing-fallback-title">
       <h1 id="pricing-fallback-title">Intake plans and pricing</h1>
       <h2>Free · $0</h2>
-      <p>${PLAN_CATALOG.free.dailyCredits} daily AI credits, refreshed at 00:00 UTC, with supported Google Forms creation and edit workflows.</p>
+      <p>${PLAN_CATALOG.free.dailyCredits} credits every day, refreshed at 00:00 UTC, with the full Google Forms creation and editing workflow.</p>
       <h2>Pro · ${escapeHtml(proMonthly)} per month or ${escapeHtml(proAnnual)} per year</h2>
-      <p>${PLAN_CATALOG.pro.dailyCredits} daily credits plus ${PLAN_CATALOG.pro.monthlyCredits} monthly credits. Annual billing saves ${escapeHtml(annualSavings)} compared with twelve monthly payments. Unused credits do not roll over.</p>
-      <p>Intake does not process payments or allow plan changes yet. The annual/monthly switch is display-only. Google Forms and AI-provider limits are the same across plans; priority processing is not offered.</p>
+      <p>${PLAN_CATALOG.pro.dailyCredits} credits a day plus ${PLAN_CATALOG.pro.monthlyCredits} a month. Paying annually would save ${escapeHtml(annualSavings)} compared with twelve monthly payments, and unused credits do not roll over.</p>
+      <p>Intake does not take payments yet: Pro shows what is planned and what it would cost, and the Free plan is open now. Google Forms and provider limits are the same across plans.</p>
     </section>
     <section id="faq" aria-labelledby="pricing-fallback-faq"><h2 id="pricing-fallback-faq">Pricing questions</h2>${faq}</section>
     <footer><a href="/auth/sign-up">Start with Free</a> · <a href="/">Back to Intake</a></footer>
