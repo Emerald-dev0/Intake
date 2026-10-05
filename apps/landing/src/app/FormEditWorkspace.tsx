@@ -13,7 +13,8 @@ import type { PublicFormSummary } from '../lib/forms';
 import type { ProviderLoad } from './Connections';
 import { useCredits } from './hooks/useCredits';
 import { createOperationTracker } from '../lib/operation-id';
-import { insufficientCreditsMessage, isInsufficientCredits } from '../lib/credits';
+import { insufficientCreditsMessage, isInsufficientCredits, type PublicOperationCost } from '../lib/credits';
+import { CreditCostPreview, OperationCostReceipt } from './components/CreditCostPreview';
 
 // Kept provider-independent at the UI boundary; the server resolves all targets against the signed-in user.
 type Target = { kind: 'record'; formRecordId: string } | { kind: 'url'; formUrl: string };
@@ -73,6 +74,7 @@ export function FormEditWorkspace({
   const [clarificationAnswer, setClarificationAnswer] = useState('');
   const [failure, setFailure] = useState<FormEditFailure | null>(null);
   const [unsupported, setUnsupported] = useState('');
+  const [operationCost, setOperationCost] = useState<PublicOperationCost | null>(null);
   const [busy, setBusy] = useState<Busy>(draftId ? 'loading' : null);
   const [acknowledged, setAcknowledged] = useState(false);
   const [checkedOriginal, setCheckedOriginal] = useState(false);
@@ -80,6 +82,8 @@ export function FormEditWorkspace({
   const alive = useRef(true);
   const google = providers.providers?.find(provider => provider.id === 'google');
   const googleForms = forms.filter(form => form.provider === 'google');
+  const costCredits = credits.state.status === 'ready' ? credits.state.credits : null;
+  const costGuide = credits.state.status === 'ready' ? credits.state.costGuide : null;
 
   useEffect(() => {
     alive.current = true;
@@ -118,6 +122,7 @@ export function FormEditWorkspace({
     if (!id || busyRef.current) return;
     busyRef.current = true;
     setBusy('loading');
+    setOperationCost(null);
     try {
       const saved = await fetchDraft(id);
       if (!alive.current) return;
@@ -165,6 +170,7 @@ export function FormEditWorkspace({
     setBusy(mode === 'new' ? 'interpreting' : 'revising');
     setFailure(null);
     setUnsupported('');
+    setOperationCost(null);
     try {
       const targetKeyPart = mode === 'new' ? JSON.stringify(fixedTarget ?? target) : `${fixedDraft?.id ?? draft!.id}:${fixedDraft?.version ?? draft!.version}`;
       const signature = [mode, targetKeyPart, instruction, clarification ?? ''].join('|');
@@ -181,6 +187,7 @@ export function FormEditWorkspace({
       credits.note(payload);
       const parsed = parseFormEditInterpret(response.status, payload);
       if (!alive.current) return;
+      setOperationCost(parsed.status === 'error' ? null : parsed.operationCost ?? null);
       if (parsed.status === 'ready') {
         setDraft(parsed.draft);
         setDraftId(parsed.draft.id);
@@ -300,6 +307,7 @@ export function FormEditWorkspace({
     setClarificationAnswer('');
     setFailure(null);
     setUnsupported('');
+    setOperationCost(null);
     setAcknowledged(false);
     setCheckedOriginal(false);
     setPreview(null);
@@ -327,6 +335,7 @@ export function FormEditWorkspace({
     <div className="draft-steps" aria-label="Form editing steps"><span className={!draft ? 'current' : ''}>01 / SELECT</span><span className={draft ? 'current' : ''}>02 / REVIEW</span><span className={draft?.status === 'applied' ? 'current' : ''}>03 / CONFIRM</span></div>
     <section className="draft-provider edit-provider" aria-label="Edit provider"><span className="provider-symbol" aria-hidden>G</span><div><strong>Google Forms</strong><small>{providerNotice}</small></div><span className="draft-provider-note">ORIGINAL FORM ID IS PRESERVED</span></section>
     {google && google.status !== 'connected' && <div className="form-banner warn draft-notice" role="status"><p>{providerNotice}</p><a href="/app/connections" className="btn btn-ghost btn-sm">View connections →</a></div>}
+    {((canUsePreview && !draft) || draft?.status === 'ready') && <CreditCostPreview mode="edit" guide={costGuide} credits={costCredits} />}
 
     {busy === 'loading' && <div className="forms-panel draft-loading" role="status"><span className="spin" /> Recovering your saved edit proposal…</div>}
     {draftId && !draft && busy !== 'loading' && <div className="form-banner warn" role="alert"><strong>Saved edit status is not confirmed.</strong><p>{failure?.error ?? 'The proposal could not be loaded. No provider update was repeated.'}</p><div className="forms-actions"><button type="button" className="btn btn-ghost btn-sm" disabled={busy !== null} onClick={() => void loadSavedDraft(draftId)}>Check proposal status</button></div></div>}
@@ -371,10 +380,12 @@ export function FormEditWorkspace({
         <div className="forms-actions"><button className="btn btn-accent btn-sm" type="submit" disabled={busy !== null || !clarificationAnswer.trim()}>{busy === 'interpreting' || busy === 'revising' ? 'Revising the proposal…' : 'Continue →'}</button><button className="btn btn-ghost btn-sm" type="button" disabled={busy !== null} onClick={() => { setPending(null); setClarificationAnswer(''); }}>Back to {draft ? 'proposal' : 'form selection'}</button></div>
       </form>
     </section>}
+    {pending && <OperationCostReceipt receipt={operationCost} />}
     {unsupported && <div className="form-banner warn draft-feedback" role="alert"><strong>That edit is not supported safely.</strong><p>{unsupported}</p><p>Revise the request using supported changes, or make this change directly in Google Forms. The previous proposal has not been applied.</p></div>}
+    {unsupported && <OperationCostReceipt receipt={operationCost} />}
     {failure && !(draftId && !draft) && <FailureNotice failure={failure} onReload={draftId ? () => void loadSavedDraft(draftId) : undefined} />}
 
-    {draft && <EditReview draft={draft} busy={busy} acknowledged={acknowledged} setAcknowledged={setAcknowledged} onConfirm={() => void confirm()} onDiscard={() => void discard()}
+    {draft && <EditReview draft={draft} operationCost={operationCost} busy={busy} acknowledged={acknowledged} setAcknowledged={setAcknowledged} onConfirm={() => void confirm()} onDiscard={() => void discard()}
       revision={revision} setRevision={setRevision} onRevise={submitRevision} onReload={() => void loadSavedDraft(draft.id)} onStartFresh={clearProposal}
       checkedOriginal={checkedOriginal} setCheckedOriginal={setCheckedOriginal} />}
   </>;
@@ -393,9 +404,9 @@ function CurrentForm({ form }: { form: FormEditView }) {
 }
 
 function EditReview({
-  draft, busy, acknowledged, setAcknowledged, onConfirm, onDiscard, revision, setRevision, onRevise, onReload, onStartFresh, checkedOriginal, setCheckedOriginal,
+  draft, operationCost, busy, acknowledged, setAcknowledged, onConfirm, onDiscard, revision, setRevision, onRevise, onReload, onStartFresh, checkedOriginal, setCheckedOriginal,
 }: {
-  draft: PublicFormEditDraft; busy: Busy; acknowledged: boolean; setAcknowledged: (value: boolean) => void; onConfirm: () => void; onDiscard: () => void;
+  draft: PublicFormEditDraft; operationCost: PublicOperationCost | null; busy: Busy; acknowledged: boolean; setAcknowledged: (value: boolean) => void; onConfirm: () => void; onDiscard: () => void;
   revision: string; setRevision: (value: string) => void; onRevise: (event: FormEvent<HTMLFormElement>) => void; onReload: () => void; onStartFresh: () => void;
   checkedOriginal: boolean; setCheckedOriginal: (value: boolean) => void;
 }) {
@@ -410,6 +421,7 @@ function EditReview({
       {draft.changes.length > 0 ? <ol className="edit-diff-list">{draft.changes.map((change, index) => <li key={`${change.type}:${index}`} className={change.destructive ? 'destructive' : ''}>
         <span className="edit-diff-index">{String(index + 1).padStart(2, '0')}</span><div><strong>{change.title}</strong><p>{change.detail}</p></div><span className={`edit-diff-tag ${change.destructive ? 'danger' : ''}`}>{change.destructive ? 'REMOVE' : change.type.replaceAll('_', ' ')}</span>
       </li>)}</ol> : <p className="fine-print">No supported changes were proposed.</p>}
+      <OperationCostReceipt receipt={operationCost} />
       <details className="edit-current-details"><summary>Review the current form structure</summary><CurrentForm form={{ ...draft.current, items: draft.current.items }} /></details>
       {draft.result && !draft.result.ok && draft.status === 'ready' && <div className="form-banner warn edit-outcome" role="status"><strong>The last confirmed attempt was not applied.</strong><p>{draft.result.failure.error}</p><p>Intake refreshed the form and found the proposal unchanged. You can revise it, discard it, or explicitly confirm another attempt after reviewing the current proposal.</p></div>}
 
@@ -440,5 +452,5 @@ function EditReview({
 
 function FailureNotice({ failure, onReload }: { failure: FormEditFailure; onReload?: () => void }) {
   const connection = shouldReconnect(failure);
-  return <div className="form-banner warn draft-feedback edit-failure" role="alert"><strong>{connection ? 'Google connection needs attention' : failure.code === 'edit_stale' ? 'Review the latest form' : 'The edit request was not completed'}</strong><p>{failure.error}</p>{failure.detail && <p className="provider-note">Google said: {failure.detail}</p>}{failure.issues && <ul className="forms-issues">{failure.issues.map((issue, index) => <li key={`${issue.code}:${index}`}>{issue.message}{issue.hint && <em>{issue.hint}</em>}</li>)}</ul>}{connection && <a className="btn btn-ghost btn-sm" href="/app/connections">Reconnect Google →</a>}{onReload && <button type="button" className="btn btn-ghost btn-sm" onClick={onReload}>Check saved proposal</button>}{failure.requestId && <p className="forms-trace">Request {failure.requestId}</p>}</div>;
+  return <div className="form-banner warn draft-feedback edit-failure" role="alert"><strong>{connection ? 'Google connection needs attention' : failure.code === 'edit_stale' ? 'Review the latest form' : 'The edit request was not completed'}</strong><p>{failure.error}</p>{failure.issues && <ul className="forms-issues">{failure.issues.map((issue, index) => <li key={`${issue.code}:${index}`}>{issue.message}{issue.hint && <em>{issue.hint}</em>}</li>)}</ul>}{connection && <a className="btn btn-ghost btn-sm" href="/app/connections">Reconnect Google →</a>}{onReload && <button type="button" className="btn btn-ghost btn-sm" onClick={onReload}>Check saved proposal</button>}{failure.requestId && <p className="forms-trace">Request {failure.requestId}</p>}</div>;
 }

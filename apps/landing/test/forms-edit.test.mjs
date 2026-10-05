@@ -4,6 +4,8 @@ import { createServer } from 'node:http';
 import express from 'express';
 import { createMemoryFormEditDraftStore } from '../server/forms/edit-memory-store.ts';
 import { createFormEditRouter } from '../server/forms/edit-routes.ts';
+import { toFormEditFailure } from '../server/forms/edit-errors.ts';
+import { parseFormEditInspect } from '../src/lib/form-edit.ts';
 import { createInterpretationLimiter } from '../server/forms/interpretation/routes.ts';
 import { InterpretationError } from '../server/forms/interpretation/interpreter.ts';
 import { SPEC_VERSION } from '../server/forms/specification.ts';
@@ -17,6 +19,16 @@ const clarification = question => ({ status: 'needs_clarification', summary: nul
 const unsupported = explanation => ({ status: 'unsupported', summary: null, operations: null, question: null, explanation });
 const confirmInput = draft => ({ draftId: draft.id, version: draft.version, confirm: true });
 const count = (world, op) => world.fake.callsTo(op).length;
+
+test('edit error serialization and browser parsing never expose free-form provider detail', () => {
+  const raw = 'private form value applicant@example.test';
+  const failure = toFormEditFailure({ code: 'provider_rejected', message: 'Google rejected the requested edit.', detail: raw }, 'req_1');
+  assert.deepEqual(failure, { error: 'Google rejected the requested edit.', code: 'provider_rejected', requestId: 'req_1' });
+  const parsed = parseFormEditInspect(502, { ...failure, detail: raw });
+  assert.deepEqual(parsed, { failure: { error: failure.error, code: failure.code, requestId: failure.requestId } });
+  assert.equal(JSON.stringify(parsed).includes(raw), false);
+});
+
 const defaultSpec = () => form([
   shortText('name', { title: 'Full name', required: true, description: 'Use your legal name.' }),
   { id: 'role', type: 'multiple_choice', title: 'Role', required: true, options: ['Student', 'Staff'] },

@@ -47,10 +47,10 @@ test('AI failures retain only a normalized category and usage sink failures neve
     fetchImpl: async () => new Response('provider body with prompt-like secret', { status: 429 }),
     recordOperation: async record => { failureRecords.push(record); },
   });
-  await assert.rejects(failing.interpret({ mode: 'new', provider: 'google', request: 'Do not store this text', telemetry }), error => error.code === 'model_unavailable');
+  await assert.rejects(failing.interpret({ mode: 'new', provider: 'google', request: 'Do not store this text', telemetry }), error => error.code === 'model_rate_limited');
   assert.equal(failureRecords.length, 1);
   assert.equal(failureRecords[0].status, 'failed');
-  assert.equal(failureRecords[0].failureCode, 'model_unavailable');
+  assert.equal(failureRecords[0].failureCode, 'model_rate_limited');
   assert.equal(failureRecords[0].inputTokens, null);
   assert.doesNotMatch(JSON.stringify(failureRecords), /Do not store|prompt-like secret/);
 

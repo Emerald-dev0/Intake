@@ -1,9 +1,11 @@
 import { useOutletContext } from 'react-router-dom';
 import type { User } from '../../lib/api';
-import type { PublicCredits } from '../../lib/credits';
+import type { PublicCreditCostGuide, PublicCredits } from '../../lib/credits';
 import type { ProviderLoad } from '../Connections';
 
-export type CreditLoad = { status: 'loading' | 'error'; credits: null } | { status: 'ready'; credits: PublicCredits };
+export type CreditLoad =
+  | { status: 'loading' | 'error'; credits: null; costGuide: null }
+  | { status: 'ready'; credits: PublicCredits; costGuide: PublicCreditCostGuide | null };
 
 export type WorkspaceOutlet = {
   user: User;

@@ -113,6 +113,6 @@ test('robots, sitemap and private document expose only intended public indexable
   }
   assert.ok(robots.split(/\r?\n/).includes(`Sitemap: ${SITE_ORIGIN}/sitemap.xml`));
   const locations = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(([, location]) => location);
-  assert.deepEqual(locations, [`${SITE_ORIGIN}/`]);
+  assert.deepEqual(locations, [`${SITE_ORIGIN}/`, `${SITE_ORIGIN}/pricing`]);
   assert.match(privateHtml, /<meta name="robots" content="noindex, nofollow"\s*\/>/);
 });

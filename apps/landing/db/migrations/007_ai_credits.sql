@@ -9,6 +9,24 @@
 --     be charged twice, while a single operation may still consume the daily bucket and then the
 --     monthly reserve.
 --   * user_entitlement is the per-user lock row used by the consuming transaction (SELECT ... FOR UPDATE).
+--
+-- Compatibility: an earlier, telemetry-only migration used the same table name with different
+-- columns. Preserve that table before creating the credit-ledger schema; migration 008 maps its
+-- non-sensitive history into this table and leaves the old table archived for auditability.
+DO $$
+BEGIN
+  IF to_regclass('public.ai_operation') IS NOT NULL
+     AND NOT (
+       EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ai_operation' AND column_name = 'operation_key')
+       AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ai_operation' AND column_name = 'created_at')
+       AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ai_operation' AND column_name = 'credit_cost')
+     ) THEN
+    IF to_regclass('public.ai_operation_legacy_phase12') IS NOT NULL THEN
+      RAISE EXCEPTION 'Both legacy ai_operation and ai_operation_legacy_phase12 exist; reconcile them before migration.';
+    END IF;
+    ALTER TABLE public.ai_operation RENAME TO ai_operation_legacy_phase12;
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS user_entitlement (
   user_id text PRIMARY KEY REFERENCES "user"(id) ON DELETE CASCADE,

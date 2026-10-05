@@ -77,8 +77,13 @@ test('the balance endpoint reports plan, remaining credits and reset instants, a
   const anonymous = await app.balance();
   assert.equal(anonymous.status, 200);
   const balance = anonymous.json.credits;
-  assert.deepEqual(Object.keys(balance).sort(), ['dailyRemaining', 'monthlyRemaining', 'nextDailyReset', 'nextMonthlyReset', 'plan']);
-  assert.deepEqual({ plan: balance.plan, daily: balance.dailyRemaining, monthly: balance.monthlyRemaining }, { plan: 'free', daily: 20, monthly: 0 });
+  assert.deepEqual(Object.keys(balance).sort(), ['availableCredits', 'dailyLimit', 'dailyRemaining', 'monthlyLimit', 'monthlyRemaining', 'nextDailyReset', 'nextMonthlyReset', 'plan', 'subscriptionStatus']);
+  assert.deepEqual({ plan: balance.plan, daily: balance.dailyRemaining, dailyLimit: balance.dailyLimit, monthly: balance.monthlyRemaining, monthlyLimit: balance.monthlyLimit, available: balance.availableCredits }, { plan: 'free', daily: 20, dailyLimit: 20, monthly: 0, monthlyLimit: 0, available: 20 });
+  assert.equal(balance.subscriptionStatus, 'none');
+  assert.deepEqual(anonymous.json.costGuide, {
+    formCreate: { min: 2, max: 5, standard: 2, complexMin: 3 },
+    formEdit: { min: 1, max: 5, singleChange: 1, majorMin: 3 },
+  });
   assert.equal(balance.nextDailyReset, '2026-10-04T00:00:00.000Z');
   assert.equal(anonymous.headers.get('cache-control'), 'no-store');
   assert.equal(/token|cost|model|provider/i.test(JSON.stringify(balance)), false);
@@ -95,6 +100,7 @@ test('a normal form creation costs 2 credits once, and the response carries the 
   assert.equal(first.status, 201, first.text);
   assert.equal(first.json.credits.dailyRemaining, 18);
   assert.equal(first.json.credits.plan, 'free');
+  assert.deepEqual(first.json.operationCost, { credits: 2, status: 'charged' });
   assert.equal(app.store.all().length, 1);
 
   const usage = await app.creditStore.usage('user-a');
@@ -105,6 +111,7 @@ test('a normal form creation costs 2 credits once, and the response carries the 
   const replay = await app.interpret({ provider: 'google', request: 'Register people', operationId: 'operation-key-aaaa1111' });
   assert.equal(replay.status, 201, replay.text);
   assert.equal(replay.json.credits.dailyRemaining, 18, 'a replayed operation is not charged again');
+  assert.deepEqual(replay.json.operationCost, { credits: 2, status: 'already_charged' });
   assert.equal(app.seen.calls, 2, 'the model did run; only the billing is deduplicated');
   const consumption = (await app.creditStore.ledger('user-a')).filter(entry => entry.entryType === 'ai_consumption');
   assert.equal(consumption.length, 1);
@@ -115,6 +122,7 @@ test('a complex creation costs more, and the price is decided by the server', ()
   const response = await app.interpret({ provider: 'google', request: 'A long registration form', operationId: 'operation-key-bbbb2222' });
   assert.equal(response.status, 201, response.text);
   assert.equal(response.json.credits.dailyRemaining, 15, '26 questions cost 5 credits');
+  assert.deepEqual(response.json.operationCost, { credits: 5, status: 'charged' });
   const usage = await app.creditStore.usage('user-a');
   assert.equal(usage[0].creditCost, 5);
   // A client-supplied price is not part of the accepted body at all.
@@ -145,9 +153,11 @@ test('clarification and unsupported results are recorded but not charged', () =>
   assert.equal(clarification.status, 200, clarification.text);
   assert.equal(clarification.json.status, 'needs_clarification');
   assert.equal(clarification.json.credits, undefined, 'no balance change is reported when nothing was charged');
+  assert.deepEqual(clarification.json.operationCost, { credits: 0, status: 'not_charged' });
   const unsupported = await app.interpret({ provider: 'google', request: 'Register people', clarification: 'Please add file upload', operationId: 'operation-key-ffff6666' });
   assert.equal(unsupported.status, 200);
   assert.equal(unsupported.json.status, 'unsupported');
+  assert.deepEqual(unsupported.json.operationCost, { credits: 0, status: 'not_charged' });
   assert.equal((await app.balance()).json.credits.dailyRemaining, 20);
   const usage = await app.creditStore.usage('user-a');
   assert.deepEqual(usage.map(row => [row.outcome, row.creditCost]), [['no_result', 0], ['no_result', 0]]);
@@ -170,9 +180,11 @@ test('revising a draft is a separate logical operation with its own charge', () 
   const created = await app.interpret({ provider: 'google', request: 'Register people', operationId: 'operation-key-hhhh8888' });
   const draft = created.json.draft;
   assert.equal(created.json.credits.dailyRemaining, 18);
+  assert.deepEqual(created.json.operationCost, { credits: 2, status: 'charged' });
   const revised = await app.revise({ draftId: draft.id, version: draft.version, request: 'Make email optional', operationId: 'operation-key-iiii9999' });
   assert.equal(revised.status, 200, revised.text);
   assert.equal(revised.json.credits.dailyRemaining, 16);
+  assert.deepEqual(revised.json.operationCost, { credits: 2, status: 'charged' });
   const usage = await app.creditStore.usage('user-a');
   assert.deepEqual(usage.map(row => [row.operationType, row.creditCost]), [['form_create', 2], ['form_revise', 2]]);
 
@@ -245,12 +257,14 @@ test('an edit interpretation is a metered logical operation, and applying the pl
     const first = await post('/edit/interpret', { target: { kind: 'record', formRecordId: 'existing-form-01' }, request: 'Rename the form.', operationId: 'operation-key-edit1' });
     assert.equal(first.status, 201, first.text);
     assert.equal(first.json.credits.dailyRemaining, 19, 'a single-change edit costs 1 credit');
+    assert.deepEqual(first.json.operationCost, { credits: 1, status: 'charged' });
     const draft = first.json.draft;
 
     // Replaying the identical interpretation is not charged again, even though the model runs.
     const replay = await post('/edit/interpret', { target: { kind: 'record', formRecordId: 'existing-form-01' }, request: 'Rename the form.', operationId: 'operation-key-edit1' });
     assert.equal(replay.status, 201, replay.text);
     assert.equal(replay.json.credits.dailyRemaining, 19);
+    assert.deepEqual(replay.json.operationCost, { credits: 1, status: 'already_charged' });
     assert.equal(interpretations, 2);
 
     // Applying the reviewed plan is a provider write, not an AI operation: no extra credits.

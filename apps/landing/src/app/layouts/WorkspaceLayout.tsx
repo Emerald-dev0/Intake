@@ -46,7 +46,7 @@ export function WorkspaceLayout() {
         <div className="sidebar-credits" aria-live="polite">
           <span className="sidebar-label">AI CREDITS</span>
           {credits.state.status === 'ready'
-            ? <><strong>{creditSummary(credits.state.credits)}</strong><span>{resetLabel(credits.state.credits.nextDailyReset)}</span></>
+            ? <><strong>{creditSummary(credits.state.credits)}</strong><span>Daily {resetLabel(credits.state.credits.nextDailyReset)}</span>{credits.state.credits.monthlyLimit > 0 && <span>Monthly {resetLabel(credits.state.credits.nextMonthlyReset)}</span>}<a className="sidebar-plan-link" href="/app/account">Plan &amp; credit details →</a></>
             : credits.state.status === 'loading'
               ? <span>Checking your credits…</span>
               : <button type="button" className="sidebar-credits-retry" onClick={() => credits.reload()}>Credits unavailable — retry</button>}

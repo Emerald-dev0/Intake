@@ -477,7 +477,7 @@ function mapGoogleEditFailure(api: GoogleFormsApiError['info'], outcome: FormEdi
   if (status === 429) return new FormEditError({ code: 'provider_rate_limited', message: 'Google is limiting form requests. Wait a moment and try again.', outcome, retryable: outcome === 'not_applied',
     ...(outcome === 'not_applied' && api.retryAfterSeconds ? { retryAfterSeconds: api.retryAfterSeconds } : {}) });
   if (status >= 500) return new FormEditError({ code: 'provider_unavailable', message: 'Google Forms is temporarily unavailable.', outcome, retryable: false });
-  return new FormEditError({ code: 'provider_rejected', message: 'Google rejected the requested form edit. Intake made no replacement form and will not retry it automatically.', outcome, retryable: false, detail: api.detail });
+  return new FormEditError({ code: 'provider_rejected', message: 'Google rejected the requested form edit. Intake made no replacement form and will not retry it automatically.', outcome, retryable: false });
 }
 
 function request(log: FormLogger, requestId: string, operation: GoogleFormsOperation, stage: BuildStage, formId: string | null, extra: Record<string, number>): void {
@@ -581,7 +581,6 @@ async function failure(error: unknown, context: FailureContext): Promise<FormEng
     httpStatus: api?.httpStatus,
     googleStatus: api?.googleStatus,
     reason: api?.reason,
-    detail: api?.detail,
     outcome,
     code: info.code,
   });
@@ -595,7 +594,6 @@ async function failure(error: unknown, context: FailureContext): Promise<FormEng
     outcome,
     retryable: info.retryable && outcome === 'not_created',
   };
-  if (info.detail) failureInfo.detail = info.detail;
   if (info.retryAfterSeconds && failureInfo.retryable) failureInfo.retryAfterSeconds = info.retryAfterSeconds;
   if (partialForm) failureInfo.partialForm = partialForm;
   return new FormEngineError(failureInfo, { externalAccountId: context.connection.externalAccountId });
@@ -617,7 +615,7 @@ function outcomeText(outcome: FormOutcome, state: PartialForm['state'] | undefin
   return ' A partly built form exists in your Google account and is not published. Open it to finish or delete it.';
 }
 
-function describeApiFailure(api: GoogleFormsApiError['info'], stage: BuildStage): { code: FormErrorInfo['code']; reason: string; retryable: boolean; detail?: string; retryAfterSeconds?: number } {
+function describeApiFailure(api: GoogleFormsApiError['info'], stage: BuildStage): { code: FormErrorInfo['code']; reason: string; retryable: boolean; retryAfterSeconds?: number } {
   if (api.kind === 'timeout' || api.kind === 'network') {
     return { code: 'provider_unavailable', reason: api.kind === 'timeout' ? 'Google took too long to answer.' : 'Google could not be reached.', retryable: true };
   }
@@ -651,6 +649,5 @@ function describeApiFailure(api: GoogleFormsApiError['info'], stage: BuildStage)
     code: 'provider_rejected',
     reason: stage === 'create' ? 'Google rejected the request.' : 'Google rejected part of the form.',
     retryable: false,
-    ...(api.detail ? { detail: api.detail } : {}),
   };
 }

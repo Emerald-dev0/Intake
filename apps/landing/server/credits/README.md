@@ -1,34 +1,58 @@
 # AI credits and entitlements
 
-Every AI operation in Intake costs credits. This folder owns the plan definitions, the price list,
-the atomic consumption path, the immutable ledger and the public balance endpoint. It is the only
-place allowed to decide what a user may spend, what an operation costs and what the browser is told.
+Successful, usable AI operations cost credits according to a validated server-side proposal; failed,
+clarifying and unsupported interpretations cost nothing. This folder owns entitlements, operation
+pricing in credits, atomic consumption, the immutable ledger and the public balance endpoint. The
+server alone decides which plan and balance apply. Public USD plan metadata is separate and display-only
+in `src/lib/plans.ts`; it does not grant entitlements, set charges or implement billing.
 
-The browser contract is deliberately tiny and one-way:
+The browser contract is one-way and limited to the server's public projection plus bounded cost examples:
 
 ```json
-{ "credits": { "plan": "free", "dailyRemaining": 18, "monthlyRemaining": 0,
-               "nextDailyReset": "2026-10-04T00:00:00.000Z", "nextMonthlyReset": "2026-11-01T00:00:00.000Z" } }
+{
+  "credits": {
+    "plan": "free", "subscriptionStatus": "none", "availableCredits": 18,
+    "dailyRemaining": 18, "dailyLimit": 20, "monthlyRemaining": 0, "monthlyLimit": 0,
+    "nextDailyReset": "2026-10-04T00:00:00.000Z", "nextMonthlyReset": "2026-11-01T00:00:00.000Z"
+  },
+  "costGuide": {
+    "formCreate": { "min": 2, "max": 5, "standard": 2, "complexMin": 3 },
+    "formEdit": { "min": 1, "max": 5, "singleChange": 1, "majorMin": 3 }
+  }
+}
 ```
 
-Token counts, prices, ledger rows, operation ids and provider details never cross this boundary.
-`GET /api/credits` accepts no body and no query: a client cannot submit a user, a plan, a price or a
-balance. Credit limits are user entitlements, and are distinct from the operational abuse controls in
+Token counts, ledger rows, operation ids and provider details never cross the balance boundary. The
+cost guide contains only safe examples/ranges produced by the same server classifiers used to charge.
+`GET /api/credits` accepts no body and no query: a client cannot submit a user, plan, price or balance.
+Credit limits are user entitlements, distinct from the operational abuse controls in
 `server/security/rate-limit.ts` (which throttle request rate, not spend).
 
 ## Files
 
 | File | Responsibility |
 | --- | --- |
-| `entitlements.ts` | Plans, daily/monthly buckets, UTC reset keys, consumption order, the public balance projection |
-| `pricing.ts` | Deterministic server-side price list and the two classifiers (creation, edit) |
+| `entitlements.ts` | Server-authoritative plans, daily/monthly buckets, UTC reset keys, consumption order, public balance projection |
+| `pricing.ts` | Deterministic server-side credit costs, classifiers (creation, edit) and public cost guide |
 | `ledger.ts` | `CreditStore` contract + the PostgreSQL and in-memory implementations |
 | `service.ts` | `CreditService`: balance, up-front affordability check, one charge per operation, usage recording, plan hook |
 | `routes.ts` | `GET /api/credits` |
-| `../../db/migrations/007_ai_credits.sql` | `user_entitlement`, `credit_ledger`, `ai_operation` |
+| `../../db/migrations/007_ai_credits.sql` | `user_entitlement`, `credit_ledger`, the logical `ai_operation` schema; archives an incompatible Phase 12 table without deleting it |
+| `../../db/migrations/007_ai_operations.sql` | Retained historical migration id; intentionally a no-op for compatibility |
+| `../../db/migrations/008_ai_operation_compat.sql` | Backfills safe telemetry fields from the preserved Phase 12 table |
+| `../../db/migrations/009_admin_indexes.sql` | Read-path indexes for the Phase 12 admin console |
 
 Metering is applied by `server/ai/operations.ts`, which wraps one logical AI operation and is used by
 `server/forms/interpretation/routes.ts` (creation and revision) and the edit routes.
+
+## Public plan and price display
+
+The public `/pricing` page reads its plan limits and USD values from `src/lib/plans.ts`: Free is $0;
+Pro is $6.99/month or $59.99/year. The page's monthly/annual toggle only changes the displayed
+comparison; the annual amount is $23.89 less than twelve monthly payments (28.5%, rounded to one decimal). This
+metadata is not a payment quote or subscription: checkout and self-service plan changes are not
+implemented. The Vite build emits a crawlable `/pricing` document and the sitemap lists it. Existing
+entitlements and all operation charges continue to come from server state and server classifiers.
 
 ## Entitlements
 
@@ -51,10 +75,10 @@ Metering is applied by `server/ai/operations.ts`, which wraps one logical AI ope
   can be issued once per period even if several requests arrive at the same moment.
 - Resets are decided server-side in UTC. The browser only formats the instants it is given.
 
-## Prices
+## AI operation costs (credits)
 
-Prices are a deterministic function of the **validated** result, never of raw model output, and the
-model has no influence on them. The browser cannot propose one.
+Credit costs are a deterministic function of the **validated** result, never of raw model output, and
+the model has no influence on them. The browser cannot propose or select a charge.
 
 | Cost | Creation (`form_create`) | Edit / revision (`form_edit`, `form_revise`) |
 | ---: | --- | --- |
@@ -109,26 +133,32 @@ request that already succeeded for the user; they are reported as safe, non-fata
 
 ## HTTP surface
 
-| Endpoint | Result |
+| Endpoint / response | Result |
 | --- | --- |
-| `GET /api/credits` | `200 { credits: { plan, dailyRemaining, monthlyRemaining, nextDailyReset, nextMonthlyReset } }`, `Cache-Control: no-store` |
+| `GET /api/credits` | `200 { credits: { plan, subscriptionStatus, availableCredits, dailyRemaining, dailyLimit, monthlyRemaining, monthlyLimit, nextDailyReset, nextMonthlyReset }, costGuide }`, `Cache-Control: no-store` |
 | | `401 not_authenticated` when signed out |
 | | `503 storage_unavailable` when the ledger cannot be read |
+| Successful metered interpretation | Post-charge `credits` projection plus `operationCost: { credits, status }`; status is `charged` or `already_charged` |
+| Clarification, unsupported or failed interpretation | `operationCost: { credits: 0, status: "not_charged" }` where the operation result is returned |
 
 Successful AI responses carry the post-charge balance (`credits`) so the workspace can update the
 meter without a second round trip. A refused operation returns `402` with the stable code
-`insufficient_credits`, no charge and no partial work; the browser replaces the server's generic
-message with wording that names the state and when the daily allowance returns.
+`insufficient_credits`, no charge and no partial work; the browser names the state, available bucket
+limits and server-supplied reset times. The `costGuide` helps the interface preview supported costs;
+it never selects or overrides the charge.
 
 ## Not implemented in this phase
 
-- Payments and subscriptions (Bachs.io) — `setPlan` is a server-side hook; no route exposes it and no
-  plan change happens automatically.
-- An admin dashboard, manual adjustments UI, per-user overrides, credit purchasing and rollover.
-- Any browser-side decision about price, plan or balance.
+- Payments or subscriptions — `setPlan` is a server-side hook; no route exposes it and no plan change
+  happens automatically. Public prices do not imply a billing integration.
+- Manual credit-adjustment UI, per-user overrides, credit purchasing and rollover. Phase 12's read-only
+  admin console remains in place; it does not grant or adjust credits.
+- Any browser-side decision about entitlement, balance or operation charge.
 
-When billing arrives, it should call `CreditService.setPlan` and keep every other file in this folder
-unchanged: the plan table and price list are the intended extension points.
+When billing arrives, integrate it through a deliberate server-side path that updates
+`CreditService.setPlan`; never derive plan state from the public pricing metadata. The plan catalogue
+in `src/lib/plans.ts` is the public display extension point, and this folder remains responsible for
+entitlements and operation costs.
 
 ## Tests
 
@@ -139,6 +169,7 @@ node --test --import tsx test/credits.test.mjs          # plans, grants, buckets
 node --test --import tsx test/ai-operations.test.mjs    # one logical operation = one charge
 node --test --import tsx test/credits-routes.test.mjs   # HTTP behavior, 402, usage rows, plans
 node --test --import tsx test/credits-client.test.mjs   # public-balance parsing and copy
+node --test --import tsx test/pricing.test.mjs          # public prices and generated /pricing SEO document
 ```
 
 `test/credits.test.mjs` runs against the same store contract the PostgreSQL implementation satisfies;

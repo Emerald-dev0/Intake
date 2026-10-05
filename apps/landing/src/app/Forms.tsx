@@ -11,7 +11,8 @@ import { FormEditWorkspace } from './FormEditWorkspace';
 import { FormLibrary } from './FormLibrary';
 import { useCredits } from './hooks/useCredits';
 import { createOperationTracker } from '../lib/operation-id';
-import { insufficientCreditsMessage, isInsufficientCredits } from '../lib/credits';
+import { insufficientCreditsMessage, isInsufficientCredits, type PublicOperationCost } from '../lib/credits';
+import { CreditCostPreview, OperationCostReceipt } from './components/CreditCostPreview';
 
 type Busy = 'loading' | 'interpreting' | 'revising' | 'creating' | 'cancelling' | null;
 export type RecentFormsState = { status: 'loading' | 'error' | 'ready'; forms: PublicFormSummary[] };
@@ -99,6 +100,7 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
   const [failure, setFailure] = useState<FormFailure | null>(null);
   const [unsupported, setUnsupported] = useState('');
   const [result, setResult] = useState<CreateFormResult | null>(null);
+  const [operationCost, setOperationCost] = useState<PublicOperationCost | null>(null);
   const [workspaceMode, setWorkspaceMode] = useState<'create' | 'edit' | 'library'>(
     locationState?.mode === 'edit' ? 'edit' : locationState?.mode === 'library' ? 'library' : 'create'
   );
@@ -111,11 +113,14 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
   // Stable idempotency keys for AI operations: one key per distinct submission.
   const operations = useRef(createOperationTracker()).current;
   const google = providers.providers?.find(provider => provider.id === 'google');
+  const costCredits = credits.state.status === 'ready' ? credits.state.credits : null;
+  const costGuide = credits.state.status === 'ready' ? credits.state.costGuide : null;
 
   async function loadDraft(id: string) {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy('loading');
+    setOperationCost(null);
     try {
       const response = await fetch(`/api/forms/draft/${encodeURIComponent(id)}`, { credentials: 'same-origin', cache: 'no-store', headers: { accept: 'application/json' } });
       const parsed = parseDraftLoad(response.status, await response.json().catch(() => null));
@@ -145,6 +150,7 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
     setBusy(mode === 'new' ? 'interpreting' : 'revising');
     setFailure(null);
     setUnsupported('');
+    setOperationCost(null);
     const signature = [mode, mode === 'revise' ? `${draft?.id ?? ''}:${draft?.version ?? ''}` : '', request, clarification ?? ''].join('|');
     // One logical operation, one idempotency key: a retry of this exact submission is never charged twice.
     const operationId = operations.id(signature);
@@ -156,6 +162,7 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
       operations.settle();
       credits.note(body);
       const parsed = parseInterpretResponse(status, body);
+      setOperationCost(parsed.status === 'error' ? null : parsed.operationCost ?? null);
       if (parsed.status === 'ready') {
         setDraft(parsed.draft);
         setDraftId(parsed.draft.id);
@@ -264,6 +271,7 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
     setDraftId(null);
     setDraft(null);
     setResult(null);
+    setOperationCost(null);
     setFailure(null);
     setUnsupported('');
     setPending(null);
@@ -325,6 +333,8 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
     <div className="draft-steps" aria-label="Form creation steps"><span className="current">01 / DESCRIBE</span><span className={draft ? 'current' : ''}>02 / REVIEW</span><span className={finished ? 'current' : ''}>03 / USE</span></div>
     <section className="draft-provider" aria-label="Form provider"><span className="provider-symbol" aria-hidden>G</span><div><strong>Google Forms</strong><small>{googleLine}</small></div><span className="draft-provider-note">FORMS LIVE IN YOUR GOOGLE ACCOUNT</span></section>
     {notice && <div className="form-banner warn draft-notice" role="status"><p>{notice}</p><a href="/app/connections" className="btn btn-ghost btn-sm">View connections →</a></div>}
+    {!draft && !draftId && <CreditCostPreview mode="create" guide={costGuide} credits={costCredits} />}
+    {draft?.status === 'ready' && editing && <CreditCostPreview mode="revise" guide={costGuide} credits={costCredits} />}
 
     {busy === 'loading' && <div className="forms-panel draft-loading" role="status"><span className="spin" /> Checking your draft…</div>}
     {draftId && !draft && busy !== 'loading' && <div className="form-banner warn" role="alert"><p>We couldn’t open your saved draft yet.</p><button type="button" className="btn btn-ghost btn-sm" onClick={() => void loadDraft(draftId)}>Check draft status</button></div>}
@@ -348,11 +358,13 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
         <div className="forms-actions"><button className="btn btn-accent btn-sm" type="submit" disabled={busy !== null || !answer.trim()}>{busy === 'interpreting' || busy === 'revising' ? 'Understanding…' : 'Continue →'}</button><button className="btn btn-ghost btn-sm" type="button" disabled={busy !== null} onClick={() => { setPending(null); setAnswer(''); }}>Back to {draft ? 'review' : 'description'}</button></div>
       </form>
     </section>}
+    {pending && <OperationCostReceipt receipt={operationCost} />}
     {unsupported && <div className="form-banner warn draft-feedback" role="alert"><strong>That isn’t available in Google Forms through Intake.</strong><p>{unsupported}</p><p>Rephrase the request using supported questions and section routing, or keep the current draft.</p></div>}
+    {unsupported && <OperationCostReceipt receipt={operationCost} />}
     {failure && <FailureNotice failure={failure} onReload={draftId ? () => void loadDraft(draftId) : undefined} />}
 
     {draft && <>
-      <Review draft={draft} />
+      <Review draft={draft} operationCost={operationCost} />
       {draft.status === 'ready' && <section className="draft-controls" aria-label="Review actions">
         {!pending && <div className="draft-review-actions"><button type="button" className="btn btn-accent" onClick={() => void confirm()} disabled={busy !== null}>{busy === 'creating' ? 'Creating your form…' : 'Create form →'}</button><button type="button" className="btn btn-ghost" onClick={() => setEditing(value => !value)} disabled={busy !== null}>Edit with Intake</button><button type="button" className="draft-cancel" onClick={() => void cancel()} disabled={busy !== null}>{busy === 'cancelling' ? 'Discarding…' : 'Cancel'}</button></div>}
         {busy === 'creating' && <p className="forms-progress" role="status"><span className="spin sm" /> Google is building your form. This can take several seconds. Keep this page open.</p>}
@@ -378,11 +390,12 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
   </>;
 }
 
-function Review({ draft }: { draft: PublicDraft }) {
+function Review({ draft, operationCost }: { draft: PublicDraft; operationCost: PublicOperationCost | null }) {
   const { specification: spec } = draft;
   const controllers = new Map(spec.questions.map(question => [question.id, question.title]));
   return <section className="draft-review" aria-labelledby="review-title"><div className="draft-review-head"><div><span className="forms-legend">02 / WHAT INTAKE UNDERSTOOD</span><h2 id="review-title">{spec.title}</h2>{spec.description && <p className="draft-description">{spec.description}</p>}</div><span className="status-pill ok">{draft.status === 'ready' ? 'DRAFT · NOT CREATED' : draft.status === 'created' ? 'CREATED' : 'CREATION ATTEMPTED'}</span></div>
     <div className="draft-review-meta"><span>{spec.questions.length} {spec.questions.length === 1 ? 'QUESTION' : 'QUESTIONS'}</span><span>GOOGLE FORMS</span>{spec.questions.some(question => question.visibility) && <span>SECTION ROUTING</span>}</div>
+    <OperationCostReceipt receipt={operationCost} />
     <ol className="draft-items">{spec.questions.map((question, index) => {
       const condition = question.visibility?.when;
       const previous = spec.questions[index - 1]?.visibility?.when;
@@ -408,7 +421,7 @@ function Outcome({ result }: { result: CreateFormResult }) {
   }
   const { failure } = result;
   const view = describeFailure(failure);
-  return <div className={`form-banner ${view.tone === 'bad' ? 'bad' : 'warn'} forms-result`} role="alert"><strong>{view.heading}</strong><p>{failure.error}</p>{failure.detail && <p className="provider-note">Google said: {failure.detail}</p>}{failure.issues && <ul className="forms-issues" aria-label="What to fix">{failure.issues.map((issue, index) => <li key={`${issue.code}:${index}`}>{issue.message}{issue.hint && <em>{issue.hint}</em>}</li>)}</ul>}{failure.partialForm?.editUrl && <div className="forms-links"><FormLink href={failure.partialForm.editUrl}>Open partly built form</FormLink></div>}{view.action && <a className="btn btn-ghost btn-sm" href="/app/connections">View connections →</a>}{failure.requestId && <p className="forms-trace">Request {failure.requestId}</p>}</div>;
+  return <div className={`form-banner ${view.tone === 'bad' ? 'bad' : 'warn'} forms-result`} role="alert"><strong>{view.heading}</strong><p>{failure.error}</p>{failure.issues && <ul className="forms-issues" aria-label="What to fix">{failure.issues.map((issue, index) => <li key={`${issue.code}:${index}`}>{issue.message}{issue.hint && <em>{issue.hint}</em>}</li>)}</ul>}{failure.partialForm?.editUrl && <div className="forms-links"><FormLink href={failure.partialForm.editUrl}>Open partly built form</FormLink></div>}{view.action && <a className="btn btn-ghost btn-sm" href="/app/connections">View connections →</a>}{failure.requestId && <p className="forms-trace">Request {failure.requestId}</p>}</div>;
 }
 
 function RecentRow({ form }: { form: PublicFormSummary }) {

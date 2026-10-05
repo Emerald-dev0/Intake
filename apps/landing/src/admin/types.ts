@@ -1,6 +1,6 @@
 export type AdminRange = 'today' | '7d' | '30d';
-export type Operation = 'form_interpretation' | 'form_edit_interpretation';
-export type OperationStatus = 'succeeded' | 'failed';
+export type Operation = 'form_create' | 'form_revise' | 'form_edit';
+export type OperationStatus = 'succeeded' | 'failed' | 'no_result';
 export type ConnectionStatus = 'connected' | 'expired' | 'reauthorization_required';
 
 export interface PageData<T> {
@@ -47,7 +47,7 @@ export interface OverviewData {
     inputTokens: number | null;
     outputTokens: number | null;
     totalTokens: number | null;
-    creditsConsumed: null;
+    creditsConsumed: number | null;
     estimatedCostUsd: null;
   };
   credits: { available: false; reason: string; dailyGranted: null; monthlyGranted: null; consumed: null };
@@ -113,20 +113,19 @@ export interface UserDetail {
 
 export interface AiOperation {
   id: string;
-  requestId: string;
+  operationKey: string;
   userId: string;
   userName: string;
   userEmail: string;
-  route: string;
   operation: Operation;
-  provider: 'groq';
-  model: string;
+  provider: 'groq' | 'openai' | 'none';
+  model: string | null;
   status: OperationStatus;
   failureCode: string | null;
-  latencyMs: number;
+  latencyMs: number | null;
   inputTokens: number | null;
   outputTokens: number | null;
-  creditsConsumed: null;
+  creditsConsumed: number;
   estimatedCostUsd: null;
   timestamp: string;
 }
@@ -142,7 +141,7 @@ export interface AiData extends PageData<AiOperation> {
     inputTokens: number | null;
     outputTokens: number | null;
     totalTokens: number | null;
-    creditsConsumed: null;
+    creditsConsumed: number | null;
     estimatedCostUsd: null;
   };
 }

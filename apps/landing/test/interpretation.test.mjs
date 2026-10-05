@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import { assessInterpretation, InterpretationError } from '../server/forms/interpretation/interpreter.ts';
 import { createFormInterpreter } from '../server/forms/interpretation/provider-interpreter.ts';
 import { createOpenAiProvider } from '../server/ai/openai.ts';
+import { createGroqProvider } from '../server/ai/groq.ts';
 import { INTERPRETATION_SCHEMA } from '../server/forms/interpretation/prompts.ts';
 
-/** The interpretation layer is provider-agnostic; these boundary tests use the OpenAI provider. */
+/** The interpretation layer is provider-agnostic; these boundary tests exercise both providers. */
 const openAiInterpreter = options => createFormInterpreter({ provider: createOpenAiProvider(options) });
 import { planGoogleForm } from '../server/forms/providers/google/plan.ts';
 import { parseFormSpecification } from '../server/forms/validation.ts';
@@ -113,14 +114,14 @@ function modelResponse(output, { finish_reason = 'stop' } = {}) {
   return new Response(JSON.stringify({ choices: [{ finish_reason, message: { content: typeof output === 'string' ? output : JSON.stringify(output) } }] }), { status: 200 });
 }
 
-test('the Groq boundary requests strict structured output, never exposes its key in the model input, and uses the current spec for revisions', async () => {
+test('the OpenAI boundary requests strict structured output, never exposes its key in the model input, and uses the current spec for revisions', async () => {
   const calls = [];
   const fetchImpl = async (url, init) => { calls.push({ url, init }); return modelResponse(ready()); };
   const interpreter = openAiInterpreter({ env: { OPENAI_API_KEY: 'server-test-key', OPENAI_MODEL: 'gpt-4o-mini' }, fetchImpl });
   const result = await interpreter.interpret({ mode: 'revise', request: 'Make email optional.', specification: assessInterpretation(ready()).specification, provider: 'google' });
   assert.equal(result.status, 'ready');
   const [{ url, init }] = calls;
-  assert.equal(url, 'https://api.groq.com/openai/v1/chat/completions');
+  assert.equal(url, 'https://api.openai.com/v1/chat/completions');
   assert.equal(init.redirect, 'error');
   assert.equal(init.headers.authorization, 'Bearer server-test-key');
   const body = JSON.parse(init.body);
@@ -137,18 +138,20 @@ test('the Groq boundary requests strict structured output, never exposes its key
   assert.equal(JSON.parse(body.messages[1].content).request, 'Make email optional.');
 });
 
-test('the Groq interpreter defaults to the configured strict-JSON model', async () => {
+test('the Groq provider defaults to the configured strict-JSON model', async () => {
   let request;
-  const interpreter = createGroqFormInterpreter({
-    env: { GROQ_API_KEY: 'server-test-key' },
-    fetchImpl: async (url, init) => {
-      request = { url, body: JSON.parse(init.body) };
-      return modelResponse(ready());
-    },
+  const interpreter = createFormInterpreter({
+    provider: createGroqProvider({
+      env: { GROQ_API_KEY: 'server-test-key' },
+      fetchImpl: async (url, init) => {
+        request = { url, body: JSON.parse(init.body) };
+        return modelResponse(ready());
+      },
+    }),
   });
   await interpreter.interpret({ mode: 'new', request: 'Make a registration form.', provider: 'google' });
   assert.equal(request.url, 'https://api.groq.com/openai/v1/chat/completions');
-  assert.equal(request.body.model, 'openai/gpt-oss-20b');
+  assert.equal(request.body.model, 'openai/gpt-oss-120b');
   assert.equal(request.body.response_format.json_schema.strict, true);
 });
 

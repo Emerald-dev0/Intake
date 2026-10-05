@@ -113,7 +113,8 @@ test('a failure body carries only what was set, and never the server-only accoun
     detail: 'Invalid value',
     partialForm: { providerFormId: 'abc12345', editUrl: null, state: 'unpublished' },
   }, 'req_2');
-  assert.deepEqual(Object.keys(full).sort(), ['code', 'detail', 'error', 'issues', 'outcome', 'partialForm', 'provider', 'requestId', 'retryable', 'stage']);
+  assert.deepEqual(Object.keys(full).sort(), ['code', 'error', 'issues', 'outcome', 'partialForm', 'provider', 'requestId', 'retryable', 'stage']);
+  assert.equal(full.detail, undefined, 'even unexpected detail fields are not serialized to clients');
   assert.equal(toFailureBody({ code: 'forbidden', message: 'x', issues: [] }, 'r').issues, undefined, 'empty issue lists are omitted');
 });
 

@@ -25,6 +25,8 @@ export interface EditComplexity {
   touchedQuestions: number;
 }
 
+import type { PublicCreditCostGuide } from '../../src/lib/credits';
+
 export const MIN_CREATION_COST = 2;
 export const MAX_CREATION_COST = 5;
 export const MIN_EDIT_COST = 1;
@@ -78,4 +80,22 @@ export function editComplexity(plan: { operations: readonly { type: string; ques
     if (operation.questionId) touched.add(operation.questionId);
   }
   return { operationCount: plan.operations.length, structuralCount: structural, touchedQuestions: touched.size };
+}
+
+/** Public estimates/examples calculated through the exact same classifiers used to charge. */
+export function publicCreditCostGuide(): PublicCreditCostGuide {
+  return {
+    formCreate: {
+      min: MIN_CREATION_COST,
+      max: MAX_CREATION_COST,
+      standard: costForFormCreation({ questionCount: 6, conditionalCount: 0 }),
+      complexMin: costForFormCreation({ questionCount: 9, conditionalCount: 0 }),
+    },
+    formEdit: {
+      min: MIN_EDIT_COST,
+      max: MAX_EDIT_COST,
+      singleChange: costForFormEdit({ operationCount: 1, structuralCount: 0, touchedQuestions: 1 }),
+      majorMin: costForFormEdit({ operationCount: 4, structuralCount: 2, touchedQuestions: 3 }),
+    },
+  };
 }

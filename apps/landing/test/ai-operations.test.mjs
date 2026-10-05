@@ -158,7 +158,7 @@ test('usage rows carry tokens and latency internally while the public balance ex
   const balance = await credits.balance('user-a');
   assert.equal(JSON.stringify(balance).includes('token'), false);
   assert.equal(JSON.stringify(balance).includes('100'), false);
-  assert.deepEqual(Object.keys(balance).sort(), ['dailyRemaining', 'monthlyRemaining', 'nextDailyReset', 'nextMonthlyReset', 'plan']);
+  assert.deepEqual(Object.keys(balance).sort(), ['availableCredits', 'dailyLimit', 'dailyRemaining', 'monthlyLimit', 'monthlyRemaining', 'nextDailyReset', 'nextMonthlyReset', 'plan', 'subscriptionStatus']);
   const rows = await store.usage('user-a');
   assert.equal(rows.length, 1);
   assert.equal(rows[0].operationType, 'form_create');

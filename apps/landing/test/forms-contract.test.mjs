@@ -104,7 +104,6 @@ test('a failure keeps only known, well-formed fields', () => {
     stage: 'add_questions',
     outcome: 'partial',
     retryable: false,
-    detail: 'Invalid value',
     issues: [{ code: 'x', path: 'questions[0]', message: 'Bad', hint: 'Fix it' }],
     partialForm: { providerFormId: '1FAfakeForm0001abcdefghijklmnop', editUrl: null, state: 'publish_unconfirmed' },
   });

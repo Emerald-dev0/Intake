@@ -2,7 +2,7 @@ import { QUESTION_TYPES } from '../specification';
 import { InterpretationError, type FormInterpreter, type InterpretationInput } from './interpreter';
 import type { FormEditInterpreter, FormEditInterpretationInput } from './edit-interpreter';
 import type { AiOperationContext, RecordAiOperation } from '../../admin/ai-operations';
-import type { AdminOperation } from '../../admin/contracts';
+import type { AiFailureCode } from '../../ai/provider';
 import { DEFAULT_GROQ_MODEL } from './provider-config';
 
 /**
@@ -120,13 +120,15 @@ function tokens(value: unknown): number | null {
   return Number.isSafeInteger(value) && (value as number) >= 0 ? value as number : null;
 }
 
+type GroqTelemetryOperation = 'form_interpretation' | 'form_edit_interpretation';
+
 async function recordOperation(
   options: GroqInterpreterOptions,
   context: AiOperationContext | undefined,
-  operation: AdminOperation,
+  operation: GroqTelemetryOperation,
   model: string,
   status: 'succeeded' | 'failed',
-  failureCode: 'model_not_configured' | 'model_timeout' | 'model_unavailable' | 'model_invalid_output' | null,
+  failureCode: AiFailureCode | null,
   startedAt: Date,
   startedClock: number,
   usage: { inputTokens: number | null; outputTokens: number | null },
@@ -166,7 +168,7 @@ async function requestStructuredOutput(
   schema: object,
   system: string,
   input: unknown,
-  operation: AdminOperation,
+  operation: GroqTelemetryOperation,
   telemetry?: AiOperationContext,
 ): Promise<unknown> {
   const model = options.env.GROQ_MODEL?.trim() || DEFAULT_GROQ_MODEL;
@@ -214,7 +216,9 @@ async function requestStructuredOutput(
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) throw new InterpretationError('model_not_configured', 'The model service rejected Intake’s credentials. An operator needs to check GROQ_API_KEY. No changes were made.');
       if (response.status === 400 || response.status === 404 || response.status === 422) throw new InterpretationError('model_not_configured', 'The model service rejected Intake’s model or structured-output settings. An operator needs to check GROQ_MODEL. No changes were made.');
-      throw new InterpretationError('model_unavailable', response.status === 429 ? 'The interpretation service is busy. Wait a moment and try again.' : 'The interpretation service is unavailable. No changes were made. Try again later.');
+      if (response.status === 429) throw new InterpretationError('model_rate_limited', 'The interpretation service is rate limited right now. Wait a moment and try again. No changes were made.');
+      if (response.status >= 500) throw new InterpretationError('model_unavailable', 'The interpretation service is unavailable. No changes were made. Try again later.');
+      throw new InterpretationError('model_provider_error', 'The interpretation service returned an unexpected error. No changes were made. Try again later.');
     }
 
     const choice = decoded.choices?.[0];

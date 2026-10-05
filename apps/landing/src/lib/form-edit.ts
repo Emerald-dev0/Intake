@@ -1,6 +1,7 @@
 /** Public, provider-independent contract for reviewing and editing an existing form. */
 import { safeFormUrl } from './forms';
 import { QUESTION_TYPES, type QuestionType } from './specification';
+import { parseOperationCost, type PublicOperationCost } from './credits';
 
 export type EditOutCome = 'not_applied' | 'partial' | 'unknown' | 'stale';
 export type FormEditErrorCode =
@@ -20,7 +21,6 @@ export interface FormEditFailure {
   outcome?: EditOutCome;
   retryable?: boolean;
   retryAfterSeconds?: number;
-  detail?: string;
   issues?: { code: string; path: string; message: string; hint?: string }[];
 }
 
@@ -130,9 +130,9 @@ export interface PublicFormEditDraft {
 }
 
 export type FormEditInterpretResponse =
-  | { status: 'ready'; draft: PublicFormEditDraft }
-  | { status: 'needs_clarification'; question: string }
-  | { status: 'unsupported'; explanation: string }
+  | { status: 'ready'; draft: PublicFormEditDraft; operationCost?: PublicOperationCost }
+  | { status: 'needs_clarification'; question: string; operationCost?: PublicOperationCost }
+  | { status: 'unsupported'; explanation: string; operationCost?: PublicOperationCost }
   | { status: 'error'; failure: FormEditFailure };
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -258,7 +258,6 @@ function parseFailure(value: unknown): FormEditFailure | null {
     ...(outcomes.includes(row.outcome as EditOutCome) ? { outcome: row.outcome as EditOutCome } : {}),
     ...(typeof row.retryable === 'boolean' ? { retryable: row.retryable } : {}),
     ...(typeof row.retryAfterSeconds === 'number' && Number.isSafeInteger(row.retryAfterSeconds) && row.retryAfterSeconds > 0 && row.retryAfterSeconds <= 86_400 ? { retryAfterSeconds: row.retryAfterSeconds } : {}),
-    ...(text(row.detail, 400) ? { detail: row.detail as string } : {}),
     ...(Array.isArray(row.issues) ? { issues: row.issues.slice(0, 50).flatMap(item => {
       const issue = record(item);
       if (!issue || !text(issue.code, 80) || !text(issue.message, 600)) return [];
@@ -313,12 +312,14 @@ export function parseFormEditInspect(status: number, value: unknown): { form: Fo
 export function parseFormEditInterpret(status: number, value: unknown): FormEditInterpretResponse {
   if (status < 200 || status >= 300) return { status: 'error', failure: parseFailure(value) ?? fallbackFailure(status) };
   const row = record(value);
+  const operationCost = parseOperationCost(row);
+  const receipt = operationCost ? { operationCost } : {};
   if (row?.status === 'ready') {
     const draft = parseFormEditDraft(row.draft);
-    if (draft?.status === 'ready') return { status: 'ready', draft };
+    if (draft?.status === 'ready') return { status: 'ready', draft, ...receipt };
   }
-  if (row?.status === 'needs_clarification' && text(row.question, 400)) return { status: 'needs_clarification', question: row.question };
-  if (row?.status === 'unsupported' && text(row.explanation, 800)) return { status: 'unsupported', explanation: row.explanation };
+  if (row?.status === 'needs_clarification' && text(row.question, 400)) return { status: 'needs_clarification', question: row.question, ...receipt };
+  if (row?.status === 'unsupported' && text(row.explanation, 800)) return { status: 'unsupported', explanation: row.explanation, ...receipt };
   return { status: 'error', failure: fallbackFailure(status) };
 }
 

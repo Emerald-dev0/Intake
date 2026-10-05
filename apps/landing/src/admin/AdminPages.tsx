@@ -178,16 +178,16 @@ function OverviewContent({ data }: { data: OverviewData }) {
             <p className="admin-footnote">Partial failures are measurable when an incomplete form record was saved. Attempts that failed before a form record existed are not retained, and individual edit counts are not tracked.</p>
           </> : <Unavailable>{data.forms.reason}</Unavailable>}
         </Panel>
-        <Panel title="AI & model usage" eyebrow={`RECORDED OPERATIONS · ${rangeName(data.range)}`} description="Groq interpreter operations at the server boundary. Failed preflight checks may happen before an external call." >
+        <Panel title="AI & model usage" eyebrow={`RECORDED OPERATIONS · ${rangeName(data.range)}`} description="Logical AI operations recorded by Intake. Unusable results are not charged." >
           {data.ai.available ? <>
             <div className="admin-metric-grid two inside-grid">
               <Metric label="Operations" value={number(data.ai.operations)} />
               <Metric label="Succeeded" value={number(data.ai.succeeded)} tone="green" />
               <Metric label="Failed" value={number(data.ai.failed)} tone={data.ai.failed ? 'red' : 'neutral'} />
-              <Metric label="Total tokens" value={compactNumber(data.ai.totalTokens)} note={data.ai.totalTokens === null ? 'Provider did not return complete token totals' : 'Input + output, as reported by Groq'} />
+              <Metric label="Total tokens" value={compactNumber(data.ai.totalTokens)} note={data.ai.totalTokens === null ? 'Provider did not return complete token totals' : 'Input + output, recorded internally'} />
             </div>
             <div className="admin-inline-facts"><span>Input tokens <b>{number(data.ai.inputTokens)}</b></span><span>Output tokens <b>{number(data.ai.outputTokens)}</b></span></div>
-            <p className="admin-footnote">Metadata tracking was enabled after migration 007 was applied {dateOnly(data.ai.trackingSince)}; earlier operations are unavailable. Estimated cost and credits are unavailable: no pricing configuration or credit ledger is present.</p>
+            <p className="admin-footnote">Metadata tracking was enabled after migration 007 was applied {dateOnly(data.ai.trackingSince)}; earlier operations are unavailable. Credit use is recorded with each logical operation; provider cost is not estimated.</p>
           </> : <Unavailable>{data.ai.reason}</Unavailable>}
         </Panel>
       </div>
@@ -361,12 +361,12 @@ export function AdminAiPage() {
   }
 
   return <>
-    <Heading kicker="MODEL OPERATIONS / GROQ" title="Recorded model operations." description="Provider, model, latency, outcome and provider-reported token counts. Prompts and response content are not stored; tracking starts after migration 007." />
+    <Heading kicker="AI OPERATIONS" title="Recorded model operations." description="Operation, provider, model, latency, outcome, credit use and provider-reported token counts. Prompts and response content are not stored; tracking starts after migration 007." />
     <Panel title="Filter operations" eyebrow="SERVER-SIDE FILTERING">
       <form className="admin-filter-row multi" onSubmit={submit}>
         <RangeSelect value={draft.range} onChange={range => setDraft(current => ({ ...current, range }))} id="ai-range" />
-        <label className="admin-field compact"><span>Operation</span><select value={draft.operation} onChange={event => setDraft(current => ({ ...current, operation: event.target.value }))}><option value="">All operations</option><option value="form_interpretation">Form interpretation</option><option value="form_edit_interpretation">Form edit interpretation</option></select></label>
-        <label className="admin-field compact"><span>Outcome</span><select value={draft.status} onChange={event => setDraft(current => ({ ...current, status: event.target.value }))}><option value="">All outcomes</option><option value="succeeded">Succeeded</option><option value="failed">Failed</option></select></label>
+        <label className="admin-field compact"><span>Operation</span><select value={draft.operation} onChange={event => setDraft(current => ({ ...current, operation: event.target.value }))}><option value="">All operations</option><option value="form_create">Form creation</option><option value="form_revise">Form revision</option><option value="form_edit">Form edit</option></select></label>
+        <label className="admin-field compact"><span>Outcome</span><select value={draft.status} onChange={event => setDraft(current => ({ ...current, status: event.target.value }))}><option value="">All outcomes</option><option value="succeeded">Succeeded</option><option value="failed">Failed</option><option value="no_result">No charge · clarification/unsupported</option></select></label>
         <label className="admin-field compact"><span>Model name</span><input value={draft.model} onChange={event => setDraft(current => ({ ...current, model: event.target.value }))} maxLength={200} placeholder="Exact model" /></label>
         <label className="admin-field compact"><span>User ID</span><input value={draft.userId} onChange={event => setDraft(current => ({ ...current, userId: event.target.value }))} maxLength={255} placeholder="Exact user ID" /></label>
         <button className="admin-button primary" type="submit">Apply filters</button>
@@ -385,13 +385,13 @@ function AiPageContent({ data, onPage }: { data: AiData; onPage: (page: number) 
         <Metric label="Operations" value={number(data.summary.operations)} />
         <Metric label="Succeeded" value={number(data.summary.succeeded)} tone="green" />
         <Metric label="Failed" value={number(data.summary.failed)} tone={data.summary.failed ? 'red' : 'neutral'} />
-        <Metric label="Total tokens" value={compactNumber(data.summary.totalTokens)} />
+        <Metric label="Credits consumed" value={number(data.summary.creditsConsumed)} />
       </div>
-      <Panel title="Token totals" eyebrow={rangeNameFromState(data)}><div className="admin-inline-facts wide"><span>Input tokens <b>{number(data.summary.inputTokens)}</b></span><span>Output tokens <b>{number(data.summary.outputTokens)}</b></span><span>Estimated cost <b>Unavailable</b></span><span>Credits consumed <b>Unavailable</b></span></div><p className="admin-footnote">No pricing schedule or credit ledger is configured. Cost is intentionally not estimated from hard-coded public prices.</p></Panel>
+      <Panel title="Internal usage totals" eyebrow={rangeNameFromState(data)}><div className="admin-inline-facts wide"><span>Input tokens <b>{number(data.summary.inputTokens)}</b></span><span>Output tokens <b>{number(data.summary.outputTokens)}</b></span><span>Estimated cost <b>Unavailable</b></span><span>Total tokens <b>{number(data.summary.totalTokens)}</b></span></div><p className="admin-footnote">Credits are the user-facing allowance. Token counts are internal; provider cost is intentionally not estimated.</p></Panel>
       <Panel title="Operation history" description={data.trackingSince ? `Migration 007 was applied ${dateTime(data.trackingSince)}; this marks tracking availability, not the first recorded operation.` : 'Usage becomes available after the tracking migration is applied.'}>
         {data.items.length ? <><AiTable items={data.items} /><Pagination page={data.page} totalPages={data.totalPages} total={data.total} onPage={onPage} /></> : <EmptyState title="No matching AI operations" detail="No recorded operations match the selected range and filters." />}
       </Panel>
-    </> : <Panel title="AI usage not available" eyebrow="NO HISTORICAL DATA FABRICATED"><Unavailable>{data.reason || 'No AI operation records are available.'}</Unavailable><p className="admin-footnote">Apply migration 007_ai_operations.sql to begin recording Groq operations. Earlier operation history cannot be reconstructed.</p></Panel>}
+    </> : <Panel title="AI usage not available" eyebrow="NO HISTORICAL DATA FABRICATED"><Unavailable>{data.reason || 'No AI operation records are available.'}</Unavailable><p className="admin-footnote">Apply migration 007_ai_credits.sql to begin recording logical AI operations. Earlier operation history cannot be reconstructed.</p></Panel>}
   </>;
 }
 
@@ -401,16 +401,20 @@ function rangeNameFromState(data: AiData): string {
 }
 
 function AiTable({ items }: { items: AiOperation[] }) {
-  return <div className="admin-table-scroll"><table className="admin-table"><thead><tr><th>Started · UTC</th><th>User</th><th>Operation</th><th>Provider / model</th><th>Outcome</th><th>Latency</th><th>Tokens in / out</th><th>Request ID</th></tr></thead><tbody>
+  const operationLabel = (operation: AiOperation['operation']) => operation === 'form_create'
+    ? 'Form creation'
+    : operation === 'form_revise' ? 'Form revision' : 'Form edit';
+  return <div className="admin-table-scroll"><table className="admin-table"><thead><tr><th>Recorded · UTC</th><th>User</th><th>Operation</th><th>Provider / model</th><th>Outcome</th><th>Latency</th><th>Tokens in / out</th><th>Credits</th><th>Operation key</th></tr></thead><tbody>
     {items.map(item => <tr key={item.id}>
       <td>{dateTime(item.timestamp)}</td>
       <td><Link className="admin-user-link compact-user" to={`/admin/users/${encodeURIComponent(item.userId)}`}><strong>{item.userName}</strong><span>{item.userEmail}</span></Link></td>
-      <td>{item.operation === 'form_interpretation' ? 'Form interpretation' : 'Form edit interpretation'}<small>{item.route}</small></td>
-      <td>Groq<small>{item.model}</small></td>
-      <td><StatusPill label={item.status} tone={statusTone(item.status)} />{item.failureCode && <small>{item.failureCode}</small>}</td>
-      <td>{number(item.latencyMs)} ms</td>
+      <td>{operationLabel(item.operation)}</td>
+      <td>{item.provider}<small>{item.model || 'Model not recorded'}</small></td>
+      <td><StatusPill label={item.status.replaceAll('_', ' ')} tone={statusTone(item.status)} />{item.failureCode && <small>{item.failureCode}</small>}</td>
+      <td>{item.latencyMs === null ? 'Unavailable' : `${number(item.latencyMs)} ms`}</td>
       <td>{number(item.inputTokens)} / {number(item.outputTokens)}</td>
-      <td><code>{item.requestId}</code></td>
+      <td>{number(item.creditsConsumed)}</td>
+      <td><code>{item.operationKey}</code></td>
     </tr>)}
   </tbody></table></div>;
 }

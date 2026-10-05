@@ -19,7 +19,7 @@ function row(input = first) {
 
 test('the third additive migration owns server drafts and durable one-shot creation claims', async () => {
   const files = (await readdir(new URL('../db/migrations/', import.meta.url))).filter(name => name.endsWith('.sql')).sort();
-  assert.deepEqual(files, ['001_provider_connections.sql', '002_forms.sql', '003_form_drafts.sql', '004_form_edit_drafts.sql', '005_form_library.sql', '006_production_hardening.sql', '007_ai_credits.sql']);
+  assert.deepEqual(files, ['001_provider_connections.sql', '002_forms.sql', '003_form_drafts.sql', '004_form_edit_drafts.sql', '005_form_library.sql', '006_production_hardening.sql', '007_ai_credits.sql', '007_ai_operations.sql', '008_ai_operation_compat.sql', '009_admin_indexes.sql']);
   const editText = await readFile(new URL('../db/migrations/004_form_edit_drafts.sql', import.meta.url), 'utf8');
   const editSql = editText.replace(/--.*$/gm, '');
   assert.match(editSql, /CREATE TABLE IF NOT EXISTS form_edit_draft \(/);

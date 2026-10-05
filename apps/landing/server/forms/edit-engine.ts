@@ -12,13 +12,14 @@ import { InterpretationError } from './interpretation/interpreter';
 import type { AiOperationRunner } from '../ai/operations';
 import { CreditError, type CreditService } from '../credits/service';
 import { costForFormEdit, editComplexity } from '../credits/pricing';
+import type { PublicOperationCost } from '../../src/lib/credits';
 
 export type FormEditTarget = { kind: 'record'; formRecordId: string } | { kind: 'url'; formUrl: string };
 export type EditInterpretationOutcome =
   // `credits` is the server-owned balance after the single charge for this logical operation.
-  | { status: 'ready'; draft: PublicFormEditDraft; credits?: unknown }
-  | { status: 'needs_clarification'; question: string }
-  | { status: 'unsupported'; explanation: string };
+  | { status: 'ready'; draft: PublicFormEditDraft; credits?: unknown; operationCost?: PublicOperationCost }
+  | { status: 'needs_clarification'; question: string; operationCost?: PublicOperationCost }
+  | { status: 'unsupported'; explanation: string; operationCost?: PublicOperationCost };
 
 export interface FormEditEngineDeps {
   providers: FormsProviders;
@@ -60,7 +61,7 @@ function publicDraft(row: FormEditDraftRecord): PublicFormEditDraft {
 function editFailureInfo(failure: FormEditFailure) {
   return { code: failure.code, message: failure.error, ...(failure.outcome ? { outcome: failure.outcome } : {}),
     ...(typeof failure.retryable === 'boolean' ? { retryable: failure.retryable } : {}),
-    ...(failure.retryAfterSeconds ? { retryAfterSeconds: failure.retryAfterSeconds } : {}), ...(failure.detail ? { detail: failure.detail } : {}),
+    ...(failure.retryAfterSeconds ? { retryAfterSeconds: failure.retryAfterSeconds } : {}),
     ...(failure.issues ? { issues: failure.issues } : {}) };
 }
 
@@ -149,7 +150,7 @@ export function createFormEditEngine(deps: FormEditEngineDeps) {
     request: string;
     clarification?: string;
     existingPlan?: { summary: string; operations: unknown };
-  }): Promise<{ result: FormEditInterpretationResult; credits: unknown }> {
+  }): Promise<{ result: FormEditInterpretationResult; credits: unknown; operationCost?: PublicOperationCost }> {
     const execute = async (): Promise<{ kind: 'usable'; value: FormEditInterpretationResult; cost: number } | { kind: 'no_result'; value: FormEditInterpretationResult }> => {
       const assessed = assessFormEditInterpretation(await deps.interpreter.interpret({
         current: input.current,
@@ -177,7 +178,11 @@ export function createFormEditEngine(deps: FormEditEngineDeps) {
       }
       throw interpretFailure(outcome.error);
     }
-    return { result: outcome.value, credits: outcome.charge.balance };
+    return {
+      result: outcome.value,
+      credits: outcome.charge.balance,
+      operationCost: { credits: outcome.charge.cost, status: outcome.charge.status },
+    };
   }
 
   return {
@@ -208,7 +213,7 @@ export function createFormEditEngine(deps: FormEditEngineDeps) {
       }
       if (result.status === 'unsupported') {
         log('form.edit.interpret.unsupported', { requestId, userId, provider: 'google', formId: loaded.current.providerFormId, durationMs: Math.round(performance.now() - started) });
-        return result;
+        return { ...result, ...(interpreted.operationCost ? { operationCost: interpreted.operationCost } : {}) };
       }
       const draftInput: NewFormEditDraft = {
         id: newId(), userId, provider: 'google', providerFormId: loaded.current.providerFormId, formRecordId,
@@ -220,7 +225,12 @@ export function createFormEditEngine(deps: FormEditEngineDeps) {
         throw new FormEditError({ code: 'storage_unavailable', message: 'Intake could not save the proposal. The Google Form was not changed. Try again.', outcome: 'not_applied', retryable: true });
       }
       log('form.edit.interpret.completed', { requestId, userId, provider: 'google', formId: loaded.current.providerFormId, operationCount: result.plan.operations.length, durationMs: Math.round(performance.now() - started) });
-      return { status: 'ready', draft: publicDraft(saved), ...(interpreted.credits ? { credits: interpreted.credits } : {}) };
+      return {
+        status: 'ready',
+        draft: publicDraft(saved),
+        ...(interpreted.credits ? { credits: interpreted.credits } : {}),
+        ...(interpreted.operationCost ? { operationCost: interpreted.operationCost } : {}),
+      };
     },
 
     async revise(userId: string, input: { draftId: string; version: number; request: string; clarification?: string; operationId?: string }, requestId = newRequestId()): Promise<EditInterpretationOutcome> {
@@ -255,12 +265,17 @@ export function createFormEditEngine(deps: FormEditEngineDeps) {
       const result = interpreted.result;
       if (result.status !== 'ready') {
         log(result.status === 'needs_clarification' ? 'form.edit.interpret.clarification' : 'form.edit.interpret.unsupported', { requestId, userId, provider: 'google', formId: draft.providerFormId, durationMs: Math.round(performance.now() - started) });
-        return result;
+        return { ...result, ...(interpreted.operationCost ? { operationCost: interpreted.operationCost } : {}) };
       }
       const updated = await deps.drafts.revise(userId, draft.id, draft.version, result.plan, now());
       if (!updated) throw new FormEditError({ code: 'edit_draft_conflict', message: 'This proposal changed while Intake was revising it. Reload the proposal before continuing.', outcome: 'not_applied', retryable: false });
       log('form.edit.revised', { requestId, userId, provider: 'google', formId: draft.providerFormId, operationCount: result.plan.operations.length, version: updated.version });
-      return { status: 'ready', draft: publicDraft(updated), ...(interpreted.credits ? { credits: interpreted.credits } : {}) };
+      return {
+        status: 'ready',
+        draft: publicDraft(updated),
+        ...(interpreted.credits ? { credits: interpreted.credits } : {}),
+        ...(interpreted.operationCost ? { operationCost: interpreted.operationCost } : {}),
+      };
     },
 
     async getDraft(userId: string, id: string): Promise<PublicFormEditDraft | null> {

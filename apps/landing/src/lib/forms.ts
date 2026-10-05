@@ -84,8 +84,6 @@ export interface FormFailure {
   retryable?: boolean;
   /** Reliable server/provider backoff hint, in whole seconds. */
   retryAfterSeconds?: number;
-  /** Short provider explanation for rejected requests. Sanitized and never a raw provider response. */
-  detail?: string;
   partialForm?: PartialForm;
 }
 
@@ -234,8 +232,6 @@ export function parseFormFailure(status: number, body: unknown): FormFailure {
   if (isFormOutcome(row.outcome)) failure.outcome = row.outcome;
   if (typeof row.retryable === 'boolean') failure.retryable = row.retryable;
   if (typeof row.retryAfterSeconds === 'number' && Number.isSafeInteger(row.retryAfterSeconds) && row.retryAfterSeconds > 0 && row.retryAfterSeconds <= 86_400) failure.retryAfterSeconds = row.retryAfterSeconds;
-  const detail = text(row.detail, 400);
-  if (detail) failure.detail = detail;
   if (partial && partialId) {
     failure.partialForm = {
       providerFormId: partialId,
