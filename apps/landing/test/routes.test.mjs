@@ -51,6 +51,11 @@ test('Render is API-only and fails closed when Neon is unavailable', async () =>
     assert.equal(health.headers.get('x-content-type-options'), 'nosniff');
     assert.equal(health.headers.get('x-frame-options'), 'DENY');
     assert.match(health.headers.get('x-request-id'), /^req_/);
+    // Liveness stays 200 even when the database is down; the opt-in readiness probe tells the truth
+    // without leaking credentials, hostnames or versions.
+    const deep = await get('/api/health?deep=1');
+    assert.equal(deep.status, 503);
+    assert.deepEqual(await deep.json(), { ok: false, database: 'unavailable' });
     assert.equal((await get('/api/me')).status, 503);
     const providers = await get('/api/providers');
     assert.equal(providers.status, 503);

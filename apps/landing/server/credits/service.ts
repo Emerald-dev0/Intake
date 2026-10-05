@@ -47,7 +47,7 @@ export interface CreditServiceOptions {
   onError?: (label: string, error: unknown) => void;
 }
 
-const INSUFFICIENT = 'You do not have enough AI credits for this operation. Daily credits reset soon; Pro adds a monthly reserve.';
+const INSUFFICIENT = 'You do not have enough credits for this operation. Daily credits reset soon; Pro adds a monthly reserve.';
 
 export function createCreditService(options: CreditServiceOptions): CreditService {
   const now = options.now ?? (() => new Date());
@@ -61,7 +61,7 @@ export function createCreditService(options: CreditServiceOptions): CreditServic
       // Credit storage failing is never silently ignored: the operation is refused rather than
       // charged incorrectly or given away.
       report('Credit storage failed', error);
-      throw new CreditError('storage_unavailable', 'Intake cannot check AI credits right now. Nothing was charged and nothing was created. Try again shortly.');
+      throw new CreditError('storage_unavailable', 'Intake cannot check your credits right now. Nothing was charged and nothing was created. Try again shortly.');
     }
   }
 

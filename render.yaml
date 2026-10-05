@@ -1,4 +1,11 @@
-# Apply to the existing API service; do not create a second frontend on Render.
+# Render blueprint for the Intake API.
+#
+# Nothing here is a secret: every credential uses `sync: false`, which prompts the operator in the
+# Render dashboard and stores the value encrypted. `npm run preflight` (from apps/landing) verifies
+# the resulting environment without printing any value.
+#
+# Apply to the existing API service; do not create a second frontend on Render. The frontend is
+# Vercel-only (`apps/landing/vercel.json`), and Render deliberately returns 404 for frontend routes.
 services:
   - type: web
     name: intake-api
@@ -6,20 +13,53 @@ services:
     rootDir: apps/landing
     buildCommand: npm ci
     startCommand: npm start
+    # Liveness only: this stays 200 even when PostgreSQL is briefly unreachable, so a database blip
+    # cannot make Render recycle a healthy process. Run `npm run preflight -- --db` and
+    # `npm run verify:production` for readiness.
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
         value: 22.22.3
       - key: NODE_ENV
         value: production
+      # --- Required ---------------------------------------------------------
       - key: DATABASE_URL
-        sync: false
+        sync: false # Neon pooled connection string, must include sslmode=require
       - key: BETTER_AUTH_SECRET
-        sync: false
+        sync: false # openssl rand -base64 32; never reuse between environments
       - key: BETTER_AUTH_URL
-        sync: false
+        sync: false # exact public frontend origin, HTTPS, no trailing slash
+      # --- Admin console ----------------------------------------------------
       - key: ADMIN_EMAILS
-        sync: false
+        sync: false # comma-separated, server-only; empty denies everyone
       # Set only after verifying the actual Render/Vercel forwarded-address chain; safe default is 0.
       - key: API_TRUST_PROXY_HOPS
         value: 0
+      # --- Provider token encryption ---------------------------------------
+      # Strongly recommended: a dedicated key keeps stored Google grants valid if BETTER_AUTH_SECRET
+      # is ever rotated. 32+ random bytes (openssl rand -base64 32).
+      - key: PROVIDER_TOKEN_KEY
+        sync: false
+      # --- Google Forms connection (separate Google Cloud client) ----------
+      # Redirect URI: ${BETTER_AUTH_URL}/api/providers/google/callback
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      # --- Google sign-in (identity only; a DIFFERENT Google Cloud client) --
+      # Redirect URI: ${BETTER_AUTH_URL}/api/auth/callback/google
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # --- AI interpretation ------------------------------------------------
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      # --- Optional / deliberately unset ------------------------------------
+      # MICROSOFT_OAUTH_CLIENT_ID / MICROSOFT_OAUTH_CLIENT_SECRET: connection only; Microsoft Forms
+      # creation and editing are not implemented, so leave these unset unless a connection is wanted.
+      # OPENAI_API_KEY / AI_PROVIDER: only for an explicit alternate vendor. There is no request-time
+      # failover, and AI_PROVIDER without a matching credential is a startup error.
+      # GROQ_REASONING_EFFORT (low|medium|high) and AI_MAX_COMPLETION_TOKENS (256-32768) are optional.

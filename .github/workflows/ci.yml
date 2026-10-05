@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: typecheck, build, test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/landing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.3'
+          cache: npm
+          cache-dependency-path: apps/landing/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Typecheck (browser and server)
+        run: npm run typecheck
+      - name: Test (builds the production bundle first)
+        run: npm test
+      - name: Production build
+        run: npm run build
+      # Informational: a new advisory in a transitive dependency should be seen, not silently block
+      # a release that is otherwise ready. Review the report and act deliberately.
+      - name: Dependency audit (informational)
+        continue-on-error: true
+        run: npm audit --omit=dev
+
+  # These tests use a mocked model and a stateful Google Forms emulator. A green run proves the code
+  # paths, never live Google or Groq behaviour: production checks live in apps/landing/LAUNCH.md.

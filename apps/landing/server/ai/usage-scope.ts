@@ -48,7 +48,7 @@ export function newModelCallCollector(): ModelCallCollector {
   return { calls: [] };
 }
 
-/** Sum of the calls in one operation. Token counts stay internal; users see AI credits. */
+/** Sum of the calls in one operation. Token counts stay internal; users see credits. */
 export function summarizeModelCalls(calls: readonly ModelCallRecord[]): {
   provider: AiProviderId | 'none' | null;
   model: string | null;

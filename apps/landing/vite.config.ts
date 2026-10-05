@@ -7,9 +7,9 @@ import {
   META_DESCRIPTION,
   PRODUCT_DESCRIPTION,
   SITE_NAME,
-  SITE_URL,
   WORKFLOW_STEPS,
 } from './src/content/site.ts';
+import { DEFAULT_SITE_URL, isNonPublicHost, normalizeSiteUrl } from './src/lib/site-url.ts';
 import { PLAN_CATALOG, formatUsd, proPriceComparison } from './src/lib/plans.ts';
 import { PRICING_DESCRIPTION, PRICING_FAQS, PRICING_TITLE } from './src/content/pricing.ts';
 
@@ -23,25 +23,25 @@ function escapeHtml(value: string): string {
   })[character]!);
 }
 
-function structuredData(): string {
-  const creatorId = `${SITE_URL}/#creator`;
+function structuredData(siteUrl: string): string {
+  const creatorId = `${siteUrl}/#creator`;
   const graph = {
     '@context': 'https://schema.org',
     '@graph': [
       {
         '@type': 'SoftwareApplication',
-        '@id': `${SITE_URL}/#software`,
+        '@id': `${siteUrl}/#software`,
         name: SITE_NAME,
-        url: `${SITE_URL}/`,
+        url: `${siteUrl}/`,
         description: PRODUCT_DESCRIPTION,
         applicationCategory: 'BusinessApplication',
-        applicationSubCategory: 'AI-assisted Google Forms creation and editing',
+        applicationSubCategory: 'Google Forms creation and editing from a written description',
         inLanguage: 'en',
         featureList: [
-          'Create structured Google Forms from natural-language requests',
-          'Review and revise an AI-generated form proposal before creation',
-          'Propose and review supported changes to existing Google Forms',
-          'Manage Intake-created and imported Google Forms in a private library',
+          'Create a Google Form from a plain-English description',
+          'Review and change the proposed questions before anything is created',
+          'Propose and review changes to a Google Form you already have',
+          'Keep every form you make or import in a private library',
         ],
         creator: { '@id': creatorId },
         author: { '@id': creatorId },
@@ -56,8 +56,8 @@ function structuredData(): string {
       },
       {
         '@type': 'FAQPage',
-        '@id': `${SITE_URL}/#faq`,
-        url: `${SITE_URL}/#faq`,
+        '@id': `${siteUrl}/#faq`,
+        url: `${siteUrl}/#faq`,
         mainEntity: FAQS.map(({ question, answer }) => ({
           '@type': 'Question',
           name: question,
@@ -93,8 +93,8 @@ function noScriptContent(): string {
     </section>
     <section aria-labelledby="fallback-product">
       <h2 id="fallback-product">Not another form builder.</h2>
-      <p>Intake is a natural-language control layer for real Google Forms. Describe the outcome, review a structured proposal, and confirm before creating a form or applying supported edits to one you already have.</p>
-      <p>Google hosts the responder page and responses. Intake is independent of Google and does not replace Google Forms.</p>
+      <p>Describe what you want to collect in a sentence. Intake turns it into a full list of questions, you adjust anything that does not fit, and the form is created in your own Google account.</p>
+      <p>Editing works the same way: point Intake at a form you already have, describe the change, and confirm it once the proposal looks right.</p>
     </section>
     <section aria-labelledby="fallback-how">
       <h2 id="fallback-how">How Intake works</h2>
@@ -103,20 +103,23 @@ function noScriptContent(): string {
     <section aria-labelledby="fallback-pricing">
       <h2 id="fallback-pricing">Plans and pricing</h2>
       <h3>Free · $0</h3>
-      <p>${PLAN_CATALOG.free.dailyCredits} daily AI credits, Google Forms connection, AI creation and editing, a form library, and review before apply.</p>
+      <p>${PLAN_CATALOG.free.dailyCredits} credits every day, form creation from a description, editing for the forms you already have, a library of everything you make, and a review step before anything is applied.</p>
       <h3>Pro · ${escapeHtml(proMonthly)} per month or ${escapeHtml(proAnnual)} per year</h3>
-      <p>${PLAN_CATALOG.pro.dailyCredits} daily credits plus ${PLAN_CATALOG.pro.monthlyCredits} monthly credits. Pro includes the same supported form workflows as Free. Checkout and self-service plan changes are not available yet.</p>
+      <p>${PLAN_CATALOG.pro.dailyCredits} credits a day plus ${PLAN_CATALOG.pro.monthlyCredits} a month, with every workflow from Free unchanged. Daily credits are used first and unused credits do not roll over.</p>
     </section>
     <section id="faq" aria-labelledby="fallback-faq">
       <h2 id="fallback-faq">Frequently asked questions</h2>
       ${faq}
     </section>
-    <footer>Built by <a href="${escapeHtml(CREATOR.github)}">${escapeHtml(CREATOR.displayName)}</a>.</footer>
+    <footer>Designed by <a href="${escapeHtml(CREATOR.github)}">${escapeHtml(CREATOR.credit)}</a>.</footer>
   </main>`;
 }
 
-/** The only canonical origin is the actual production domain; preview hostnames are never substituted. */
-function siteMeta(): Plugin {
+/**
+ * The only canonical origin is the resolved production origin; preview hostnames (Vercel `VERCEL_URL`,
+ * sandbox hosts) are never substituted. `VITE_SITE_URL` changes it deliberately at build time.
+ */
+function siteMeta(siteUrl: string): Plugin {
   return {
     name: 'intake-site-meta',
     transformIndexHtml(html) {
@@ -124,8 +127,8 @@ function siteMeta(): Plugin {
         .replace('%HOMEPAGE_TITLE%', escapeHtml(HOMEPAGE_TITLE))
         .replace('%META_DESCRIPTION%', escapeHtml(META_DESCRIPTION))
         .replace('%CREATOR_DISPLAY_NAME%', escapeHtml(CREATOR.displayName))
-        .replaceAll('%SITE_URL%', SITE_URL)
-        .replace('%STRUCTURED_DATA%', structuredData())
+        .replaceAll('%SITE_URL%', siteUrl)
+        .replace('%STRUCTURED_DATA%', structuredData(siteUrl))
         .replace('%NOSCRIPT_CONTENT%', noScriptContent());
     },
   };
@@ -133,18 +136,18 @@ function siteMeta(): Plugin {
 
 const PRO_PRICE_COMPARISON = proPriceComparison();
 
-function pricingStructuredData(): string {
-  const faqId = `${SITE_URL}/pricing#faq`;
+function pricingStructuredData(siteUrl: string): string {
+  const faqId = `${siteUrl}/pricing#faq`;
   const graph = {
     '@context': 'https://schema.org',
     '@graph': [
       {
         '@type': 'WebPage',
-        '@id': `${SITE_URL}/pricing#webpage`,
-        url: `${SITE_URL}/pricing`,
+        '@id': `${siteUrl}/pricing#webpage`,
+        url: `${siteUrl}/pricing`,
         name: PRICING_TITLE,
         description: PRICING_DESCRIPTION,
-        about: { '@id': `${SITE_URL}/#software` },
+        about: { '@id': `${siteUrl}/#software` },
         mainEntity: { '@id': faqId },
       },
       {
@@ -174,10 +177,10 @@ function pricingNoScriptContent(): string {
     <section aria-labelledby="pricing-fallback-title">
       <h1 id="pricing-fallback-title">Intake plans and pricing</h1>
       <h2>Free · $0</h2>
-      <p>${PLAN_CATALOG.free.dailyCredits} daily AI credits, refreshed at 00:00 UTC, with supported Google Forms creation and edit workflows.</p>
+      <p>${PLAN_CATALOG.free.dailyCredits} credits every day, refreshed at 00:00 UTC, with the full Google Forms creation and editing workflow.</p>
       <h2>Pro · ${escapeHtml(proMonthly)} per month or ${escapeHtml(proAnnual)} per year</h2>
-      <p>${PLAN_CATALOG.pro.dailyCredits} daily credits plus ${PLAN_CATALOG.pro.monthlyCredits} monthly credits. Annual billing saves ${escapeHtml(annualSavings)} compared with twelve monthly payments. Unused credits do not roll over.</p>
-      <p>Intake does not process payments or allow plan changes yet. The annual/monthly switch is display-only. Google Forms and AI-provider limits are the same across plans; priority processing is not offered.</p>
+      <p>${PLAN_CATALOG.pro.dailyCredits} credits a day plus ${PLAN_CATALOG.pro.monthlyCredits} a month. Paying annually would save ${escapeHtml(annualSavings)} compared with twelve monthly payments, and unused credits do not roll over.</p>
+      <p>Start with a free account; Pro opens to existing accounts first and can be switched on from your account page. Google’s own limits apply the same way on both plans.</p>
     </section>
     <section id="faq" aria-labelledby="pricing-fallback-faq"><h2 id="pricing-fallback-faq">Pricing questions</h2>${faq}</section>
     <footer><a href="/auth/sign-up">Start with Free</a> · <a href="/">Back to Intake</a></footer>
@@ -185,7 +188,7 @@ function pricingNoScriptContent(): string {
 }
 
 /** Give the pricing entry its own crawlable metadata and matching no-script fallback. */
-function pricingDocument(): Plugin {
+function pricingDocument(siteUrl: string): Plugin {
   return {
     name: 'intake-pricing-document',
     transformIndexHtml: {
@@ -195,21 +198,76 @@ function pricingDocument(): Plugin {
         return html
           .replace(/<title>[\s\S]*?<\/title>/, `<title>${escapeHtml(PRICING_TITLE)}</title>`)
           .replace(/<meta name="description" content="[^"]*"\s*\/>/, `<meta name="description" content="${escapeHtml(PRICING_DESCRIPTION)}" />`)
-          .replace(/<link rel="canonical" href="[^"]*"\s*\/>/, `<link rel="canonical" href="${SITE_URL}/pricing" />`)
+          .replace(/<link rel="canonical" href="[^"]*"\s*\/>/, `<link rel="canonical" href="${siteUrl}/pricing" />`)
           .replace(/<meta property="og:title" content="[^"]*"\s*\/>/, `<meta property="og:title" content="${escapeHtml(PRICING_TITLE)}" />`)
           .replace(/<meta property="og:description" content="[^"]*"\s*\/>/, `<meta property="og:description" content="${escapeHtml(PRICING_DESCRIPTION)}" />`)
-          .replace(/<meta property="og:url" content="[^"]*"\s*\/>/, `<meta property="og:url" content="${SITE_URL}/pricing" />`)
+          .replace(/<meta property="og:url" content="[^"]*"\s*\/>/, `<meta property="og:url" content="${siteUrl}/pricing" />`)
           .replace(/<meta name="twitter:title" content="[^"]*"\s*\/>/, `<meta name="twitter:title" content="${escapeHtml(PRICING_TITLE)}" />`)
           .replace(/<meta name="twitter:description" content="[^"]*"\s*\/>/, `<meta name="twitter:description" content="${escapeHtml(PRICING_DESCRIPTION)}" />`)
-          .replace(/<script id="intake-structured-data" type="application\/ld\+json">[\s\S]*?<\/script>/, `<script id="intake-structured-data" type="application/ld+json">${pricingStructuredData()}</script>`)
+          .replace(/<script id="intake-structured-data" type="application\/ld\+json">[\s\S]*?<\/script>/, `<script id="intake-structured-data" type="application/ld+json">${pricingStructuredData(siteUrl)}</script>`)
           .replace(/<noscript>[\s\S]*?<\/noscript>/, `<noscript>${pricingNoScriptContent()}</noscript>`);
       },
     },
   };
 }
 
+/**
+ * `robots.txt` and `sitemap.xml` are generated rather than kept as static files so a custom domain
+ * (or the default `*.vercel.app` host) is reflected everywhere from one resolved origin. The route
+ * exclusions mirror the noindex documents served by `vercel.json`.
+ */
+function robotsDocument(siteUrl: string): string {
+  return [
+    'User-agent: *',
+    'Allow: /',
+    'Disallow: /app',
+    'Disallow: /admin',
+    'Disallow: /auth',
+    'Disallow: /api',
+    'Disallow: /private.html',
+    'Disallow: /capture.html',
+    'Disallow: /og.html',
+    '',
+    `Sitemap: ${siteUrl}/sitemap.xml`,
+    '',
+  ].join('\n');
+}
+
+function sitemapDocument(siteUrl: string): string {
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    '  <url>',
+    `    <loc>${siteUrl}/</loc>`,
+    '  </url>',
+    '  <url>',
+    `    <loc>${siteUrl}/pricing</loc>`,
+    '  </url>',
+    '</urlset>',
+    '',
+  ].join('\n');
+}
+
+function staticDocuments(siteUrl: string): Plugin {
+  return {
+    name: 'intake-static-documents',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'robots.txt', source: robotsDocument(siteUrl) });
+      this.emitFile({ type: 'asset', fileName: 'sitemap.xml', source: sitemapDocument(siteUrl) });
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
+  // Fail the build on a malformed origin instead of shipping metadata that points somewhere wrong.
+  const siteUrl = normalizeSiteUrl(env.VITE_SITE_URL, DEFAULT_SITE_URL, {
+    source: 'VITE_SITE_URL',
+    hint: 'Set it in the Vercel project environment (or unset it to use the documented default).',
+  });
+  if (env.VITE_SITE_URL?.trim() && isNonPublicHost(siteUrl)) {
+    console.warn(`[intake] VITE_SITE_URL points at a non-public host (${new URL(siteUrl).hostname}). Canonical URLs, the sitemap and robots.txt will use it; this is only appropriate for a local test build.`);
+  }
   const proxy = { '^/api(?:/|$)': { target: env.API_PROXY_TARGET || 'http://127.0.0.1:3001' } };
   const inputs: Record<string, string> = {
     main: 'index.html',
@@ -223,7 +281,7 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
-    plugins: [react(), siteMeta(), pricingDocument()],
+    plugins: [react(), siteMeta(siteUrl), pricingDocument(siteUrl), staticDocuments(siteUrl)],
     build: { rollupOptions: { input: inputs } },
     server: { host: '0.0.0.0', port: 5173, allowedHosts: true, proxy },
     preview: { host: '0.0.0.0', port: 4173, allowedHosts: true, proxy },

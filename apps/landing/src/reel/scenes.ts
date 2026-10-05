@@ -420,7 +420,7 @@ export function buildEditTimeline(s: EditScene): EditTimeline {
   const captions = [
     'The demo changes only its local example draft; Google Forms is not contacted.',
     'Review the proposed question and its answer choices.',
-    'Describe an order change in natural language.',
+    'Describe an order change in your own words.',
     'A supported follow-up can be prepared for review before confirmation.',
   ];
   return {

@@ -5,11 +5,11 @@ This guide describes the controls implemented in this repository. It is not evid
 ## Required release order
 
 1. Use Node 22.12 or newer and PostgreSQL 15 or newer, then install with `npm ci`. Migration `006` uses PostgreSQL 15's column-specific `ON DELETE SET NULL` syntax.
-2. Set the API-service variables below. Keep every non-`VITE_` secret off the browser/Vercel frontend.
+2. Set the API-service variables below. Keep every non-`VITE_` secret off the browser/Vercel frontend. `npm run preflight` validates the resulting environment (core config, provider and model configuration, allowlist, accidental `VITE_`-prefixed secrets) without printing a single value; `npm run preflight -- --db` additionally verifies connectivity, the expected tables and the applied migration ids. Exit code 1 means a check failed.
 3. Back up the intended database and run Better Auth migrations with `npm run db:migrate`.
 4. Run `npm run db:migrate:intake`. Migration `006_production_hardening.sql` adds distributed abuse-control storage and validates that every edit draft's optional form record belongs to the same user. Migration `007_ai_credits.sql` adds `user_entitlement`, `credit_ledger` and the logical-operation schema; the historical `007_ai_operations.sql` id is retained as a no-op, and `008_ai_operation_compat.sql` archives and safely maps Phase 12 telemetry rows without deleting the original table. `009_admin_indexes.sql` adds read-path indexes. These migrations do not delete application rows or issue credit grants by themselves (the first balance read or AI operation ensures that period's grant). `006` intentionally fails if historical ownership data violates that constraint; investigate rather than bypassing or deleting records.
 5. Run `npm run typecheck`, `npm test`, and `npm audit --omit=dev` from `apps/landing`.
-6. Deploy the API, then the frontend proxy. Verify the acceptance checklist in `DEPLOYMENT.md` with non-production accounts and forms.
+6. Deploy the API, then the frontend proxy. Run `npm run verify:production -- --base-url <origin>` (non-destructive anonymous checks, plus session/credits/admin checks when test credentials are supplied) and then the manual Google/Groq checklist. The step-by-step first-deployment procedure, rollback plan, free-tier reality and the single-instance token-refresh constraint are in [LAUNCH.md](LAUNCH.md).
 
 ## Configuration contract
 
@@ -185,7 +185,7 @@ The legacy Phase 12 AI-operation schema is archived and mapped by migrations `00
 
 ## Known limitations and verification gaps
 
-- `/api/health` proves process liveness only. It does not check Neon, providers, the model, migration level, or Vercel proxy correctness.
+- `/api/health` proves process liveness only and always returns 200 so a database blip cannot make Render recycle a healthy process. `GET /api/health?deep=1` additionally probes PostgreSQL with a 4-second bound and returns 503 when it is unreachable, but it still does not check providers, the model, migration level or Vercel proxy correctness. Use `npm run preflight -- --db` for migrations/tables and `npm run verify:production` for the deployed end-to-end contract.
 - There is no repository CI workflow, lint script, centralized monitoring, automated reconciliation job, cross-instance token-refresh lock, or automatic provider-state repair.
 - Fixed-window limits can produce boundary bursts. Network identity depends on a correctly verified proxy depth.
 - OAuth revocation is best-effort. Microsoft revocation and Microsoft Forms create/edit are not claimed as supported.

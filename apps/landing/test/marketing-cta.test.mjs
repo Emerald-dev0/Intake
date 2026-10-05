@@ -64,8 +64,9 @@ test('public marketing and pricing CTAs route signed-in visitors to the app', as
           await act(async () => editTab.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })));
           assert.equal(createTab.getAttribute('aria-pressed'), 'false');
           assert.equal(editTab.getAttribute('aria-pressed'), 'true');
-          assert.ok(document.body.textContent.includes('DRAFT · NOT APPLIED'));
+          assert.ok(document.body.textContent.includes('DRAFT'), 'the edit proposal is labelled as a draft');
           assert.ok(document.body.textContent.includes('Would you like a follow-up call?'));
+          assert.ok(document.body.textContent.includes('Goes after “Overall satisfaction”'));
         }
       } finally {
         await act(async () => root.unmount());

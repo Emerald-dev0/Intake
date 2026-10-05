@@ -31,11 +31,11 @@ export function createCreditRouter(deps: CreditRouterDeps): Router {
       logSafe('Credit balance session lookup failed', error);
       return send(res, 503, { error: 'Intake could not check your session. Try again later.', code: 'storage_unavailable', retryable: true });
     }
-    if (!session) return send(res, 401, { error: 'Sign in to Intake to see AI credits.', code: 'not_authenticated', retryable: false });
+    if (!session) return send(res, 401, { error: 'Sign in to Intake to see your credits.', code: 'not_authenticated', retryable: false });
     try {
       return send(res, 200, { credits: await deps.credits.balance(session.id), costGuide: publicCreditCostGuide() });
     } catch {
-      return send(res, 503, { error: 'Intake cannot read AI credits right now. Try again shortly.', code: 'storage_unavailable', retryable: true });
+      return send(res, 503, { error: 'Intake cannot read your credits right now. Try again shortly.', code: 'storage_unavailable', retryable: true });
     }
   }));
 

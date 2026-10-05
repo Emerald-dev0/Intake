@@ -122,7 +122,7 @@ export function creditSummary(credits: PublicCredits): string {
   if (credits.plan === 'pro') {
     return `${credits.dailyRemaining} of ${credits.dailyLimit} daily · ${credits.monthlyRemaining} of ${credits.monthlyLimit} monthly`;
   }
-  return `${credits.dailyRemaining} of ${credits.dailyLimit} AI credits left today`;
+  return `${credits.dailyRemaining} of ${credits.dailyLimit} credits left today`;
 }
 
 /**
@@ -155,12 +155,12 @@ export function isInsufficientCredits(code: string | undefined): boolean {
  */
 export function insufficientCreditsMessage(credits: PublicCredits | null, now: Date = new Date()): string {
   if (!credits) {
-    return 'You have used every AI credit available right now. Daily credits reset every day at 00:00 UTC. Nothing was created or changed.';
+    return 'You have used every credit available right now. Daily credits reset every day at 00:00 UTC. Nothing was created or changed.';
   }
   const dailyReset = resetInterval(credits.nextDailyReset, now);
   if (credits.plan === 'pro') {
     const monthlyReset = resetInterval(credits.nextMonthlyReset, now);
-    return `You have used all ${credits.dailyLimit} daily AI credits and the ${credits.monthlyLimit}-credit Pro monthly reserve. Daily credits reset ${dailyReset}; monthly credits reset ${monthlyReset}. Nothing was created or changed.`;
+    return `You have used all ${credits.dailyLimit} daily credits and the ${credits.monthlyLimit}-credit Pro monthly reserve. Daily credits reset ${dailyReset}; monthly credits reset ${monthlyReset}. Nothing was created or changed.`;
   }
-  return `You have used today's ${credits.dailyLimit} free AI credits. Daily credits reset ${dailyReset}. Pro includes a ${PLAN_CATALOG.pro.monthlyCredits}-credit monthly reserve, but plan changes are not available in Intake yet. Nothing was created or changed.`;
+  return `You have used today's ${credits.dailyLimit} free credits. Daily credits reset ${dailyReset}. Pro adds a ${PLAN_CATALOG.pro.monthlyCredits}-credit monthly reserve. Nothing was created or changed.`;
 }

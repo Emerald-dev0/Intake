@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const SITE_ORIGIN = 'https://intake-six-blue.vercel.app';
 const CREATOR_NAME = 'Oluwadare Daniel — Emerald';
-const SOCIAL_IMAGE_ALT = 'Intake’s illustrative Google Forms proposal, labeled “EXAMPLE - NOT APPLIED.”';
+const SOCIAL_IMAGE_ALT = 'Intake showing a form proposal: a written request on the left, the questions it understood on the right.';
 
 function metadata(html) {
   const entries = new Map();
@@ -32,7 +32,7 @@ test('production homepage metadata uses the verified production origin and an ac
   const canonical = html.match(/<link rel="canonical" href="([^"]+)"\s*\/>/)?.[1];
 
   assert.equal(canonical, `${SITE_ORIGIN}/`);
-  assert.match(html, /<title>Intake — AI-Powered Google Forms Creation &amp; Editing<\/title>/);
+  assert.match(html, /<title>Intake — Google Forms, built from a sentence<\/title>/);
   assert.equal(meta.get('robots'), 'index,follow,max-image-preview:large');
   assert.equal(meta.get('author'), CREATOR_NAME);
   assert.equal(meta.get('og:type'), 'website');
@@ -87,7 +87,7 @@ test('JSON-LD connects Intake to its creator and matches the visible FAQ', async
 
   const fallback = html.match(/<noscript>([\s\S]*?)<\/noscript>/)?.[1];
   assert.ok(fallback, 'the built HTML must retain a crawlable no-script content fallback');
-  assert.match(fallback, /Built by <a href="https:\/\/github\.com\/Emerald-dev0">Oluwadare Daniel — Emerald<\/a>/);
+  assert.match(fallback, /Designed by <a href="https:\/\/github\.com\/Emerald-dev0">Emerald<\/a>/);
   assert.ok(faq.mainEntity.length > 0);
   for (const question of faq.mainEntity) {
     assert.equal(question['@type'], 'Question');

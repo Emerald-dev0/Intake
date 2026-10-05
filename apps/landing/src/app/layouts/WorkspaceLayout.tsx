@@ -44,7 +44,7 @@ export function WorkspaceLayout() {
           <a className={page === 'connections' ? 'active' : ''} href="/app/connections"><span aria-hidden>◇</span> Connections</a>
         </nav>
         <div className="sidebar-credits" aria-live="polite">
-          <span className="sidebar-label">AI CREDITS</span>
+          <span className="sidebar-label">CREDITS</span>
           {credits.state.status === 'ready'
             ? <><strong>{creditSummary(credits.state.credits)}</strong><span>Daily {resetLabel(credits.state.credits.nextDailyReset)}</span>{credits.state.credits.monthlyLimit > 0 && <span>Monthly {resetLabel(credits.state.credits.nextMonthlyReset)}</span>}<a className="sidebar-plan-link" href="/app/account">Plan &amp; credit details →</a></>
             : credits.state.status === 'loading'

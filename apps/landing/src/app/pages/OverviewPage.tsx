@@ -30,10 +30,10 @@ export function OverviewPage() {
           <div><span>DAILY</span><strong>{credits.credits.dailyRemaining} <small>/ {credits.credits.dailyLimit}</small></strong><small>resets {resetInterval(credits.credits.nextDailyReset)} · 00:00 UTC</small></div>
           <div><span>MONTHLY</span><strong>{credits.credits.monthlyLimit > 0 ? <>{credits.credits.monthlyRemaining} <small>/ {credits.credits.monthlyLimit}</small></> : 'Not included'}</strong><small>{credits.credits.monthlyLimit > 0 ? `resets ${resetInterval(credits.credits.nextMonthlyReset)} · no rollover` : 'Pro includes a monthly reserve'}</small></div>
         </div>
-        {credits.credits.availableCredits === 0 && <p className="dashboard-credit-state" role="status">No AI credits are available right now. Nothing was created or changed. Daily credits renew {resetInterval(credits.credits.nextDailyReset)}.</p>}
+        {credits.credits.availableCredits === 0 && <p className="dashboard-credit-state" role="status">No credits are available right now. Nothing was created or changed. Daily credits renew {resetInterval(credits.credits.nextDailyReset)}.</p>}
         <div className="dashboard-credit-actions"><a href="/app/account">Manage account and credits <span aria-hidden>↗</span></a>{credits.credits.plan === 'free' && <a href="/pricing">Explore Pro · {proPrices ? `${formatUsd(proPrices.month)}/month or ${formatUsd(proPrices.year)}/year` : 'view pricing'} <span aria-hidden>↗</span></a>}</div>
       </> : <>
-        <div className="dashboard-credit-top"><div><span className="info-index">YOUR PLAN &amp; AI CREDITS</span><h2 id="dashboard-credit-title">{credits.status === 'loading' ? 'Checking your balance…' : 'Balance unavailable'}</h2></div></div>
+        <div className="dashboard-credit-top"><div><span className="info-index">YOUR PLAN &amp; CREDITS</span><h2 id="dashboard-credit-title">{credits.status === 'loading' ? 'Checking your balance…' : 'Balance unavailable'}</h2></div></div>
         <p className="dashboard-credit-state" role={credits.status === 'error' ? 'alert' : 'status'}>{credits.status === 'loading' ? 'Intake is reading your server-reported plan and credit balance.' : 'Intake could not verify your balance. This is not a zero-credit result, and no plan is assumed.'}</p>
         {credits.status === 'error' && <button className="btn btn-ghost btn-sm" type="button" onClick={reloadCredits}>Retry credit check</button>}
       </>}

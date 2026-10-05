@@ -42,7 +42,7 @@ export function AccountPage() {
   }
 
   return <>
-    <div className="page-heading"><div className="eyebrow">06 / PROFILE</div><h1>Your <em>account.</em></h1><div className="heading-description">Manage your Intake identity, see your current server-reported plan and understand the AI credits available to you.</div></div>
+    <div className="page-heading"><div className="eyebrow">06 / PROFILE</div><h1>Your <em>account.</em></h1><div className="heading-description">Manage your Intake identity, see your current server-reported plan and understand the credits available to you.</div></div>
 
     <div className="account-overview-grid">
       <section className="profile-card account-profile" aria-label="Intake account identity">
@@ -54,13 +54,13 @@ export function AccountPage() {
         <div className="account-card-heading"><span className="info-index">YOUR PLAN</span>{credits && <span className="status-pill ok">{PLAN_CATALOG[credits.plan].label.toUpperCase()}</span>}</div>
         <h2 id="plan-title">{credits ? PLAN_CATALOG[credits.plan].label : balanceState.status === 'loading' ? 'Checking plan…' : 'Plan unavailable'}</h2>
         {credits?.plan === 'free' && <>
-          <p className="account-plan-summary">Free · $0, with {credits.dailyLimit} AI credits renewed every day. There is no monthly Pro reserve on this plan.</p>
+          <p className="account-plan-summary">Free · $0, with {credits.dailyLimit} credits renewed every day. There is no monthly Pro reserve on this plan.</p>
           <a className="btn btn-ghost btn-sm" href="/pricing">Compare Free and Pro <span aria-hidden>↗</span></a>
         </>}
         {credits?.plan === 'pro' && <>
           <p className="account-plan-summary">Pro includes {credits.dailyLimit} daily credits and a {credits.monthlyLimit}-credit monthly reserve. Unused credits do not roll over.</p>
           <p className="account-billing-status"><span>Billing status on record</span><strong>{billingStatusLabel(credits.subscriptionStatus)}</strong></p>
-          {credits.subscriptionStatus === 'none' && <p className="account-disclaimer">Pro access is enabled for this account, but Intake has no connected billing record. Payments and self-service plan changes are not available.</p>}
+          {credits.subscriptionStatus === 'none' && <p className="account-disclaimer">Pro access is switched on for this account, and no billing record is connected, so nothing is charged and there is nothing to cancel.</p>}
           {proPrice && <p className="account-price-reference">Published Pro pricing: {formatUsd(proPrice.month)} monthly or {formatUsd(proPrice.year)} yearly.</p>}
           <a className="btn btn-ghost btn-sm" href="/pricing?billing=annual">View Pro plan details <span aria-hidden>↗</span></a>
         </>}
@@ -69,13 +69,13 @@ export function AccountPage() {
     </div>
 
     <section className="account-credit-panel" aria-labelledby="account-credits-title">
-      <div className="account-credit-heading"><div><span className="info-index">AI CREDIT BALANCE</span><h2 id="account-credits-title">What you can use right now</h2></div>
+      <div className="account-credit-heading"><div><span className="info-index">CREDIT BALANCE</span><h2 id="account-credits-title">What you can use right now</h2></div>
         {credits && <div className="account-available"><strong>{credits.availableCredits}</strong><span>available now</span></div>}
       </div>
       {credits ? <>
         <p className="account-credit-summary" aria-live="polite">{creditSummary(credits)}</p>
         {credits.availableCredits === 0 && <div className="form-banner warn account-credit-alert" role="status">
-          <strong>No AI credits are available right now.</strong>
+          <strong>No credits are available right now.</strong>
           <p>Nothing can be created or changed until the next reset. Daily credits reset {resetInterval(credits.nextDailyReset)} (00:00 UTC).</p>
           {credits.plan === 'free' && <a href="/pricing">See the Pro monthly-reserve details →</a>}
         </div>}
@@ -84,7 +84,7 @@ export function AccountPage() {
           <div className="account-credit-bucket"><span>DAILY ALLOWANCE</span><strong>{credits.dailyRemaining} <small>of {credits.dailyLimit}</small></strong><p>Renews {resetInterval(credits.nextDailyReset)} at 00:00 UTC.</p></div>
           <div className="account-credit-bucket"><span>MONTHLY RESERVE</span><strong>{credits.monthlyLimit > 0 ? <>{credits.monthlyRemaining} <small>of {credits.monthlyLimit}</small></> : 'Not included'}</strong><p>{credits.monthlyLimit > 0 ? `Resets ${resetInterval(credits.nextMonthlyReset)}. Unused monthly credits do not roll over.` : 'Available with Pro; no monthly credits are included on Free.'}</p></div>
         </div>
-        {balanceState.costGuide && <p className="account-cost-note">Typical AI work: a standard new form is {balanceState.costGuide.formCreate.standard} credits; one supported edit is {balanceState.costGuide.formEdit.singleChange} credit. Complex work costs more. Intake shows an estimate before interpretation and the exact charge after a usable proposal is ready.</p>}
+        {balanceState.costGuide && <p className="account-cost-note">Typical cost: a standard new form is {balanceState.costGuide.formCreate.standard} credits; one supported edit is {balanceState.costGuide.formEdit.singleChange} credit. Complex work costs more. Intake shows an estimate before interpretation and the exact charge after a usable proposal is ready.</p>}
       </> : <div className="account-credit-unavailable" role={balanceState.status === 'error' ? 'alert' : 'status'}>
         <p>{balanceState.status === 'loading' ? 'Checking your server-reported balance…' : 'Credits are temporarily unavailable. This is not a zero balance.'}</p>
         {balanceState.status === 'error' && <button type="button" className="btn btn-ghost btn-sm" onClick={() => creditControls.reload()}>Retry credit check</button>}
@@ -96,10 +96,10 @@ export function AccountPage() {
       <ul>
         <li>The server calculates each charge from the validated proposal; the model and browser cannot choose a price.</li>
         <li>A successful interpretation is charged once. A clarification, unsupported result or failed operation uses no credits.</li>
-        <li>Google Forms is contacted only after you review and explicitly confirm a proposal. Applying a reviewed proposal costs no additional AI credits.</li>
+        <li>Google Forms is contacted only after you review and explicitly confirm a proposal. Applying a reviewed proposal costs no extra credits.</li>
         <li>Daily credits refresh at 00:00 UTC. Monthly credits follow the reset time shown above; neither bucket rolls over.</li>
       </ul>
-      <p>Prices on the public page are display information only. Payments and plan changes are not implemented.</p>
+      <p>Plans and prices are listed on the <a href="/pricing">pricing page</a>. What this account can use right now is always the balance shown above.</p>
     </section>
 
     <section className="account-connections" aria-labelledby="signin-methods-title">
