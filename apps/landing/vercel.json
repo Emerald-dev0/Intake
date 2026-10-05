@@ -16,6 +16,10 @@
       "dest": "/private.html",
       "headers": { "X-Robots-Tag": "noindex, nofollow" }
     },
+    {
+      "src": "/pricing/?$",
+      "dest": "/pricing.html"
+    },
     { "handle": "filesystem" },
     {
       "src": "/((?!api(?:/|$)).*)",

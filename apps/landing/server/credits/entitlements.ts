@@ -7,8 +7,10 @@
  * place.
  */
 
-export const PLAN_IDS = ['free', 'pro'] as const;
-export type PlanId = (typeof PLAN_IDS)[number];
+import { PLAN_CATALOG, PLAN_IDS, isPlanId, type PlanId } from '../../src/lib/plans';
+export { PLAN_IDS, isPlanId };
+export type { PlanId };
+
 export const DEFAULT_PLAN: PlanId = 'free';
 
 export const SUBSCRIPTION_STATUSES = ['none', 'active', 'past_due', 'canceled'] as const;
@@ -24,14 +26,19 @@ export interface PlanDefinition {
 }
 
 export const PLANS: Record<PlanId, PlanDefinition> = {
-  free: { id: 'free', dailyCredits: 20, monthlyCredits: 0, label: 'Free' },
-  // Pro = the same 20 daily credits plus a 500-credit monthly reserve for that billing period.
-  pro: { id: 'pro', dailyCredits: 20, monthlyCredits: 500, label: 'Pro' },
+  free: {
+    id: PLAN_CATALOG.free.id,
+    dailyCredits: PLAN_CATALOG.free.dailyCredits,
+    monthlyCredits: PLAN_CATALOG.free.monthlyCredits,
+    label: PLAN_CATALOG.free.label,
+  },
+  pro: {
+    id: PLAN_CATALOG.pro.id,
+    dailyCredits: PLAN_CATALOG.pro.dailyCredits,
+    monthlyCredits: PLAN_CATALOG.pro.monthlyCredits,
+    label: PLAN_CATALOG.pro.label,
+  },
 };
-
-export function isPlanId(value: unknown): value is PlanId {
-  return typeof value === 'string' && (PLAN_IDS as readonly string[]).includes(value);
-}
 
 export function planDefinition(plan: PlanId): PlanDefinition {
   return PLANS[plan];
@@ -123,17 +130,28 @@ export function periodKeyFor(bucket: CreditBucket, entitlement: Entitlement, now
 /** Balance/projection shape the browser is allowed to see. No tokens, no ledger internals. */
 export interface CreditBalance {
   plan: PlanId;
+  subscriptionStatus: SubscriptionStatus;
+  availableCredits: number;
   dailyRemaining: number;
+  dailyLimit: number;
   monthlyRemaining: number;
+  monthlyLimit: number;
   nextDailyReset: string;
   nextMonthlyReset: string;
 }
 
 export function toPublicBalance(entitlement: Entitlement, buckets: Record<CreditBucket, number>, now: Date): CreditBalance {
+  const dailyRemaining = Math.max(0, buckets.daily);
+  const monthlyRemaining = Math.max(0, buckets.monthly);
+  const definition = planDefinition(entitlement.plan);
   return {
     plan: entitlement.plan,
-    dailyRemaining: Math.max(0, buckets.daily),
-    monthlyRemaining: Math.max(0, buckets.monthly),
+    subscriptionStatus: entitlement.subscriptionStatus,
+    availableCredits: dailyRemaining + monthlyRemaining,
+    dailyRemaining,
+    dailyLimit: definition.dailyCredits,
+    monthlyRemaining,
+    monthlyLimit: definition.monthlyCredits,
     nextDailyReset: nextDailyReset(now).toISOString(),
     nextMonthlyReset: nextMonthlyReset(entitlement, now).toISOString(),
   };

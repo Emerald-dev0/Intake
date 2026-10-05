@@ -8,7 +8,6 @@ export interface FormEditErrorInfo {
   outcome?: EditOutCome;
   retryable?: boolean;
   retryAfterSeconds?: number;
-  detail?: string;
   issues?: EditPlanIssue[];
   /** Fresh server-only provider state recovered after an uncertain batch; never serialized to clients. */
   current?: FormEditSnapshot;
@@ -29,7 +28,6 @@ export function toFormEditFailure(info: FormEditErrorInfo, requestId: string): F
     ...(info.outcome ? { outcome: info.outcome } : {}),
     ...(typeof info.retryable === 'boolean' ? { retryable: info.retryable } : {}),
     ...(Number.isSafeInteger(info.retryAfterSeconds) && (info.retryAfterSeconds as number) > 0 ? { retryAfterSeconds: info.retryAfterSeconds } : {}),
-    ...(info.detail ? { detail: info.detail } : {}),
     ...(info.issues?.length ? { issues: info.issues } : {}),
   };
 }

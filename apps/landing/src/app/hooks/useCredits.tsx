@@ -1,7 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { parseCredits, type PublicCredits } from '../../lib/credits';
+import { parseCreditCostGuide, parseCredits, type PublicCreditCostGuide, type PublicCredits } from '../../lib/credits';
 
-type State = { status: 'loading' | 'error'; credits: null } | { status: 'ready'; credits: PublicCredits };
+type State =
+  | { status: 'loading' | 'error'; credits: null; costGuide: null }
+  | { status: 'ready'; credits: PublicCredits; costGuide: PublicCreditCostGuide | null };
 
 const CreditsContext = createContext<{ state: State; reload: () => void; note: (value: unknown) => void } | null>(null);
 
@@ -12,12 +14,11 @@ export function useCredits() {
 }
 
 /**
- * Credit state for the workspace. The balance always comes from the server: this provider only reads
- * it, and adopts the balance that successful AI operations return so the sidebar stays current
- * without a second round trip.
+ * Credit state for the workspace. Balances and public cost guidance come from the server. This
+ * provider adopts the authoritative balance returned with AI operations and never computes a charge.
  */
 export function useCreditsSource(): { state: State; reload: () => void; note: (value: unknown) => void } {
-  const [state, setState] = useState<State>({ status: 'loading', credits: null });
+  const [state, setState] = useState<State>({ status: 'loading', credits: null, costGuide: null });
   const generation = useRef(0);
 
   const reload = useCallback(() => {
@@ -25,11 +26,13 @@ export function useCreditsSource(): { state: State; reload: () => void; note: (v
     void (async () => {
       try {
         const response = await fetch('/api/credits', { credentials: 'same-origin', cache: 'no-store', headers: { accept: 'application/json' } });
-        const parsed = parseCredits(await response.json().catch(() => null));
+        const payload = await response.json().catch(() => null);
         if (current !== generation.current) return;
-        setState(parsed ? { status: 'ready', credits: parsed } : { status: 'error', credits: null });
+        const credits = response.ok ? parseCredits(payload) : null;
+        const costGuide = response.ok ? parseCreditCostGuide(payload) : null;
+        setState(credits ? { status: 'ready', credits, costGuide } : { status: 'error', credits: null, costGuide: null });
       } catch {
-        if (current === generation.current) setState({ status: 'error', credits: null });
+        if (current === generation.current) setState({ status: 'error', credits: null, costGuide: null });
       }
     })();
   }, []);
@@ -37,7 +40,11 @@ export function useCreditsSource(): { state: State; reload: () => void; note: (v
   const note = useCallback((value: unknown) => {
     const parsed = parseCredits(value);
     // A server-provided balance is authoritative; ignore anything unreadable.
-    if (parsed) setState({ status: 'ready', credits: parsed });
+    if (parsed) setState(current => ({
+      status: 'ready',
+      credits: parsed,
+      costGuide: current.status === 'ready' ? current.costGuide : null,
+    }));
   }, []);
 
   useEffect(() => {

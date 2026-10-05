@@ -180,6 +180,7 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
         }
         result = outcome.value;
         res.locals.credits = outcome.charge.balance;
+        res.locals.operationCost = { credits: outcome.charge.cost, status: outcome.charge.status };
         creditCost = outcome.charge.cost;
       }
       const fields = { requestId: id, userId: person.id, mode: input.mode, durationMs: Math.round(performance.now() - started), ...(creditCost === null ? {} : { creditCost }) };
@@ -199,9 +200,10 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
     }
   }
 
-  /** Successful responses carry the new balance so the workspace can update without another request. */
+  /** Successful responses carry the current balance and cost receipt without another request. */
   function withCredits(res: Response, body: Record<string, unknown>): Record<string, unknown> {
-    return res.locals.credits ? { ...body, credits: res.locals.credits } : body;
+    const response = res.locals.credits ? { ...body, credits: res.locals.credits } : body;
+    return res.locals.operationCost ? { ...response, operationCost: res.locals.operationCost } : response;
   }
 
   router.post('/interpret', auth, mutation, express.json({ limit: MAX_BODY, strict: true }), asyncRoute(async (req, res) => {
@@ -213,7 +215,7 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
     const key = deps.operations ? deps.operations.operationKey(body.operationId) : 'unmetered';
     const result = await infer({ mode: 'new', provider: 'google', request: body.request.trim(), ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}) }, req, res, { type: 'form_create', key });
     if (!result) return;
-    if (result.status !== 'ready') return sendJson(res, 200, { requestId: requestId(res), status: result.status, ...(result.status === 'needs_clarification' ? { question: result.question } : { explanation: result.explanation }) });
+    if (result.status !== 'ready') return sendJson(res, 200, withCredits(res, { requestId: requestId(res), status: result.status, ...(result.status === 'needs_clarification' ? { question: result.question } : { explanation: result.explanation }) }));
     const draft = await deps.store.create({ id: newId(), userId: user(res).id, provider: 'google', specification: result.specification, assumptions: result.assumptions, warnings: result.warnings }, now());
     sendJson(res, 201, withCredits(res, { requestId: requestId(res), status: 'ready', draft: publicDraft(draft) }));
   }));
@@ -232,7 +234,7 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
     const result = await infer({ mode: 'revise', provider: draft.provider, request: body.request.trim(),
       ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}), specification: draft.specification }, req, res, { type: 'form_revise', key });
     if (!result) return;
-    if (result.status !== 'ready') return sendJson(res, 200, { requestId: requestId(res), status: result.status, ...(result.status === 'needs_clarification' ? { question: result.question } : { explanation: result.explanation }) });
+    if (result.status !== 'ready') return sendJson(res, 200, withCredits(res, { requestId: requestId(res), status: result.status, ...(result.status === 'needs_clarification' ? { question: result.question } : { explanation: result.explanation }) }));
     const updated = await deps.store.revise(user(res).id, draft.id, draft.version,
       { specification: result.specification, assumptions: result.assumptions, warnings: result.warnings }, now());
     if (!updated) return send(res, conflict);

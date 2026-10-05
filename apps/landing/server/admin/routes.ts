@@ -161,8 +161,8 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
     if (!await allowRequest(req, res, 'analytics')) return;
     const page = readPage(req);
     const range = readRange(req);
-    const operation = optionalEnum(queryValue(req, 'operation'), ['form_interpretation', 'form_edit_interpretation'] as const) as AdminOperation | null | undefined;
-    const status = optionalEnum(queryValue(req, 'status'), ['succeeded', 'failed'] as const) as AdminOperationStatus | null | undefined;
+    const operation = optionalEnum(queryValue(req, 'operation'), ['form_create', 'form_revise', 'form_edit'] as const) as AdminOperation | null | undefined;
+    const status = optionalEnum(queryValue(req, 'status'), ['succeeded', 'failed', 'no_result'] as const) as AdminOperationStatus | null | undefined;
     const model = boundedText(queryValue(req, 'model'), 200);
     const userId = optionalId(queryValue(req, 'userId'));
     if (!page || !range || operation === undefined || status === undefined || model === null || userId === null) return invalid(res);

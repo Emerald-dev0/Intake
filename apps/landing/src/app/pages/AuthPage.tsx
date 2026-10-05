@@ -66,12 +66,15 @@ export function AuthPage({ signUp = false }: { signUp?: boolean }) {
           {params.get('reason') === 'session_expired' && <div className="form-error" role="status">Your session ended before authorization finished. Sign in, then connect the provider again.</div>}
           {oauthError && <div className="form-error" role="alert">{oauthErrorMessage(oauthError)}</div>}
           {google.status === 'available' && <>
-            <button className="btn auth-google" type="button" onClick={() => void continueWithGoogle()} disabled={busyAny}>
+            <button className="btn auth-google" type="button" aria-describedby="google-signin-note" onClick={() => void continueWithGoogle()} disabled={busyAny}>
               <span aria-hidden>G</span>{googleBusy ? 'Opening Google…' : 'Continue with Google'}
             </button>
+            <p className="auth-provider-note" id="google-signin-note">Google sign-in authenticates you to Intake only. It does not authorize Google Forms access.</p>
             <div className="auth-or" aria-hidden><span>or continue with email</span></div>
           </>}
+          {google.status === 'loading' && <p className="auth-provider-note" role="status">Checking whether Google sign-in is available… Email/password remains available.</p>}
           {google.status === 'unavailable' && google.reason === 'unreachable' && <div className="form-error" role="status">Google sign-in could not be checked right now. You can still use your email and password.</div>}
+          {google.status === 'unavailable' && google.reason === 'not_configured' && <p className="auth-provider-note">Google sign-in is not configured on this Intake server. Use your email and password.</p>}
           <form onSubmit={submit}>
             {signUp && <label>Full name<input required autoComplete="name" value={name} onChange={e => setName(e.target.value)} placeholder="Your name" maxLength={100} disabled={busyAny} /></label>}
             <label>Email address<input required type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" disabled={busyAny} /></label>
@@ -82,7 +85,7 @@ export function AuthPage({ signUp = false }: { signUp?: boolean }) {
           <div className="auth-switch">{signUp ? 'Already have an account?' : 'New to Intake?'} <a href={signUp ? '/auth/sign-in' : '/auth/sign-up'}>{signUp ? 'Sign in' : 'Create an account'}</a></div>
         </section>
       </main>
-      <footer className="auth-footer">INTAKE © {new Date().getFullYear()} <span>Built to work with the tools you already use.</span></footer>
+      <footer className="auth-footer"><span>INTAKE © {new Date().getFullYear()}</span><span>Built to work with the tools you already use.</span><a href="/pricing">Plans &amp; pricing</a></footer>
     </div>
   );
 }

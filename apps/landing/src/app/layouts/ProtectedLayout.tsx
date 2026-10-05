@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
-import { api, ApiError, type User } from '../../lib/api';
+import { api, ApiError, parseAuthenticationMethodSummary, type AuthenticationMethodSummary, type User } from '../../lib/api';
 import { SessionContext } from '../hooks/useSession';
 import { LogoMark } from '../../reel/parts';
 
-type State = { status: 'loading' | 'error' | 'signed-out' } | { status: 'ready'; user: User };
+type State = { status: 'loading' | 'error' | 'signed-out' } | { status: 'ready'; user: User; authenticationMethods: AuthenticationMethodSummary | null };
 export function ProtectedLayout() {
   const [state, setState] = useState<State>({ status: 'loading' });
   const generation = useRef(0);
@@ -16,8 +16,12 @@ export function ProtectedLayout() {
     const current = ++generation.current;
     setState({ status: 'loading' });
     try {
-      const { user } = await api<{ user: User }>('/api/me');
-      if (current === generation.current) setState({ status: 'ready', user });
+      const payload = await api<{ user: User; authenticationMethods?: unknown }>('/api/me');
+      if (current === generation.current) setState({
+        status: 'ready',
+        user: payload.user,
+        authenticationMethods: parseAuthenticationMethodSummary(payload.authenticationMethods),
+      });
     } catch (error) {
       if (current === generation.current) setState({ status: error instanceof ApiError && error.status === 401 ? 'signed-out' : 'error' });
     }
@@ -36,5 +40,5 @@ export function ProtectedLayout() {
   }, [load]);
   if (state.status === 'signed-out') return <Navigate to="/auth/sign-in" replace />;
   if (state.status !== 'ready') return <div className="workspace-status"><a href="/" className="app-logo"><LogoMark size={28} /><span>intake</span></a>{state.status === 'loading' ? <p role="status">Opening your workspace…</p> : <div role="alert"><p>We couldn’t verify your session right now.</p><button className="btn btn-accent" onClick={() => void load()}>Try again</button></div>}</div>;
-  return <SessionContext.Provider value={{ user: state.user, clearSession }}><Outlet /></SessionContext.Provider>;
+  return <SessionContext.Provider value={{ user: state.user, authenticationMethods: state.authenticationMethods, clearSession }}><Outlet /></SessionContext.Provider>;
 }

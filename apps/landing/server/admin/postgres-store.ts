@@ -1,16 +1,16 @@
 import type { Pool } from 'pg';
 import type {
   AdminActivityItem, AdminActivityResult, AdminAiResult, AdminCreditsResult, AdminErrorItem,
-  AdminErrorsResult, AdminFormsResult, AdminFormItem, AdminOperation, AdminOperationStatus,
+  AdminErrorsResult, AdminFormsResult, AdminFormItem, AdminOperation, AdminOperationStatus, AdminProviderId,
   AdminStore, AiOperationItem, AiSummary, OverviewData, PageRequest, PageResult, ProviderSummary,
   RangeBounds, SystemStatus, UserDetail, UserProviderStatus, UserSummary,
 } from './contracts';
 import { pageResult } from './ranges';
-import { DEFAULT_GROQ_MODEL } from '../forms/interpretation/provider-config';
+import { DEFAULT_GROQ_MODEL } from '../ai/groq';
 
-const AI_UNAVAILABLE = 'AI operation history becomes available after migration 007_ai_operations.sql is applied.';
-const CREDITS_UNAVAILABLE = 'No credit ledger or credit-balance entitlement store exists in this checkout.';
-const PLANS_UNAVAILABLE = 'No plan, subscription, or entitlement store exists in this checkout.';
+const AI_UNAVAILABLE = 'AI operation history becomes available after migration 007_ai_credits.sql is applied.';
+const CREDITS_UNAVAILABLE = 'Credit balances are available to the signed-in user; aggregate admin credit views are not enabled.';
+const PLANS_UNAVAILABLE = 'Entitlements are available to the signed-in user; aggregate admin plan views are not enabled.';
 const REQUIRED_MIGRATIONS = [
   '001_provider_connections.sql',
   '002_forms.sql',
@@ -18,7 +18,9 @@ const REQUIRED_MIGRATIONS = [
   '004_form_edit_drafts.sql',
   '005_form_library.sql',
   '006_production_hardening.sql',
-  '007_ai_operations.sql',
+  '007_ai_credits.sql',
+  '008_ai_operation_compat.sql',
+  '009_admin_indexes.sql',
 ] as const;
 
 type Queryable = Pick<Pool, 'query'>;
@@ -72,7 +74,7 @@ async function tableExists(pool: Queryable, table: string): Promise<boolean> {
   return result.rows[0]?.present === true;
 }
 
-async function migrationDate(pool: Queryable, migrationId = '007_ai_operations.sql'): Promise<Date | null> {
+async function migrationDate(pool: Queryable, migrationId = '007_ai_credits.sql'): Promise<Date | null> {
   if (!await tableExists(pool, 'intake_schema_migration')) return null;
   const result = await pool.query<{ applied_at: Date }>('SELECT applied_at FROM intake_schema_migration WHERE id = $1 LIMIT 1', [migrationId]);
   return date(result.rows[0]?.applied_at);
@@ -88,7 +90,7 @@ function aiSummary(row: DbRow): AiSummary {
     inputTokens,
     outputTokens,
     totalTokens: sumTokens(inputTokens, outputTokens),
-    creditsConsumed: null,
+    creditsConsumed: nullableCount(row.credits_consumed),
     estimatedCostUsd: null,
   };
 }
@@ -99,12 +101,13 @@ async function aggregateAi(pool: Queryable, from: Date, to: Date, userId?: strin
   if (userId) params.push(userId);
   const result = await pool.query<DbRow>(
     `SELECT COUNT(*) AS operations,
-       COUNT(*) FILTER (WHERE status = 'succeeded') AS succeeded,
-       COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+       COUNT(*) FILTER (WHERE outcome = 'succeeded') AS succeeded,
+       COUNT(*) FILTER (WHERE outcome = 'failed') AS failed,
        SUM(input_tokens) AS input_tokens,
-       SUM(output_tokens) AS output_tokens
+       SUM(output_tokens) AS output_tokens,
+       SUM(credit_cost) AS credits_consumed
      FROM ai_operation
-     WHERE started_at >= $1 AND started_at < $2${userCondition}`,
+     WHERE created_at >= $1 AND created_at < $2${userCondition}`,
     params,
   );
   return aiSummary(result.rows[0] ?? {});
@@ -222,7 +225,7 @@ export function createPostgresAdminStore(pool: Pool, env: NodeJS.ProcessEnv = pr
           inputTokens: ai?.inputTokens ?? null,
           outputTokens: ai?.outputTokens ?? null,
           totalTokens: ai?.totalTokens ?? null,
-          creditsConsumed: null,
+          creditsConsumed: ai?.creditsConsumed ?? null,
           estimatedCostUsd: null,
         },
         credits: { available: false, reason: CREDITS_UNAVAILABLE, dailyGranted: null, monthlyGranted: null, consumed: null },
@@ -261,7 +264,7 @@ export function createPostgresAdminStore(pool: Pool, env: NodeJS.ProcessEnv = pr
       const aiJoin = hasAi
         ? `LEFT JOIN LATERAL (
              SELECT COUNT(*) AS ai_operations,
-               COUNT(*) FILTER (WHERE status = 'failed') AS ai_operations_failed,
+               COUNT(*) FILTER (WHERE outcome = 'failed') AS ai_operations_failed,
                SUM(input_tokens) AS ai_input_tokens,
                SUM(output_tokens) AS ai_output_tokens
              FROM ai_operation a WHERE a.user_id = u.id
@@ -341,8 +344,8 @@ export function createPostgresAdminStore(pool: Pool, env: NodeJS.ProcessEnv = pr
       const aiSelect = hasAi
         ? `(SELECT json_build_object(
              'operations', COUNT(*),
-             'succeeded', COUNT(*) FILTER (WHERE status = 'succeeded'),
-             'failed', COUNT(*) FILTER (WHERE status = 'failed'),
+             'succeeded', COUNT(*) FILTER (WHERE outcome = 'succeeded'),
+             'failed', COUNT(*) FILTER (WHERE outcome = 'failed'),
              'inputTokens', SUM(input_tokens),
              'outputTokens', SUM(output_tokens)
            ) FROM ai_operation a WHERE a.user_id = u.id) AS ai_data`
@@ -431,23 +434,24 @@ export function createPostgresAdminStore(pool: Pool, env: NodeJS.ProcessEnv = pr
           summary: null, ...completePage([], 0, input),
         };
       }
-      const clauses = ['a.started_at >= $1', 'a.started_at < $2'];
+      const clauses = ['a.created_at >= $1', 'a.created_at < $2'];
       const params: unknown[] = [input.bounds.from, input.bounds.to];
       const add = (clause: string, value: unknown) => {
         params.push(value);
         clauses.push(clause.replace('?', `$${params.length}`));
       };
-      if (input.operation) add('a.operation = ?', input.operation);
-      if (input.status) add('a.status = ?', input.status);
+      if (input.operation) add('a.operation_type = ?', input.operation);
+      if (input.status) add('a.outcome = ?', input.status);
       if (input.model) add('a.model = ?', input.model);
       if (input.userId) add('a.user_id = ?', input.userId);
       const where = clauses.join(' AND ');
       const aggregate = await pool.query<DbRow>(
         `SELECT COUNT(*) AS operations,
-           COUNT(*) FILTER (WHERE a.status = 'succeeded') AS succeeded,
-           COUNT(*) FILTER (WHERE a.status = 'failed') AS failed,
+           COUNT(*) FILTER (WHERE a.outcome = 'succeeded') AS succeeded,
+           COUNT(*) FILTER (WHERE a.outcome = 'failed') AS failed,
            SUM(a.input_tokens) AS input_tokens,
-           SUM(a.output_tokens) AS output_tokens
+           SUM(a.output_tokens) AS output_tokens,
+           SUM(a.credit_cost) AS credits_consumed
          FROM ai_operation a WHERE ${where}`,
         params,
       );
@@ -455,12 +459,12 @@ export function createPostgresAdminStore(pool: Pool, env: NodeJS.ProcessEnv = pr
       const limitPosition = params.length + 1;
       const offsetPosition = params.length + 2;
       const listing = await pool.query<DbRow>(
-        `SELECT a.id, a.request_id, a.user_id, u.name AS user_name, u.email AS user_email,
-           a.route, a.operation, a.provider, a.model, a.status, a.failure_code,
-           a.latency_ms, a.input_tokens, a.output_tokens, a.started_at
+        `SELECT a.id, a.operation_key, a.user_id, u.name AS user_name, u.email AS user_email,
+           a.operation_type, a.provider, a.model, a.outcome, a.error_category,
+           a.latency_ms, a.input_tokens, a.output_tokens, a.credit_cost, a.created_at
          FROM ai_operation a JOIN "user" u ON u.id = a.user_id
          WHERE ${where}
-         ORDER BY a.started_at DESC, a.id DESC
+         ORDER BY a.created_at DESC, a.id DESC
          LIMIT $${limitPosition} OFFSET $${offsetPosition}`,
         listParams,
       );
@@ -468,22 +472,21 @@ export function createPostgresAdminStore(pool: Pool, env: NodeJS.ProcessEnv = pr
       const total = summary.operations;
       const items: AiOperationItem[] = listing.rows.map(row => ({
         id: string(row.id),
-        requestId: string(row.request_id),
+        operationKey: string(row.operation_key),
         userId: string(row.user_id),
         userName: string(row.user_name),
         userEmail: string(row.user_email),
-        route: string(row.route),
-        operation: row.operation as AdminOperation,
-        provider: 'groq',
-        model: string(row.model),
-        status: row.status as AdminOperationStatus,
-        failureCode: row.failure_code === null ? null : string(row.failure_code),
-        latencyMs: count(row.latency_ms),
+        operation: row.operation_type as AdminOperation,
+        provider: string(row.provider) as AdminProviderId,
+        model: row.model === null ? null : string(row.model),
+        status: row.outcome as AdminOperationStatus,
+        failureCode: row.error_category === null ? null : string(row.error_category),
+        latencyMs: row.latency_ms === null ? null : count(row.latency_ms),
         inputTokens: nullableCount(row.input_tokens),
         outputTokens: nullableCount(row.output_tokens),
-        creditsConsumed: null,
+        creditsConsumed: count(row.credit_cost),
         estimatedCostUsd: null,
-        timestamp: date(row.started_at) ?? new Date(0),
+        timestamp: date(row.created_at) ?? new Date(0),
       }));
       return {
         available: true,
@@ -572,8 +575,8 @@ export function createPostgresAdminStore(pool: Pool, env: NodeJS.ProcessEnv = pr
       const now = new Date();
       const aiActivity = hasAi
         ? (await pool.query<DbRow>(
-          `SELECT MAX(started_at) FILTER (WHERE status = 'succeeded') AS last_success,
-             COUNT(*) FILTER (WHERE status = 'failed' AND started_at >= $1) AS failures
+          `SELECT MAX(created_at) FILTER (WHERE outcome = 'succeeded') AS last_success,
+             COUNT(*) FILTER (WHERE outcome = 'failed' AND created_at >= $1) AS failures
            FROM ai_operation`,
           [new Date(now.getTime() - 24 * 60 * 60 * 1000)],
         )).rows[0] ?? {}
@@ -716,14 +719,19 @@ export function createPostgresAdminStore(pool: Pool, env: NodeJS.ProcessEnv = pr
       }
       if (hasAi) selects.push(
         `SELECT 'ai:' || a.id AS id,
-           CASE WHEN a.status = 'failed' THEN 'ai.operation.failed' ELSE 'ai.operation.succeeded' END AS type,
-           CASE WHEN a.status = 'failed' THEN 'error' ELSE 'info' END AS severity,
-           a.started_at AS timestamp, u.id AS user_id, u.name AS user_name, u.email AS user_email,
-           CASE WHEN a.status = 'failed' THEN 'AI ' || a.operation || ' failed (' || a.failure_code || ')'
-             ELSE 'AI ' || a.operation || ' completed' END AS description,
-           a.request_id AS request_id, a.provider AS provider
+           CASE WHEN a.outcome = 'failed' THEN 'ai.operation.failed'
+                WHEN a.outcome = 'no_result' THEN 'ai.operation.no_result'
+                ELSE 'ai.operation.succeeded' END AS type,
+           CASE WHEN a.outcome = 'failed' THEN 'error'
+                WHEN a.outcome = 'no_result' THEN 'warning'
+                ELSE 'info' END AS severity,
+           a.created_at AS timestamp, u.id AS user_id, u.name AS user_name, u.email AS user_email,
+           CASE WHEN a.outcome = 'failed' THEN 'AI ' || a.operation_type || ' failed (' || COALESCE(a.error_category, 'unknown') || ')'
+                WHEN a.outcome = 'no_result' THEN 'AI ' || a.operation_type || ' returned a clarification or unsupported result'
+                ELSE 'AI ' || a.operation_type || ' completed' END AS description,
+           a.operation_key AS request_id, a.provider AS provider
          FROM ai_operation a JOIN "user" u ON u.id = a.user_id
-         WHERE a.started_at >= $1 AND a.started_at < $2`,
+         WHERE a.created_at >= $1 AND a.created_at < $2`,
       );
       const base = `WITH events AS (${selects.join(' UNION ALL ')}), filtered AS (
         SELECT * FROM events WHERE ($3 = '' OR type = $3) AND ($4 = '' OR user_id = $4)
@@ -754,13 +762,13 @@ export function createPostgresAdminStore(pool: Pool, env: NodeJS.ProcessEnv = pr
       const [hasForms, hasAi] = await Promise.all([tableExists(pool, 'form'), tableExists(pool, 'ai_operation')]);
       const selects: string[] = [];
       if (hasAi) selects.push(
-        `SELECT 'ai-error:' || a.id AS id, a.started_at AS timestamp, u.id AS user_id,
-           u.name AS user_name, u.email AS user_email, a.route, a.operation,
-           a.failure_code AS category, 'error'::text AS severity,
-           a.request_id, a.provider,
-           'AI request failed (' || a.failure_code || ')' AS description
+        `SELECT 'ai-error:' || a.id AS id, a.created_at AS timestamp, u.id AS user_id,
+           u.name AS user_name, u.email AS user_email, '/api/forms'::text AS route, a.operation_type AS operation,
+           COALESCE(a.error_category, 'unknown') AS category, 'error'::text AS severity,
+           a.operation_key AS request_id, a.provider,
+           'AI request failed (' || COALESCE(a.error_category, 'unknown') || ')' AS description
          FROM ai_operation a JOIN "user" u ON u.id = a.user_id
-         WHERE a.status = 'failed' AND a.started_at >= $1 AND a.started_at < $2`,
+         WHERE a.outcome = 'failed' AND a.created_at >= $1 AND a.created_at < $2`,
       );
       if (hasForms) selects.push(
         `SELECT 'incomplete-form:' || f.id AS id, f.created_at AS timestamp, u.id AS user_id,

@@ -7,7 +7,7 @@ This guide describes the controls implemented in this repository. It is not evid
 1. Use Node 22.12 or newer and PostgreSQL 15 or newer, then install with `npm ci`. Migration `006` uses PostgreSQL 15's column-specific `ON DELETE SET NULL` syntax.
 2. Set the API-service variables below. Keep every non-`VITE_` secret off the browser/Vercel frontend.
 3. Back up the intended database and run Better Auth migrations with `npm run db:migrate`.
-4. Run `npm run db:migrate:intake`. Migration `006_production_hardening.sql` adds distributed abuse-control storage and validates that every edit draft's optional form record belongs to the same user. Migration `007_ai_credits.sql` adds `user_entitlement`, `credit_ledger` and `ai_operation`; it is additive and issues no grants by itself (the first credit read or AI operation issues that period's grant). Neither migration rewrites or deletes application rows. `006` intentionally fails if historical ownership data violates that constraint; investigate rather than bypassing or deleting records.
+4. Run `npm run db:migrate:intake`. Migration `006_production_hardening.sql` adds distributed abuse-control storage and validates that every edit draft's optional form record belongs to the same user. Migration `007_ai_credits.sql` adds `user_entitlement`, `credit_ledger` and the logical-operation schema; the historical `007_ai_operations.sql` id is retained as a no-op, and `008_ai_operation_compat.sql` archives and safely maps Phase 12 telemetry rows without deleting the original table. `009_admin_indexes.sql` adds read-path indexes. These migrations do not delete application rows or issue credit grants by themselves (the first balance read or AI operation ensures that period's grant). `006` intentionally fails if historical ownership data violates that constraint; investigate rather than bypassing or deleting records.
 5. Run `npm run typecheck`, `npm test`, and `npm audit --omit=dev` from `apps/landing`.
 6. Deploy the API, then the frontend proxy. Verify the acceptance checklist in `DEPLOYMENT.md` with non-production accounts and forms.
 
@@ -77,10 +77,10 @@ Credits are user entitlements (what a plan allows), separate from the technical 
 - Prices are decided by Intake from the *validated* result, never from raw model output and never from a request field: 1 credit for a simple change, 2 for a normal creation or moderate edit, 3–5 for large or conditional operations. One logical operation is one charge no matter how many internal model calls, validations or corrections it takes.
 - Failed, timed-out, invalid, clarifying or unsupported AI attempts cost nothing. Publishing an already-reviewed draft against the Google Forms API costs nothing extra; the charge belongs to the AI operation, not the provider write.
 - `credit_ledger` is append-only and is the source of truth (`daily_grant`, `monthly_grant`, `ai_consumption`, `manual_adjustment`, `expiration`); `ai_operation` records one row per attempt with provider, model, tokens, latency, outcome, error category and credits charged. A charge runs in one transaction that locks the user's `user_entitlement` row, so concurrent requests cannot overdraw or double charge, and no balance can go negative.
-- `GET /api/credits` returns only `plan`, `dailyRemaining`, `monthlyRemaining`, `nextDailyReset` and `nextMonthlyReset`, with `Cache-Control: no-store`. Successful AI responses repeat that projection so the workspace meter stays current. An exhausted account gets HTTP 402 `insufficient_credits` before any model call, with nothing charged, created or changed.
+- `GET /api/credits` returns the server-authoritative plan/subscription state, available and per-bucket balances/limits, reset instants, and a bounded operation-cost guide, with `Cache-Control: no-store`. Successful AI interpretation responses carry the updated projection and an `operationCost` receipt (`charged`, `already_charged`, or `not_charged`) so the workspace can explain the result. An account without enough credits gets HTTP 402 `insufficient_credits` before any model call, with nothing charged, created or changed.
 - If credit storage is unavailable, the operation is refused with `storage_unavailable`; Intake never charges without a durable ledger row and never gives credits away when it cannot record them.
 - A user who is downgraded stops being able to spend a monthly reserve the current plan does not grant; historical ledger rows are kept, not deleted.
-- No payment provider is integrated. `CreditService.setPlan` is the deliberate hook for future Bachs.io or admin work; no route exposes it, and no admin dashboard or purchase flow exists in this phase.
+- The public pricing page displays Free at $0 and Pro at $6.99/month or $59.99/year using shared display metadata; annual billing is shown as $23.89 less than twelve monthly payments (28.5%, rounded to one decimal). Its cadence toggle only updates the display. No payment provider, checkout, subscription creation, or self-service plan change is implemented; `CreditService.setPlan` remains server-only. Phase 12's read-only admin console remains intact and cannot adjust plans or credits.
 
 Operational queries:
 
@@ -111,7 +111,7 @@ Do not hand-edit `credit_ledger` rows to fix a balance: add a `manual_adjustment
 | Edit times out after a mutation may have reached Google | Outcome is blocked/unknown; no blind retry. | Inspect the exact Google form and prepare a fresh proposal only after verifying state. |
 | Provider succeeds but the result cannot be persisted | Durable claim remains locked, preventing a duplicate. | Reconcile provider state and database state using the request ID; do not reset claims casually. |
 | User has no affordable credits | Request is refused before the model call with 402 `insufficient_credits`; nothing is charged, created or changed. | Wait for the daily reset shown in the workspace, or change the plan deliberately; do not retry in a loop. |
-| Credit ledger or entitlements unavailable | The AI operation is refused with a retryable 503 `storage_unavailable`; nothing is charged. | Restore database availability (migration `007` must be applied) and retry deliberately. No model call was made. |
+| Credit ledger or entitlements unavailable | The AI operation is refused with a retryable 503 `storage_unavailable`; nothing is charged. | Restore database availability (migrations `007` and `008` must be applied) and retry deliberately. No model call was made. |
 | Usage recording fails after a successful charge | The user keeps their result; the failure is logged safely and never fails the request. | Inspect application logs; the ledger row remains the source of truth for what was charged. |
 | Refresh token is rejected/revoked | Ciphertext is cleared and reconnection is required. | Reconnect the same external account. |
 | Disconnect revocation fails | Local credentials are still removed; response states revocation was not confirmed. | Revoke Intake from the provider security console if required. |
@@ -165,6 +165,24 @@ These run against the in-memory store and a mocked model. The PostgreSQL transac
 
 There is no lint script. Migration `001` through `006` was additionally applied to an ephemeral in-memory PGlite/PostgreSQL-compatible database outside the repository; `006` re-applied idempotently, both new constraints were validated, a historical cross-owner edit reference was rejected, and deleting a referenced form set only `form_record_id` to null while preserving the draft owner. This is useful SQL-semantic coverage but is **not** a Neon migration or production-data test.
 
+### Phase 13 verification record (2026-10-04)
+
+Run from `apps/landing`:
+
+| Command | Result |
+| --- | --- |
+| `npm run typecheck` | Passed for browser and server projects. |
+| `npm run build` | Passed; Vite emits the homepage, private document and dedicated crawlable `pricing.html`. |
+| `npm test` | Passed; 360/360 tests, 0 failures, skips or cancellations. Includes auth, Google Forms/OAuth, Groq/error taxonomy, credit ledger/routes/receipts, admin, pricing SEO, static routes, install-script approval scope and rate limits. |
+| `npm audit --omit=dev` | Passed; 0 vulnerabilities. |
+| `git diff --check` | Passed. |
+
+Public Free/Pro prices come from shared display metadata; the `/pricing` toggle updates the monthly or annual comparison and shows the exact `$23.89` annual savings (28.5% rounded to one decimal). It is display-only: checkout, billing and self-service plan changes are not implemented. The account and dashboard read balances, reset times and billing status from the server; create/edit workspaces show the server's bounded cost guide and operation receipt. Phase 12's read-only admin console and review-before-apply form workflows remain in place. Free-form Google error messages are now discarded rather than included in client failures or logs; provider failures use fixed copy, stable codes and request ids.
+
+Install-script review: `package.json` has a package-specific approval for `esbuild@0.28.2`, used by Vite/tsx. There is no repository `.npmrc`, no blanket script approval, and this sandbox's npm 10.9.8 reports `ignore-scripts=false`; the npm 12 package-level allowlist remains narrow. `npm ls esbuild` confirms version `0.28.2` is deduplicated under Vite and tsx.
+
+The legacy Phase 12 AI-operation schema is archived and mapped by migrations `007`/`008`; `009` adds admin query indexes. The tests verify migration ordering, SQL contracts and safe backfill text, but the database migrations were **not** executed against Neon or a live PostgreSQL instance in this turn. Validate the migration chain against a disposable PostgreSQL database and back up production before rollout.
+
 ## Known limitations and verification gaps
 
 - `/api/health` proves process liveness only. It does not check Neon, providers, the model, migration level, or Vercel proxy correctness.
@@ -173,5 +191,5 @@ There is no lint script. Migration `001` through `006` was additionally applied 
 - OAuth revocation is best-effort. Microsoft revocation and Microsoft Forms create/edit are not claimed as supported.
 - The application stores form structure/metadata, not respondent answers. Provider and model services still receive the data required for their operations under their own policies.
 - Mocked tests cannot verify real cookie forwarding, Neon behavior, cloud headers, OAuth dashboards, provider scopes/consent, Google API semantics, AI-provider availability/quality, or external service quotas. Google **sign-in** was never exercised against Google's consent screen with real credentials, and no live Groq (or OpenAI) completion was made from this repository.
-- Credit tests use the in-memory store. The PostgreSQL transaction, per-user row lock and partial unique indexes in `007_ai_credits.sql` were not exercised against a real database, and no plan has ever been changed by a billing provider.
+- Credit tests use the in-memory store. The PostgreSQL transaction, per-user row lock and partial unique indexes in `007_ai_credits.sql`, the `008` legacy-operation backfill, and the `009` admin indexes were not exercised against a real database. No plan has been changed by a billing provider.
 - Migrations, live sign-in, OAuth, real forms, edits, real inference, and recovery drills must be exercised against non-production resources before release. No test result in this repository substitutes for those checks.

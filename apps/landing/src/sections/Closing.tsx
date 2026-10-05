@@ -297,6 +297,7 @@ export function Footer() {
             <a href="#demo">Workflow demos</a>
             <a href="#try">Local form preview</a>
             <a href="#faq">Frequently asked questions</a>
+            <a href="/pricing">Plans &amp; pricing</a>
           </div>
           <div>
             <h2>Project</h2>

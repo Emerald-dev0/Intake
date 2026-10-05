@@ -55,7 +55,7 @@ test('overview aggregates real table counts and leaves plans, credits, cost expl
     if (sql.includes('SELECT applied_at FROM intake_schema_migration')) return { rows: [{ applied_at: trackingDate }], rowCount: 1 };
     if (sql.includes('(SELECT COUNT(*) FROM "user")')) return { rows: [{ total_users: '17', new_today: '2', new_this_week: '6', new_this_month: '10', active_sessions_in_range: '5' }], rowCount: 1 };
     if (sql.includes('AS total_records')) return { rows: [{ total_records: '9', created_records: '7', incomplete_records: '2', created_in_range: '4', incomplete_in_range: '1', updated_records_in_range: '3' }], rowCount: 1 };
-    if (sql.includes('FROM ai_operation') && sql.includes('AS operations')) return { rows: [{ operations: '11', succeeded: '9', failed: '2', input_tokens: '1200', output_tokens: '700' }], rowCount: 1 };
+    if (sql.includes('FROM ai_operation') && sql.includes('AS operations')) return { rows: [{ operations: '11', succeeded: '9', failed: '2', input_tokens: '1200', output_tokens: '700', credits_consumed: '18' }], rowCount: 1 };
     throw new Error(`Unexpected query: ${sql}`);
   });
   const data = await createPostgresAdminStore(pool).getOverview(baseBounds);
@@ -74,7 +74,7 @@ test('overview aggregates real table counts and leaves plans, credits, cost expl
   assert.equal(data.ai.totalTokens, 1900);
   assert.equal(data.ai.trackingSince.toISOString(), trackingDate.toISOString());
   assert.equal(data.ai.estimatedCostUsd, null);
-  assert.equal(data.ai.creditsConsumed, null);
+  assert.equal(data.ai.creditsConsumed, 18);
   assert.equal(data.plans.available, false);
   assert.equal(data.plans.free, null);
   assert.equal(data.credits.available, false);
@@ -85,36 +85,40 @@ test('overview aggregates real table counts and leaves plans, credits, cost expl
   assert.equal(sessionQuery.params[1].toISOString(), baseBounds.to.toISOString());
 });
 
-test('AI operations are paginated, filter-bound and return provider-reported token data only', async () => {
+test('AI operations are paginated, filter-bound and read the logical-operation credit schema', async () => {
   const pool = regclassPool({}, sql => {
     if (sql.includes('SELECT applied_at FROM intake_schema_migration')) return { rows: [{ applied_at: new Date('2026-10-01T00:00:00Z') }], rowCount: 1 };
-    if (sql.includes('AS operations') && sql.includes('SUM(a.input_tokens)')) return { rows: [{ operations: '3', succeeded: '2', failed: '1', input_tokens: '350', output_tokens: '160' }], rowCount: 1 };
+    if (sql.includes('AS operations') && sql.includes('SUM(a.input_tokens)')) return { rows: [{ operations: '3', succeeded: '2', failed: '1', input_tokens: '350', output_tokens: '160', credits_consumed: '5' }], rowCount: 1 };
     if (sql.includes('FROM ai_operation a JOIN "user"')) return { rows: [{
-      id: 'op-1', request_id: 'req_safe', user_id: 'u1', user_name: 'Ada', user_email: 'ada@example.test',
-      route: '/api/forms/interpret', operation: 'form_interpretation', provider: 'groq', model: 'openai/gpt-oss-20b',
-      status: 'succeeded', failure_code: null, latency_ms: 845, input_tokens: '120', output_tokens: '55',
-      started_at: new Date('2026-10-03T12:00:00Z'),
+      id: 'op-1', operation_key: 'operation-key-01', user_id: 'u1', user_name: 'Ada', user_email: 'ada@example.test',
+      operation_type: 'form_create', provider: 'groq', model: 'openai/gpt-oss-120b',
+      outcome: 'succeeded', error_category: null, latency_ms: '845', input_tokens: '120', output_tokens: '55', credit_cost: '2',
+      created_at: new Date('2026-10-03T12:00:00Z'),
     }], rowCount: 1 };
     throw new Error(`Unexpected query: ${sql}`);
   });
   const result = await createPostgresAdminStore(pool).listAi({
     page: 2, limit: 10, offset: 10, bounds: baseBounds,
-    operation: 'form_interpretation', status: 'succeeded', model: 'openai/gpt-oss-20b', userId: 'u1',
+    operation: 'form_create', status: 'succeeded', model: 'openai/gpt-oss-120b', userId: 'u1',
   });
   assert.equal(result.available, true);
   assert.equal(result.summary.operations, 3);
   assert.equal(result.summary.totalTokens, 510);
+  assert.equal(result.summary.creditsConsumed, 5);
   assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].operationKey, 'operation-key-01');
   assert.equal(result.items[0].inputTokens, 120);
   assert.equal(result.items[0].outputTokens, 55);
-  assert.equal(result.items[0].creditsConsumed, null);
+  assert.equal(result.items[0].creditsConsumed, 2);
   assert.equal(result.items[0].estimatedCostUsd, null);
   assert.equal(result.page, 2);
   const aggregate = pool.calls.find(call => call.sql.includes('SUM(a.input_tokens)'));
-  assert.deepEqual(aggregate.params, [baseBounds.from, baseBounds.to, 'form_interpretation', 'succeeded', 'openai/gpt-oss-20b', 'u1']);
+  assert.deepEqual(aggregate.params, [baseBounds.from, baseBounds.to, 'form_create', 'succeeded', 'openai/gpt-oss-120b', 'u1']);
   const listing = pool.calls.find(call => call.sql.includes('FROM ai_operation a JOIN "user"'));
   assert.equal(listing.params.at(-2), 10);
   assert.equal(listing.params.at(-1), 10);
+  assert.match(listing.sql, /operation_key/);
+  assert.match(listing.sql, /outcome/);
   assert.doesNotMatch(listing.sql, /prompt|ciphertext|access_token|refresh_token|password|secret/i);
 });
 
@@ -217,7 +221,7 @@ test('provider and system summaries distinguish configured state from a real hea
     if (sql.includes('AS last_success')) return { rows: [{ last_success: new Date(), failures: '2' }], rowCount: 1 };
     if (sql.includes('SELECT 1 AS ready')) return { rows: [{ ready: 1 }], rowCount: 1 };
     if (sql.includes('SELECT id, applied_at FROM intake_schema_migration')) return { rows: [
-      { id: '007_ai_operations.sql', applied_at: new Date('2026-10-02T00:00:00Z') },
+      { id: '007_ai_credits.sql', applied_at: new Date('2026-10-02T00:00:00Z') },
       { id: '006_production_hardening.sql', applied_at: new Date('2026-10-01T00:00:00Z') },
     ], rowCount: 2 };
     throw new Error(`Unexpected query: ${sql}`);
@@ -232,7 +236,7 @@ test('provider and system summaries distinguish configured state from a real hea
   assert.equal(providers.ai.connectivity, 'recent_success');
   assert.equal(providers.ai.model, 'current-model');
   delete env.GROQ_MODEL;
-  assert.equal((await store.getProviders()).ai.model, 'openai/gpt-oss-20b');
+  assert.equal((await store.getProviders()).ai.model, 'openai/gpt-oss-120b');
   env.GROQ_MODEL = 'current-model';
   assert.equal(JSON.stringify(providers).includes('server-only-test-key'), false);
   const system = await store.getSystem();
@@ -282,21 +286,21 @@ test('system health leaves migrations unverified when the migration tracking tab
   assert.equal(system.migrations.pending, null);
 });
 
-test('migration 007 stores no prompts/credentials and adds indexes for observed admin query paths', async () => {
-  const sql = await readFile(new URL('../db/migrations/007_ai_operations.sql', import.meta.url), 'utf8');
-  const stripped = sql.replace(/--.*$/gm, '');
-  assert.match(stripped, /CREATE TABLE IF NOT EXISTS ai_operation/);
-  assert.match(stripped, /request_id text NOT NULL UNIQUE/);
-  assert.match(stripped, /input_tokens bigint/);
-  assert.match(stripped, /output_tokens bigint/);
-  assert.match(stripped, /CHECK \(provider = 'groq'\)/);
-  assert.match(stripped, /CHECK \(status IN \('succeeded', 'failed'\)\)/);
-  assert.match(stripped, /ai_operation_user_started_idx/);
-  assert.match(stripped, /session_updated_at_idx/);
-  assert.match(stripped, /session_user_updated_idx/);
-  assert.match(stripped, /form_updated_at_idx/);
-  assert.match(stripped, /provider_connection_authorized_idx/);
-  assert.match(stripped, /user_email_prefix_idx/);
-  assert.doesNotMatch(stripped, /prompt|request_body|password|access_token|refresh_token|ciphertext|api_key|client_secret/i);
-  assert.doesNotMatch(stripped, /^\s*(DROP|TRUNCATE|DELETE|UPDATE)\b/im);
+test('admin indexes target the shared AI-credit operation schema without creating a duplicate table', async () => {
+  const sql = (await readFile(new URL('../db/migrations/009_admin_indexes.sql', import.meta.url), 'utf8')).replace(/--.*$/gm, '');
+  assert.doesNotMatch(sql, /CREATE TABLE|ALTER TABLE|DROP TABLE/i);
+  assert.match(sql, /ai_operation_created_at_idx/);
+  assert.match(sql, /ai_operation_operation_created_idx/);
+  assert.match(sql, /ai_operation_outcome_created_idx/);
+  assert.match(sql, /session_updated_at_idx/);
+  assert.match(sql, /session_user_updated_idx/);
+  assert.match(sql, /form_updated_at_idx/);
+  assert.match(sql, /provider_connection_authorized_idx/);
+  assert.match(sql, /user_email_prefix_idx/);
+  assert.doesNotMatch(sql, /^\s*(DROP|TRUNCATE|DELETE|UPDATE)\b/im);
+  const creditSchema = (await readFile(new URL('../db/migrations/007_ai_credits.sql', import.meta.url), 'utf8')).replace(/--.*$/gm, '');
+  assert.match(creditSchema, /operation_key text NOT NULL/);
+  assert.match(creditSchema, /outcome text NOT NULL CHECK \(outcome IN \('succeeded', 'failed', 'no_result'\)\)/);
+  assert.match(creditSchema, /credit_cost integer NOT NULL/);
+  assert.doesNotMatch(creditSchema, /prompt|request_body|password|access_token|refresh_token|ciphertext|api_key|client_secret/i);
 });

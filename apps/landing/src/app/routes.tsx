@@ -10,6 +10,7 @@ const ConnectionsPage = lazy(() => import('./pages/ConnectionsPage').then(m => (
 const FormsPage = lazy(() => import('./pages/FormsPage').then(m => ({ default: m.FormsPage })));
 const LibraryPage = lazy(() => import('./pages/LibraryPage').then(m => ({ default: m.LibraryPage })));
 const AccountPage = lazy(() => import('./pages/AccountPage').then(m => ({ default: m.AccountPage })));
+const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ default: m.PricingPage })));
 const AdminGate = lazy(() => import('../admin/AdminGate').then(m => ({ default: m.AdminGate })));
 const AdminShell = lazy(() => import('../admin/AdminShell').then(m => ({ default: m.AdminShell })));
 const AdminOverviewPage = lazy(() => import('../admin/AdminPages').then(m => ({ default: m.AdminOverviewPage })));
@@ -27,6 +28,7 @@ function NotFoundPage() {
 
 export const routes: RouteObject[] = [
   { path: '/', element: <LandingPage /> },
+  { path: '/pricing', element: <PricingPage /> },
   { path: '/auth/sign-in', element: <AuthPage key="sign-in" /> },
   { path: '/auth/sign-up', element: <AuthPage key="sign-up" signUp /> },
   { path: '/admin', element: <AdminGate />, children: [

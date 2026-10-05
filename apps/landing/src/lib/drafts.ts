@@ -1,5 +1,6 @@
 import { CHOICE_TYPES, QUESTION_TYPES, type FormSpecification, type QuestionSpecification, type QuestionType } from './specification';
 import { parseCreateFormResponse, parseFormFailure, type CreateFormResult, type FormFailure, type FormWarning } from './forms';
+import { parseOperationCost, type PublicOperationCost } from './credits';
 
 /** Browser contract. Only the id stays in sessionStorage; the actual draft stays server-side. */
 export interface PublicDraft {
@@ -16,9 +17,9 @@ export interface PublicDraft {
 }
 
 export type InterpretResponse =
-  | { status: 'ready'; draft: PublicDraft }
-  | { status: 'needs_clarification'; question: string }
-  | { status: 'unsupported'; explanation: string }
+  | { status: 'ready'; draft: PublicDraft; operationCost?: PublicOperationCost }
+  | { status: 'needs_clarification'; question: string; operationCost?: PublicOperationCost }
+  | { status: 'unsupported'; explanation: string; operationCost?: PublicOperationCost }
   | { status: 'error'; failure: FormFailure };
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -108,12 +109,14 @@ const unreadable: FormFailure = { error: 'Intake returned a response this page c
 export function parseInterpretResponse(status: number, value: unknown): InterpretResponse {
   if (status < 200 || status >= 300) return { status: 'error', failure: parseFormFailure(status, value) };
   const row = record(value);
+  const operationCost = parseOperationCost(row);
+  const receipt = operationCost ? { operationCost } : {};
   if (row?.status === 'ready') {
     const draft = parsePublicDraft(row.draft);
-    if (draft?.status === 'ready') return { status: 'ready', draft };
+    if (draft?.status === 'ready') return { status: 'ready', draft, ...receipt };
   }
-  if (row?.status === 'needs_clarification' && text(row.question, 400)) return { status: 'needs_clarification', question: row.question };
-  if (row?.status === 'unsupported' && text(row.explanation, 500)) return { status: 'unsupported', explanation: row.explanation };
+  if (row?.status === 'needs_clarification' && text(row.question, 400)) return { status: 'needs_clarification', question: row.question, ...receipt };
+  if (row?.status === 'unsupported' && text(row.explanation, 500)) return { status: 'unsupported', explanation: row.explanation, ...receipt };
   return { status: 'error', failure: unreadable };
 }
 

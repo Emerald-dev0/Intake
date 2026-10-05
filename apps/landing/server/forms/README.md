@@ -310,7 +310,7 @@ always derived from the session user and the provider.
 
 `form.id` is `null` if the form was created but Intake could not save its record; the links are still valid.
 
-Failures share one shape: `{ error, code, requestId, issues?, provider?, stage?, outcome?, retryable?, detail?, partialForm? }`.
+Failures share one shape: `{ error, code, requestId, issues?, provider?, stage?, outcome?, retryable?, retryAfterSeconds?, partialForm? }`. Free-form provider messages are never part of the public contract.
 `X-Request-Id` carries the same id.
 
 | `code` | HTTP | Meaning |
@@ -327,7 +327,7 @@ Failures share one shape: `{ error, code, requestId, issues?, provider?, stage?,
 | `provider_not_configured` | 503 | Google OAuth is not configured on this server (needed to renew a token). |
 | `provider_unavailable`, `provider_error` | 503, 502 | Google unreachable, timed out, or failed. |
 | `provider_permission_denied` | 502 | Google refused (for example the Forms API is not enabled for the Cloud project). |
-| `provider_rejected` | 502 | Google rejected the request as invalid. `detail` carries its sanitized explanation. |
+| `provider_rejected` | 502 | Google rejected the request as invalid; Intake returns a fixed safe message and request id, not Google's free-form message. |
 | `provider_rate_limited` | 429 | Google is limiting requests. |
 | `rate_limited`, `creation_in_progress` | 429, 409 | Intake's own limits: one creation at a time per user, 12 per 10 minutes. |
 | `storage_unavailable` | 503 | Session or database unavailable. |
@@ -402,16 +402,12 @@ One JSON object per line. Every line for an operation carries the same `requestI
 | `form.create.rejected` | warn | Refused before any provider work (bad request, origin, limits). Property names only, never values. |
 | `form.create.persist_failed` | error | The form exists but its record could not be saved. |
 
-Never logged: access or refresh tokens, client secrets, authorization codes, ciphertext, request bodies, stack traces, raw
-provider responses, or what the user wrote into the form (titles, descriptions, options, email addresses). Fields whose key
-looks like a credential are masked, and every string is capped at 300 characters and passed through the same `redact` used by
-the provider code. The Intake user id is logged so an operator can follow a request.
-
-One bounded exception: when Google rejects a request, `form.create.provider_failed` carries Google's own error message as
-`detail` (control characters removed, `redact`ed, at most 240 characters), because it is the main diagnostic for an
-integration that can only be verified against the real API. Google's messages describe what was wrong with the request and
-could occasionally quote a fragment of a rejected value. If that is not acceptable for a deployment, delete the `detail`
-line in `providers/google/adapter.ts` `failure()`.
+Never logged or returned to a user: access or refresh tokens, client secrets, authorization codes, ciphertext, request
+bodies, stack traces, raw provider responses, Google's free-form error message, or what the user wrote into the form (titles,
+descriptions, options, email addresses). Fields whose key looks like a credential are masked, and every logged string is
+capped at 300 characters and passed through the same `redact` used by the provider code. The Intake user id is logged so an
+operator can follow a request. Provider failures use fixed user-facing copy plus the request id; internal logs retain only
+bounded HTTP status and normalized reason codes needed to diagnose service configuration, never Google's message text.
 
 ## Security notes
 
@@ -421,10 +417,10 @@ line in `providers/google/adapter.ts` `failure()`.
   browser or from a model is ever fetched.
 - **Link injection:** `responderUrl` and `editUrl` are checked on the server and again in the browser (`safeFormUrl`:
   `https`, `docs.google.com`, `/forms/…`, no credentials, no port). Anything else is dropped and never rendered as a link.
-- **Error leakage:** provider errors are mapped to fixed messages; the one provider-supplied string (`detail`, only for a
-  generic Google rejection) is truncated to 240 characters, stripped of control characters and passed through `redact`. The
-  route tests assert that no response body or log line contains a token, ciphertext or the provider account id. There is no
-  runtime scanner: the guarantee is that responses are built by copying named fields, never by spreading provider data.
+- **Error leakage:** Google free-form messages and response bodies are discarded. Only bounded HTTP status and normalized
+  reason codes enter internal diagnostics; user-facing failures use fixed copy, a stable code and a request id. The route
+  tests verify messages, tokens, ciphertext and the provider account id do not reach a response or log. Responses are built
+  by copying named fields, never by spreading provider data.
 - **Abuse controls:** atomic draft claims prevent duplicate confirmation; PostgreSQL-backed user/network ceilings cover AI, provider reads, confirmed creation/editing, and OAuth. The process-local creation/model guards remain defense in depth. Exact non-billing limits and failure behavior are in [`PRODUCTION.md`](../../PRODUCTION.md).
 - **Model independence:** the engine accepts only a typed specification.
 

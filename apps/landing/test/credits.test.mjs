@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { PLAN_CATALOG, proPriceComparison } from '../src/lib/plans.ts';
 import { createMemoryCreditStore, allocate, affordable, validOperationKey } from '../server/credits/ledger.ts';
 import { createCreditService, CreditError } from '../server/credits/service.ts';
 import {
@@ -20,15 +22,22 @@ function boot(now = () => DAY_1) {
 
 const key = suffix => `op-key-${suffix}`;
 
-test('the launch plan definitions are exactly the published model', () => {
-  assert.deepEqual({ free: PLANS.free.dailyCredits, freeMonthly: PLANS.free.monthlyCredits }, { free: 20, freeMonthly: 0 });
-  assert.deepEqual({ pro: PLANS.pro.dailyCredits, proMonthly: PLANS.pro.monthlyCredits }, { pro: 20, proMonthly: 500 });
+test('the launch plan definitions and public price metadata come from one catalogue', () => {
+  assert.deepEqual({ free: PLANS.free.dailyCredits, freeMonthly: PLANS.free.monthlyCredits }, { free: PLAN_CATALOG.free.dailyCredits, freeMonthly: PLAN_CATALOG.free.monthlyCredits });
+  assert.deepEqual({ pro: PLANS.pro.dailyCredits, proMonthly: PLANS.pro.monthlyCredits }, { pro: PLAN_CATALOG.pro.dailyCredits, proMonthly: PLAN_CATALOG.pro.monthlyCredits });
+  assert.equal(PLAN_CATALOG.free.prices, null);
+  assert.deepEqual(PLAN_CATALOG.pro.prices, { month: 699, year: 5999 });
+  assert.deepEqual(proPriceComparison(), {
+    monthlyCents: 699, annualCents: 5999, monthlyEquivalentCents: 500,
+    monthlyBilledAnnualTotalCents: 8388, annualSavingsCents: 2389, annualSavingsPercent: 28.5,
+  });
 });
 
 test('a free account is granted 20 daily credits, which reset rather than roll over', async () => {
   const { store, credits } = boot();
   assert.deepEqual(await credits.balance('user-a'), {
-    plan: 'free', dailyRemaining: 20, monthlyRemaining: 0,
+    plan: 'free', subscriptionStatus: 'none', availableCredits: 20,
+    dailyRemaining: 20, dailyLimit: 20, monthlyRemaining: 0, monthlyLimit: 0,
     nextDailyReset: nextDailyReset(DAY_1).toISOString(), nextMonthlyReset: nextMonthlyReset({ currentPeriodEnd: null }, DAY_1).toISOString(),
   });
   await credits.charge({ userId: 'user-a', operationType: 'form_create', operationKey: key('a1'), cost: 2 });
@@ -193,7 +202,7 @@ test('the public balance exposes no tokens, ids, or internal economics', async (
   await credits.setPlan('user-a', { plan: 'pro', subscriptionStatus: 'active' });
   await credits.charge({ userId: 'user-a', operationType: 'form_create', operationKey: key('public'), cost: 2 });
   const balance = await credits.balance('user-a');
-  assert.deepEqual(Object.keys(balance).sort(), ['dailyRemaining', 'monthlyRemaining', 'nextDailyReset', 'nextMonthlyReset', 'plan']);
+  assert.deepEqual(Object.keys(balance).sort(), ['availableCredits', 'dailyLimit', 'dailyRemaining', 'monthlyLimit', 'monthlyRemaining', 'nextDailyReset', 'nextMonthlyReset', 'plan', 'subscriptionStatus']);
   assert.equal(JSON.stringify(balance).includes('user-a'), false);
   assert.equal(/token|cost|ledger|credit_cost/i.test(JSON.stringify(balance)), false);
   const projected = toPublicBalance({ userId: 'user-a', plan: 'free', subscriptionStatus: 'none', currentPeriodStart: null, currentPeriodEnd: null }, { daily: -5, monthly: 0 }, DAY_1);
@@ -211,7 +220,10 @@ test('allocation helpers follow the documented daily-then-monthly order', () => 
 test('the credit migration is additive, idempotent, and stores no credentials or model text', async () => {
   const { readFile, readdir } = await import('node:fs/promises');
   const files = (await readdir(new URL('../db/migrations/', import.meta.url))).filter(name => name.endsWith('.sql')).sort();
-  assert.equal(files.at(-1), '007_ai_credits.sql', 'credits are the newest additive migration');
+  assert.equal(files.at(-4), '007_ai_credits.sql', 'credits are the entitlement and operation schema migration');
+  assert.equal(files.at(-3), '007_ai_operations.sql', 'the superseded migration id remains as a no-op for history compatibility');
+  assert.equal(files.at(-2), '008_ai_operation_compat.sql', 'legacy operation metadata is preserved and mapped');
+  assert.equal(files.at(-1), '009_admin_indexes.sql', 'admin adds query indexes after schema compatibility');
   const text = await readFile(new URL('../db/migrations/007_ai_credits.sql', import.meta.url), 'utf8');
   const sql = text.replace(/--.*$/gm, '');
   assert.match(sql, /CREATE TABLE IF NOT EXISTS user_entitlement \(/);
@@ -226,7 +238,25 @@ test('the credit migration is additive, idempotent, and stores no credentials or
   assert.match(sql, /CREATE UNIQUE INDEX IF NOT EXISTS credit_ledger_operation_unique[\s\S]*WHERE entry_type = 'ai_consumption'/, 'one charge per operation and bucket');
   assert.match(sql, /UNIQUE \(user_id, operation_key\)/, 'one usage row per operation key');
   assert.match(sql, /REFERENCES "user"\(id\) ON DELETE CASCADE/, 'credits are owned and cascade with the account');
-  assert.doesNotMatch(sql, /^\s*(DROP|ALTER|TRUNCATE|DELETE|UPDATE)\b/im, 'the migration never rewrites or deletes rows');
+  assert.doesNotMatch(sql, /^\s*(DROP|TRUNCATE|DELETE|UPDATE)\b/im, 'the migration never deletes or rewrites rows');
+  assert.match(sql, /RENAME TO ai_operation_legacy_phase12/, 'an incompatible historical table is archived, never dropped');
   assert.doesNotMatch(sql, /prompt|completion|message|content|token_count|api_key|credential/i, 'no prompt text, model output or credentials are stored');
   for (const statement of sql.match(/CREATE (TABLE|INDEX)[^;]*/g) ?? []) assert.match(statement, /IF NOT EXISTS/);
+});
+
+test('legacy AI-operation migration history is retained and its metadata is safely reconciled', async () => {
+  const legacy = await readFile(new URL('../db/migrations/007_ai_operations.sql', import.meta.url), 'utf8');
+  assert.match(legacy, /^SELECT 1;/m, 'fresh installs record the historical id without recreating the obsolete table');
+  assert.doesNotMatch(legacy, /CREATE TABLE|CREATE INDEX|DROP TABLE/i);
+
+  const compatibility = (await readFile(new URL('../db/migrations/008_ai_operation_compat.sql', import.meta.url), 'utf8')).replace(/--.*$/gm, '');
+  assert.match(compatibility, /RENAME TO ai_operation_legacy_phase12/);
+  assert.match(compatibility, /INSERT INTO ai_operation[\s\S]*FROM source/);
+  assert.match(compatibility, /operation = 'form_edit_interpretation'/);
+  assert.match(compatibility, /route = '\/api\/forms\/revise'/);
+  assert.match(compatibility, /'legacy_' \|\| md5/);
+  assert.match(compatibility, /credit_cost[\s\S]*0,/);
+  assert.match(compatibility, /ON CONFLICT \(user_id, operation_key\) DO NOTHING/);
+  assert.doesNotMatch(compatibility, /^\s*(DROP|TRUNCATE|DELETE|UPDATE)\b/im, 'historical telemetry is preserved');
+  assert.doesNotMatch(compatibility, /prompt|request_body|password|access_token|refresh_token|ciphertext|api_key|client_secret/i);
 });

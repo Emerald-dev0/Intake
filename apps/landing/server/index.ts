@@ -25,11 +25,11 @@ import { createFormEditInterpreter, createFormInterpreter } from './forms/interp
 import { createFormDraftRouter } from './forms/interpretation/routes';
 import { createPostgresRateLimitStore } from './security/rate-limit';
 import { createSignInRouter } from './sign-in/routes';
+import { readAuthenticationMethods } from './sign-in/account-methods';
 import { logSafe } from './providers/oauth';
 import { newRequestId } from './forms/logging';
 import { createAdminRouter } from './admin/routes';
 import { createPostgresAdminStore } from './admin/postgres-store';
-import { createPostgresAiOperationWriter } from './admin/ai-operations';
 const app = express();
 app.disable('x-powered-by');
 if (serverConfig.trustProxyHops > 0) app.set('trust proxy', serverConfig.trustProxyHops);
@@ -132,7 +132,16 @@ app.get('/api/me', async (req, res) => {
     const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
     if (!session?.user?.id) return res.status(401).json({ error: 'Not authenticated' });
     // Copy only the browser contract; future Better Auth custom fields do not become public by accident.
-    return res.json({ user: { id: session.user.id, name: session.user.name, email: session.user.email, image: session.user.image ?? null } });
+    // The account query exposes only safe provider identifiers and cannot affect authentication if its
+    // optional settings read is unavailable.
+    const authenticationMethods = await readAuthenticationMethods(pool, session.user.id).catch(error => {
+      logSafe('Authentication method summary unavailable', error);
+      return { available: false, methods: [] };
+    });
+    return res.json({
+      user: { id: session.user.id, name: session.user.name, email: session.user.email, image: session.user.image ?? null },
+      authenticationMethods,
+    });
   } catch (error) {
     logSafe('Session lookup failed', error);
     return res.status(503).json({ error: 'Session temporarily unavailable' });

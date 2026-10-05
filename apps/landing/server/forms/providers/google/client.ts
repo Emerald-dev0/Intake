@@ -1,4 +1,3 @@
-import { redact } from '../../../providers/oauth';
 import type { GoogleRequest } from './plan';
 
 /**
@@ -82,8 +81,6 @@ export interface GoogleFormsApiErrorInfo {
   googleStatus?: string;
   /** ErrorInfo.reason such as SERVICE_DISABLED or ACCESS_TOKEN_SCOPE_INSUFFICIENT. */
   reason?: string;
-  /** Google's message, stripped of control characters and secrets and cut short. */
-  detail?: string;
   retryAfterSeconds?: number;
 }
 
@@ -308,16 +305,14 @@ export function createdItemId(reply: unknown): string | null {
   return typeof id === 'string' && id.length > 0 && id.length <= 64 && /^[A-Za-z0-9_-]+$/.test(id) ? id : null;
 }
 
-function readGoogleError(json: unknown): Pick<GoogleFormsApiErrorInfo, 'googleStatus' | 'reason' | 'detail'> {
+function readGoogleError(json: unknown): Pick<GoogleFormsApiErrorInfo, 'googleStatus' | 'reason'> {
   const error = json && typeof json === 'object' ? (json as { error?: unknown }).error : null;
   if (!error || typeof error !== 'object') return {};
-  const row = error as { status?: unknown; message?: unknown; details?: unknown };
-  const out: Pick<GoogleFormsApiErrorInfo, 'googleStatus' | 'reason' | 'detail'> = {};
+  const row = error as { status?: unknown; details?: unknown };
+  const out: Pick<GoogleFormsApiErrorInfo, 'googleStatus' | 'reason'> = {};
   if (typeof row.status === 'string' && /^[A-Z_]{3,40}$/.test(row.status)) out.googleStatus = row.status;
-  if (typeof row.message === 'string') {
-    const detail = redact(row.message.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim()).slice(0, 240);
-    if (detail) out.detail = detail;
-  }
+  // Keep only normalized provider reason codes for the fixed error mapping. Never retain or return
+  // Google's free-form message: it can quote rejected user content or carry sensitive diagnostics.
   if (Array.isArray(row.details)) {
     for (const item of row.details) {
       const reason = item && typeof item === 'object' ? (item as { reason?: unknown }).reason : null;

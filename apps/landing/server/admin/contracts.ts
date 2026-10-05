@@ -1,7 +1,7 @@
 export type AdminRange = 'today' | '7d' | '30d';
-export type AdminOperation = 'form_interpretation' | 'form_edit_interpretation';
-export type AdminOperationStatus = 'succeeded' | 'failed';
-export type AdminProviderId = 'google' | 'microsoft' | 'groq';
+export type AdminOperation = 'form_create' | 'form_revise' | 'form_edit';
+export type AdminOperationStatus = 'succeeded' | 'failed' | 'no_result';
+export type AdminProviderId = 'google' | 'microsoft' | 'groq' | 'openai' | 'none';
 
 export interface RangeBounds {
   range: AdminRange;
@@ -45,7 +45,7 @@ export interface AiSummary {
   inputTokens: number | null;
   outputTokens: number | null;
   totalTokens: number | null;
-  creditsConsumed: null;
+  creditsConsumed: number | null;
   estimatedCostUsd: null;
 }
 
@@ -59,20 +59,19 @@ export interface AiUnavailableSummary {
 
 export interface AiOperationItem {
   id: string;
-  requestId: string;
+  operationKey: string;
   userId: string;
   userName: string;
   userEmail: string;
-  route: string;
   operation: AdminOperation;
-  provider: 'groq';
-  model: string;
+  provider: AdminProviderId;
+  model: string | null;
   status: AdminOperationStatus;
   failureCode: string | null;
-  latencyMs: number;
+  latencyMs: number | null;
   inputTokens: number | null;
   outputTokens: number | null;
-  creditsConsumed: null;
+  creditsConsumed: number;
   estimatedCostUsd: null;
   timestamp: Date;
 }
@@ -185,7 +184,7 @@ export interface OverviewData {
     inputTokens: number | null;
     outputTokens: number | null;
     totalTokens: number | null;
-    creditsConsumed: null;
+    creditsConsumed: number | null;
     estimatedCostUsd: null;
   };
   credits: UnavailableMetric & { dailyGranted: null; monthlyGranted: null; consumed: null };

@@ -291,7 +291,7 @@ test('batchUpdate failing after forms.create leaves a form that is reported and 
   assert.equal(error.info.retryable, false, 'retrying would create a second form');
   assert.deepEqual(error.info.partialForm, { providerFormId: google.formId, editUrl: `https://docs.google.com/forms/d/${google.formId}/edit`, state: 'unpublished' });
   assert.match(error.info.message, /partly built form exists in your Google account and is not published/);
-  assert.equal(error.info.detail, 'Invalid requests[2].createItem', 'Google\'s own explanation is passed on, sanitized');
+  assert.equal(error.info.detail, undefined, 'free-form Google error messages are never attached to a user-facing failure');
   assert.equal(error.externalAccountId, 'google-account-of-user-a', 'server-side only, for ownership');
   assert.equal(JSON.stringify(error.info).includes('google-account-of-user-a'), false);
 
@@ -427,14 +427,16 @@ test('a failure while reporting a rejected token does not hide the real failure'
   assert.equal(error.info.code, 'provider_reauthorization_required');
 });
 
-test('error details from Google are sanitized before they reach a caller or a log', async () => {
+test('Google free-form error messages are discarded and never reach failures or logs', async () => {
   const world = await connectedWorld();
-  world.fake.failOn('forms.batchUpdate', { status: 400, googleStatus: 'INVALID_ARGUMENT', message: 'bad  request\n\u0000 access_token=ACCESS_TOKEN_OF_USER-A refresh_token=REFRESH_TOKEN_OF_USER-A ' + 'x'.repeat(600) });
+  const rawProviderMessage = 'bad request: applicant@example.test access_token=ACCESS_TOKEN_OF_USER-A ' + 'x'.repeat(600);
+  world.fake.failOn('forms.batchUpdate', { status: 400, googleStatus: 'INVALID_ARGUMENT', message: rawProviderMessage });
   const error = await failureOf(createGoogleForm(world, SIMPLE));
-  assert.ok(error.info.detail.length <= 240);
-  assert.equal(/[\u0000-\u001f]/.test(error.info.detail), false);
+  assert.equal(error.info.code, 'provider_rejected');
+  assert.equal(error.info.detail, undefined);
+  assert.equal(JSON.stringify(error.info).includes(rawProviderMessage), false);
+  assert.equal(JSON.stringify(world.logs).includes(rawProviderMessage), false);
   assertNoSecrets(world, error.info);
-  assert.match(error.info.detail, /\[redacted/);
 });
 
 test('unexpected errors inside the adapter become internal errors with no stack or message leaked', async () => {
