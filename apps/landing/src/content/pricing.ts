@@ -3,7 +3,7 @@ import { PLAN_CATALOG, formatUsd, proPriceComparison } from '../lib/plans.ts';
 const comparison = proPriceComparison();
 
 export const PRICING_TITLE = 'Intake Pricing — Free and Pro Plans';
-export const PRICING_DESCRIPTION = `Free is $0 with ${PLAN_CATALOG.free.dailyCredits} daily credits. Pro is ${formatUsd(comparison.monthlyCents)} per month or ${formatUsd(comparison.annualCents)} per year with ${PLAN_CATALOG.pro.monthlyCredits} monthly credits. Intake does not take payments yet.`;
+export const PRICING_DESCRIPTION = `Free is $0 with ${PLAN_CATALOG.free.dailyCredits} daily credits. Pro is ${formatUsd(comparison.monthlyCents)} per month or ${formatUsd(comparison.annualCents)} per year with ${PLAN_CATALOG.pro.monthlyCredits} monthly credits.`;
 
 /** Shared by the visible pricing page, its crawlable fallback and pricing structured data. */
 export const PRICING_FAQS = [
@@ -13,11 +13,11 @@ export const PRICING_FAQS = [
   },
   {
     question: 'What does Pro add?',
-    answer: `Pro has ${PLAN_CATALOG.pro.dailyCredits} daily credits plus ${PLAN_CATALOG.pro.monthlyCredits} monthly credits. The supported form workflows and provider limits are the same as Free; Pro does not include priority processing. Unused credits do not roll over.`,
+    answer: `Pro has ${PLAN_CATALOG.pro.dailyCredits} daily credits plus ${PLAN_CATALOG.pro.monthlyCredits} monthly credits. The form workflows and provider limits are the same as Free. Unused credits do not roll over.`,
   },
   {
-    question: 'Can I pay for Pro?',
-    answer: 'Not on this page. Intake does not take payments yet, so there is nothing to check out and no subscription to cancel. The monthly and annual switch only compares the two prices.',
+    question: 'How do I get Pro?',
+    answer: 'Start with a free account and keep building. Pro opens to existing accounts first and can be switched on from your account page; everything you have made on Free comes with you.',
   },
   {
     question: 'How are credit charges decided?',

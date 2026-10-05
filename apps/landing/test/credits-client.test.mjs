@@ -76,20 +76,20 @@ test('subscription status labels reflect server state rather than assuming a mis
 });
 
 test('the summary names each available bucket and its allowance', () => {
-  assert.equal(creditSummary(balance()), '12 of 20 AI credits left today');
-  assert.equal(creditSummary(balance({ dailyRemaining: 1 })), '1 of 20 AI credits left today');
+  assert.equal(creditSummary(balance()), '12 of 20 credits left today');
+  assert.equal(creditSummary(balance({ dailyRemaining: 1 })), '1 of 20 credits left today');
   assert.equal(creditSummary(balance({ plan: 'pro' })), '20 of 20 daily · 500 of 500 monthly');
 });
 
 test('out-of-credits copy explains the state, both reset times and that nothing happened', () => {
   const free = insufficientCreditsMessage(balance({ dailyRemaining: 0, availableCredits: 0, nextDailyReset: '2026-10-03T14:00:00.000Z' }), NOW);
-  assert.match(free, /used today's 20 free AI credits/);
+  assert.match(free, /used today's 20 free credits/);
   assert.match(free, /Daily credits reset in 5 hours/);
-  assert.match(free, /500-credit monthly reserve/);
-  assert.match(free, /plan changes are not available/);
+  assert.match(free, /Pro adds a 500-credit monthly reserve/);
   assert.match(free, /Nothing was created or changed/);
+  assert.doesNotMatch(free, /not available|not implemented|coming soon/i, 'the workspace never apologises about the product');
   const pro = insufficientCreditsMessage(balance({ plan: 'pro', dailyRemaining: 0, monthlyRemaining: 0, availableCredits: 0, nextDailyReset: '2026-10-03T14:00:00.000Z' }), NOW);
-  assert.match(pro, /20 daily AI credits and the 500-credit Pro monthly reserve/);
+  assert.match(pro, /20 daily credits and the 500-credit Pro monthly reserve/);
   assert.match(pro, /Daily credits reset in 5 hours/);
   assert.match(pro, /monthly credits reset in 28 days/);
   assert.match(insufficientCreditsMessage(null), /reset every day at 00:00 UTC/);

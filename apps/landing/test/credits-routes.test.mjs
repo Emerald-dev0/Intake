@@ -169,7 +169,7 @@ test('an unaffordable operation is refused before the model is called, and creat
   const refused = await app.interpret({ provider: 'google', request: 'Register people', operationId: 'operation-key-gggg7777' });
   assert.equal(refused.status, 402);
   assert.equal(refused.json.code, 'insufficient_credits');
-  assert.match(refused.json.error, /not have enough AI credits/i);
+  assert.match(refused.json.error, /not have enough credits/i);
   assert.equal(app.seen.calls, 0, 'no model call is paid for when the user cannot afford the cheapest operation');
   assert.equal(app.store.all().length, 0);
   assert.equal((await app.creditStore.usage('user-a')).length, 0);

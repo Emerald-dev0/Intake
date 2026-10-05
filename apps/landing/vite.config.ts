@@ -180,7 +180,7 @@ function pricingNoScriptContent(): string {
       <p>${PLAN_CATALOG.free.dailyCredits} credits every day, refreshed at 00:00 UTC, with the full Google Forms creation and editing workflow.</p>
       <h2>Pro · ${escapeHtml(proMonthly)} per month or ${escapeHtml(proAnnual)} per year</h2>
       <p>${PLAN_CATALOG.pro.dailyCredits} credits a day plus ${PLAN_CATALOG.pro.monthlyCredits} a month. Paying annually would save ${escapeHtml(annualSavings)} compared with twelve monthly payments, and unused credits do not roll over.</p>
-      <p>Intake does not take payments yet: Pro shows what is planned and what it would cost, and the Free plan is open now. Google Forms and provider limits are the same across plans.</p>
+      <p>Start with a free account; Pro opens to existing accounts first and can be switched on from your account page. Google’s own limits apply the same way on both plans.</p>
     </section>
     <section id="faq" aria-labelledby="pricing-fallback-faq"><h2 id="pricing-fallback-faq">Pricing questions</h2>${faq}</section>
     <footer><a href="/auth/sign-up">Start with Free</a> · <a href="/">Back to Intake</a></footer>

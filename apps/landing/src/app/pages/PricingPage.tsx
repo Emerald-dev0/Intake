@@ -9,16 +9,16 @@ type BillingCadence = 'month' | 'year';
 const FREE_FEATURES = [
   `${PLAN_CATALOG.free.dailyCredits} credits refreshed each day at 00:00 UTC`,
   'Create Google Forms from a description',
-  'Review and revise a proposal before creating it',
-  'Prepare supported edits to existing Google Forms',
-  'Private Intake form library',
+  'Check and change every question before it is created',
+  'Make changes to forms you already have',
+  'A private library of everything you make',
 ];
 
 const PRO_FEATURES = [
   `${PLAN_CATALOG.pro.dailyCredits} daily credits, plus ${PLAN_CATALOG.pro.monthlyCredits} monthly credits`,
-  'The same supported creation and edit workflows available on Free',
-  'Daily credits are used before the monthly reserve',
-  'Monthly credits reset each period and do not roll over',
+  'Everything on Free, unchanged',
+  'Daily credits are used first, then the monthly reserve',
+  'Monthly credits refresh each period and do not roll over',
 ];
 
 export function PricingPage() {
@@ -38,9 +38,9 @@ export function PricingPage() {
 
     <main id="pricing-main" tabIndex={-1}>
       <section className="pricing-intro" aria-labelledby="pricing-title">
-        <span className="eyebrow">CLEAR PLANS · SERVER-ENFORCED CREDITS</span>
+        <span className="eyebrow">CLEAR PLANS · NO SURPRISES</span>
         <h1 id="pricing-title">Simple plans.<br /><em>Clear limits.</em></h1>
-        <p>Start with Free. Pro adds a monthly credit reserve; supported form tools and Google Forms provider limits are the same on both plans today.</p>
+        <p>Start with Free. Pro adds a monthly reserve of credits for the months when you need more. Everything else works the same on both plans.</p>
         <div className="pricing-cadence-wrap">
           <div className="pricing-cadence" role="group" aria-label="Choose how to display Pro pricing">
             <button type="button" aria-pressed={cadence === 'month'} className={cadence === 'month' ? 'selected' : ''} onClick={() => setCadence('month')}>Monthly</button>
@@ -52,10 +52,10 @@ export function PricingPage() {
 
       <section className="pricing-plans" aria-label="Intake plans">
         <article className="pricing-plan-card" aria-labelledby="free-plan-title">
-          <div className="pricing-plan-top"><span className="info-index">01 / GET STARTED</span><span className="pricing-plan-tag">NO PAYMENT</span></div>
+          <div className="pricing-plan-top"><span className="info-index">01 / GET STARTED</span><span className="pricing-plan-tag">FREE FOREVER</span></div>
           <h2 id="free-plan-title">{PLAN_CATALOG.free.label}</h2>
-          <p className="pricing-plan-description">For building and safely reviewing forms with Intake.</p>
-          <p className="pricing-amount"><strong>$0</strong><span>no payment</span></p>
+          <p className="pricing-plan-description">Everything you need to build forms from a sentence.</p>
+          <p className="pricing-amount"><strong>$0</strong><span>forever</span></p>
           <a className="btn btn-ghost pricing-plan-action" href={authenticated ? '/app' : '/auth/sign-up'}>{authenticated ? 'Open Intake' : 'Create a free account'} <span aria-hidden>→</span></a>
           <ul>{FREE_FEATURES.map(feature => <li key={feature}>{feature}</li>)}</ul>
         </article>
@@ -69,19 +69,17 @@ export function PricingPage() {
           {cadence === 'month'
             ? <p className="pricing-compare">{formatUsd(comparison.monthlyCents)} each month · {formatUsd(comparison.monthlyBilledAnnualTotalCents)} over 12 months</p>
             : <p className="pricing-compare">{formatUsd(comparison.annualCents)} for 12 months · {formatUsd(comparison.annualSavingsCents)} less than 12 monthly payments</p>}
-          <a className="btn btn-accent pricing-plan-action" href={authenticated ? '/app' : '/auth/sign-up'} aria-describedby="payment-status">{authenticated ? 'Open Intake' : 'Create a free account'} <span aria-hidden>→</span></a>
+          <a className="btn btn-accent pricing-plan-action" href={authenticated ? '/app' : '/auth/sign-up?plan=pro'}>{authenticated ? 'Open Intake' : 'Notify me when Pro opens'} <span aria-hidden>→</span></a>
           <ul>{PRO_FEATURES.map(feature => <li key={feature}>{feature}</li>)}</ul>
         </article>
       </section>
 
-      <p className="pricing-payment-note" id="payment-status"><strong>One thing to know:</strong> Intake does not take payments yet. Pro shows what is planned and what it would cost, and the Free plan is open right now.</p>
-
       <section className="pricing-what-to-know" aria-labelledby="pricing-limits-title">
         <div><span className="info-index">WHAT TO KNOW</span><h2 id="pricing-limits-title">Credits, limits &amp; processing</h2></div>
         <ul>
-          <li><strong>Credits are server-controlled.</strong> Intake calculates each operation’s cost from the validated proposal and shows your current balance and reset times in the workspace.</li>
+          <li><strong>You see the cost first.</strong> Intake works out what a request costs before anything is applied, and your balance and reset times are always visible in the workspace.</li>
           <li><strong>Unused credits do not roll over.</strong> Daily credits refresh at 00:00 UTC. Pro monthly credits refresh at the reset shown in your account.</li>
-          <li><strong>Same limits on both plans.</strong> Google and provider rate limits apply equally. Intake does not offer priority processing.</li>
+          <li><strong>Same limits on both plans.</strong> Google’s own limits apply the same way on Free and Pro.</li>
           <li><strong>Review before apply.</strong> Intake can propose a draft; creating or editing a Google Form still waits for your explicit confirmation.</li>
         </ul>
       </section>

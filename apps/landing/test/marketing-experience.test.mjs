@@ -21,11 +21,11 @@ async function waitFor(selector, attempts = 200) {
 }
 
 /**
- * Renders the public homepage and leaves it mounted so tests can interact with real nodes. The
- * returned teardown must run at the end of the test: React removes the tree from its container on
- * unmount, which would make later DOM queries look empty.
+ * Renders a public route and leaves it mounted so tests can interact with real nodes. The returned
+ * teardown must run at the end of the test: React removes the tree from its container on unmount,
+ * which would make later DOM queries look empty.
  */
-async function renderHome(t) {
+async function renderRoute(t, path, selector) {
   const original = globalThis.fetch;
   globalThis.fetch = async () => new Response(JSON.stringify({ error: 'not_authenticated' }), { status: 401 });
   const container = document.getElementById('root');
@@ -39,10 +39,14 @@ async function renderHome(t) {
   };
   t.after(teardown);
   await act(async () => {
-    root.render(React.createElement(Suspense, { fallback: 'Loading' }, React.createElement(RouterProvider, { router: createMemoryRouter(routes, { initialEntries: ['/'] }) })));
+    root.render(React.createElement(Suspense, { fallback: 'Loading' }, React.createElement(RouterProvider, { router: createMemoryRouter(routes, { initialEntries: [path] }) })));
   });
-  assert.ok(await waitFor('.mk-faq-item'), 'the marketing homepage rendered');
+  assert.ok(await waitFor(selector), `${path} rendered`);
   return { teardown, html: () => container.innerHTML, text: () => container.textContent ?? '' };
+}
+
+function renderHome(t) {
+  return renderRoute(t, '/', '.mk-faq-item');
 }
 
 test('FAQ items are collapsed accordions that open and close one at a time', async (t) => {
@@ -120,7 +124,34 @@ test('the homepage ships motion primitives, a menu sheet and no unfinished-work 
   await act(async () => { switches[1].dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); });
   assert.equal(document.querySelectorAll('.mk-preview-switch button')[1].getAttribute('aria-pressed'), 'true');
 
-  for (const phrase of [/not available yet/i, /coming soon/i, /not implemented/i, /display-only/i, /AI-powered/i, /AI credits/i, /illustrative/i]) {
+  for (const phrase of [/not available yet/i, /coming soon/i, /not implemented/i, /display-only/i, /illustrative/i, /AI-powered/i, /AI credits/i, /AI-assisted/i, /natural[- ]language/i, /control layer/i]) {
     assert.doesNotMatch(text, phrase, `the rendered homepage must not say: ${phrase}`);
   }
+});
+
+test('the pricing page sends Pro to a real next step instead of an unfinished checkout', async (t) => {
+  const page = await renderRoute(t, '/pricing', '.pricing-plan-action');
+  const text = page.text();
+
+  const actions = [...document.querySelectorAll('.pricing-plan-action')];
+  assert.equal(actions.length, 2, 'both plans offer one clear action');
+  assert.equal(actions[0].tagName, 'A');
+  assert.equal(document.getElementById('payment-status'), null, 'the old payment notice is gone');
+
+  // Pro is not on sale, so the card asks for interest and points at a working sign-up.
+  assert.equal(actions[1].tagName, 'A');
+  assert.match(actions[1].textContent, /Notify me when Pro opens/);
+  assert.equal(actions[1].getAttribute('href'), '/auth/sign-up?plan=pro');
+  assert.match(actions[0].getAttribute('href'), /^\/auth\/sign-up/);
+
+  // No readiness, billing-status, or AI-marker wording survives on the page that shows prices.
+  for (const phrase of [/does not take payments/i, /not available yet/i, /coming soon/i, /not implemented/i, /display-only/i, /not on this page/i, /AI-powered/i, /AI credits/i, /AI-assisted/i, /natural[- ]language/i, /control layer/i]) {
+    assert.doesNotMatch(text, phrase, `the pricing page must not say: ${phrase}`);
+  }
+
+  // The monthly and annual switch still compares real prices.
+  const annual = [...document.querySelectorAll('.pricing-cadence button')].find(button => /Annual/.test(button.textContent));
+  assert.ok(annual, 'the cadence switch is present');
+  await act(async () => { annual.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); });
+  assert.match(document.querySelector('.pricing-plan-card.is-pro .pricing-amount').textContent, /\$59\.99/);
 });

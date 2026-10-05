@@ -27,7 +27,7 @@ test('the built homepage carries no unfinished-work or vendor wording', async ()
   const html = await readFile('dist/index.html', 'utf8');
   const fallback = html.match(/<noscript>([\s\S]*?)<\/noscript>/)?.[1] ?? '';
   // Phrases that must not appear anywhere in the public document, including metadata.
-  for (const phrase of [/not available yet/i, /coming soon/i, /not implemented/i, /display-only/i, /AI-powered/i, /AI credits/i, /illustrative/i]) {
+  for (const phrase of [/not available yet/i, /coming soon/i, /not implemented/i, /display-only/i, /illustrative/i, /AI-powered/i, /AI credits/i, /AI-assisted/i, /natural[- ]language/i, /control layer/i, /priority processing/i]) {
     assert.doesNotMatch(html, phrase, `the public homepage must not say: ${phrase}`);
   }
   // The crawlable fallback is body copy, so it must not carry a personal name either. The creator is
