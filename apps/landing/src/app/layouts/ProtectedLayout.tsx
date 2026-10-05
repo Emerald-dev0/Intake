@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { api, ApiError, parseAuthenticationMethodSummary, type AuthenticationMethodSummary, type User } from '../../lib/api';
 import { SessionContext } from '../hooks/useSession';
-import { LogoMark } from '../../reel/parts';
+import { LogoMark } from '../../components/LogoMark';
 
 type State = { status: 'loading' | 'error' | 'signed-out' } | { status: 'ready'; user: User; authenticationMethods: AuthenticationMethodSummary | null };
 export function ProtectedLayout() {

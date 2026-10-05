@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { LogoMark } from '../../reel/parts';
+import { LogoMark } from '../../components/LogoMark';
 import { authClient as client } from '../../lib/auth';
 import { useSession } from '../hooks/useSession';
 import { useProviders } from '../Connections';

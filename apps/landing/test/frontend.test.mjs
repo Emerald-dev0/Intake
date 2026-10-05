@@ -36,7 +36,7 @@ globalThis.location = dom.window.location;
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 test('all public and protected paths have explicit ownership', () => {
-  for (const path of ['/', '/auth/sign-in', '/auth/sign-up', '/app', '/app/connections', '/app/forms', '/app/account']) {
+  for (const path of ['/', '/auth/sign-in', '/auth/sign-up', '/app', '/app/connections', '/app/forms', '/app/library', '/app/account']) {
     const matches = matchRoutes(routes, path);
     assert.ok(matches);
     assert.notEqual(matches.at(-1).route.path, '*');
@@ -45,6 +45,8 @@ test('all public and protected paths have explicit ownership', () => {
   assert.equal(matchRoutes(routes, '/application').at(-1).route.path, '*');
   assert.equal(matchRoutes(routes, '/app/forms').at(-1).route.path, 'forms', 'the forms page has its own protected route');
   assert.equal(matchRoutes(routes, '/app/forms')[0].route.path, '/app');
+  assert.equal(matchRoutes(routes, '/admin')[0].route.path, '/admin');
+  assert.equal(matchRoutes(routes, '/admin/users/owner-id')[0].route.path, '/admin');
 });
 
 test('API helper keeps requests same-origin, uncached and surfaces authentication failures', async () => {
@@ -64,15 +66,18 @@ test('public auth pages and protected pages render with shared authentication en
   const original = globalThis.fetch;
   try {
     for (const [path, status, expected] of [
+      ['/', 200, 'Tell Intake what you need.'],
       ['/auth/sign-in', 503, 'Welcome back'],
       ['/auth/sign-up', 503, 'Create your account'],
       ['/app', 200, 'What do you need'],
       ['/app/connections', 200, 'Your forms stay'],
       ['/app/forms', 200, 'What should your form ask?'],
+      ['/app/library', 200, 'Your Forms'],
       ['/app/account', 200, 'Your account.'],
       ['/app', 401, 'Welcome back'],
       ['/app/connections', 401, 'Welcome back'],
       ['/app/forms', 401, 'Welcome back'],
+      ['/app/library', 401, 'Welcome back'],
       ['/app/account', 401, 'Welcome back'],
       ['/app', 503, 'We couldn’t verify your session'],
     ]) {
