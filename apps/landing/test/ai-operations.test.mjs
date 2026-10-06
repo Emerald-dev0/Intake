@@ -63,7 +63,7 @@ test('a usable result is charged exactly once, even when the operation makes sev
   assert.equal(outcome.ok, true);
   assert.equal(outcome.charge.cost, 2);
   assert.equal(outcome.charge.status, 'charged');
-  assert.equal((await credits.balance('user-a')).dailyRemaining, 18, 'two model calls, one charge');
+  assert.equal((await credits.balance('user-a')).dailyRemaining, 8, 'two model calls, one charge');
   const usage = await store.ledger('user-a');
   assert.equal(usage.filter(entry => entry.entryType === 'ai_consumption').length, 1);
 });
@@ -75,7 +75,7 @@ test('a replayed operation key is never charged twice and reports the original p
   assert.equal(first.charge.status, 'charged');
   assert.equal(second.charge.status, 'already_charged');
   assert.equal(second.charge.cost, 2);
-  assert.equal((await credits.balance('user-a')).dailyRemaining, 18);
+  assert.equal((await credits.balance('user-a')).dailyRemaining, 8);
 });
 
 test('provider failures, invalid output and no-result outcomes cost nothing', async () => {

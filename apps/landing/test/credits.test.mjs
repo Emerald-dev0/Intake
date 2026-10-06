@@ -66,7 +66,7 @@ test('Pro adds a 1000-credit monthly reserve per period, and daily credits are s
   const afterOverflow = await credits.balance('user-a');
   assert.deepEqual({ daily: afterOverflow.dailyRemaining, monthly: afterOverflow.monthlyRemaining }, { daily: 0, monthly: 987 });
   const consumption = (await store.ledger('user-a')).filter(entry => entry.entryType === 'ai_consumption');
-  assert.deepEqual(consumption.map(entry => [entry.bucket, entry.credits]), [['daily', -10], ['monthly', -10], ['monthly', -3]]);
+  assert.deepEqual(consumption.map(entry => [entry.bucket, entry.credits]), [['daily', -10], ['subscription', -10], ['subscription', -3]]);
 
   // A new day restores the daily allowance; the monthly reserve does not roll over either.
   assert.deepEqual({ daily: (await credits.balance('user-a', DAY_2)).dailyRemaining, monthly: (await credits.balance('user-a', DAY_2)).monthlyRemaining }, { daily: 10, monthly: 987 });
@@ -97,7 +97,7 @@ test('a billing period from the future payment system defines the monthly bucket
   // Downgrading to Free removes the reserve without deleting history.
   await credits.setPlan('user-1', { plan: 'free', subscriptionStatus: 'canceled', periodStart: null, periodEnd: null });
   const downgraded = await credits.balance('user-1', new Date('2026-11-20T00:00:00Z'));
-  assert.deepEqual({ plan: downgraded.plan, daily: downgraded.dailyRemaining, monthly: downgraded.monthlyRemaining }, { plan: 'free', daily: 20, monthly: 0 });
+  assert.deepEqual({ plan: downgraded.plan, daily: downgraded.dailyRemaining, monthly: downgraded.monthlyRemaining }, { plan: 'free', daily: 10, monthly: 0 });
 });
 
 test('credit costs are deterministic, server-side, and match the published 1–5 range', () => {
@@ -129,7 +129,7 @@ test('a failed or zero-cost operation never moves the balance, and insufficient 
   const ledgerBefore = (await store.ledger('user-a')).length;
   await credits.charge({ userId: 'user-a', operationType: 'form_edit', operationKey: key('one'), cost: 1 });
   const after = await credits.balance('user-a');
-  assert.equal(after.dailyRemaining, 19);
+  assert.equal(after.dailyRemaining, 9);
   assert.equal((await store.ledger('user-a')).length, ledgerBefore + 2, 'one grant row and one consumption row');
 
   // Spend the rest, then ask for more than exists.
@@ -155,26 +155,26 @@ test('the same operation key can never be charged twice', async () => {
     assert.equal(replay.status, 'already_charged');
     assert.equal(replay.cost, 3, 'the original price is reported, not a second charge');
   }
-  assert.equal((await credits.balance('user-a')).dailyRemaining, 17);
+  assert.equal((await credits.balance('user-a')).dailyRemaining, 7);
   const consumption = (await store.ledger('user-a')).filter(entry => entry.entryType === 'ai_consumption');
   assert.equal(consumption.length, 1);
   // A different operation key is a different operation.
   await credits.charge({ userId: 'user-a', operationType: 'form_create', operationKey: key('dup2'), cost: 3 });
-  assert.equal((await credits.balance('user-a')).dailyRemaining, 14);
+  assert.equal((await credits.balance('user-a')).dailyRemaining, 4);
 });
 
 test('concurrent consumption cannot overspend, go negative, or double-charge one operation', async () => {
   const { credits, store } = boot();
-  // 20 credits, ten simultaneous 3-credit operations: only six can succeed.
+  // 10 credits, ten simultaneous 3-credit operations: only three can succeed.
   const attempts = Array.from({ length: 10 }, (_, index) =>
     credits.charge({ userId: 'user-a', operationType: 'form_create', operationKey: key(`race-${index}`), cost: 3 }).then(
       () => 'charged', error => error.code));
   const results = await Promise.all(attempts);
-  assert.equal(results.filter(result => result === 'charged').length, 6);
-  assert.equal(results.filter(result => result === 'insufficient_credits').length, 4);
+  assert.equal(results.filter(result => result === 'charged').length, 3);
+  assert.equal(results.filter(result => result === 'insufficient_credits').length, 7);
   const balance = await credits.balance('user-a');
-  assert.deepEqual({ daily: balance.dailyRemaining, monthly: balance.monthlyRemaining }, { daily: 2, monthly: 0 });
-  assert.equal((await store.ledger('user-a')).filter(entry => entry.entryType === 'ai_consumption').reduce((sum, entry) => sum + entry.credits, 0), -8);
+  assert.deepEqual({ daily: balance.dailyRemaining, monthly: balance.monthlyRemaining }, { daily: 1, monthly: 0 });
+  assert.equal((await store.ledger('user-a')).filter(entry => entry.entryType === 'ai_consumption').reduce((sum, entry) => sum + entry.credits, 0), -9);
 
   // The same key fired concurrently is charged once.
   const { credits: second } = boot();

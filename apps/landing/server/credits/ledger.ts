@@ -101,7 +101,7 @@ export function allocate(cost: number, balances: Record<CreditBucket, number>): 
 }
 
 export function affordable(cost: number, balances: Record<CreditBucket, number>): boolean {
-  return balances.daily + balances.monthly >= cost;
+  return (balances.daily ?? 0) + (balances.monthly ?? 0) + (balances.subscription ?? 0) + (balances.purchased ?? 0) + (balances.promotion ?? 0) >= cost;
 }
 
 /**

@@ -8,7 +8,7 @@ const balance = (overrides = {}) => {
   const plan = overrides.plan ?? 'free';
   const defaults = plan === 'pro'
     ? { plan, subscriptionStatus: 'active', availableCredits: 1010, dailyRemaining: 10, dailyLimit: 10, monthlyRemaining: 1000, monthlyLimit: 1000 }
-    : { plan, subscriptionStatus: 'none', availableCredits: 12, dailyRemaining: 12, dailyLimit: 10, monthlyRemaining: 0, monthlyLimit: 0 };
+    : { plan, subscriptionStatus: 'none', availableCredits: 8, dailyRemaining: 8, dailyLimit: 10, monthlyRemaining: 0, monthlyLimit: 0 };
   const merged = { ...defaults, nextDailyReset: '2026-10-04T00:00:00.000Z', nextMonthlyReset: '2026-11-01T00:00:00.000Z', ...overrides };
   if (!Object.hasOwn(overrides, 'availableCredits')) merged.availableCredits = merged.dailyRemaining + merged.monthlyRemaining;
   return merged;
@@ -76,7 +76,7 @@ test('subscription status labels reflect server state rather than assuming a mis
 });
 
 test('the summary names each available bucket and its allowance', () => {
-  assert.equal(creditSummary(balance()), '12 of 10 credits left today');
+  assert.equal(creditSummary(balance()), '8 of 10 credits left today');
   assert.equal(creditSummary(balance({ dailyRemaining: 1 })), '1 of 10 credits left today');
   assert.equal(creditSummary(balance({ plan: 'pro' })), '10 of 10 daily · 1000 of 1000 monthly');
 });
