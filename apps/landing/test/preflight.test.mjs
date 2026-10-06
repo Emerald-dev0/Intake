@@ -18,6 +18,9 @@ const completeProductionEnv = (overrides = {}) => ({
   GROQ_API_KEY: SECRET,
   ADMIN_EMAILS: 'owner@example.com',
   API_TRUST_PROXY_HOPS: '0',
+  CALDER_API_KEY: 'calder_sk_live_0000000000000000000000000000',
+  CALDER_FROM_EMAIL: 'hello@intake.example.com',
+  CALDER_WEBHOOK_SECRET: 'whsec_00000000000000000000000000000000',
   ...overrides,
 });
 
@@ -33,6 +36,29 @@ test('a complete production environment passes every preflight check', () => {
   assert.equal(byName['Google sign-in'], 'pass');
   assert.equal(byName['ADMIN_EMAILS'], 'pass');
   assert.equal(byName['browser-exposed secrets'], 'pass');
+  assert.equal(byName.email, 'pass');
+  assert.equal(byName['email webhooks'], 'pass');
+});
+
+test('a deployment whose email is unconfigured, half-configured or on a test key is told so', () => {
+  const base = completeProductionEnv();
+  const unconfigured = runPreflight({ ...base, CALDER_API_KEY: '', CALDER_FROM_EMAIL: '', CALDER_WEBHOOK_SECRET: '' });
+  assert.equal(statuses(unconfigured).email, 'fail', 'a live server with no delivery cannot verify an address');
+  assert.match(formatPreflight(unconfigured), /CALDER_API_KEY/);
+
+  const halfConfigured = runPreflight({ ...base, CALDER_FROM_EMAIL: '' });
+  assert.equal(statuses(halfConfigured).email, 'fail', 'a key without a sender identity is not configured');
+
+  const testKey = runPreflight({ ...base, CALDER_API_KEY: 'calder_sk_test_0000000000000000000000000000' });
+  assert.equal(statuses(testKey).email, 'warn', 'a test key delivers nothing to a real inbox');
+  assert.match(formatPreflight(testKey), /test key/i);
+
+  const memory = runPreflight({ ...base, EMAIL_PROVIDER: 'memory' });
+  assert.equal(statuses(memory)['email provider'], 'fail', 'an in-memory provider must never reach production');
+
+  // The name of a bad variable is printed, its value never is.
+  const output = formatPreflight(unconfigured);
+  assert.doesNotMatch(output, /calder_sk_|whsec_/);
 });
 
 test('an incomplete deployment reports actionable failures and warnings, never a credential value', () => {

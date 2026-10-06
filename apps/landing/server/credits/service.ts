@@ -45,7 +45,16 @@ export interface CreditServiceOptions {
   now?: () => Date;
   newId?: () => string;
   onError?: (label: string, error: unknown) => void;
+  /**
+   * Optional lifecycle hook for transactional email, fired at most once per account per UTC day
+   * when a charge leaves the balance at or below the low-credit threshold. Best-effort: a delivery
+   * failure must never change a charge outcome, and this never blocks the calling request.
+   */
+  onLowBalance?: (input: { userId: string; remaining: number; nextDailyReset: Date | string }) => void;
 }
+
+/** 0 means "spent"; anything at or below 20% of the daily allowance earns one notice per day. */
+export const LOW_CREDIT_FRACTION = 0.2;
 
 const INSUFFICIENT = 'You do not have enough credits for this operation. Daily credits reset soon; Pro adds a monthly reserve.';
 
@@ -86,11 +95,20 @@ export function createCreditService(options: CreditServiceOptions): CreditServic
       const request: ChargeRequest = { userId: input.userId, operationKey: input.operationKey, operationType: input.operationType, cost: input.cost, now: input.now ?? now() };
       const result = await settled(() => options.store.consume(request));
       if (result.status === 'insufficient_credits') throw new CreditError('insufficient_credits', INSUFFICIENT);
+      const balance = toPublicBalance(result.entitlement, result.balances, request.now);
+      // A notice, not a gate: the charge already happened. Idempotency lives in the notifier.
+      if (options.onLowBalance && balance.availableCredits <= Math.max(1, Math.ceil(balance.dailyLimit * LOW_CREDIT_FRACTION))) {
+        try {
+          options.onLowBalance({ userId: input.userId, remaining: balance.availableCredits, nextDailyReset: balance.nextDailyReset });
+        } catch (error) {
+          report('Low-credit notification failed', error);
+        }
+      }
       return {
         status: result.status,
         cost: result.cost,
         breakdown: result.breakdown,
-        balance: toPublicBalance(result.entitlement, result.balances, request.now),
+        balance,
       };
     },
     async recordUsage(record) {

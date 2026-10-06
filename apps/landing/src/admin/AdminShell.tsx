@@ -11,6 +11,7 @@ const NAVIGATION = [
   { to: '/admin/credits', label: 'Credits', icon: '◈' },
   { to: '/admin/forms', label: 'Forms', icon: '▤' },
   { to: '/admin/providers', label: 'Providers', icon: '◇' },
+  { to: '/admin/email', label: 'Email', icon: '✉' },
   { to: '/admin/system', label: 'System', icon: '⌁' },
   { to: '/admin/activity', label: 'Activity', icon: '≋' },
 ];
@@ -22,6 +23,7 @@ const TITLES: Record<string, string> = {
   '/admin/credits': 'Credit ledger',
   '/admin/forms': 'Form records',
   '/admin/providers': 'Provider connections',
+  '/admin/email': 'Transactional email',
   '/admin/system': 'System health',
   '/admin/activity': 'Product activity',
 };
@@ -65,7 +67,6 @@ export function AdminShell() {
         <div className="admin-coming-soon">
           <span className="admin-nav-label">PLANNED</span>
           <div>Billing <small>Later</small></div>
-          <div>Email <small>Later</small></div>
           <div>Feature flags <small>Later</small></div>
         </div>
         <div className="admin-sidebar-footer">

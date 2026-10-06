@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { authClient as client } from '../../lib/auth';
+import { fetchPublicEmailConfig, type PublicEmailConfig } from '../../lib/email';
 import { oauthErrorMessage } from '../../lib/sign-in-errors';
 import { useSignInConfig } from '../hooks/useSignInConfig';
 import { LogoMark } from '../../components/LogoMark';
@@ -11,7 +12,16 @@ export function AuthPage({ signUp = false }: { signUp?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [googleBusy, setGoogleBusy] = useState(false);
+  const [emailConfig, setEmailConfig] = useState<PublicEmailConfig | null>(null);
   const google = useSignInConfig();
+
+  // Whether a verification email can actually be delivered decides where sign-up lands: sending
+  // someone to a code entry screen that can never receive a code is worse than no verification.
+  useEffect(() => {
+    let active = true;
+    void fetchPublicEmailConfig().then(config => { if (active) setEmailConfig(config); }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
   const params = new URLSearchParams(location.search);
   const oauthError = params.get('error');
 
@@ -44,6 +54,12 @@ export function AuthPage({ signUp = false }: { signUp?: boolean }) {
         return;
       }
       const returnTarget = new URLSearchParams(window.location.search).get('redirect');
+      // Verified accounts are what admin access and sensitive actions rely on, so the step is worth
+      // the extra screen whenever Intake can actually send the code.
+      if (emailConfig?.verificationRequired) {
+        window.location.replace('/auth/verify');
+        return;
+      }
       window.location.replace(!signUp && returnTarget === '/admin' ? '/admin' : '/app');
     } catch {
       setError('Unable to reach Intake right now. Please try again.');
@@ -62,7 +78,7 @@ export function AuthPage({ signUp = false }: { signUp?: boolean }) {
         <section className="auth-card" aria-label={signUp ? 'Create an account' : 'Sign in'}>
           <div className="card-kicker">INTAKE / ACCOUNT</div>
           <h2>{signUp ? 'Create your account' : 'Welcome back'}</h2>
-          <p>{signUp ? 'Start with an Intake account. Connecting Google or Microsoft is a separate step after you sign in.' : 'Sign in to your Intake workspace.'}</p>
+          <p>{signUp ? (emailConfig?.verificationRequired ? 'Start with an Intake account. We will email you a six-digit code to confirm your address.' : 'Start with an Intake account. Connecting Google or Microsoft is a separate step after you sign in.') : 'Sign in to your Intake workspace.'}</p>
           {params.get('reason') === 'session_expired' && <div className="form-error" role="status">Your session ended before authorization finished. Sign in, then connect the provider again.</div>}
           {oauthError && <div className="form-error" role="alert">{oauthErrorMessage(oauthError)}</div>}
           {google.status === 'available' && <>
@@ -81,6 +97,7 @@ export function AuthPage({ signUp = false }: { signUp?: boolean }) {
             <label>Password<input required type="password" minLength={signUp ? 8 : undefined} autoComplete={signUp ? 'new-password' : 'current-password'} value={password} onChange={e => setPassword(e.target.value)} placeholder={signUp ? 'At least 8 characters' : 'Your password'} disabled={busyAny} /></label>
             {error && <div className="form-error" role="alert">{error}</div>}
             <button className="btn btn-accent auth-submit" type="submit" disabled={busyAny}>{busy ? 'Please wait…' : signUp ? 'Create account →' : 'Sign in →'}</button>
+            {!signUp && <div className="auth-forgot"><a href="/auth/reset-password">Forgot your password?</a></div>}
           </form>
           <div className="auth-switch">{signUp ? 'Already have an account?' : 'New to Intake?'} <a href={signUp ? '/auth/sign-in' : '/auth/sign-up'}>{signUp ? 'Sign in' : 'Create an account'}</a></div>
         </section>

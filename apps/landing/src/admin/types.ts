@@ -50,7 +50,46 @@ export interface OverviewData {
     creditsConsumed: number | null;
     estimatedCostUsd: null;
   };
+  email: {
+    available: boolean;
+    reason: string | null;
+    provider: string;
+    configured: boolean;
+    accepted: number | null;
+    failed: number | null;
+    bounced: number | null;
+    complained: number | null;
+  };
   credits: { available: false; reason: string; dailyGranted: null; monthlyGranted: null; consumed: null };
+}
+
+export interface EmailData {
+  generatedAt: string;
+  range: AdminRange;
+  available: boolean;
+  reason: string | null;
+  provider: string;
+  configured: boolean;
+  testCredential: boolean;
+  sender: string | null;
+  webhooksConfigured: boolean;
+  accepted: number | null;
+  skipped: number | null;
+  failed: number | null;
+  delivered: number | null;
+  bounced: number | null;
+  complained: number | null;
+  suppressions: number | null;
+  byType: Array<{ type: string; count: number }>;
+  topErrors: Array<{ code: string; count: number }>;
+  recent: Array<{
+    id: string;
+    emailType: string;
+    status: string;
+    errorCode: string | null;
+    providerMessageId: string | null;
+    createdAt: string;
+  }>;
 }
 
 export interface UserSummary {
@@ -224,5 +263,12 @@ export interface SystemData {
   aiProvider: { status: 'configured' | 'not_configured' | 'unknown'; evidence: string; model: string };
   googleIntegration: { status: 'configured' | 'not_configured'; evidence: string };
   rateLimiting: { status: 'ready' | 'not_ready' | 'unknown'; evidence: string };
+  email: {
+    status: 'configured' | 'not_configured' | 'unknown';
+    evidence: string;
+    provider: string;
+    testCredential: boolean;
+    webhooks: 'configured' | 'not_configured';
+  };
   migrations: { trackingAvailable: boolean; applied: string[] | null; pending: string[] | null; latestAppliedAt: string | null; required: string[] };
 }

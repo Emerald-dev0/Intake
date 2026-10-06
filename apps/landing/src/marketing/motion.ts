@@ -39,6 +39,57 @@ export function useInView<T extends HTMLElement>(options: { threshold?: number; 
   return [ref, inView];
 }
 
+export type ViewState = 'before' | 'in' | 'after';
+
+/**
+ * Three-state scroll position, for entrances *and* exits.
+ *
+ * `before` — the element is below the fold and has not been reached yet.
+ * `in`     — it is on screen.
+ * `after`  — it has been read and scrolled past.
+ *
+ * The exit state is what lets an element fade out rather than sit at full strength for the rest of
+ * the page. It is driven by one IntersectionObserver with two margins, not by a scroll listener, so
+ * it costs nothing while the page is still.
+ */
+export function useViewState<T extends HTMLElement>(
+  options: { rootMargin?: string; once?: boolean } = {},
+): [RefObject<T | null>, ViewState] {
+  const { rootMargin = '-12% 0px -12% 0px', once = false } = options;
+  const ref = useRef<T | null>(null);
+  const [state, setState] = useState<ViewState>('before');
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setState('in');
+      return;
+    }
+
+    let settled = false;
+    const observer = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          setState('in');
+          settled = true;
+          if (once) observer.unobserve(entry.target);
+          continue;
+        }
+        if (once && settled) continue;
+        // Which side of the viewport the element left decides whether it was reached at all.
+        const leavingUpwards = entry.boundingClientRect.top < (entry.rootBounds?.top ?? 0);
+        setState(leavingUpwards ? 'after' : 'before');
+      }
+    }, { threshold: 0, rootMargin });
+
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [once, rootMargin]);
+
+  return [ref, state];
+}
+
 /** True once the window has scrolled past `offset`. Used for the header and scroll progress bar. */
 export function useScrolled(offset = 12): boolean {
   const [scrolled, setScrolled] = useState(false);

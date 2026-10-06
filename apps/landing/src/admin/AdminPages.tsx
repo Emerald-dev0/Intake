@@ -2,7 +2,7 @@ import { useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAdminQuery, type QueryState } from './useAdminQuery';
 import type {
-  ActivityItem, AdminRange, AiData, AiOperation, ErrorsData, ErrorItem, FormItem, FormsData,
+  ActivityItem, AdminRange, AiData, AiOperation, EmailData, ErrorsData, ErrorItem, FormItem, FormsData,
   OverviewData, ProviderData, SystemData, UserDetail, UserSummary,
 } from './types';
 
@@ -121,6 +121,7 @@ function SystemPreview() {
     ['AI provider', data.aiProvider.status, data.aiProvider.evidence],
     ['Google integration', data.googleIntegration.status, data.googleIntegration.evidence],
     ['Rate limiting', data.rateLimiting.status, data.rateLimiting.evidence],
+    ['Transactional email', data.email.status, data.email.evidence],
   ];
   return <Panel title="Service evidence" description="Configured is not the same as live provider health; only the database receives a direct readiness query."><div className="admin-health-list">{rows.map(([label, stateName, evidence]) => <div className="admin-health-row" key={label}><span>{label}</span><StatusPill label={stateName.replaceAll('_', ' ')} tone={statusTone(stateName)} /><small>{evidence}</small></div>)}</div></Panel>;
 }
@@ -196,6 +197,17 @@ function OverviewContent({ data }: { data: OverviewData }) {
         <Panel title="Plans & credits" eyebrow="NOT IMPLEMENTED IN THIS CHECKOUT">
           <div className="admin-unavailable-block"><strong>Plan counts unavailable</strong><p>{data.plans.reason}</p></div>
           <div className="admin-unavailable-block"><strong>Credit balances unavailable</strong><p>{data.credits.reason}</p></div>
+        </Panel>
+        <Panel title="Transactional email" eyebrow={`DELIVERY · ${rangeName(data.range)}`} description="Aggregate delivery health. No code, token, message body or API key is ever stored or shown.">
+          {data.email.available ? <>
+            <div className="admin-metric-grid two inside-grid">
+              <Metric label="Accepted" value={number(data.email.accepted)} note="Provider accepted for delivery" tone="green" />
+              <Metric label="Failed" value={number(data.email.failed)} tone={data.email.failed ? 'red' : 'neutral'} />
+              <Metric label="Bounced" value={number(data.email.bounced)} note="Provider reported a failed delivery" />
+              <Metric label="Complained" value={number(data.email.complained)} note="Reported as spam" tone={data.email.complained ? 'red' : 'neutral'} />
+            </div>
+            <p className="admin-footnote">Accepted means the provider queued the message, not that a human read it. Inbox delivery is confirmed by the provider's delivery webhook.</p>
+          </> : <Unavailable>{data.email.reason}</Unavailable>}
         </Panel>
         <SystemPreview />
       </div>
@@ -546,6 +558,7 @@ function SystemContent({ data, errorState, refreshErrors }: { data: SystemData; 
     ['AI provider', data.aiProvider.status, `${data.aiProvider.evidence} Current model: ${data.aiProvider.model}.`],
     ['Google integration', data.googleIntegration.status, data.googleIntegration.evidence],
     ['Rate limiting', data.rateLimiting.status, data.rateLimiting.evidence],
+    ['Transactional email', data.email.status, `${data.email.evidence} Webhooks: ${data.email.webhooks.replace('_', ' ')}.`],
   ];
   return <>
     <Panel title="System evidence" eyebrow={`CHECKED ${dateTime(data.generatedAt)}`}><div className="admin-health-list detailed">{healthRows.map(([label, status, evidence]) => <div className="admin-health-row" key={label}><span>{label}</span><StatusPill label={status.replaceAll('_', ' ')} tone={statusTone(status)} /><small>{evidence}</small></div>)}</div></Panel>
@@ -571,6 +584,82 @@ function SystemContent({ data, errorState, refreshErrors }: { data: SystemData; 
       </>)}
     </Panel>
   </>;
+}
+
+/** Read-only email health. Operational, not a marketing dashboard (mission §33). */
+export function AdminEmailPage() {
+  const [range, setRange] = useState<AdminRange>('7d');
+  const { state, refresh } = useAdminQuery<EmailData>(`/api/admin/email?range=${range}`);
+  return (
+    <>
+      <Heading
+        kicker="OPERATIONS / EMAIL"
+        title="Transactional email."
+        description="Delivery health for verification, reset, welcome and security email. Aggregate only: codes, tokens, message bodies and credentials are never stored or shown."
+        action={<RangeSelect value={range} onChange={setRange} />}
+      />
+      {state.status === 'loading' && <QueryLoading label="Reading delivery records…" />}
+      {state.status === 'error' && <QueryError state={state} retry={refresh} />}
+      {state.status === 'ready' && <EmailContent data={state.data} />}
+    </>
+  );
+}
+
+function EmailContent({ data }: { data: EmailData }) {
+  if (!data.available) {
+    return <Panel title="Email delivery"><Unavailable>{data.reason}</Unavailable></Panel>;
+  }
+  return (
+    <>
+      <div className="admin-metric-grid four">
+        <Metric label="Accepted" value={number(data.accepted)} note="Provider accepted for delivery" tone="green" />
+        <Metric label="Skipped" value={number(data.skipped)} note="Suppressed or unconfigured" />
+        <Metric label="Failed" value={number(data.failed)} tone={data.failed ? 'red' : 'neutral'} />
+        <Metric label="Delivered" value={number(data.delivered)} note="Confirmed by delivery webhook" tone="green" />
+      </div>
+      <div className="admin-metric-grid two compact-grid">
+        <Metric label="Bounced" value={number(data.bounced)} note="Permanent failures add a suppression" tone={data.bounced ? 'red' : 'neutral'} />
+        <Metric label="Complained" value={number(data.complained)} note="Reported as spam" tone={data.complained ? 'red' : 'neutral'} />
+      </div>
+
+      <Panel title="Provider configuration" eyebrow={`CHECKED ${dateTime(data.generatedAt)}`}>
+        <div className="admin-health-list detailed">
+          <div className="admin-health-row"><span>Provider</span><StatusPill label={data.provider} tone={data.configured ? 'ok' : 'bad'} /><small>Calder is Intake's transactional email infrastructure.</small></div>
+          <div className="admin-health-row"><span>Credential</span><StatusPill label={data.testCredential ? 'test key' : 'live key'} tone={data.testCredential ? 'warn' : 'ok'} /><small>{data.testCredential ? 'Test keys never reach a real mailbox.' : 'Live keys deliver real mail.'}</small></div>
+          <div className="admin-health-row"><span>Sender</span><StatusPill label={data.sender ? 'set' : 'missing'} tone={data.sender ? 'ok' : 'bad'} /><small>{data.sender ?? 'No sender identity configured.'}</small></div>
+          <div className="admin-health-row"><span>Webhooks</span><StatusPill label={data.webhooksConfigured ? 'configured' : 'not configured'} tone={data.webhooksConfigured ? 'ok' : 'warn'} /><small>Delivery, bounce and complaint events update this record.</small></div>
+        </div>
+      </Panel>
+
+      <div className="admin-overview-columns">
+        <Panel title="By email type" eyebrow={rangeName(data.range).toUpperCase()}>
+          {data.byType.length
+            ? <div className="admin-inline-facts">{data.byType.map(row => <span key={row.type}>{row.type.replaceAll('_', ' ')} <b>{number(row.count)}</b></span>)}</div>
+            : <EmptyState title="No email recorded in this period" detail="Nothing was sent, or the delivery table predates this range." />}
+        </Panel>
+        <Panel title="Provider errors" eyebrow="FAILURE TAXONOMY">
+          {data.topErrors.length
+            ? <div className="admin-inline-facts">{data.topErrors.map(row => <span key={row.code}>{row.code.replaceAll('_', ' ')} <b>{number(row.count)}</b></span>)}</div>
+            : <EmptyState title="No email failures in this period" detail="Every accepted email reached the provider without an internal failure." />}
+          <div className="admin-inline-facts"><span>Suppressed addresses <b>{number(data.suppressions)}</b></span></div>
+        </Panel>
+      </div>
+
+      <Panel title="Recent deliveries" description="Provider message ids are opaque references, safe to quote in support threads. Recipients are not listed.">
+        {data.recent.length
+          ? <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>When</th><th>Type</th><th>Status</th><th>Error</th><th>Provider id</th></tr></thead><tbody>
+            {data.recent.map(row => <tr key={row.id}>
+              <td>{dateTime(row.createdAt)}</td>
+              <td>{row.emailType.replaceAll('_', ' ')}</td>
+              <td><StatusPill label={row.status.replaceAll('_', ' ')} tone={statusTone(row.status === 'accepted' ? 'connected' : row.status === 'failed' || row.status === 'failed_remote' ? 'failed' : row.status)} /></td>
+              <td>{row.errorCode ? row.errorCode.replaceAll('_', ' ') : '—'}</td>
+              <td><code>{row.providerMessageId ?? '—'}</code></td>
+            </tr>)}
+          </tbody></table></div>
+          : <EmptyState title="No deliveries recorded" detail="Delivery records appear once Intake sends its first email with this migration applied." />}
+      </Panel>
+    </>
+  );
 }
 
 export function AdminActivityPage() {

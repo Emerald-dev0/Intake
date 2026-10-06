@@ -10,6 +10,8 @@ const ConnectionsPage = lazy(() => import('./pages/ConnectionsPage').then(m => (
 const FormsPage = lazy(() => import('./pages/FormsPage').then(m => ({ default: m.FormsPage })));
 const LibraryPage = lazy(() => import('./pages/LibraryPage').then(m => ({ default: m.LibraryPage })));
 const AccountPage = lazy(() => import('./pages/AccountPage').then(m => ({ default: m.AccountPage })));
+const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage').then(m => ({ default: m.VerifyEmailPage })));
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
 const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ default: m.PricingPage })));
 const AdminGate = lazy(() => import('../admin/AdminGate').then(m => ({ default: m.AdminGate })));
 const AdminShell = lazy(() => import('../admin/AdminShell').then(m => ({ default: m.AdminShell })));
@@ -20,6 +22,7 @@ const AdminAiPage = lazy(() => import('../admin/AdminPages').then(m => ({ defaul
 const AdminCreditsPage = lazy(() => import('../admin/AdminPages').then(m => ({ default: m.AdminCreditsPage })));
 const AdminFormsPage = lazy(() => import('../admin/AdminPages').then(m => ({ default: m.AdminFormsPage })));
 const AdminProvidersPage = lazy(() => import('../admin/AdminPages').then(m => ({ default: m.AdminProvidersPage })));
+const AdminEmailPage = lazy(() => import('../admin/AdminPages').then(m => ({ default: m.AdminEmailPage })));
 const AdminSystemPage = lazy(() => import('../admin/AdminPages').then(m => ({ default: m.AdminSystemPage })));
 const AdminActivityPage = lazy(() => import('../admin/AdminPages').then(m => ({ default: m.AdminActivityPage })));
 function NotFoundPage() {
@@ -31,6 +34,8 @@ export const routes: RouteObject[] = [
   { path: '/pricing', element: <PricingPage /> },
   { path: '/auth/sign-in', element: <AuthPage key="sign-in" /> },
   { path: '/auth/sign-up', element: <AuthPage key="sign-up" signUp /> },
+  { path: '/auth/verify', element: <VerifyEmailPage /> },
+  { path: '/auth/reset-password', element: <ResetPasswordPage /> },
   { path: '/admin', element: <AdminGate />, children: [
     { element: <AdminShell />, children: [
       { index: true, element: <AdminOverviewPage /> },
@@ -40,6 +45,7 @@ export const routes: RouteObject[] = [
       { path: 'credits', element: <AdminCreditsPage /> },
       { path: 'forms', element: <AdminFormsPage /> },
       { path: 'providers', element: <AdminProvidersPage /> },
+      { path: 'email', element: <AdminEmailPage /> },
       { path: 'system', element: <AdminSystemPage /> },
       { path: 'activity', element: <AdminActivityPage /> },
       { path: '*', element: <NotFoundPage /> },

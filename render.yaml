@@ -52,6 +52,22 @@ services:
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
+      # --- Transactional email (Calder) -------------------------------------
+      # Server-only. Never add a VITE_ prefix: preflight fails the deployment if a secret leaks
+      # into the browser bundle. Use a test key in staging and a live key only in production.
+      - key: CALDER_API_KEY
+        sync: false # calder_sk_live_… in production, calder_sk_test_… in staging
+      # Verified sending domain, e.g. hello@intake.example.com. Requires Calder domain ownership
+      # (TXT) plus SPF, DKIM and DMARC on the same domain before real delivery works.
+      - key: CALDER_FROM_EMAIL
+        sync: false
+      # Display name on every Intake email.
+      - key: CALDER_FROM_NAME
+        value: Intake
+      # Signing secret from the Calder webhook endpoint registration.
+      # Endpoint: ${BETTER_AUTH_URL}/api/webhooks/calder
+      - key: CALDER_WEBHOOK_SECRET
+        sync: false # whsec_…, shown once when the endpoint is created
       # --- AI interpretation ------------------------------------------------
       - key: GROQ_API_KEY
         sync: false

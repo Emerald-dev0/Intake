@@ -1,4 +1,6 @@
 import { MarketingFooter, MarketingNav } from './MarketingChrome';
+import { MarketingIndex } from './MarketingIndex';
+import { MobileActionBar } from './MobileActionBar';
 import {
   ControlSection,
   CreationDemo,
@@ -20,6 +22,7 @@ export default function MarketingHome() {
     <div className="marketing-page">
       <a className="skip-link" href="#main-content">Skip to main content</a>
       <MarketingNav authenticated={authenticated} />
+      <MarketingIndex />
       <main id="main-content" tabIndex={-1}>
         <Hero authenticated={authenticated} />
         <DifferenceSection />
@@ -33,6 +36,7 @@ export default function MarketingHome() {
         <FinalCTA authenticated={authenticated} />
       </main>
       <MarketingFooter authenticated={authenticated} />
+      <MobileActionBar authenticated={authenticated} />
     </div>
   );
 }

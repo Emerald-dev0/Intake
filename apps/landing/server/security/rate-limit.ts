@@ -29,7 +29,12 @@ export type AbuseScope =
   | 'ai.interpret'
   | 'forms.create'
   | 'forms.provider_read'
-  | 'forms.edit';
+  | 'forms.edit'
+  | 'email.verify.send'
+  | 'email.verify.confirm'
+  | 'email.change.send'
+  | 'email.change.confirm'
+  | 'email.password_reset';
 
 interface ScopePolicy {
   user: RateLimitRule;
@@ -47,6 +52,13 @@ export const ABUSE_POLICIES: Record<AbuseScope, ScopePolicy> = {
   'forms.create': { user: { limit: 12, windowSeconds: 600 }, network: { limit: 1_200, windowSeconds: 600 } },
   'forms.provider_read': { user: { limit: 30, windowSeconds: 600 }, network: { limit: 3_000, windowSeconds: 600 } },
   'forms.edit': { user: { limit: 20, windowSeconds: 600 }, network: { limit: 2_000, windowSeconds: 600 } },
+  // Verification codes: tight per account, because the blast radius of an abused sender is the
+  // whole domain's reputation. Confirmations are tighter still — they are guesses, not requests.
+  'email.verify.send': { user: { limit: 5, windowSeconds: 600 }, network: { limit: 300, windowSeconds: 600 } },
+  'email.verify.confirm': { user: { limit: 12, windowSeconds: 600 }, network: { limit: 600, windowSeconds: 600 } },
+  'email.change.send': { user: { limit: 4, windowSeconds: 600 }, network: { limit: 200, windowSeconds: 600 } },
+  'email.change.confirm': { user: { limit: 10, windowSeconds: 600 }, network: { limit: 400, windowSeconds: 600 } },
+  'email.password_reset': { user: { limit: 5, windowSeconds: 600 }, network: { limit: 120, windowSeconds: 600 } },
 };
 
 export type RequestLimitResult =

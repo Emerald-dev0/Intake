@@ -3,7 +3,7 @@ import { FAQS, PROMPT_EXAMPLES, WORKFLOW_STEPS } from '../content/site';
 import { PLAN_CATALOG, formatUsd, proPriceComparison } from '../lib/plans';
 import { LogoMark } from '../components/LogoMark';
 import { StartLink } from './MarketingChrome';
-import { useCanHover, useInView, usePointerGlow } from './motion';
+import { useViewState } from './motion';
 
 function Arrow({ diagonal = false }: { diagonal?: boolean }) {
   return diagonal ? (
@@ -22,27 +22,43 @@ function Check() {
 }
 
 /**
- * Scroll reveal. The element is in the DOM immediately; only the entrance is delayed, so the page is
- * readable with JavaScript slow, broken, or motion reduced.
+ * Scroll reveal.
+ *
+ * Four entrances, and an exit. `fadeOut` is what makes the page feel alive on the way back up: a
+ * block the reader has finished with settles back rather than sitting at full strength for the rest
+ * of the scroll. It is never applied to anything interactive — a control must not fade under the
+ * pointer.
+ *
+ * The element is in the DOM immediately; only the entrance is delayed, so the page is readable with
+ * JavaScript slow, broken, or motion reduced.
  */
+type RevealVariant = 'rise' | 'fade' | 'wipe' | 'scale';
+
 function Reveal({
   children,
   className = '',
   delay = 0,
+  variant = 'rise',
+  fadeOut = false,
   as: Tag = 'div',
 }: {
   children: ReactNode;
   className?: string;
   delay?: number;
+  variant?: RevealVariant;
+  fadeOut?: boolean;
   as?: 'div' | 'li' | 'article' | 'section' | 'span' | 'p';
 }) {
-  const [ref, inView] = useInView<HTMLDivElement>();
+  const [ref, state] = useViewState<HTMLDivElement>({ once: !fadeOut });
+  const classes = [
+    'mk-reveal',
+    `mk-reveal--${variant}`,
+    state === 'in' ? 'is-in' : '',
+    fadeOut && state === 'after' ? 'is-out' : '',
+    className,
+  ].filter(Boolean).join(' ');
   return (
-    <Tag
-      ref={ref as never}
-      className={`mk-reveal${inView ? ' is-in' : ''}${className ? ` ${className}` : ''}`}
-      style={{ '--d': `${delay}ms` } as CSSProperties}
-    >
+    <Tag ref={ref as never} className={classes} style={{ '--d': `${delay}ms` } as CSSProperties}>
       {children}
     </Tag>
   );
@@ -62,7 +78,7 @@ function SectionIntro({
   className?: string;
 }) {
   return (
-    <Reveal className={`mk-section-intro ${className}`}>
+    <Reveal className={`mk-section-intro ${className}`} variant="rise" fadeOut>
       <span className="mk-eyebrow">{eyebrow}</span>
       <h2 id={titleId}>{title}</h2>
       <p>{children}</p>
@@ -190,13 +206,9 @@ function EditPreview() {
 }
 
 export function Hero({ authenticated }: { authenticated: boolean }) {
-  const canHover = useCanHover();
-  const glow = usePointerGlow<HTMLDivElement>(canHover);
-
   return (
     <section className="mk-hero" id="top" aria-labelledby="mk-hero-title">
-      <div className="mk-hero__aura" aria-hidden="true"><span /><span /></div>
-      <div className="mk-container mk-hero__grid" ref={glow.ref} onPointerMove={glow.onPointerMove}>
+      <div className="mk-container mk-hero__grid">
         <div className="mk-hero__copy">
           <span className="mk-eyebrow mk-hero__eyebrow mk-anim-in" style={{ '--d': '60ms' } as CSSProperties}><i aria-hidden="true" /> FOR PEOPLE WHO JUST NEED THE FORM</span>
           <h1 id="mk-hero-title">
@@ -264,13 +276,13 @@ export function DifferenceSection() {
           <SectionIntro eyebrow="WHY INTAKE" titleId="mk-difference-title" title={<>Not another form builder.</>}>
             Intake does not move your forms somewhere new. It gives you a faster way to make and change the Google Forms you were always going to use.
           </SectionIntro>
-          <Reveal className="mk-difference__aside" as="p" delay={120}>
+          <Reveal className="mk-difference__aside" as="p" delay={120} variant="fade" fadeOut>
             Build the form you already had in your head, then decide when it is ready.
           </Reveal>
         </div>
 
         <div className="mk-workflow-compare" role="group" aria-label="Doing it by hand compared with Intake">
-          <Reveal className="mk-workflow-compare__column">
+          <Reveal className="mk-workflow-compare__column" variant="fade">
             <span className="mk-eyebrow">BY HAND</span>
             <h3>Piece it together.</h3>
             <ol>
@@ -283,7 +295,7 @@ export function DifferenceSection() {
           <div className="mk-workflow-compare__divider" aria-hidden="true">
             <span className="mk-workflow-compare__arrow"><Arrow /></span>
           </div>
-          <Reveal className="mk-workflow-compare__column mk-workflow-compare__column--intake" delay={120}>
+          <Reveal className="mk-workflow-compare__column mk-workflow-compare__column--intake" delay={120} variant="fade">
             <span className="mk-eyebrow">WITH INTAKE</span>
             <h3>Say what you want.</h3>
             <ol>
@@ -297,7 +309,7 @@ export function DifferenceSection() {
 
         <ul className="mk-difference__features">
           {DIFFERENCES.map((item, index) => (
-            <Reveal as="li" className="mk-difference__feature" key={item.title} delay={index * 90}>
+            <Reveal as="li" className="mk-difference__feature" key={item.title} delay={index * 90} variant="rise">
               <span className="mk-difference__icon" aria-hidden="true"><i /></span>
               <div><h3>{item.title}</h3><p>{item.text}</p></div>
             </Reveal>
@@ -317,14 +329,14 @@ export function HowItWorks() {
         </SectionIntro>
         <ol className="mk-steps">
           {WORKFLOW_STEPS.map((step, index) => (
-            <Reveal as="li" className="mk-step" key={step.title} delay={index * 110}>
+            <Reveal as="li" className="mk-step" key={step.title} delay={index * 110} variant="rise">
               <span className="mk-step__number">{String(index + 1).padStart(2, '0')}</span>
               <h3>{step.title}</h3>
               <p>{step.body}</p>
             </Reveal>
           ))}
         </ol>
-        <Reveal className="mk-how__edit-note" delay={140}>
+        <Reveal className="mk-how__edit-note" delay={140} variant="fade">
           <span className="mk-how__edit-mark" aria-hidden="true">↳</span>
           <p>Editing is the same story: Intake reads the form first, shows the change, then applies it.</p>
           <a href="#editing">See an edit example <Arrow /></a>
@@ -401,7 +413,7 @@ export function EditingDemo() {
           </SectionIntro>
         </div>
 
-        <Reveal className="mk-editing__request">
+        <Reveal className="mk-editing__request" variant="wipe">
           <span>REQUESTED CHANGE</span>
           <p>“Add a question asking whether the customer wants a follow-up call, and place it after the satisfaction rating.”</p>
         </Reveal>
@@ -513,7 +525,7 @@ export function PricingSection({ authenticated }: { authenticated: boolean }) {
         </div>
 
         <div className="mk-price-grid">
-          <Reveal className="mk-price-card">
+          <Reveal className="mk-price-card" variant="scale">
             <article aria-labelledby="mk-free-title">
               <div className="mk-price-card__top"><span>START HERE</span><span className="mk-chip mk-chip--quiet">FREE</span></div>
               <h3 id="mk-free-title">Free</h3>
@@ -528,7 +540,7 @@ export function PricingSection({ authenticated }: { authenticated: boolean }) {
             </article>
           </Reveal>
 
-          <Reveal className="mk-price-card mk-price-card--pro" delay={140}>
+          <Reveal className="mk-price-card mk-price-card--pro" delay={140} variant="scale">
             <article aria-labelledby="mk-pro-title">
               <div className="mk-price-card__top"><span>FOR HEAVIER USE</span><span className="mk-chip mk-chip--warm">PRO</span></div>
               <h3 id="mk-pro-title">Pro</h3>
@@ -546,7 +558,7 @@ export function PricingSection({ authenticated }: { authenticated: boolean }) {
           </Reveal>
         </div>
 
-        <Reveal className="mk-credit-guide" delay={120}>
+        <Reveal className="mk-credit-guide" delay={120} variant="fade">
           <div className="mk-credit-guide__intro">
             <span className="mk-eyebrow">WHAT A CREDIT IS</span>
             <h3 id="mk-credit-title">One credit, one request understood.</h3>
@@ -603,7 +615,7 @@ export function FinalCTA({ authenticated }: { authenticated: boolean }) {
     <section className="mk-final-cta" aria-labelledby="mk-final-title">
       <div className="mk-final-cta__glow" aria-hidden="true" />
       <div className="mk-container mk-final-cta__inner">
-        <Reveal>
+        <Reveal variant="rise">
           <span className="mk-eyebrow">YOUR NEXT FORM</span>
           <h2 id="mk-final-title">Write it once. Watch it become a form.</h2>
           <p>Describe what you need, look it over, and let Intake build it in Google Forms.</p>
