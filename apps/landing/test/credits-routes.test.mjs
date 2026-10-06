@@ -78,7 +78,7 @@ test('the balance endpoint reports plan, remaining credits and reset instants, a
   assert.equal(anonymous.status, 200);
   const balance = anonymous.json.credits;
   assert.deepEqual(Object.keys(balance).sort(), ['availableCredits', 'dailyLimit', 'dailyRemaining', 'monthlyLimit', 'monthlyRemaining', 'nextDailyReset', 'nextMonthlyReset', 'plan', 'subscriptionStatus']);
-  assert.deepEqual({ plan: balance.plan, daily: balance.dailyRemaining, dailyLimit: balance.dailyLimit, monthly: balance.monthlyRemaining, monthlyLimit: balance.monthlyLimit, available: balance.availableCredits }, { plan: 'free', daily: 20, dailyLimit: 20, monthly: 0, monthlyLimit: 0, available: 20 });
+  assert.deepEqual({ plan: balance.plan, daily: balance.dailyRemaining, dailyLimit: balance.dailyLimit, monthly: balance.monthlyRemaining, monthlyLimit: balance.monthlyLimit, available: balance.availableCredits }, { plan: 'free', daily: 10, dailyLimit: 10, monthly: 0, monthlyLimit: 0, available: 10 });
   assert.equal(balance.subscriptionStatus, 'none');
   assert.deepEqual(anonymous.json.costGuide, {
     formCreate: { min: 2, max: 5, standard: 2, complexMin: 3 },
@@ -137,7 +137,7 @@ test('a failed or non-result AI operation never charges', () => withApi({ interp
   assert.equal(failed.status, 503);
   assert.equal(failed.json.code, 'model_unavailable');
   const balance = (await app.balance()).json.credits;
-  assert.equal(balance.dailyRemaining, 20, 'a provider failure is never charged');
+  assert.equal(balance.dailyRemaining, 10, 'a provider failure is never charged');
   const usage = await app.creditStore.usage('user-a');
   assert.deepEqual(usage.map(row => [row.outcome, row.errorCategory, row.creditCost]), [['failed', 'model_unavailable', 0]]);
   assert.equal(app.store.all().length, 0);
@@ -164,7 +164,7 @@ test('clarification and unsupported results are recorded but not charged', () =>
 }));
 
 test('an unaffordable operation is refused before the model is called, and creates nothing', () => withApi({}, async app => {
-  await app.credits.charge({ userId: 'user-a', operationType: 'form_create', operationKey: 'operation-key-drain-1', cost: 20, now: NOW });
+  await app.credits.charge({ userId: 'user-a', operationType: 'form_create', operationKey: 'operation-key-drain-1', cost: 10, now: NOW });
   assert.equal((await app.balance()).json.credits.dailyRemaining, 0);
   const refused = await app.interpret({ provider: 'google', request: 'Register people', operationId: 'operation-key-gggg7777' });
   assert.equal(refused.status, 402);
@@ -200,9 +200,9 @@ test('revising a draft is a separate logical operation with its own charge', () 
 test('a pro plan spends daily credits first, then the monthly reserve, and the browser only sees the totals', () => withApi({}, async app => {
   await app.credits.setPlan('user-a', { plan: 'pro', subscriptionStatus: 'active' });
   const start = (await app.balance()).json.credits;
-  assert.deepEqual({ plan: start.plan, daily: start.dailyRemaining, monthly: start.monthlyRemaining }, { plan: 'pro', daily: 20, monthly: 500 });
+  assert.deepEqual({ plan: start.plan, daily: start.dailyRemaining, monthly: start.monthlyRemaining }, { plan: 'pro', daily: 10, monthly: 1000 });
   // Drain the daily allowance with a single complex creation, then spend from the reserve.
-  await app.credits.charge({ userId: 'user-a', operationType: 'form_create', operationKey: 'operation-key-drain-2', cost: 20, now: NOW });
+  await app.credits.charge({ userId: 'user-a', operationType: 'form_create', operationKey: 'operation-key-drain-2', cost: 10, now: NOW });
   const created = await app.interpret({ provider: 'google', request: 'Register people', operationId: 'operation-key-jjjj1010' });
   assert.equal(created.status, 201, created.text);
   assert.deepEqual({ daily: created.json.credits.dailyRemaining, monthly: created.json.credits.monthlyRemaining }, { daily: 0, monthly: 498 });

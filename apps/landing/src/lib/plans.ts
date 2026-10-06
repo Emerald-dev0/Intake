@@ -1,7 +1,18 @@
 /**
  * Public plan and price metadata shared by the product UI and server entitlement projection.
+ *
  * This is descriptive only: the server still owns account plans, grants, balances, and charges.
- * No billing provider or plan-change endpoint is implemented.
+ * The authoritative billing configuration lives in `server/billing/plans.ts`.
+ *
+ * Phase 18 update: pricing now reflects the production billing model.
+ *   Free:  $0 — 10 credits/day
+ *   Pro:   $7.99/month or $69/year — 1,000 subscription credits per billing period + 10 daily
+ *   Annual saves $26.89 vs 12 monthly payments (28.0%)
+ *
+ * Credit packs (purchased, distinguishable from subscription):
+ *   Starter:  100 credits — $1.99
+ *   Standard: 500 credits — $5.99
+ *   Power:  1,500 credits — $12.99
  */
 
 export const PLAN_IDS = ['free', 'pro'] as const;
@@ -21,18 +32,32 @@ export const PLAN_CATALOG: Record<PlanId, PlanCatalogEntry> = {
   free: {
     id: 'free',
     label: 'Free',
-    dailyCredits: 20,
+    dailyCredits: 10,
     monthlyCredits: 0,
     prices: null,
   },
   pro: {
     id: 'pro',
     label: 'Pro',
-    dailyCredits: 20,
-    monthlyCredits: 500,
-    prices: { month: 699, year: 5999 },
+    dailyCredits: 10,
+    monthlyCredits: 1000,
+    prices: { month: 799, year: 6900 },
   },
 };
+
+/** Credit-pack catalogue for display. Amounts are in cents. */
+export interface CreditPackCatalogEntry {
+  id: string;
+  label: string;
+  credits: number;
+  priceCents: number;
+}
+
+export const CREDIT_PACK_CATALOG: CreditPackCatalogEntry[] = [
+  { id: 'starter', label: 'Starter', credits: 100, priceCents: 199 },
+  { id: 'standard', label: 'Standard', credits: 500, priceCents: 599 },
+  { id: 'power', label: 'Power', credits: 1500, priceCents: 1299 },
+];
 
 export interface ProPriceComparison {
   monthlyCents: number;

@@ -16,8 +16,12 @@ export const PRICING_FAQS = [
     answer: `Pro has ${PLAN_CATALOG.pro.dailyCredits} daily credits plus ${PLAN_CATALOG.pro.monthlyCredits} monthly credits. The form workflows and provider limits are the same as Free. Unused credits do not roll over.`,
   },
   {
+    question: 'What are credit packs?',
+    answer: 'Credit packs let you buy additional credits when you need more. Packs come in three sizes: 100 credits, 500 credits, or 1,500 credits. Purchased credits never expire and are used after your daily and subscription credits.',
+  },
+  {
     question: 'How do I get Pro?',
-    answer: 'Start with a free account and keep building. Pro opens to existing accounts first and can be switched on from your account page; everything you have made on Free comes with you.',
+    answer: 'Start with a free account and keep building. You can upgrade to Pro from your billing page at any time; everything you have made on Free comes with you.',
   },
   {
     question: 'How are credit charges decided?',

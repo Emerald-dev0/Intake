@@ -39,7 +39,7 @@ export function MobileActionBar({ authenticated }: { authenticated: boolean }) {
     <div className={`mk-mobile-cta${visible ? ' is-visible' : ''}`} aria-hidden={!visible}>
       <span className="mk-mobile-cta__label">
         <strong>{authenticated ? 'Your workspace' : 'Free to start'}</strong>
-        <span>20 credits every day</span>
+        <span>10 credits every day</span>
       </span>
       <StartLink authenticated={authenticated} className="mk-button mk-button--primary" />
     </div>

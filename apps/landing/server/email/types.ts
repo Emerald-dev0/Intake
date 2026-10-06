@@ -43,7 +43,17 @@ export type EmailType =
   | 'security_google_disconnected'
   | 'provider_connection_added'
   | 'provider_connection_removed'
-  | 'credits_low';
+  | 'credits_low'
+  | 'billing_subscription_started'
+  | 'billing_subscription_renewed'
+  | 'billing_subscription_canceled'
+  | 'billing_subscription_ending'
+  | 'billing_subscription_ended'
+  | 'billing_payment_success'
+  | 'billing_payment_failed'
+  | 'billing_credit_pack_purchased'
+  | 'billing_receipt'
+  | 'billing_renewal_reminder';
 
 export interface EmailTag {
   name: string;

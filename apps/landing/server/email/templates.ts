@@ -482,6 +482,284 @@ const creditsLow: EmailTemplate = {
   ].join('\n'),
 };
 
+// ── Billing templates ──────────────────────────────────────────────────────────────────────────
+
+const billingSubscriptionStarted: EmailTemplate = {
+  id: 'billing_subscription_started',
+  alias: 'intake-billing-subscription-started',
+  subject: () => 'Your Intake Pro subscription is active',
+  preheader: vars => `Your Pro subscription is active with ${text_(vars.subscriptionCredits, '1,000')} credits this period.`,
+  heading: () => 'Welcome to Pro',
+  body: vars => [
+    paragraph(greeting(vars)),
+    paragraph(`Your Intake Pro subscription is now active. You have <strong style="font-weight:600;color:${INK}">${escapeHtml(text_(vars.subscriptionCredits, '1,000'))} credits</strong> for this billing period, plus your ${escapeHtml(text_(vars.dailyCredits, '10'))} daily credits.`),
+    detailsTable([
+      detailRow('Plan', text_(vars.planLabel, 'Pro')),
+      detailRow('Billing', text_(vars.interval, 'monthly')),
+      detailRow('Amount', text_(vars.amount, '$7.99')),
+      detailRow('Period', `${text_(vars.periodStart)} — ${text_(vars.periodEnd)}`),
+    ].join('')),
+    button(text_(vars.dashboardUrl), 'Open your workspace'),
+    paragraph('Pro credits refresh each billing period. Daily credits renew at 00:00 UTC. You can see your balance anytime on the billing page.', `font-size:14px;color:${MUTED}`),
+  ].join(''),
+  text: vars => [
+    greeting(vars),
+    '',
+    `Your Intake Pro subscription is now active. You have ${text_(vars.subscriptionCredits, '1,000')} credits for this billing period, plus your ${text_(vars.dailyCredits, '10')} daily credits.`,
+    '',
+    `Plan: ${text_(vars.planLabel, 'Pro')}`,
+    `Billing: ${text_(vars.interval, 'monthly')}`,
+    `Amount: ${text_(vars.amount, '$7.99')}`,
+    `Period: ${text_(vars.periodStart)} — ${text_(vars.periodEnd)}`,
+    '',
+    `Open your workspace: ${text_(vars.dashboardUrl)}`,
+    '',
+    'Pro credits refresh each billing period. Daily credits renew at 00:00 UTC.',
+  ].join('\n'),
+};
+
+const billingSubscriptionRenewed: EmailTemplate = {
+  id: 'billing_subscription_renewed',
+  alias: 'intake-billing-subscription-renewed',
+  subject: () => 'Your Intake Pro subscription has renewed',
+  preheader: vars => `Your Pro subscription renewed for ${text_(vars.amount)}. New credits are available.`,
+  heading: () => 'Subscription renewed',
+  body: vars => [
+    paragraph(greeting(vars)),
+    paragraph(`Your Intake Pro subscription has renewed successfully. Your credits have been refreshed for the new billing period.`),
+    detailsTable([
+      detailRow('Amount', text_(vars.amount)),
+      detailRow('New period', `${text_(vars.periodStart)} — ${text_(vars.periodEnd)}`),
+      detailRow('Credits', text_(vars.subscriptionCredits, '1,000')),
+    ].join('')),
+    button(text_(vars.dashboardUrl), 'Open your workspace'),
+  ].join(''),
+  text: vars => [
+    greeting(vars),
+    '',
+    'Your Intake Pro subscription has renewed successfully. Your credits have been refreshed.',
+    '',
+    `Amount: ${text_(vars.amount)}`,
+    `New period: ${text_(vars.periodStart)} — ${text_(vars.periodEnd)}`,
+    `Credits: ${text_(vars.subscriptionCredits, '1,000')}`,
+    '',
+    `Open your workspace: ${text_(vars.dashboardUrl)}`,
+  ].join('\n'),
+};
+
+const billingSubscriptionCanceled: EmailTemplate = {
+  id: 'billing_subscription_canceled',
+  alias: 'intake-billing-subscription-canceled',
+  subject: () => 'Your Intake Pro subscription has been canceled',
+  preheader: () => 'Your Pro subscription has been canceled. You have been returned to the Free plan.',
+  heading: () => 'Subscription canceled',
+  body: vars => [
+    paragraph(greeting(vars)),
+    paragraph('Your Intake Pro subscription has been canceled. You have been returned to the Free plan.'),
+    paragraph('Your previously created forms are unaffected. You retain your Free plan daily credits.'),
+    detailsTable([
+      detailRow('Canceled on', text_(vars.canceledAt)),
+    ].join('')),
+    button(text_(vars.dashboardUrl), 'Open your workspace'),
+    callout('You can resubscribe to Pro anytime from your billing page. Everything you have built on Intake comes with you.'),
+  ].join(''),
+  text: vars => [
+    greeting(vars),
+    '',
+    'Your Intake Pro subscription has been canceled. You have been returned to the Free plan.',
+    '',
+    'Your previously created forms are unaffected. You retain your Free plan daily credits.',
+    '',
+    `Canceled on: ${text_(vars.canceledAt)}`,
+    '',
+    `Open your workspace: ${text_(vars.dashboardUrl)}`,
+    '',
+    'You can resubscribe to Pro anytime from your billing page.',
+  ].join('\n'),
+};
+
+const billingSubscriptionEnding: EmailTemplate = {
+  id: 'billing_subscription_ending',
+  alias: 'intake-billing-subscription-ending',
+  subject: () => 'Your Intake Pro subscription is ending soon',
+  preheader: vars => `Your Pro access continues until ${text_(vars.periodEnd)}. After that, your account returns to Free.`,
+  heading: () => 'Your subscription is ending',
+  body: vars => [
+    paragraph(greeting(vars)),
+    paragraph(`You canceled your Intake Pro subscription. Your Pro access continues until <strong style="font-weight:600;color:${INK}">${escapeHtml(text_(vars.periodEnd))}</strong>, after which your account returns to the Free plan.`),
+    paragraph('No further charges will be made. Your previously created forms are unaffected.'),
+    button(text_(vars.dashboardUrl), 'Open your workspace'),
+    callout('If you change your mind, you can resubscribe before the period ends to keep your Pro benefits.'),
+  ].join(''),
+  text: vars => [
+    greeting(vars),
+    '',
+    `You canceled your Intake Pro subscription. Your Pro access continues until ${text_(vars.periodEnd)}, after which your account returns to the Free plan.`,
+    '',
+    'No further charges will be made. Your previously created forms are unaffected.',
+    '',
+    `Open your workspace: ${text_(vars.dashboardUrl)}`,
+    '',
+    'If you change your mind, you can resubscribe before the period ends.',
+  ].join('\n'),
+};
+
+const billingSubscriptionEnded: EmailTemplate = {
+  id: 'billing_subscription_ended',
+  alias: 'intake-billing-subscription-ended',
+  subject: () => 'Your Intake Pro subscription has ended',
+  preheader: () => 'Your Pro subscription period has ended. Your account is now on the Free plan.',
+  heading: () => 'Pro access has ended',
+  body: vars => [
+    paragraph(greeting(vars)),
+    paragraph('Your Intake Pro subscription period has ended. Your account is now on the Free plan with daily credits.'),
+    paragraph('Your previously created forms are unaffected.'),
+    button(text_(vars.dashboardUrl), 'Open your workspace'),
+    callout('You can resubscribe to Pro anytime from your billing page.'),
+  ].join(''),
+  text: vars => [
+    greeting(vars),
+    '',
+    'Your Intake Pro subscription period has ended. Your account is now on the Free plan.',
+    '',
+    'Your previously created forms are unaffected.',
+    '',
+    `Open your workspace: ${text_(vars.dashboardUrl)}`,
+    '',
+    'You can resubscribe to Pro anytime.',
+  ].join('\n'),
+};
+
+const billingPaymentSuccess: EmailTemplate = {
+  id: 'billing_payment_success',
+  alias: 'intake-billing-payment-success',
+  subject: vars => `Payment received: ${text_(vars.amount)}`,
+  preheader: vars => `Intake received your payment of ${text_(vars.amount)} for ${text_(vars.description)}.`,
+  heading: () => 'Payment received',
+  body: vars => [
+    paragraph(greeting(vars)),
+    paragraph(`Intake has received your payment. Thank you.`),
+    detailsTable([
+      detailRow('Amount', text_(vars.amount)),
+      detailRow('Description', text_(vars.description)),
+      detailRow('Date', text_(vars.timestamp)),
+      detailRow('Reference', text_(vars.referenceId)),
+    ].join('')),
+    button(text_(vars.dashboardUrl), 'View billing history'),
+    paragraph('This is your receipt. No further action is needed.', `font-size:14px;color:${MUTED}`),
+  ].join(''),
+  text: vars => [
+    greeting(vars),
+    '',
+    `Intake has received your payment. Thank you.`,
+    '',
+    `Amount: ${text_(vars.amount)}`,
+    `Description: ${text_(vars.description)}`,
+    `Date: ${text_(vars.timestamp)}`,
+    `Reference: ${text_(vars.referenceId)}`,
+    '',
+    `View billing history: ${text_(vars.dashboardUrl)}`,
+    '',
+    'This is your receipt. No further action is needed.',
+  ].join('\n'),
+};
+
+const billingPaymentFailed: EmailTemplate = {
+  id: 'billing_payment_failed',
+  alias: 'intake-billing-payment-failed',
+  subject: () => 'Payment failed — action required',
+  preheader: () => 'A payment for your Intake subscription or credit pack could not be processed.',
+  heading: () => 'Payment failed',
+  body: vars => [
+    paragraph(greeting(vars)),
+    paragraph('A payment for your Intake account could not be processed. This may affect your subscription or credit availability.'),
+    detailsTable([
+      detailRow('Description', text_(vars.description, 'Intake billing')),
+      detailRow('Date', text_(vars.timestamp)),
+    ].join('')),
+    button(text_(vars.dashboardUrl), 'Review your billing'),
+    callout('Please update your payment method or contact support if this was unexpected. Your existing forms are not affected.'),
+  ].join(''),
+  text: vars => [
+    greeting(vars),
+    '',
+    'A payment for your Intake account could not be processed.',
+    '',
+    `Description: ${text_(vars.description, 'Intake billing')}`,
+    `Date: ${text_(vars.timestamp)}`,
+    '',
+    `Review your billing: ${text_(vars.dashboardUrl)}`,
+    '',
+    'Please update your payment method or contact support if this was unexpected.',
+  ].join('\n'),
+};
+
+const billingCreditPackPurchased: EmailTemplate = {
+  id: 'billing_credit_pack_purchased',
+  alias: 'intake-billing-credit-pack-purchased',
+  subject: vars => `${text_(vars.credits)} credits added to your Intake account`,
+  preheader: vars => `${text_(vars.credits)} credits from your ${text_(vars.packLabel)} pack are now available.`,
+  heading: vars => `${escapeHtml(text_(vars.credits))} credits added`,
+  body: vars => [
+    paragraph(greeting(vars)),
+    paragraph(`Your <strong style="font-weight:600;color:${INK}">${escapeHtml(text_(vars.packLabel))}</strong> credit pack has been applied. <strong style="font-weight:600;color:${INK}">${escapeHtml(text_(vars.credits))} credits</strong> are now available in your account.`),
+    detailsTable([
+      detailRow('Pack', text_(vars.packLabel)),
+      detailRow('Credits', text_(vars.credits)),
+      detailRow('Amount', text_(vars.amount)),
+      detailRow('Date', text_(vars.timestamp)),
+    ].join('')),
+    button(text_(vars.dashboardUrl), 'Open your workspace'),
+    paragraph('Purchased credits are used after your daily and subscription credits. They do not expire.', `font-size:14px;color:${MUTED}`),
+  ].join(''),
+  text: vars => [
+    greeting(vars),
+    '',
+    `Your ${text_(vars.packLabel)} credit pack has been applied. ${text_(vars.credits)} credits are now available.`,
+    '',
+    `Pack: ${text_(vars.packLabel)}`,
+    `Credits: ${text_(vars.credits)}`,
+    `Amount: ${text_(vars.amount)}`,
+    `Date: ${text_(vars.timestamp)}`,
+    '',
+    `Open your workspace: ${text_(vars.dashboardUrl)}`,
+    '',
+    'Purchased credits are used after your daily and subscription credits. They do not expire.',
+  ].join('\n'),
+};
+
+const billingRenewalReminder: EmailTemplate = {
+  id: 'billing_renewal_reminder',
+  alias: 'intake-billing-renewal-reminder',
+  subject: vars => `Your Intake Pro subscription renews ${text_(vars.renewalDate)}`,
+  preheader: vars => `Your Pro subscription will renew on ${text_(vars.renewalDate)} for ${text_(vars.amount)}.`,
+  heading: () => 'Upcoming renewal',
+  body: vars => [
+    paragraph(greeting(vars)),
+    paragraph(`Your Intake Pro subscription will renew on <strong style="font-weight:600;color:${INK}">${escapeHtml(text_(vars.renewalDate))}</strong>. Your payment method will be charged <strong style="font-weight:600;color:${INK}">${escapeHtml(text_(vars.amount))}</strong>.`),
+    detailsTable([
+      detailRow('Renewal date', text_(vars.renewalDate)),
+      detailRow('Amount', text_(vars.amount)),
+      detailRow('Plan', text_(vars.planLabel, 'Pro')),
+    ].join('')),
+    button(text_(vars.dashboardUrl), 'Manage subscription'),
+    paragraph('If you do not wish to continue, you can cancel before the renewal date from your billing page.', `font-size:14px;color:${MUTED}`),
+  ].join(''),
+  text: vars => [
+    greeting(vars),
+    '',
+    `Your Intake Pro subscription will renew on ${text_(vars.renewalDate)} for ${text_(vars.amount)}.`,
+    '',
+    `Renewal date: ${text_(vars.renewalDate)}`,
+    `Amount: ${text_(vars.amount)}`,
+    `Plan: ${text_(vars.planLabel, 'Pro')}`,
+    '',
+    `Manage subscription: ${text_(vars.dashboardUrl)}`,
+    '',
+    'If you do not wish to continue, you can cancel before the renewal date.',
+  ].join('\n'),
+};
+
 export const EMAIL_TEMPLATES: readonly EmailTemplate[] = [
   otp,
   passwordReset,
@@ -494,6 +772,15 @@ export const EMAIL_TEMPLATES: readonly EmailTemplate[] = [
   providerConnectionAdded,
   providerConnectionRemoved,
   creditsLow,
+  billingSubscriptionStarted,
+  billingSubscriptionRenewed,
+  billingSubscriptionCanceled,
+  billingSubscriptionEnding,
+  billingSubscriptionEnded,
+  billingPaymentSuccess,
+  billingPaymentFailed,
+  billingCreditPackPurchased,
+  billingRenewalReminder,
 ];
 
 const BY_ID = new Map<EmailType, EmailTemplate>(EMAIL_TEMPLATES.map(template => [template.id, template]));

@@ -42,11 +42,12 @@ export function WorkspaceLayout() {
           <a className={page === 'library' ? 'active' : ''} href="/app/library"><span aria-hidden>▤</span> Library</a>
           <a className={page === 'forms' ? 'active' : ''} href="/app/forms"><span aria-hidden>✎</span> Forms</a>
           <a className={page === 'connections' ? 'active' : ''} href="/app/connections"><span aria-hidden>◇</span> Connections</a>
+          <a className={page === 'billing' ? 'active' : ''} href="/app/billing"><span aria-hidden>$</span> Billing</a>
         </nav>
         <div className="sidebar-credits" aria-live="polite">
           <span className="sidebar-label">CREDITS</span>
           {credits.state.status === 'ready'
-            ? <><strong>{creditSummary(credits.state.credits)}</strong><span>Daily {resetLabel(credits.state.credits.nextDailyReset)}</span>{credits.state.credits.monthlyLimit > 0 && <span>Monthly {resetLabel(credits.state.credits.nextMonthlyReset)}</span>}<a className="sidebar-plan-link" href="/app/account">Plan &amp; credit details →</a></>
+            ? <><strong>{creditSummary(credits.state.credits)}</strong><span>Daily {resetLabel(credits.state.credits.nextDailyReset)}</span>{credits.state.credits.monthlyLimit > 0 && <span>Monthly {resetLabel(credits.state.credits.nextMonthlyReset)}</span>}<a className="sidebar-plan-link" href="/app/billing">Billing &amp; credits →</a></>
             : credits.state.status === 'loading'
               ? <span>Checking your credits…</span>
               : <button type="button" className="sidebar-credits-retry" onClick={() => credits.reload()}>Credits unavailable — retry</button>}

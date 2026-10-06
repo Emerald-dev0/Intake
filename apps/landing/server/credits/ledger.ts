@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
 import {
-  applyPlanBuckets, BUCKET_PRIORITY, dailyPeriodKey, grantCredits, monthlyPeriodKey, periodKeyFor,
+  applyPlanBuckets, BUCKET_PRIORITY, dailyPeriodKey, grantCredits, monthlyPeriodKey, periodKeyFor, usesLegacyMonthlyBucket,
   type CreditBucket, type Entitlement, type PlanId, type SubscriptionStatus,
 } from './entitlements';
 
@@ -15,13 +15,16 @@ import {
  *    replayed key impossible to charge twice, even across processes and browser retries.
  */
 
-export type GrantEntryType = 'daily_grant' | 'monthly_grant';
-export const LEDGER_ENTRY_TYPES = ['daily_grant', 'monthly_grant', 'ai_consumption', 'manual_adjustment', 'expiration'] as const;
+export type GrantEntryType = 'daily_grant' | 'monthly_grant' | 'subscription_grant' | 'credit_purchase' | 'promotion_grant';
+export const LEDGER_ENTRY_TYPES = ['daily_grant', 'monthly_grant', 'subscription_grant', 'ai_consumption', 'manual_adjustment', 'expiration', 'credit_purchase', 'promotion_grant'] as const;
 export type LedgerEntryType = (typeof LEDGER_ENTRY_TYPES)[number];
 
 export interface ConsumptionBreakdown {
   daily: number;
   monthly: number;
+  subscription: number;
+  purchased: number;
+  promotion: number;
 }
 
 export interface UsageRecord {
@@ -72,7 +75,7 @@ export interface CreditStore {
 }
 
 function emptyBuckets(): Record<CreditBucket, number> {
-  return { daily: 0, monthly: 0 };
+  return { daily: 0, monthly: 0, subscription: 0, purchased: 0, promotion: 0 };
 }
 
 function requireCost(cost: number): number {
@@ -87,7 +90,7 @@ export function validOperationKey(key: string): boolean {
 /** Splits a charge across buckets in the documented order: daily first, then the monthly reserve. */
 export function allocate(cost: number, balances: Record<CreditBucket, number>): ConsumptionBreakdown {
   let remaining = cost;
-  const breakdown: ConsumptionBreakdown = { daily: 0, monthly: 0 };
+  const breakdown: ConsumptionBreakdown = { daily: 0, monthly: 0, subscription: 0, purchased: 0, promotion: 0 };
   for (const bucket of BUCKET_PRIORITY) {
     const take = Math.min(remaining, Math.max(0, balances[bucket]));
     breakdown[bucket] = take;
@@ -98,7 +101,7 @@ export function allocate(cost: number, balances: Record<CreditBucket, number>): 
 }
 
 export function affordable(cost: number, balances: Record<CreditBucket, number>): boolean {
-  return balances.daily + balances.monthly >= cost;
+  return (balances.daily ?? 0) + (balances.monthly ?? 0) + (balances.subscription ?? 0) + (balances.purchased ?? 0) + (balances.promotion ?? 0) >= cost;
 }
 
 /**
@@ -139,8 +142,17 @@ export function createPostgresCreditStore(pool: Pool): CreditStore {
 
   const ensureGrants = async (executor: PoolClient | Pool, entitlement: Entitlement, now: Date): Promise<void> => {
     await insertGrant(executor, entitlement.userId, 'daily', 'daily_grant', grantCredits(entitlement.plan, 'daily'), dailyPeriodKey(now), now);
-    if (entitlement.plan === 'pro') {
-      await insertGrant(executor, entitlement.userId, 'monthly', 'monthly_grant', grantCredits(entitlement.plan, 'monthly'), monthlyPeriodKey(entitlement, now), now);
+    // Grant subscription credits for Pro (new billing model uses 'subscription' bucket)
+    const subscriptionCredits = grantCredits(entitlement.plan, 'subscription');
+    if (subscriptionCredits > 0) {
+      await insertGrant(executor, entitlement.userId, 'subscription', 'subscription_grant', subscriptionCredits, monthlyPeriodKey(entitlement, now), now);
+    }
+    // Legacy monthly grant for backward compat (only for plans that don't use the subscription bucket)
+    if (usesLegacyMonthlyBucket(entitlement.plan)) {
+      const monthlyCredits = grantCredits(entitlement.plan, 'monthly');
+      if (monthlyCredits > 0) {
+        await insertGrant(executor, entitlement.userId, 'monthly', 'monthly_grant', monthlyCredits, monthlyPeriodKey(entitlement, now), now);
+      }
     }
   };
 
@@ -303,17 +315,37 @@ export function createMemoryCreditStore(): CreditStore {
     applyPlanBuckets(entitlement.plan, {
       daily: total(entitlement.userId, 'daily', dailyPeriodKey(now)),
       monthly: total(entitlement.userId, 'monthly', monthlyPeriodKey(entitlement, now)),
+      subscription: total(entitlement.userId, 'subscription', monthlyPeriodKey(entitlement, now)),
+      purchased: 0,
+      promotion: 0,
     });
 
   const granted = (entitlement: Entitlement, now: Date): void => {
-    for (const bucket of BUCKET_PRIORITY) {
-      if (bucket === 'monthly' && entitlement.plan !== 'pro') continue;
-      const credits = grantCredits(entitlement.plan, bucket);
-      if (credits <= 0) continue;
-      const entryType: GrantEntryType = bucket === 'daily' ? 'daily_grant' : 'monthly_grant';
-      const periodKey = periodKeyFor(bucket, entitlement, now);
-      if (rows.some(row => row.userId === entitlement.userId && row.entryType === entryType && row.periodKey === periodKey)) continue;
-      rows.push({ userId: entitlement.userId, entryType, bucket, credits, periodKey, operationKey: null, operationType: null });
+    // Daily grant
+    const dailyCredits = grantCredits(entitlement.plan, 'daily');
+    if (dailyCredits > 0) {
+      const periodKey = dailyPeriodKey(now);
+      if (!rows.some(row => row.userId === entitlement.userId && row.entryType === 'daily_grant' && row.periodKey === periodKey)) {
+        rows.push({ userId: entitlement.userId, entryType: 'daily_grant', bucket: 'daily', credits: dailyCredits, periodKey, operationKey: null, operationType: null });
+      }
+    }
+    // Subscription grant (new billing model)
+    const subscriptionCredits = grantCredits(entitlement.plan, 'subscription');
+    if (subscriptionCredits > 0) {
+      const periodKey = monthlyPeriodKey(entitlement, now);
+      if (!rows.some(row => row.userId === entitlement.userId && row.entryType === 'subscription_grant' && row.periodKey === periodKey)) {
+        rows.push({ userId: entitlement.userId, entryType: 'subscription_grant', bucket: 'subscription', credits: subscriptionCredits, periodKey, operationKey: null, operationType: null });
+      }
+    }
+    // Legacy monthly grant (only for plans that don't use the subscription bucket)
+    if (usesLegacyMonthlyBucket(entitlement.plan)) {
+      const monthlyCredits = grantCredits(entitlement.plan, 'monthly');
+      if (monthlyCredits > 0) {
+        const periodKey = monthlyPeriodKey(entitlement, now);
+        if (!rows.some(row => row.userId === entitlement.userId && row.entryType === 'monthly_grant' && row.periodKey === periodKey)) {
+          rows.push({ userId: entitlement.userId, entryType: 'monthly_grant', bucket: 'monthly', credits: monthlyCredits, periodKey, operationKey: null, operationType: null });
+        }
+      }
     }
   };
 
