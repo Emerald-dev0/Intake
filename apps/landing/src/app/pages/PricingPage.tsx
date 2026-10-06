@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { LogoMark } from '../../components/LogoMark';
 import { usePublicSession } from '../../marketing/usePublicSession';
 import { PRICING_FAQS } from '../../content/pricing';
-import { PLAN_CATALOG, formatUsd, proPriceComparison } from '../../lib/plans';
+import { PLAN_CATALOG, CREDIT_PACK_CATALOG, formatUsd, proPriceComparison } from '../../lib/plans';
 
 type BillingCadence = 'month' | 'year';
 
@@ -69,9 +69,27 @@ export function PricingPage() {
           {cadence === 'month'
             ? <p className="pricing-compare">{formatUsd(comparison.monthlyCents)} each month · {formatUsd(comparison.monthlyBilledAnnualTotalCents)} over 12 months</p>
             : <p className="pricing-compare">{formatUsd(comparison.annualCents)} for 12 months · {formatUsd(comparison.annualSavingsCents)} less than 12 monthly payments</p>}
-          <a className="btn btn-accent pricing-plan-action" href={authenticated ? '/app' : '/auth/sign-up?plan=pro'}>{authenticated ? 'Open Intake' : 'Notify me when Pro opens'} <span aria-hidden>→</span></a>
+          <a className="btn btn-accent pricing-plan-action" href={authenticated ? '/app/billing' : '/auth/sign-up?plan=pro'}>{authenticated ? 'Upgrade to Pro' : 'Notify me when Pro opens'} <span aria-hidden>→</span></a>
           <ul>{PRO_FEATURES.map(feature => <li key={feature}>{feature}</li>)}</ul>
         </article>
+      </section>
+
+      {/* Credit Packs */}
+      <section className="pricing-credit-packs" aria-labelledby="packs-title">
+        <div><span className="info-index">NEED MORE?</span><h2 id="packs-title">Credit packs</h2></div>
+        <div className="pricing-packs-grid">
+          {CREDIT_PACK_CATALOG.map(pack => (
+            <article key={pack.id} className="pricing-pack-card" aria-labelledby={`pack-${pack.id}`}>
+              <h3 id={`pack-${pack.id}`}>{pack.label}</h3>
+              <p className="pricing-pack-credits">{pack.credits} credits</p>
+              <p className="pricing-pack-price">{formatUsd(pack.priceCents)}</p>
+              <p className="pricing-pack-note">Purchased credits never expire.</p>
+              <a className="btn btn-ghost btn-sm" href={authenticated ? `/app/billing?pack=${pack.id}` : '/auth/sign-up'}>
+                {authenticated ? 'Purchase' : 'Sign up to purchase'}
+              </a>
+            </article>
+          ))}
+        </div>
       </section>
 
       <section className="pricing-what-to-know" aria-labelledby="pricing-limits-title">
@@ -79,7 +97,8 @@ export function PricingPage() {
         <ul>
           <li><strong>You see the cost first.</strong> Intake works out what a request costs before anything is applied, and your balance and reset times are always visible in the workspace.</li>
           <li><strong>Unused credits do not roll over.</strong> Daily credits refresh at 00:00 UTC. Pro monthly credits refresh at the reset shown in your account.</li>
-          <li><strong>Same limits on both plans.</strong> Google’s own limits apply the same way on Free and Pro.</li>
+          <li><strong>Purchased credits never expire.</strong> Credit packs are yours to use whenever you need them, after daily and subscription credits.</li>
+          <li><strong>Same limits on both plans.</strong> Google's own limits apply the same way on Free and Pro.</li>
           <li><strong>Review before apply.</strong> Intake can propose a draft; creating or editing a Google Form still waits for your explicit confirmation.</li>
         </ul>
       </section>

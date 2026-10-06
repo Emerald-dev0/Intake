@@ -36,6 +36,7 @@ import { setAuthEmailHooks } from './email/bridge';
 import { createAccountEmailRouter } from './email/routes';
 import { createEmailRuntime } from './email/runtime';
 import { calderWebhookHandler } from './email/webhooks';
+import { createBillingRuntime, createBillingRouter, createBachsWebhookRouter } from './billing';
 const app = express();
 app.disable('x-powered-by');
 if (serverConfig.trustProxyHops > 0) app.set('trust proxy', serverConfig.trustProxyHops);
@@ -145,6 +146,13 @@ const creditService = createCreditService({
   onLowBalance: input => { void emailRuntime.notifier.creditsLow(input.userId, input.remaining, input.nextDailyReset); },
 });
 const aiOperations = createAiOperationRunner({ credits: creditService, onError: (label, error) => logSafe(label, error) });
+
+/**
+ * The billing stack. Subscriptions, credit packs, payments and Bachs webhooks.
+ * The billing runtime wires the payment provider, store, and service together.
+ */
+const billingRuntime = createBillingRuntime({ pool, credits: creditService, notifier: emailRuntime.notifier, env: providerEnv });
+
 const interpretationLimiter = createInterpretationLimiter();
 // Phase 6 creation drafts: confirmation still delegates to the same creation engine.
 app.use('/api/forms', createFormDraftRouter({
@@ -171,6 +179,18 @@ app.use('/api/forms', createFormEditRouter({
 }));
 // Balance only: plan, remaining daily/monthly credits, and the next reset instants.
 app.use('/api/credits', createCreditRouter({ credits: creditService, getSession }));
+// Billing: subscriptions, credit packs, checkout and billing history.
+app.use('/api/billing', createBillingRouter({
+  billing: billingRuntime.service,
+  store: billingRuntime.store,
+  paymentProvider: billingRuntime.provider,
+  getSession,
+}));
+// Bachs payment webhooks: raw body, signature verified, no auth required.
+app.use('/api/webhooks/bachs', createBachsWebhookRouter({
+  billing: billingRuntime.service,
+  paymentProvider: billingRuntime.provider,
+}));
 // Account email: verification, email change and password reset. Server-authorised throughout.
 app.use('/api/account/email', createAccountEmailRouter({
   emails: emailRuntime.emails,
@@ -236,6 +256,7 @@ console.log(`Provider connections: ${providerSetup}`);
 console.log('Form creation: google enabled, microsoft pending (no supported Microsoft Forms API)');
 console.log(`Form interpretation: ${aiProviderLabel(providerEnv)}`);
 console.log(`Transactional email: ${emailRuntime.config.configured ? `calder (${isTestCredential(emailRuntime.config) ? 'test key' : 'live key'}, ${emailRuntime.config.fromEmail || emailRuntime.config.senderId || 'sender id'})` : 'not configured'}`);
+console.log(`Billing: ${billingRuntime.config.configured ? 'bachs configured' : 'not configured (checkout disabled)'}`);
 
 app.get('/api/me', async (req, res) => {
   res.set('Cache-Control', 'no-store');

@@ -7,8 +7,8 @@ import {
 const balance = (overrides = {}) => {
   const plan = overrides.plan ?? 'free';
   const defaults = plan === 'pro'
-    ? { plan, subscriptionStatus: 'active', availableCredits: 520, dailyRemaining: 20, dailyLimit: 20, monthlyRemaining: 500, monthlyLimit: 500 }
-    : { plan, subscriptionStatus: 'none', availableCredits: 12, dailyRemaining: 12, dailyLimit: 20, monthlyRemaining: 0, monthlyLimit: 0 };
+    ? { plan, subscriptionStatus: 'active', availableCredits: 1010, dailyRemaining: 10, dailyLimit: 10, monthlyRemaining: 1000, monthlyLimit: 1000 }
+    : { plan, subscriptionStatus: 'none', availableCredits: 12, dailyRemaining: 12, dailyLimit: 10, monthlyRemaining: 0, monthlyLimit: 0 };
   const merged = { ...defaults, nextDailyReset: '2026-10-04T00:00:00.000Z', nextMonthlyReset: '2026-11-01T00:00:00.000Z', ...overrides };
   if (!Object.hasOwn(overrides, 'availableCredits')) merged.availableCredits = merged.dailyRemaining + merged.monthlyRemaining;
   return merged;
@@ -76,20 +76,20 @@ test('subscription status labels reflect server state rather than assuming a mis
 });
 
 test('the summary names each available bucket and its allowance', () => {
-  assert.equal(creditSummary(balance()), '12 of 20 credits left today');
-  assert.equal(creditSummary(balance({ dailyRemaining: 1 })), '1 of 20 credits left today');
-  assert.equal(creditSummary(balance({ plan: 'pro' })), '20 of 20 daily · 500 of 500 monthly');
+  assert.equal(creditSummary(balance()), '12 of 10 credits left today');
+  assert.equal(creditSummary(balance({ dailyRemaining: 1 })), '1 of 10 credits left today');
+  assert.equal(creditSummary(balance({ plan: 'pro' })), '10 of 10 daily · 1000 of 1000 monthly');
 });
 
 test('out-of-credits copy explains the state, both reset times and that nothing happened', () => {
   const free = insufficientCreditsMessage(balance({ dailyRemaining: 0, availableCredits: 0, nextDailyReset: '2026-10-03T14:00:00.000Z' }), NOW);
-  assert.match(free, /used today's 20 free credits/);
+  assert.match(free, /used today's 10 free credits/);
   assert.match(free, /Daily credits reset in 5 hours/);
-  assert.match(free, /Pro adds a 500-credit monthly reserve/);
+  assert.match(free, /Pro adds a 1000-credit monthly reserve/);
   assert.match(free, /Nothing was created or changed/);
   assert.doesNotMatch(free, /not available|not implemented|coming soon/i, 'the workspace never apologises about the product');
   const pro = insufficientCreditsMessage(balance({ plan: 'pro', dailyRemaining: 0, monthlyRemaining: 0, availableCredits: 0, nextDailyReset: '2026-10-03T14:00:00.000Z' }), NOW);
-  assert.match(pro, /20 daily credits and the 500-credit Pro monthly reserve/);
+  assert.match(pro, /10 daily credits and the 1000-credit Pro monthly reserve/);
   assert.match(pro, /Daily credits reset in 5 hours/);
   assert.match(pro, /monthly credits reset in 28 days/);
   assert.match(insufficientCreditsMessage(null), /reset every day at 00:00 UTC/);

@@ -15,6 +15,7 @@ import './styles/edit-forms.css';
 import './styles/library.css';
 import './styles/admin.css';
 import './styles/pricing.css';
+import './styles/billing.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

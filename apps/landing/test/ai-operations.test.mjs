@@ -86,7 +86,7 @@ test('provider failures, invalid output and no-result outcomes cost nothing', as
   });
   assert.equal(failing.ok, false);
   assert.equal(failing.error.code, 'model_unavailable');
-  assert.equal((await credits.balance('user-a')).dailyRemaining, 20, 'a failed operation is never charged');
+  assert.equal((await credits.balance('user-a')).dailyRemaining, 10, 'a failed operation is never charged');
 
   const clarification = await operations.run({
     userId: 'user-a', operationType: 'form_create', operationKey: 'operation-key-clarify',
@@ -94,7 +94,7 @@ test('provider failures, invalid output and no-result outcomes cost nothing', as
   });
   assert.equal(clarification.ok, true);
   assert.equal(clarification.charge.status, 'not_charged');
-  assert.equal((await credits.balance('user-a')).dailyRemaining, 20, 'a clarification is not a chargeable result');
+  assert.equal((await credits.balance('user-a')).dailyRemaining, 10, 'a clarification is not a chargeable result');
 
   // Both attempts are recorded, with the failure category preserved for operators.
   const usage = await store.ledger('user-a');
@@ -106,7 +106,7 @@ test('provider failures, invalid output and no-result outcomes cost nothing', as
 
 test('a user who cannot afford the cheapest operation is told before any model call is made', async () => {
   const { operations, credits } = boot();
-  await credits.charge({ userId: 'user-a', operationType: 'form_create', operationKey: 'operation-key-drain', cost: 20 });
+  await credits.charge({ userId: 'user-a', operationType: 'form_create', operationKey: 'operation-key-drain', cost: 10 });
   let calls = 0;
   const outcome = await operations.run({
     userId: 'user-a', operationType: 'form_edit', operationKey: 'operation-key-broke',
@@ -128,7 +128,7 @@ test('a charge that cannot be applied withholds the result instead of giving it 
     execute: async () => {
       calls += 1;
       // Drain the bucket behind the runner's back, then report a usable result.
-      await credits.charge({ userId: 'user-race', operationType: 'form_create', operationKey: 'operation-key-other', cost: 20 });
+      await credits.charge({ userId: 'user-race', operationType: 'form_create', operationKey: 'operation-key-other', cost: 10 });
       return { kind: 'usable', value: { spec: true }, cost: 2 };
     },
   });

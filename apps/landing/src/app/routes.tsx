@@ -13,6 +13,7 @@ const AccountPage = lazy(() => import('./pages/AccountPage').then(m => ({ defaul
 const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage').then(m => ({ default: m.VerifyEmailPage })));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
 const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ default: m.PricingPage })));
+const BillingPage = lazy(() => import('./pages/BillingPage').then(m => ({ default: m.BillingPage })));
 const AdminGate = lazy(() => import('../admin/AdminGate').then(m => ({ default: m.AdminGate })));
 const AdminShell = lazy(() => import('../admin/AdminShell').then(m => ({ default: m.AdminShell })));
 const AdminOverviewPage = lazy(() => import('../admin/AdminPages').then(m => ({ default: m.AdminOverviewPage })));
@@ -58,6 +59,7 @@ export const routes: RouteObject[] = [
       { path: 'library', element: <LibraryPage /> },
       { path: 'forms', element: <FormsPage /> },
       { path: 'account', element: <AccountPage /> },
+      { path: 'billing', element: <BillingPage /> },
       { path: '*', element: <NotFoundPage /> },
     ] },
   ] },

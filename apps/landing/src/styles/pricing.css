@@ -274,7 +274,60 @@
 }
 .pricing-footer > a:last-child { color: var(--cream-2); }
 
+/* Credit packs section */
+.pricing-credit-packs {
+  display: grid;
+  grid-template-columns: minmax(220px, .7fr) minmax(0, 1.3fr);
+  gap: clamp(28px, 6vw, 82px);
+  margin-top: clamp(50px, 7vw, 80px);
+  padding: 32px 0 0;
+}
+.pricing-credit-packs h2 {
+  margin: 13px 0 0;
+  font-size: clamp(25px, 3vw, 34px);
+  font-weight: 480;
+  letter-spacing: -.055em;
+  line-height: 1.15;
+}
+.pricing-packs-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.pricing-pack-card {
+  padding: 22px 18px;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  background: var(--ink-1);
+  text-align: center;
+}
+.pricing-pack-card h3 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -.02em;
+}
+.pricing-pack-credits {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--cream-2);
+}
+.pricing-pack-price {
+  margin: 0 0 10px;
+  font-size: 26px;
+  font-weight: 460;
+  letter-spacing: -.04em;
+  color: var(--accent-2);
+}
+.pricing-pack-note {
+  margin: 0 0 14px;
+  font-size: 11px;
+  color: var(--cream-3);
+}
+
 @media (max-width: 760px) {
+  .pricing-credit-packs { grid-template-columns: minmax(0, 1fr); gap: 25px; margin-top: 58px; }
+  .pricing-packs-grid { grid-template-columns: 1fr; }
   .pricing-page { width: min(100% - 40px, 560px); padding-top: 17px; }
   .pricing-intro { padding: 62px 0 34px; }
   .pricing-plans { grid-template-columns: minmax(0, 1fr); gap: 14px; }

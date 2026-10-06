@@ -9,14 +9,14 @@ const SITE_ORIGIN = 'https://intake-six-blue.vercel.app';
 test('shared public plan metadata describes the published Free and Pro prices accurately', () => {
   const comparison = proPriceComparison();
   assert.equal(PLAN_CATALOG.free.prices, null);
-  assert.equal(PLAN_CATALOG.pro.prices?.month, 699);
-  assert.equal(PLAN_CATALOG.pro.prices?.year, 5999);
-  assert.equal(comparison.monthlyBilledAnnualTotalCents, 8388);
-  assert.equal(comparison.annualSavingsCents, 2389);
-  assert.equal(comparison.annualSavingsPercent, 28.5);
-  assert.equal(formatUsd(comparison.monthlyCents), '$6.99');
-  assert.equal(formatUsd(comparison.annualCents), '$59.99');
-  assert.equal(formatUsd(comparison.annualSavingsCents), '$23.89');
+  assert.equal(PLAN_CATALOG.pro.prices?.month, 799);
+  assert.equal(PLAN_CATALOG.pro.prices?.year, 6900);
+  assert.equal(comparison.monthlyBilledAnnualTotalCents, 9588);
+  assert.equal(comparison.annualSavingsCents, 2688);
+  assert.equal(comparison.annualSavingsPercent, 28.0);
+  assert.equal(formatUsd(comparison.monthlyCents), '$7.99');
+  assert.equal(formatUsd(comparison.annualCents), '$69.00');
+  assert.equal(formatUsd(comparison.annualSavingsCents), '$26.88');
 });
 
 test('the generated pricing document is crawlable, canonical, and matches its visible FAQ', async () => {
@@ -28,13 +28,13 @@ test('the generated pricing document is crawlable, canonical, and matches its vi
 
   assert.ok(html.includes(`<title>${PRICING_TITLE}</title>`));
   assert.equal(canonical, `${SITE_ORIGIN}/pricing`);
-  assert.ok(description?.includes('$6.99 per month'));
-  assert.ok(description?.includes('$59.99 per year'));
+  assert.ok(description?.includes('$7.99 per month'));
+  assert.ok(description?.includes('$69.00 per year'));
   assert.equal(description, PRICING_DESCRIPTION);
   assert.ok(structured);
   assert.ok(fallback);
   assert.match(fallback, /Free · \$0/);
-  assert.match(fallback, /Pro · \$6\.99 per month or \$59\.99 per year/);
+  assert.match(fallback, /Pro · \$7\.99 per month or \$69\.00 per year/);
   assert.match(fallback, /Pro opens to existing accounts first/);
   assert.match(fallback, /switched on from your account page/);
 

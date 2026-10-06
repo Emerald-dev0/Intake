@@ -42,6 +42,16 @@ export interface EmailNotifier {
   creditsLow(userId: string, remaining: number, resetAt: Date | string): Promise<void>;
   /** Returns true when an email was sent. Callers decide what a new sign-in means. */
   newSignIn(userId: string, networkSubject: string): Promise<boolean>;
+  // Billing events
+  subscriptionStarted(userId: string, data: { planLabel: string; interval: string; amount: string; subscriptionCredits: string; dailyCredits: string; periodStart: string; periodEnd: string }): Promise<void>;
+  subscriptionRenewed(userId: string, data: { amount: string; periodStart: string; periodEnd: string; subscriptionCredits: string }): Promise<void>;
+  subscriptionCanceled(userId: string, data: { canceledAt: string }): Promise<void>;
+  subscriptionEnding(userId: string, data: { periodEnd: string }): Promise<void>;
+  subscriptionEnded(userId: string): Promise<void>;
+  paymentSuccess(userId: string, data: { amount: string; description: string; timestamp: string; referenceId: string }): Promise<void>;
+  paymentFailed(userId: string, data: { description: string; timestamp: string }): Promise<void>;
+  creditPackPurchased(userId: string, data: { packLabel: string; credits: string; amount: string; timestamp: string }): Promise<void>;
+  renewalReminder(userId: string, data: { renewalDate: string; amount: string; planLabel: string }): Promise<void>;
 }
 
 export interface NotifierOptions {
@@ -158,9 +168,96 @@ export function createEmailNotifier(options: NotifierOptions): EmailNotifier {
     });
   }
 
+  // ── Billing notifications ──────────────────────────────────────────────────────────────────
+
+  async function subscriptionStarted(userId: string, data: { planLabel: string; interval: string; amount: string; subscriptionCredits: string; dailyCredits: string; periodStart: string; periodEnd: string }): Promise<void> {
+    const user = await options.users.getById(userId);
+    if (!user) return;
+    await emit('billing_subscription_started', `billing-sub-started:${userId}:${data.periodStart}`, user, {
+      userName: user.name ?? '',
+      ...data,
+    });
+  }
+
+  async function subscriptionRenewed(userId: string, data: { amount: string; periodStart: string; periodEnd: string; subscriptionCredits: string }): Promise<void> {
+    const user = await options.users.getById(userId);
+    if (!user) return;
+    await emit('billing_subscription_renewed', `billing-sub-renewed:${userId}:${data.periodStart}`, user, {
+      userName: user.name ?? '',
+      ...data,
+    });
+  }
+
+  async function subscriptionCanceled(userId: string, data: { canceledAt: string }): Promise<void> {
+    const user = await options.users.getById(userId);
+    if (!user) return;
+    await emit('billing_subscription_canceled', `billing-sub-canceled:${userId}:${newId()}`, user, {
+      userName: user.name ?? '',
+      ...data,
+    });
+  }
+
+  async function subscriptionEnding(userId: string, data: { periodEnd: string }): Promise<void> {
+    const user = await options.users.getById(userId);
+    if (!user) return;
+    await emit('billing_subscription_ending', `billing-sub-ending:${userId}:${data.periodEnd}`, user, {
+      userName: user.name ?? '',
+      ...data,
+    });
+  }
+
+  async function subscriptionEnded(userId: string): Promise<void> {
+    const user = await options.users.getById(userId);
+    if (!user) return;
+    await emit('billing_subscription_ended', `billing-sub-ended:${userId}:${newId()}`, user, {
+      userName: user.name ?? '',
+    });
+  }
+
+  async function paymentSuccess(userId: string, data: { amount: string; description: string; timestamp: string; referenceId: string }): Promise<void> {
+    const user = await options.users.getById(userId);
+    if (!user) return;
+    await emit('billing_payment_success', `billing-payment:${data.referenceId}`, user, {
+      userName: user.name ?? '',
+      ...data,
+    });
+  }
+
+  async function paymentFailed(userId: string, data: { description: string; timestamp: string }): Promise<void> {
+    const user = await options.users.getById(userId);
+    if (!user) return;
+    await emit('billing_payment_failed', `billing-payment-failed:${userId}:${newId()}`, user, {
+      userName: user.name ?? '',
+      ...data,
+    });
+  }
+
+  async function creditPackPurchased(userId: string, data: { packLabel: string; credits: string; amount: string; timestamp: string }): Promise<void> {
+    const user = await options.users.getById(userId);
+    if (!user) return;
+    await emit('billing_credit_pack_purchased', `billing-credit-pack:${userId}:${newId()}`, user, {
+      userName: user.name ?? '',
+      ...data,
+    });
+  }
+
+  async function renewalReminder(userId: string, data: { renewalDate: string; amount: string; planLabel: string }): Promise<void> {
+    const user = await options.users.getById(userId);
+    if (!user) return;
+    // Idempotent: one reminder per user per renewal date
+    await emit('billing_renewal_reminder', `billing-renewal-reminder:${userId}:${data.renewalDate}`, user, {
+      userName: user.name ?? '',
+      ...data,
+    });
+  }
+
   return {
     welcome, passwordChanged, emailChanged, googleConnected, googleDisconnected,
     providerConnected, providerDisconnected, creditsLow, newSignIn,
+    subscriptionStarted, subscriptionRenewed, subscriptionCanceled,
+    subscriptionEnding, subscriptionEnded,
+    paymentSuccess, paymentFailed,
+    creditPackPurchased, renewalReminder,
   };
 }
 
