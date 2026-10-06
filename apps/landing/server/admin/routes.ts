@@ -195,6 +195,13 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
     res.json(await deps.store.getProviders());
   }));
 
+  router.get('/email', asyncRoute(async (req, res) => {
+    if (!await allowRequest(req, res, 'analytics')) return;
+    const range = readRange(req);
+    if (!range) return invalid(res, 'Choose today, 7d, or 30d for the reporting range.');
+    res.json(await deps.store.getEmail(rangeBounds(range, now())));
+  }));
+
   router.get('/system', asyncRoute(async (_req, res) => {
     if (!await allowRequest(_req, res, 'read')) return;
     res.json(await deps.store.getSystem());

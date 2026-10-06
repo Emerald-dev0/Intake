@@ -2,13 +2,15 @@ import type { Pool } from 'pg';
 import type {
   AdminActivityItem, AdminActivityResult, AdminAiResult, AdminCreditsResult, AdminErrorItem,
   AdminErrorsResult, AdminFormsResult, AdminFormItem, AdminOperation, AdminOperationStatus, AdminProviderId,
-  AdminStore, AiOperationItem, AiSummary, OverviewData, PageRequest, PageResult, ProviderSummary,
-  RangeBounds, SystemStatus, UserDetail, UserProviderStatus, UserSummary,
+  AdminStore, AiOperationItem, AiSummary, EmailSummary, OverviewData, OverviewEmail, PageRequest, PageResult,
+  ProviderSummary, RangeBounds, SystemStatus, UserDetail, UserProviderStatus, UserSummary,
 } from './contracts';
 import { pageResult } from './ranges';
 import { DEFAULT_GROQ_MODEL } from '../ai/groq';
+import { isTestCredential, readEmailConfig } from '../email/config';
 
 const AI_UNAVAILABLE = 'AI operation history becomes available after migration 007_ai_credits.sql is applied.';
+const EMAIL_UNAVAILABLE = 'Email delivery history becomes available after migration 010_email.sql is applied.';
 const CREDITS_UNAVAILABLE = 'Credit balances are available to the signed-in user; aggregate admin credit views are not enabled.';
 const PLANS_UNAVAILABLE = 'Entitlements are available to the signed-in user; aggregate admin plan views are not enabled.';
 const REQUIRED_MIGRATIONS = [
@@ -21,6 +23,7 @@ const REQUIRED_MIGRATIONS = [
   '007_ai_credits.sql',
   '008_ai_operation_compat.sql',
   '009_admin_indexes.sql',
+  '010_email.sql',
 ] as const;
 
 type Queryable = Pick<Pool, 'query'>;
@@ -67,6 +70,52 @@ function sumTokens(input: number | null, output: number | null): number | null {
 
 function completePage<T>(items: T[], total: number, input: PageRequest): PageResult<T> {
   return pageResult(items, total, input.page, input.limit);
+}
+
+interface EmailAggregate {
+  accepted: number;
+  skipped: number;
+  failed: number;
+  delivered: number;
+  bounced: number;
+  complained: number;
+}
+
+async function aggregateEmail(pool: Queryable, from: Date, to: Date): Promise<EmailAggregate> {
+  const result = await pool.query<DbRow>(
+    `SELECT
+       COUNT(*) FILTER (WHERE status IN ('accepted', 'sent', 'delivered'))::text AS accepted,
+       COUNT(*) FILTER (WHERE status = 'skipped')::text AS skipped,
+       COUNT(*) FILTER (WHERE status IN ('failed', 'failed_remote'))::text AS failed,
+       COUNT(*) FILTER (WHERE status = 'delivered')::text AS delivered,
+       COUNT(*) FILTER (WHERE status = 'bounced')::text AS bounced,
+       COUNT(*) FILTER (WHERE status = 'complained')::text AS complained
+     FROM email_delivery WHERE created_at >= $1 AND created_at < $2`,
+    [from, to],
+  );
+  const row = result.rows[0] ?? {};
+  return {
+    accepted: count(row.accepted),
+    skipped: count(row.skipped),
+    failed: count(row.failed),
+    delivered: count(row.delivered),
+    bounced: count(row.bounced),
+    complained: count(row.complained),
+  };
+}
+
+async function overviewEmail(available: boolean, aggregate: EmailAggregate | null, env: NodeJS.ProcessEnv): Promise<OverviewEmail> {
+  const config = readEmailConfig(env);
+  return {
+    available,
+    reason: available ? null : EMAIL_UNAVAILABLE,
+    provider: available ? config.provider : 'none',
+    configured: config.configured,
+    accepted: aggregate?.accepted ?? null,
+    failed: aggregate?.failed ?? null,
+    bounced: aggregate?.bounced ?? null,
+    complained: aggregate?.complained ?? null,
+  };
 }
 
 async function tableExists(pool: Queryable, table: string): Promise<boolean> {
@@ -158,9 +207,10 @@ export function createPostgresAdminStore(pool: Pool, env: NodeJS.ProcessEnv = pr
     },
 
     async getOverview(bounds: RangeBounds): Promise<OverviewData> {
-      const [hasForms, hasAi] = await Promise.all([
+      const [hasForms, hasAi, hasEmail] = await Promise.all([
         tableExists(pool, 'form'),
         tableExists(pool, 'ai_operation'),
+        tableExists(pool, 'email_delivery'),
       ]);
       const trackingSince = hasAi ? await migrationDate(pool) : null;
       const usersResult = await pool.query<DbRow>(
@@ -187,7 +237,8 @@ export function createPostgresAdminStore(pool: Pool, env: NodeJS.ProcessEnv = pr
         )
         : Promise.resolve(null);
       const aiPromise = hasAi ? aggregateAi(pool, bounds.from, bounds.to) : Promise.resolve(null);
-      const [formResult, ai] = await Promise.all([formPromise, aiPromise]);
+      const emailPromise = hasEmail ? aggregateEmail(pool, bounds.from, bounds.to) : Promise.resolve(null);
+      const [formResult, ai, emailAggregate] = await Promise.all([formPromise, aiPromise, emailPromise]);
       const formRow = formResult?.rows[0] ?? {};
       return {
         generatedAt: bounds.to,
@@ -228,6 +279,7 @@ export function createPostgresAdminStore(pool: Pool, env: NodeJS.ProcessEnv = pr
           creditsConsumed: ai?.creditsConsumed ?? null,
           estimatedCostUsd: null,
         },
+        email: await overviewEmail(hasEmail, emailAggregate, env),
         credits: { available: false, reason: CREDITS_UNAVAILABLE, dailyGranted: null, monthlyGranted: null, consumed: null },
       };
     },
@@ -563,6 +615,68 @@ export function createPostgresAdminStore(pool: Pool, env: NodeJS.ProcessEnv = pr
       };
     },
 
+    async getEmail(bounds): Promise<EmailSummary> {
+      const generatedAt = new Date();
+      const config = readEmailConfig(env);
+      const hasEmail = await tableExists(pool, 'email_delivery');
+      if (!hasEmail) {
+        return {
+          generatedAt, range: bounds.range, available: false, reason: EMAIL_UNAVAILABLE,
+          provider: config.provider, configured: config.configured, testCredential: isTestCredential(config),
+          sender: config.fromEmail || config.senderId, webhooksConfigured: Boolean(config.webhookSecret),
+          accepted: null, skipped: null, failed: null, delivered: null, bounced: null, complained: null,
+          suppressions: null, byType: [], topErrors: [], recent: [],
+        };
+      }
+      const [aggregate, types, errors, suppressions, recent] = await Promise.all([
+        aggregateEmail(pool, bounds.from, bounds.to),
+        pool.query<DbRow>(
+          `SELECT email_type, COUNT(*)::text AS total FROM email_delivery
+           WHERE created_at >= $1 AND created_at < $2 GROUP BY email_type ORDER BY COUNT(*) DESC`,
+          [bounds.from, bounds.to],
+        ),
+        pool.query<DbRow>(
+          `SELECT error_code, COUNT(*)::text AS total FROM email_delivery
+           WHERE created_at >= $1 AND created_at < $2 AND error_code IS NOT NULL
+           GROUP BY error_code ORDER BY COUNT(*) DESC LIMIT 8`,
+          [bounds.from, bounds.to],
+        ),
+        pool.query<DbRow>('SELECT COUNT(*)::text AS total FROM email_suppression'),
+        pool.query<DbRow>(
+          `SELECT id, email_type, status, error_code, provider_message_id, created_at
+           FROM email_delivery ORDER BY created_at DESC LIMIT 25`,
+        ),
+      ]);
+      return {
+        generatedAt,
+        range: bounds.range,
+        available: true,
+        reason: null,
+        provider: config.provider,
+        configured: config.configured,
+        testCredential: isTestCredential(config),
+        sender: config.fromEmail || config.senderId,
+        webhooksConfigured: Boolean(config.webhookSecret),
+        accepted: aggregate?.accepted ?? 0,
+        skipped: aggregate?.skipped ?? 0,
+        failed: aggregate?.failed ?? 0,
+        delivered: aggregate?.delivered ?? 0,
+        bounced: aggregate?.bounced ?? 0,
+        complained: aggregate?.complained ?? 0,
+        suppressions: count(suppressions.rows[0]?.total),
+        byType: types.rows.map(row => ({ type: string(row.email_type), count: count(row.total) })),
+        topErrors: errors.rows.map(row => ({ code: string(row.error_code), count: count(row.total) })),
+        recent: recent.rows.map(row => ({
+          id: string(row.id),
+          emailType: string(row.email_type),
+          status: string(row.status),
+          errorCode: row.error_code === null ? null : string(row.error_code),
+          providerMessageId: row.provider_message_id === null ? null : string(row.provider_message_id),
+          createdAt: date(row.created_at) ?? generatedAt,
+        })),
+      };
+    },
+
     async getProviders(): Promise<ProviderSummary> {
       const hasConnections = await tableExists(pool, 'provider_connection');
       const hasAi = await tableExists(pool, 'ai_operation');
@@ -642,6 +756,7 @@ export function createPostgresAdminStore(pool: Pool, env: NodeJS.ProcessEnv = pr
       }
       const aiConfigured = Boolean(env.GROQ_API_KEY?.trim());
       const googleConfigured = providerConfigured('google', env);
+      const emailConfig = readEmailConfig(env);
       return {
         generatedAt,
         backend: { status: 'healthy', evidence: 'This response was served by the Intake API process.' },
@@ -657,6 +772,15 @@ export function createPostgresAdminStore(pool: Pool, env: NodeJS.ProcessEnv = pr
         googleIntegration: {
           status: googleConfigured ? 'configured' : 'not_configured',
           evidence: googleConfigured ? 'Google OAuth client credentials are configured; Google API reachability is not probed.' : 'Google OAuth client credentials are not fully configured.',
+        },
+        email: {
+          status: emailConfig.configured ? 'configured' : 'not_configured',
+          evidence: emailConfig.configured
+            ? `Calder is configured with a ${isTestCredential(emailConfig) ? 'test' : 'live'} key for ${emailConfig.fromEmail || emailConfig.senderId}. This is configuration, not a delivery probe.`
+            : 'CALDER_API_KEY and a sender identity are not both configured, so no transactional email can be delivered.',
+          provider: emailConfig.provider,
+          testCredential: isTestCredential(emailConfig),
+          webhooks: emailConfig.webhookSecret ? 'configured' : 'not_configured',
         },
         rateLimiting: {
           status: !databaseAvailable ? 'unknown' : hasRateLimiter ? 'ready' : 'not_ready',

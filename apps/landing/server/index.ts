@@ -1,7 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import { toNodeHandler, fromNodeHeaders } from 'better-auth/node';
-import { auth, googleSignInEnabled, pool, serverConfig } from './auth';
+import { auth, googleSignInEnabled, pool, RESET_TOKEN_SECONDS, serverConfig } from './auth';
+import { isTestCredential } from './email/config';
 import { createTokenCipher } from './providers/crypto';
 import { createProviderHttp } from './providers/http';
 import { createProviderRouter } from './providers/routes';
@@ -30,6 +31,11 @@ import { logSafe } from './providers/oauth';
 import { newRequestId } from './forms/logging';
 import { createAdminRouter } from './admin/routes';
 import { createPostgresAdminStore } from './admin/postgres-store';
+import { createHmac } from 'node:crypto';
+import { setAuthEmailHooks } from './email/bridge';
+import { createAccountEmailRouter } from './email/routes';
+import { createEmailRuntime } from './email/runtime';
+import { calderWebhookHandler } from './email/webhooks';
 const app = express();
 app.disable('x-powered-by');
 if (serverConfig.trustProxyHops > 0) app.set('trust proxy', serverConfig.trustProxyHops);
@@ -87,11 +93,29 @@ app.all('/api/auth/*', (req, res, next) => {
 
 const providerEnv = process.env;
 const abuseLimiter = createPostgresRateLimitStore(pool, serverConfig.authSecret);
+/**
+ * The email stack. Everything above this line (routes, auth hooks, providers, credits) speaks
+ * `emailService`/`notifier`; only `server/email/providers/calder.ts` knows Calder's HTTP API.
+ */
+const emailRuntime = createEmailRuntime({ pool, env: providerEnv, secret: serverConfig.authSecret });
+
+/**
+ * Calder delivery webhooks. Mounted on an unparsed route: the HMAC covers the raw bytes, so the
+ * body must never be JSON-parsed before the signature is verified.
+ */
+app.post('/api/webhooks/calder', calderWebhookHandler({ store: emailRuntime.store, config: emailRuntime.config }));
 const providerService = createProviderService({
   store: createPostgresStore(pool),
   http: createProviderHttp(),
   cipher: createTokenCipher({ authSecret: serverConfig.authSecret, dedicatedKey: process.env.PROVIDER_TOKEN_KEY }),
   env: providerEnv,
+  // Connecting or disconnecting a forms account is a security-relevant change: the owner is told.
+  onConnectionChange: event => {
+    const notifier = emailRuntime.notifier;
+    void (event.type === 'connected'
+      ? notifier.providerConnected(event.userId, event.provider, event.accountLabel ?? '')
+      : notifier.providerDisconnected(event.userId, event.provider, event.accountLabel ?? ''));
+  },
 });
 useProviderService(providerService);
 // One session lookup, shared by every router that needs the signed-in Intake user.
@@ -114,7 +138,12 @@ const aiProvider = resolveAiProvider({ env: providerEnv });
 const formInterpreter = createFormInterpreter({ provider: aiProvider });
 const formEditInterpreter = createFormEditInterpreter({ provider: aiProvider });
 // Credits are server-owned: the browser never submits a user, a plan, a price or a balance.
-const creditService = createCreditService({ store: createPostgresCreditStore(pool), onError: (label, error) => logSafe(label, error) });
+const creditService = createCreditService({
+  store: createPostgresCreditStore(pool),
+  onError: (label, error) => logSafe(label, error),
+  // One low-credit notice per account per UTC day, sent after the charge it describes.
+  onLowBalance: input => { void emailRuntime.notifier.creditsLow(input.userId, input.remaining, input.nextDailyReset); },
+});
 const aiOperations = createAiOperationRunner({ credits: creditService, onError: (label, error) => logSafe(label, error) });
 const interpretationLimiter = createInterpretationLimiter();
 // Phase 6 creation drafts: confirmation still delegates to the same creation engine.
@@ -142,12 +171,71 @@ app.use('/api/forms', createFormEditRouter({
 }));
 // Balance only: plan, remaining daily/monthly credits, and the next reset instants.
 app.use('/api/credits', createCreditRouter({ credits: creditService, getSession }));
+// Account email: verification, email change and password reset. Server-authorised throughout.
+app.use('/api/account/email', createAccountEmailRouter({
+  emails: emailRuntime.emails,
+  otp: emailRuntime.otp,
+  notifier: emailRuntime.notifier,
+  config: emailRuntime.config,
+  getSession,
+  users: emailRuntime.users,
+  requestPasswordReset: email => requestPasswordReset(email),
+  abuseLimiter,
+  hashKey: serverConfig.authSecret,
+}));
 app.use('/api/forms', createFormsRouter({ engine: formsEngine, getSession, env: providerEnv, abuseLimiter, allowDirectCreation: false }));
+/**
+ * Password reset: Better Auth generates, stores, expires and single-uses the token; Intake sends the
+ * email. The link always points at Intake. The idempotency key hashes the token so a reset token is
+ * never written to the delivery table or a log line.
+ */
+async function requestPasswordReset(email: string): Promise<void> {
+  const response = await auth.api.requestPasswordReset({
+    body: { email },
+    headers: new Headers({ origin: serverConfig.publicOrigin }),
+    asResponse: false,
+  }).catch(error => {
+    logSafe('Password reset request failed', error);
+    return null;
+  });
+  if (!response) throw new Error('Password reset could not be started.');
+}
+
+setAuthEmailHooks({
+  async sendPasswordReset({ userId, email, name, token }) {
+    const tokenRef = createHmac('sha256', serverConfig.authSecret).update(`intake-reset:v1:${token}`).digest('hex').slice(0, 32);
+    await emailRuntime.emails.send({
+      type: 'password_reset',
+      to: email,
+      eventId: `password-reset:${tokenRef}`,
+      userId,
+      variables: {
+        userName: name ?? '',
+        expiryMinutes: String(Math.round(RESET_TOKEN_SECONDS / 60)),
+        resetUrl: `${serverConfig.publicOrigin}/auth/reset-password?token=${encodeURIComponent(token)}`,
+      },
+    });
+  },
+  async onPasswordReset(userId) {
+    await emailRuntime.notifier.passwordChanged(userId);
+  },
+  async onNewSession({ userId, networkSubject }) {
+    await emailRuntime.notifier.newSignIn(userId, networkSubject);
+  },
+  async onAccountLinked({ userId }) {
+    await emailRuntime.notifier.googleConnected(userId);
+  },
+  async onAccountUnlinked({ userId }) {
+    await emailRuntime.notifier.googleDisconnected(userId);
+  },
+});
+
 const providerSetup = supportedProviders(providerEnv).map(provider => `${provider.id} ${isProviderConfigured(provider, providerEnv) ? 'configured' : 'not configured'}`).join(', ');
 console.log(`Sign-in: email/password enabled, google ${googleSignInEnabled ? 'configured' : 'not configured'}`);
 console.log(`Provider connections: ${providerSetup}`);
 console.log('Form creation: google enabled, microsoft pending (no supported Microsoft Forms API)');
 console.log(`Form interpretation: ${aiProviderLabel(providerEnv)}`);
+console.log(`Transactional email: ${emailRuntime.config.configured ? `calder (${isTestCredential(emailRuntime.config) ? 'test key' : 'live key'}, ${emailRuntime.config.fromEmail || emailRuntime.config.senderId || 'sender id'})` : 'not configured'}`);
 
 app.get('/api/me', async (req, res) => {
   res.set('Cache-Control', 'no-store');

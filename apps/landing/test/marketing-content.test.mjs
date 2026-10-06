@@ -59,3 +59,28 @@ test('marketing CSS retains responsive layouts, motion, visible focus, and reduc
   assert.match(marketing, /\.mk-reveal\.is-in/);
   assert.match(marketing, /grid-template-rows: 0fr/);
 });
+
+test('the reveal system has named entrances, an exit, and is neutralised for reduced motion', async () => {
+  const [marketing, motion] = await Promise.all([
+    readFile('src/styles/marketing.css', 'utf8'),
+    readFile('src/marketing/motion.ts', 'utf8'),
+  ]);
+
+  // Four entrances, so the page has a vocabulary rather than one move repeated everywhere.
+  for (const variant of ['rise', 'fade', 'wipe', 'scale']) {
+    assert.match(marketing, new RegExp(`\\.mk-reveal--${variant}\\b`), `${variant} entrance exists`);
+  }
+  assert.match(marketing, /\.mk-reveal\.is-in\b/);
+  assert.match(marketing, /\.mk-reveal\.is-out\b/, 'blocks settle once they have been read past');
+
+  // The exit must never take an interactive element with it: everything that carries `is-out` is
+  // opt-in in the component, and the reduced-motion block has to restore full opacity.
+  const reduced = marketing.slice(marketing.indexOf('@media (prefers-reduced-motion: reduce)'));
+  assert.match(reduced, /\.mk-reveal\.is-out[\s\S]{0,200}opacity:\s*1/);
+  assert.match(reduced, /clip-path:\s*none/);
+
+  assert.match(motion, /export function useViewState/);
+  assert.match(motion, /'before' \| 'in' \| 'after'/);
+  // The observer decides the exit from which side of the viewport the element left.
+  assert.match(motion, /leavingUpwards/);
+});

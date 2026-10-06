@@ -187,6 +187,7 @@ export interface OverviewData {
     creditsConsumed: number | null;
     estimatedCostUsd: null;
   };
+  email: OverviewEmail;
   credits: UnavailableMetric & { dailyGranted: null; monthlyGranted: null; consumed: null };
 }
 
@@ -214,6 +215,50 @@ export interface AdminFormItem {
   updatedAt: Date;
   lastSyncedAt: Date | null;
   archivedAt: Date | null;
+}
+
+/**
+ * Operational email health. Deliberately aggregate: no OTP values, no reset tokens, no message
+ * bodies, no API keys, and no recipient addresses beyond a masked form (mission §33).
+ */
+export interface EmailSummary {
+  generatedAt: Date;
+  range: AdminRange;
+  available: boolean;
+  reason: string | null;
+  provider: string;
+  configured: boolean;
+  testCredential: boolean;
+  sender: string | null;
+  webhooksConfigured: boolean;
+  accepted: number | null;
+  skipped: number | null;
+  failed: number | null;
+  delivered: number | null;
+  bounced: number | null;
+  complained: number | null;
+  suppressions: number | null;
+  byType: Array<{ type: string; count: number }>;
+  topErrors: Array<{ code: string; count: number }>;
+  recent: Array<{
+    id: string;
+    emailType: string;
+    status: string;
+    errorCode: string | null;
+    providerMessageId: string | null;
+    createdAt: Date;
+  }>;
+}
+
+export interface OverviewEmail {
+  available: boolean;
+  reason: string | null;
+  provider: string;
+  configured: boolean;
+  accepted: number | null;
+  failed: number | null;
+  bounced: number | null;
+  complained: number | null;
 }
 
 export interface ProviderSummary {
@@ -256,6 +301,13 @@ export interface SystemStatus {
   aiProvider: { status: 'configured' | 'not_configured' | 'unknown'; evidence: string; model: string };
   googleIntegration: { status: 'configured' | 'not_configured'; evidence: string };
   rateLimiting: { status: 'ready' | 'not_ready' | 'unknown'; evidence: string };
+  email: {
+    status: 'configured' | 'not_configured' | 'unknown';
+    evidence: string;
+    provider: string;
+    testCredential: boolean;
+    webhooks: 'configured' | 'not_configured';
+  };
   migrations: {
     trackingAvailable: boolean;
     applied: string[] | null;
@@ -321,6 +373,7 @@ export interface AdminStore {
     archived: 'active' | 'archived' | 'all';
   }): Promise<AdminFormsResult>;
   getProviders(): Promise<ProviderSummary>;
+  getEmail(bounds: RangeBounds): Promise<EmailSummary>;
   getSystem(): Promise<SystemStatus>;
   listActivity(input: PageRequest & { bounds: RangeBounds; type: string; userId: string }): Promise<AdminActivityResult>;
   listErrors(input: PageRequest & { bounds: RangeBounds; userId: string }): Promise<AdminErrorsResult>;

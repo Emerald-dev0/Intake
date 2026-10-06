@@ -40,6 +40,11 @@ export interface ProviderDeps {
   env: NodeJS.ProcessEnv;
   now?: () => Date;
   rateLimit?: (userId: string, now: number) => boolean;
+  /**
+   * Optional lifecycle hook for transactional email. Best-effort: a delivery failure must never
+   * change the outcome of a connection or a disconnection.
+   */
+  onConnectionChange?: (event: { type: 'connected' | 'disconnected'; userId: string; provider: ProviderId; accountLabel: string | null }) => void;
 }
 
 export interface ProviderService {
@@ -317,6 +322,7 @@ async function completeAuthorization(deps: ProviderDeps, userId: string, provide
     return { result: 'connection_conflict' };
   }
   await deps.store.deleteTransactions(userId, provider);
+  notifyConnectionChange(deps, 'connected', userId, provider, identity.email ?? identity.label);
   return { result: 'connected' };
 }
 
@@ -392,6 +398,7 @@ async function disconnectProvider(deps: ProviderDeps, userId: string, provider: 
   const definition = providerDefinition(provider, deps.env);
   const record = await deps.store.getConnection(userId, provider);
   if (!record || record.userId !== userId) return { result: 'disconnected', revocation: 'not_attempted' };
+  const label = record.externalAccountEmail ?? record.externalAccountLabel;
   let revocation: RevocationOutcome = !definition || definition.revocation.type === 'unsupported' ? 'unsupported' : 'failed';
   if (definition?.revocation.type === 'google') {
     const access = decryptField(deps, record.accessTokenCiphertext, userId, provider, 'access');
@@ -400,8 +407,25 @@ async function disconnectProvider(deps: ProviderDeps, userId: string, provider: 
   }
   await deps.store.deleteConnection(userId, provider);
   await deps.store.deleteTransactions(userId, provider);
+  notifyConnectionChange(deps, 'disconnected', userId, provider, label);
   void at;
   return { result: 'disconnected', revocation };
+}
+
+/** Never throws: email is a notification, not part of the authorization outcome. */
+function notifyConnectionChange(
+  deps: ProviderDeps,
+  type: 'connected' | 'disconnected',
+  userId: string,
+  provider: ProviderId,
+  accountLabel: string | null,
+): void {
+  if (!deps.onConnectionChange) return;
+  try {
+    deps.onConnectionChange({ type, userId, provider, accountLabel });
+  } catch (error) {
+    logSafe('Provider connection notification failed', error, provider);
+  }
 }
 
 async function revokeTokens(deps: ProviderDeps, definition: ProviderDefinition, access: string | null, refresh: string | null): Promise<RevocationOutcome> {

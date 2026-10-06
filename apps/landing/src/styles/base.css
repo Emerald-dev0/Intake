@@ -24,9 +24,11 @@
   --c-meta: #7fd8b0;
   --ok: #7fd8b0;
 
-  --sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
-  --serif: 'Fraunces Variable', 'Iowan Old Style', Georgia, serif;
+  /* Loaded from Google Fonts in index.html; the *Variable names stay as aliases for any locally
+     installed copy, and every stack falls back to a system face if the network is unavailable. */
+  --sans: 'Geist', 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'Geist Mono', 'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+  --serif: 'Fraunces', 'Fraunces Variable', 'Iowan Old Style', Georgia, serif;
 
   --wrap: 1240px;
   --wrap-wide: 1400px;

@@ -220,10 +220,11 @@ test('allocation helpers follow the documented daily-then-monthly order', () => 
 test('the credit migration is additive, idempotent, and stores no credentials or model text', async () => {
   const { readFile, readdir } = await import('node:fs/promises');
   const files = (await readdir(new URL('../db/migrations/', import.meta.url))).filter(name => name.endsWith('.sql')).sort();
-  assert.equal(files.at(-4), '007_ai_credits.sql', 'credits are the entitlement and operation schema migration');
-  assert.equal(files.at(-3), '007_ai_operations.sql', 'the superseded migration id remains as a no-op for history compatibility');
-  assert.equal(files.at(-2), '008_ai_operation_compat.sql', 'legacy operation metadata is preserved and mapped');
-  assert.equal(files.at(-1), '009_admin_indexes.sql', 'admin adds query indexes after schema compatibility');
+  assert.equal(files.at(-5), '007_ai_credits.sql', 'credits are the entitlement and operation schema migration');
+  assert.equal(files.at(-4), '007_ai_operations.sql', 'the superseded migration id remains as a no-op for history compatibility');
+  assert.equal(files.at(-3), '008_ai_operation_compat.sql', 'legacy operation metadata is preserved and mapped');
+  assert.equal(files.at(-2), '009_admin_indexes.sql', 'admin adds query indexes after schema compatibility');
+  assert.equal(files.at(-1), '010_email.sql', 'transactional email is the tenth, additive migration');
   const text = await readFile(new URL('../db/migrations/007_ai_credits.sql', import.meta.url), 'utf8');
   const sql = text.replace(/--.*$/gm, '');
   assert.match(sql, /CREATE TABLE IF NOT EXISTS user_entitlement \(/);

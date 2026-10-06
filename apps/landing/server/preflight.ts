@@ -20,6 +20,7 @@ import { readCoreServerConfig } from './config';
 import { isProviderConfigured, supportedProviders } from './providers/registry';
 import { aiProviderLabel } from './ai/registry';
 import { readGoogleSignInConfig } from './sign-in/google';
+import { isTestCredential, readEmailConfig } from './email/config';
 
 export type PreflightStatus = 'pass' | 'warn' | 'fail' | 'info';
 
@@ -133,7 +134,28 @@ export function runPreflight(env: NodeJS.ProcessEnv = process.env): PreflightChe
     : 'Not configured; Microsoft Forms creation is unsupported.');
 
   add('payments', 'info', 'No payment provider is integrated: plans change only through a deliberate server-side database operation. Checkout UI stays display-only.');
-  add('email', 'info', 'No transactional email is configured: password reset, verification and welcome email are unavailable in this phase.');
+
+  // Email is real infrastructure now, so it gets a real check. Names only: never a key or a secret.
+  try {
+    const email = readEmailConfig(env);
+    if (email.provider === 'none') {
+      add('email', 'warn', 'EMAIL_PROVIDER=none: no transactional email is delivered. Verification, password reset, welcome and security email are all inert.');
+    } else if (!email.configured) {
+      add('email', 'fail', 'Transactional email is not usable: set CALDER_API_KEY and either CALDER_FROM_EMAIL or CALDER_SENDER_ID. Verification, password reset and security notices cannot be delivered without them.');
+    } else if (isTestCredential(email)) {
+      add('email', 'warn', `Calder is configured with a TEST key: nothing reaches a real inbox. Deliveries are simulated, so this is correct for staging and wrong for production.`);
+    } else {
+      add('email', 'pass', `Calder is configured (${email.baseUrl}, sender ${email.fromEmail || email.senderId || 'sender id'}). Confirm the sending domain's SPF, DKIM and DMARC records and that CALDER_WEBHOOK_SECRET matches the registered endpoint.`);
+    }
+    add('email webhooks', email.webhookSecret ? 'pass' : 'warn', email.webhookSecret
+      ? 'CALDER_WEBHOOK_SECRET is set: delivery, bounce and complaint events are verified before they change state.'
+      : 'No CALDER_WEBHOOK_SECRET: Calder webhooks are rejected. Delivery, bounce and complaint state will never update, so suppressions cannot be maintained automatically.');
+    if (email.provider === 'memory') {
+      add('email provider', 'fail', 'EMAIL_PROVIDER=memory records email in process memory only. It is a test transport and must never be set in a deployed environment.');
+    }
+  } catch (error) {
+    add('email', 'fail', error instanceof Error ? error.message : 'Email configuration is invalid.');
+  }
 
   return checks;
 }
@@ -156,6 +178,7 @@ const EXPECTED_TABLES = [
   '"user"', 'session', 'account', 'verification',
   'provider_connection', 'form', 'form_draft', 'form_edit_draft',
   'api_rate_limit', 'user_entitlement', 'credit_ledger', 'ai_operation',
+  'email_delivery', 'email_suppression', 'email_webhook_event', 'user_sign_in_marker',
 ];
 
 /** Read-only database verification. Never prints the connection string or row contents. */

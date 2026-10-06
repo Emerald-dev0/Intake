@@ -4,6 +4,7 @@ import { billingStatusLabel, creditSummary, resetInterval } from '../../lib/cred
 import { PLAN_CATALOG, formatUsd } from '../../lib/plans';
 import { oauthErrorMessage } from '../../lib/sign-in-errors';
 import { connectionSummary } from '../Connections';
+import { EmailSecurityCard } from '../components/EmailSecurityCard';
 import { useCredits } from '../hooks/useCredits';
 import { useSession } from '../hooks/useSession';
 import { useSignInConfig } from '../hooks/useSignInConfig';
@@ -100,6 +101,13 @@ export function AccountPage() {
         <li>Daily credits refresh at 00:00 UTC. Monthly credits follow the reset time shown above; neither bucket rolls over.</li>
       </ul>
       <p>Plans and prices are listed on the <a href="/pricing">pricing page</a>. What this account can use right now is always the balance shown above.</p>
+    </section>
+
+    <section className="account-connections account-security" aria-labelledby="account-security-title">
+      <span className="info-index">EMAIL &amp; SECURITY</span>
+      <h2 id="account-security-title">How Intake reaches you</h2>
+      <p>Your email address is where verification codes, password resets and security notices arrive. Intake never emails a password, a code you did not request, or anything about a connected Google account.</p>
+      <EmailSecurityCard />
     </section>
 
     <section className="account-connections" aria-labelledby="signin-methods-title">
