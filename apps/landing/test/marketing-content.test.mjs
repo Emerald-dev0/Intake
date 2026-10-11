@@ -18,8 +18,9 @@ test('the homepage fallback keeps its product promise, one H1, pricing, and craw
   assert.match(fallback, /Confirm, and it is real/);
   assert.match(fallback, /Free · \$0/);
   assert.match(fallback, /10 credits every day/);
-  assert.match(fallback, /Pro · \$7\.99 per month or \$69\.00 per year/);
-  assert.match(fallback, /1000 a month/);
+  assert.match(fallback, /Pro · opens later/);
+  assert.match(fallback, /not on sale yet/);
+  assert.match(fallback, /1000 monthly credits/);
   assert.match(fallback, /Designed by <a href="https:\/\/github\.com\/Emerald-dev0">Emerald<\/a>/);
 });
 

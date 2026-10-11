@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { connectionSummary } from '../Connections';
 import { billingStatusLabel, creditSummary, resetInterval } from '../../lib/credits';
-import { formatUsd, PLAN_CATALOG } from '../../lib/plans';
+import { PAID_BILLING_ENABLED, PLAN_CATALOG } from '../../lib/plans';
 import { useWorkspace } from '../hooks/useWorkspace';
 
 export function OverviewPage() {
@@ -13,7 +13,6 @@ export function OverviewPage() {
     event.preventDefault();
     if (idea.trim()) navigate('/app/forms', { state: { initialPrompt: idea.trim() } });
   }
-  const proPrices = PLAN_CATALOG.pro.prices;
   return <>
     <div className="page-heading"><div className="eyebrow">01 / YOUR WORKSPACE</div>
       <p>Welcome, {user.name.split(' ')[0]}.</p><h1>What do you need<br />to <em>collect?</em></h1><div className="heading-description">Describe the form you want. Intake will propose questions and logic for you to review before anything is created in Google Forms.</div>
@@ -31,7 +30,7 @@ export function OverviewPage() {
           <div><span>MONTHLY</span><strong>{credits.credits.monthlyLimit > 0 ? <>{credits.credits.monthlyRemaining} <small>/ {credits.credits.monthlyLimit}</small></> : 'Not included'}</strong><small>{credits.credits.monthlyLimit > 0 ? `resets ${resetInterval(credits.credits.nextMonthlyReset)} · no rollover` : 'Pro includes a monthly reserve'}</small></div>
         </div>
         {credits.credits.availableCredits === 0 && <p className="dashboard-credit-state" role="status">No credits are available right now. Nothing was created or changed. Daily credits renew {resetInterval(credits.credits.nextDailyReset)}.</p>}
-        <div className="dashboard-credit-actions"><a href="/app/account">Manage account and credits <span aria-hidden>↗</span></a>{credits.credits.plan === 'free' && <a href="/pricing">Explore Pro · {proPrices ? `${formatUsd(proPrices.month)}/month or ${formatUsd(proPrices.year)}/year` : 'view pricing'} <span aria-hidden>↗</span></a>}</div>
+        <div className="dashboard-credit-actions"><a href="/app/account">Manage account and credits <span aria-hidden>↗</span></a>{credits.credits.plan === 'free' && <a href="/pricing">{PAID_BILLING_ENABLED ? 'Explore Pro' : 'Pro is coming soon — see pricing'} <span aria-hidden>↗</span></a>}</div>
       </> : <>
         <div className="dashboard-credit-top"><div><span className="info-index">YOUR PLAN &amp; CREDITS</span><h2 id="dashboard-credit-title">{credits.status === 'loading' ? 'Checking your balance…' : 'Balance unavailable'}</h2></div></div>
         <p className="dashboard-credit-state" role={credits.status === 'error' ? 'alert' : 'status'}>{credits.status === 'loading' ? 'Intake is reading your server-reported plan and credit balance.' : 'Intake could not verify your balance. This is not a zero-credit result, and no plan is assumed.'}</p>

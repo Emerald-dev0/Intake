@@ -2,26 +2,26 @@ import { PLAN_CATALOG, formatUsd, proPriceComparison } from '../lib/plans.ts';
 
 const comparison = proPriceComparison();
 
-export const PRICING_TITLE = 'Intake Pricing — Free and Pro Plans';
-export const PRICING_DESCRIPTION = `Free is $0 with ${PLAN_CATALOG.free.dailyCredits} daily credits. Pro is ${formatUsd(comparison.monthlyCents)} per month or ${formatUsd(comparison.annualCents)} per year with ${PLAN_CATALOG.pro.monthlyCredits} monthly credits.`;
+export const PRICING_TITLE = 'Intake Pricing — Free during launch, Pro coming soon';
+export const PRICING_DESCRIPTION = `Intake is free during launch: $0 with ${PLAN_CATALOG.free.dailyCredits} daily credits for everyone. Pro (${formatUsd(comparison.monthlyCents)} per month or ${formatUsd(comparison.annualCents)} per year) and credit packs are coming soon.`;
 
 /** Shared by the visible pricing page, its crawlable fallback and pricing structured data. */
 export const PRICING_FAQS = [
   {
-    question: 'How much does Intake cost?',
-    answer: `Free is $0. Pro is ${formatUsd(comparison.monthlyCents)} per month or ${formatUsd(comparison.annualCents)} per year. Paying annually would save ${formatUsd(comparison.annualSavingsCents)} compared with twelve monthly payments.`,
+    question: 'How much does Intake cost during launch?',
+    answer: `Nothing. Every account is on Free at $0 with ${PLAN_CATALOG.free.dailyCredits} daily credits, refreshed at 00:00 UTC. Paid plans open later.`,
   },
   {
-    question: 'What does Pro add?',
-    answer: `Pro has ${PLAN_CATALOG.pro.dailyCredits} daily credits plus ${PLAN_CATALOG.pro.monthlyCredits} monthly credits. The form workflows and provider limits are the same as Free. Unused credits do not roll over.`,
+    question: 'What will Pro add?',
+    answer: `Pro will add ${PLAN_CATALOG.pro.monthlyCredits} monthly credits on top of the ${PLAN_CATALOG.pro.dailyCredits} daily credits, for ${formatUsd(comparison.monthlyCents)} per month or ${formatUsd(comparison.annualCents)} per year. The form workflows and provider limits stay the same as Free. Unused credits do not roll over.`,
   },
   {
     question: 'What are credit packs?',
-    answer: 'Credit packs let you buy additional credits when you need more. Packs come in three sizes: 100 credits, 500 credits, or 1,500 credits. Purchased credits never expire and are used after your daily and subscription credits.',
+    answer: 'Credit packs will let you buy additional credits when you need more. Packs will come in three sizes: 100 credits, 500 credits, or 1,500 credits. Purchased credits never expire and are used after your daily and subscription credits. They are coming soon.',
   },
   {
-    question: 'How do I get Pro?',
-    answer: 'Start with a free account and keep building. You can upgrade to Pro from your billing page at any time; everything you have made on Free comes with you.',
+    question: 'How do I get Pro when it opens?',
+    answer: 'Start with a free account and keep building. When Pro opens, you can switch it on from your billing page; everything you have made on Free comes with you.',
   },
   {
     question: 'How are credit charges decided?',

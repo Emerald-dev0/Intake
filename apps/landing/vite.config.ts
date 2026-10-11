@@ -104,8 +104,8 @@ function noScriptContent(): string {
       <h2 id="fallback-pricing">Plans and pricing</h2>
       <h3>Free · $0</h3>
       <p>${PLAN_CATALOG.free.dailyCredits} credits every day, form creation from a description, editing for the forms you already have, a library of everything you make, and a review step before anything is applied.</p>
-      <h3>Pro · ${escapeHtml(proMonthly)} per month or ${escapeHtml(proAnnual)} per year</h3>
-      <p>${PLAN_CATALOG.pro.dailyCredits} credits a day plus ${PLAN_CATALOG.pro.monthlyCredits} a month, with every workflow from Free unchanged. Daily credits are used first and unused credits do not roll over.</p>
+      <h3>Pro · opens later</h3>
+      <p>Pro is not on sale yet. When it opens at ${escapeHtml(proMonthly)} per month or ${escapeHtml(proAnnual)} per year, it will add ${PLAN_CATALOG.pro.monthlyCredits} monthly credits on top of the ${PLAN_CATALOG.pro.dailyCredits} daily credits, with every workflow from Free unchanged.</p>
     </section>
     <section id="faq" aria-labelledby="fallback-faq">
       <h2 id="fallback-faq">Frequently asked questions</h2>
@@ -178,8 +178,8 @@ function pricingNoScriptContent(): string {
       <h1 id="pricing-fallback-title">Intake plans and pricing</h1>
       <h2>Free · $0</h2>
       <p>${PLAN_CATALOG.free.dailyCredits} credits every day, refreshed at 00:00 UTC, with the full Google Forms creation and editing workflow.</p>
-      <h2>Pro · ${escapeHtml(proMonthly)} per month or ${escapeHtml(proAnnual)} per year</h2>
-      <p>${PLAN_CATALOG.pro.dailyCredits} credits a day plus ${PLAN_CATALOG.pro.monthlyCredits} a month. Paying annually would save ${escapeHtml(annualSavings)} compared with twelve monthly payments, and unused credits do not roll over.</p>
+      <h2>Pro · Coming soon</h2>
+      <p>Pro is not on sale yet. When it opens at ${escapeHtml(proMonthly)} per month or ${escapeHtml(proAnnual)} per year, it will add ${PLAN_CATALOG.pro.monthlyCredits} monthly credits on top of the ${PLAN_CATALOG.pro.dailyCredits} daily credits. Paying annually would save ${escapeHtml(annualSavings)} compared with twelve monthly payments, and unused credits do not roll over.</p>
       <p>Start with a free account; Pro opens to existing accounts first and can be switched on from your account page. Google’s own limits apply the same way on both plans.</p>
     </section>
     <section id="faq" aria-labelledby="pricing-fallback-faq"><h2 id="pricing-fallback-faq">Pricing questions</h2>${faq}</section>

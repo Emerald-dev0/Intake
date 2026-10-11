@@ -19,6 +19,14 @@ export const PLAN_IDS = ['free', 'pro'] as const;
 export type PlanId = (typeof PLAN_IDS)[number];
 export type ProBillingInterval = 'month' | 'year';
 
+/**
+ * Display mirror of the server's launch flag (server/billing/plans.ts).
+ * While false, paid plans and credit packs render as "Coming soon" and every
+ * account runs on Free with 10 daily credits. The server enforces this; this
+ * flag only decides what the UI offers. Flip together with the server flag.
+ */
+export const PAID_BILLING_ENABLED = false;
+
 export interface PlanCatalogEntry {
   id: PlanId;
   label: string;

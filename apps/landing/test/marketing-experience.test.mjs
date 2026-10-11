@@ -144,14 +144,16 @@ test('the pricing page sends Pro to a real next step instead of an unfinished ch
   assert.equal(actions[1].getAttribute('href'), '/auth/sign-up?plan=pro');
   assert.match(actions[0].getAttribute('href'), /^\/auth\/sign-up/);
 
-  // No readiness, billing-status, or AI-marker wording survives on the page that shows prices.
-  for (const phrase of [/does not take payments/i, /not available yet/i, /coming soon/i, /not implemented/i, /display-only/i, /not on this page/i, /AI-powered/i, /AI credits/i, /AI-assisted/i, /natural[- ]language/i, /control layer/i]) {
+  // During free launch the pricing page is allowed to say Pro and packs are coming soon,
+  // but no other unfinished-work, billing-status, or AI-marker wording survives on the page.
+  assert.match(text, /coming soon/i, 'the pricing page says paid plans are coming soon');
+  for (const phrase of [/does not take payments/i, /not available yet/i, /not implemented/i, /display-only/i, /not on this page/i, /AI-powered/i, /AI credits/i, /AI-assisted/i, /natural[- ]language/i, /control layer/i]) {
     assert.doesNotMatch(text, phrase, `the pricing page must not say: ${phrase}`);
   }
 
-  // The monthly and annual switch still compares real prices.
+  // The monthly and annual switch still compares the real future Pro prices.
   const annual = [...document.querySelectorAll('.pricing-cadence button')].find(button => /Annual/.test(button.textContent));
   assert.ok(annual, 'the cadence switch is present');
   await act(async () => { annual.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); });
-  assert.match(document.querySelector('.pricing-plan-card.is-pro .pricing-amount').textContent, /\$59\.99/);
+  assert.match(document.querySelector('.pricing-plan-card.is-pro .pricing-amount').textContent, /\$69\.00/);
 });

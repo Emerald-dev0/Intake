@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { creditSummary, resetInterval } from '../../lib/credits';
-import { PLAN_CATALOG, CREDIT_PACK_CATALOG, formatUsd, proPriceComparison } from '../../lib/plans';
+import { CREDIT_PACK_CATALOG, PAID_BILLING_ENABLED, formatUsd } from '../../lib/plans';
 import { useCredits } from '../hooks/useCredits';
 import { useWorkspace } from '../hooks/useWorkspace';
 
@@ -57,25 +57,19 @@ export function BillingPage() {
   useWorkspace();
   const creditState = useCredits();
   const credits = creditState.state.status === 'ready' ? creditState.state.credits : null;
-  const comparison = proPriceComparison();
 
   const [summary, setSummary] = useState<BillingSummary | null>(null);
   const [history, setHistory] = useState<BillingHistory | null>(null);
   const [loading, setLoading] = useState(true);
-  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [cancelLoading, setCancelLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
-  // Check for checkout return
+  // Paid checkout is closed during free launch, so there is no checkout return to handle.
+  // The query cleanup below keeps stale ?checkout= links from showing a dead state.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const checkout = params.get('checkout');
-    if (checkout === 'success') {
-      setMessage('Payment successful! Your plan or credits have been updated.');
-      window.history.replaceState({}, '', '/app/billing');
-    } else if (checkout === 'canceled') {
-      setMessage('Checkout was canceled. No charges were made.');
+    if (params.get('checkout') && !PAID_BILLING_ENABLED) {
       window.history.replaceState({}, '', '/app/billing');
     }
   }, []);
@@ -98,52 +92,6 @@ export function BillingPage() {
   }, []);
 
   useEffect(() => { void loadBilling(); }, [loadBilling]);
-
-  async function subscribe(plan: string) {
-    setCheckoutLoading(plan);
-    setError('');
-    try {
-      const res = await fetch('/api/billing/checkout/subscription', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan }),
-      });
-      const data = await res.json();
-      if (res.ok && data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
-      } else {
-        setError(data.message || 'Could not start checkout.');
-      }
-    } catch {
-      setError('Checkout failed. Please try again.');
-    } finally {
-      setCheckoutLoading(null);
-    }
-  }
-
-  async function buyCreditPack(packId: string) {
-    setCheckoutLoading(packId);
-    setError('');
-    try {
-      const res = await fetch('/api/billing/checkout/credit-pack', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pack: packId }),
-      });
-      const data = await res.json();
-      if (res.ok && data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
-      } else {
-        setError(data.message || 'Could not start checkout.');
-      }
-    } catch {
-      setError('Checkout failed. Please try again.');
-    } finally {
-      setCheckoutLoading(null);
-    }
-  }
 
   async function cancelSubscription() {
     if (!window.confirm('Are you sure you want to cancel your Pro subscription? You will keep Pro access until the end of your current billing period.')) return;
@@ -177,7 +125,9 @@ export function BillingPage() {
     <div className="page-heading">
       <div className="eyebrow">07 / BILLING</div>
       <h1>Your <em>billing.</em></h1>
-      <div className="heading-description">Manage your subscription, view credits and billing history, and purchase credit packs.</div>
+      <div className="heading-description">{PAID_BILLING_ENABLED
+        ? 'Manage your subscription, view credits and billing history, and purchase credit packs.'
+        : 'Your plan, credits and billing history. Paid plans open later — everyone builds on Free for now.'}</div>
     </div>
 
     {message && <div className="form-banner ok" role="status"><p>{message}</p><button className="btn-dismiss" onClick={() => setMessage('')} aria-label="Dismiss">×</button></div>}
@@ -209,23 +159,11 @@ export function BillingPage() {
               )}
             </div>
             <div className="billing-plan-actions">
-              {!isPro && (
-                <>
-                  <button
-                    className="btn btn-accent btn-sm"
-                    disabled={checkoutLoading !== null}
-                    onClick={() => void subscribe('pro_monthly')}
-                  >
-                    {checkoutLoading === 'pro_monthly' ? 'Opening checkout…' : `Upgrade to Pro — ${formatUsd(PLAN_CATALOG.pro.prices!.month)}/mo`}
-                  </button>
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    disabled={checkoutLoading !== null}
-                    onClick={() => void subscribe('pro_annual')}
-                  >
-                    {checkoutLoading === 'pro_annual' ? 'Opening checkout…' : `Save ${comparison.annualSavingsPercent}% — ${formatUsd(PLAN_CATALOG.pro.prices!.year)}/yr`}
-                  </button>
-                </>
+              {!PAID_BILLING_ENABLED && !isPro && (
+                <p className="billing-coming-soon">You are on Free with 10 daily credits. Pro and credit packs are coming soon.</p>
+              )}
+              {PAID_BILLING_ENABLED && !isPro && (
+                <p className="billing-coming-soon">Paid checkout opens from the pricing page.</p>
               )}
               {isPro && !isCanceled && (
                 <button
@@ -234,11 +172,6 @@ export function BillingPage() {
                   onClick={() => void cancelSubscription()}
                 >
                   {cancelLoading ? 'Canceling…' : 'Cancel subscription'}
-                </button>
-              )}
-              {isPro && isCanceled && (
-                <button className="btn btn-accent btn-sm" disabled={checkoutLoading !== null} onClick={() => void subscribe('pro_monthly')}>
-                  {checkoutLoading !== null ? 'Opening checkout…' : 'Resubscribe to Pro'}
                 </button>
               )}
             </div>
@@ -281,23 +214,19 @@ export function BillingPage() {
     {/* Credit Packs */}
     <section className="billing-section" aria-labelledby="packs-title">
       <div className="billing-section-header">
-        <span className="info-index">CREDIT PACKS</span>
+        <span className="info-index">CREDIT PACKS{PAID_BILLING_ENABLED ? '' : ' · COMING SOON'}</span>
         <h2 id="packs-title">Buy credits when you need more</h2>
       </div>
-      <p className="billing-section-description">Purchased credits are used after your daily and subscription credits. They do not expire.</p>
+      <p className="billing-section-description">{PAID_BILLING_ENABLED
+        ? 'Purchased credits are used after your daily and subscription credits. They do not expire.'
+        : 'Credit packs are not on sale yet. When they open, purchased credits are used after your daily and subscription credits and never expire.'}</p>
       <div className="billing-packs-grid">
         {CREDIT_PACK_CATALOG.map(pack => (
           <div key={pack.id} className="billing-pack-card">
             <h3>{pack.label}</h3>
             <p className="billing-pack-credits">{pack.credits} credits</p>
             <p className="billing-pack-price">{formatUsd(pack.priceCents)}</p>
-            <button
-              className="btn btn-ghost btn-sm"
-              disabled={checkoutLoading !== null}
-              onClick={() => void buyCreditPack(pack.id)}
-            >
-              {checkoutLoading === pack.id ? 'Opening checkout…' : 'Purchase'}
-            </button>
+            {!PAID_BILLING_ENABLED && <p className="billing-coming-soon">Coming soon</p>}
           </div>
         ))}
       </div>

@@ -28,6 +28,12 @@
   line-height: 1.6;
   margin: 0 0 16px;
 }
+.billing-coming-soon {
+  color: var(--cream-3);
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+}
 
 .billing-plan-detail {
   display: flex;

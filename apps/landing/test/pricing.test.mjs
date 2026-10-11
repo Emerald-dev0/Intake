@@ -30,11 +30,13 @@ test('the generated pricing document is crawlable, canonical, and matches its vi
   assert.equal(canonical, `${SITE_ORIGIN}/pricing`);
   assert.ok(description?.includes('$7.99 per month'));
   assert.ok(description?.includes('$69.00 per year'));
+  assert.ok(description?.includes('coming soon'));
   assert.equal(description, PRICING_DESCRIPTION);
   assert.ok(structured);
   assert.ok(fallback);
   assert.match(fallback, /Free · \$0/);
-  assert.match(fallback, /Pro · \$7\.99 per month or \$69\.00 per year/);
+  assert.match(fallback, /Pro · Coming soon/);
+  assert.match(fallback, /not on sale yet/);
   assert.match(fallback, /Pro opens to existing accounts first/);
   assert.match(fallback, /switched on from your account page/);
 

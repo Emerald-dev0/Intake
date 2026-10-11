@@ -81,7 +81,7 @@ test('production Vite output serves direct and repeated document requests; API p
         assert.match(html, /<div id="root"><\/div>/);
         if (path === '/pricing') {
           assert.ok(html.includes('<link rel="canonical" href="https://intake-six-blue.vercel.app/pricing" />'));
-          assert.ok(html.includes('<title>Intake Pricing — Free and Pro Plans</title>'));
+          assert.ok(html.includes('<title>Intake Pricing — Free during launch, Pro coming soon</title>'));
         }
         if (path.startsWith('/admin')) {
           // Vite preview serves the SPA fallback directly; production's Vercel route sends every
