@@ -32,9 +32,9 @@ services:
       # --- Admin console ----------------------------------------------------
       - key: ADMIN_EMAILS
         sync: false # comma-separated, server-only; empty denies everyone
-      # Set only after verifying the actual Render/Vercel forwarded-address chain; safe default is 0.
+      # Render terminates TLS at its edge proxy and forwards one hop to the service.
       - key: API_TRUST_PROXY_HOPS
-        value: 0
+        value: 1
       # --- Provider token encryption ---------------------------------------
       # Strongly recommended: a dedicated key keeps stored Google grants valid if BETTER_AUTH_SECRET
       # is ever rotated. 32+ random bytes (openssl rand -base64 32).
@@ -61,9 +61,20 @@ services:
       # (TXT) plus SPF, DKIM and DMARC on the same domain before real delivery works.
       - key: CALDER_FROM_EMAIL
         sync: false
-      # Display name on every Intake email.
+      # Display name on every system Intake email (OTPs, resets, security).
       - key: CALDER_FROM_NAME
         value: Intake
+      # The welcome mail is personal and never uses the system sender above.
+      - key: CALDER_WELCOME_FROM_EMAIL
+        value: daniel@calder.click
+      - key: CALDER_WELCOME_FROM_NAME
+        value: Daniel from Intake
+      # Optional; defaults to the welcome sender so replies reach a human.
+      # - key: CALDER_WELCOME_REPLY_TO
+      #   sync: false
+      # Optional reply-to for system mail.
+      # - key: CALDER_REPLY_TO
+      #   sync: false
       # Signing secret from the Calder webhook endpoint registration.
       # Endpoint: ${BETTER_AUTH_URL}/api/webhooks/calder
       - key: CALDER_WEBHOOK_SECRET
