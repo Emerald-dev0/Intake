@@ -138,6 +138,8 @@ const FOOTER_COLUMNS = [
       ['Contributing', `${CREATOR.github}/blob/main/README.md#contributing`, true],
       ['License', `${CREATOR.github}/blob/main/LICENSE`, true],
       ['Pricing', '/pricing'],
+      ['Privacy', '/privacy'],
+      ['Terms', '/terms'],
     ],
   },
 ] as const;
