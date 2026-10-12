@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { LogoMark } from '../../components/LogoMark';
 import { ThemeToggle } from '../../components/ThemeToggle';
@@ -8,6 +8,28 @@ import { useProviders } from '../Connections';
 import { CreditsProvider, useCreditsSource } from '../hooks/useCredits';
 import { creditSummary, resetLabel } from '../../lib/credits';
 
+/**
+ * Operator navigation. The server decides: `/api/admin/access` returns 200
+ * only for a verified allowlisted session, and this link renders only then.
+ * Everyone else — signed out, regular users, unreachable API — sees nothing.
+ */
+function useOperatorAccess() {
+  const [isOperator, setIsOperator] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetch('/api/admin/access', { credentials: 'same-origin', cache: 'no-store', headers: { accept: 'application/json' } });
+        if (active) setIsOperator(response.ok);
+      } catch {
+        if (active) setIsOperator(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+  return isOperator;
+}
+
 export function WorkspaceLayout() {
   const { user, clearSession } = useSession();
   const providers = useProviders(true);
@@ -16,6 +38,7 @@ export function WorkspaceLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState('');
+  const isOperator = useOperatorAccess();
 
   async function signOut() {
     setSigningOut(true);
@@ -45,6 +68,12 @@ export function WorkspaceLayout() {
           <a className={page === 'connections' ? 'active' : ''} href="/app/connections"><span aria-hidden>◇</span> Connections</a>
           <a className={page === 'billing' ? 'active' : ''} href="/app/billing"><span aria-hidden>$</span> Billing</a>
         </nav>
+        {isOperator && <>
+          <div className="sidebar-label">OPERATOR</div>
+          <nav aria-label="Operator navigation" className="side-nav">
+            <a href="/admin"><span aria-hidden>⌁</span> Admin console</a>
+          </nav>
+        </>}
         <div className="sidebar-credits" aria-live="polite">
           <span className="sidebar-label">CREDITS</span>
           {credits.state.status === 'ready'
