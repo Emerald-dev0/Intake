@@ -13,9 +13,12 @@ export function ProtectedLayout() {
     generation.current++;
     setState({ status: 'signed-out' });
   }, []);
-  const load = useCallback(async () => {
+  const load = useCallback(async (background = false) => {
     const current = ++generation.current;
-    setState({ status: 'loading' });
+    // Background revalidation (tab focus, back/forward cache) must never flash
+    // the loader over a working workspace: the current screen stays until the
+    // check either confirms it or proves the session is gone.
+    if (!background) setState({ status: 'loading' });
     try {
       const payload = await api<{ user: User; authenticationMethods?: unknown }>('/api/me');
       if (current === generation.current) setState({
@@ -24,13 +27,21 @@ export function ProtectedLayout() {
         authenticationMethods: parseAuthenticationMethodSummary(payload.authenticationMethods),
       });
     } catch (error) {
-      if (current === generation.current) setState({ status: error instanceof ApiError && error.status === 401 ? 'signed-out' : 'error' });
+      if (current === generation.current) {
+        if (error instanceof ApiError && error.status === 401) {
+          setState({ status: 'signed-out' });
+        } else if (!background) {
+          setState({ status: 'error' });
+        }
+        // A background check that fails without a 401 leaves the workspace
+        // alone: a blip must not log anyone out or blank their screen.
+      }
     }
   }, []);
   useEffect(() => {
     void load();
     // Revalidate when returning from another tab or browser back/forward cache.
-    const refresh = () => { void load(); };
+    const refresh = () => { void load(true); };
     window.addEventListener('focus', refresh);
     window.addEventListener('pageshow', refresh);
     return () => {
