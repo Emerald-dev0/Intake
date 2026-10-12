@@ -6,7 +6,7 @@
   "outputDirectory": "dist",
   "routes": [
     {
-      "src": "/(.*)",
+      "src": "/((?!api(?:/|$)).*)",
       "continue": true,
       "headers": {
         "X-Content-Type-Options": "nosniff",
