@@ -214,6 +214,22 @@ async function requestStructuredOutput(
     }
 
     if (!response.ok) {
+      // Operator diagnostics only: status plus Groq's error message head. The request body is
+      // never logged (it carries the user's words); the key is never logged (bearer header).
+      try {
+        const detail = JSON.parse(body) as { error?: { message?: unknown; code?: unknown; type?: unknown } };
+        const message = typeof detail?.error?.message === 'string' ? detail.error.message.slice(0, 300) : '';
+        console.warn(JSON.stringify({
+          time: new Date().toISOString(), level: 'warn', event: 'form.interpret.provider_rejected',
+          providerStatus: response.status, providerCode: detail?.error?.code ?? null,
+          providerType: detail?.error?.type ?? null, providerMessage: message || null,
+        }));
+      } catch {
+        console.warn(JSON.stringify({
+          time: new Date().toISOString(), level: 'warn', event: 'form.interpret.provider_rejected',
+          providerStatus: response.status, providerCode: null, providerType: null, providerMessage: null,
+        }));
+      }
       if (response.status === 401 || response.status === 403) throw new InterpretationError('model_not_configured', 'The model service rejected Intake’s credentials. An operator needs to check GROQ_API_KEY. No changes were made.');
       if (response.status === 400 || response.status === 404 || response.status === 422) throw new InterpretationError('model_not_configured', 'The model service rejected Intake’s model or structured-output settings. An operator needs to check GROQ_MODEL. No changes were made.');
       if (response.status === 429) throw new InterpretationError('model_rate_limited', 'The interpretation service is rate limited right now. Wait a moment and try again. No changes were made.');
