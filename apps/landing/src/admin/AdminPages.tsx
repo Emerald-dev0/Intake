@@ -887,6 +887,15 @@ function AnalyticsContent({ data, range }: { data: AnalyticsData; range: AdminRa
         </Panel>
       </div>
 
+      <Panel title="Countries" eyebrow={data.countryPrecise ? 'EDGE-CONFIRMED' : 'APPROXIMATE · TIMEZONE'}>
+        {data.topCountries.length
+          ? <>
+            <div className="admin-inline-facts">{data.topCountries.map(row => <span key={row.name}>{row.name} <b>{number(row.count)}</b></span>)}</div>
+            {!data.countryPrecise && <p className="admin-note">Approximate: no edge geo header survived the proxy chain, so countries come from browser timezones. Two-letter codes, unknown stays empty rather than guessed.</p>}
+          </>
+          : <EmptyState title="No country data yet" detail="Codes arrive with the next page views — edge headers first, timezone second." />}
+      </Panel>
+
       <div className="admin-overview-columns">
         <Panel title="Campaign sources" eyebrow="UTM_SOURCE, DIRECT INCLUDED">
           {data.topSources.length

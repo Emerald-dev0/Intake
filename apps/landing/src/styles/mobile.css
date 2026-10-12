@@ -8,7 +8,7 @@
   border-radius: 28px;
   border: 1px solid var(--line-2);
   background: linear-gradient(180deg, #151513, #101010);
-  box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.9), 0 0 0 6px rgba(241, 236, 226, 0.03);
+  box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.9), 0 0 0 6px rgba(var(--cream-rgb), 0.03);
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
@@ -24,7 +24,7 @@
   flex: 1;
   height: 3px;
   border-radius: 3px;
-  background: rgba(241, 236, 226, 0.14);
+  background: rgba(var(--cream-rgb), 0.14);
   overflow: hidden;
 }
 .ms-bar i {
@@ -116,7 +116,7 @@
   border-radius: 999px;
   font-size: 11px;
   color: var(--cream-3);
-  background: rgba(241, 236, 226, 0.04);
+  background: rgba(var(--cream-rgb), 0.04);
 }
 .ms-sys b {
   font-weight: 500;

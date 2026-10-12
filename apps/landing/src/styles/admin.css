@@ -1,6 +1,6 @@
 /* Private operations console — intentionally functional, compact and aligned with Intake's existing palette. */
 .admin-app { min-height:100svh; display:flex; background:var(--ink-1); color:var(--cream); }
-.admin-sidebar { position:sticky; top:0; width:244px; height:100svh; flex:0 0 244px; display:flex; flex-direction:column; padding:22px 13px 18px; background:#0c0c0b; border-right:1px solid var(--line-2); z-index:20; }
+.admin-sidebar { position:sticky; top:0; width:244px; height:100svh; flex:0 0 244px; display:flex; flex-direction:column; padding:22px 13px 18px; background:var(--ink); border-right:1px solid var(--line-2); z-index:20; }
 .admin-brand { display:flex; align-items:center; gap:9px; padding:4px 12px 22px; font-size:21px; font-weight:650; letter-spacing:-.06em; }
 .admin-brand small { margin-left:6px; padding:3px 5px; border:1px solid var(--line-2); border-radius:4px; color:var(--cream-3); font:9px var(--mono); letter-spacing:.1em; }
 .admin-nav-label,.admin-overline { display:block; color:var(--cream-3); font:10px var(--mono); letter-spacing:.11em; text-transform:uppercase; }
@@ -183,6 +183,8 @@
   .admin-pagination { flex-direction:column; align-items:flex-start; }.admin-pagination > div { width:100%; }.admin-pagination .admin-button { flex:1; }
   .admin-table { min-width:900px; }
 }
+
+.admin-note { margin:10px 0 0; color:var(--cream-4); font-size:11px; line-height:1.55; }
 
 /* Analytics daily bars: stacked view/click widths, no chart library. */
 .admin-bars { display:flex; flex-direction:column; gap:7px; }

@@ -17,6 +17,8 @@ export interface SiteEventInput {
   utmSource: string;
   utmMedium: string;
   utmCampaign: string;
+  country: string;
+  timeZone: string;
 }
 
 export interface AnalyticsDayPoint {
@@ -42,6 +44,9 @@ export interface AnalyticsSummary {
   topReferrers: AnalyticsTopRow[];
   topSources: AnalyticsTopRow[];
   topClicks: AnalyticsTopRow[];
+  topCountries: AnalyticsTopRow[];
+  /** True while any pageview in range carries an edge-confirmed country code. */
+  countryPrecise: boolean;
 }
 
 export interface AnalyticsBounds {
@@ -68,9 +73,9 @@ export function createPostgresAnalyticsStore(pool: Pool) {
   return {
     async record(input: SiteEventInput): Promise<void> {
       await pool.query(
-        `INSERT INTO site_events (day, kind, path, label, referrer_host, utm_source, utm_medium, utm_campaign)
-         VALUES (CURRENT_DATE, $1, $2, $3, $4, $5, $6, $7)`,
-        [input.kind, input.path, input.label, input.referrerHost, input.utmSource, input.utmMedium, input.utmCampaign],
+        `INSERT INTO site_events (day, kind, path, label, referrer_host, utm_source, utm_medium, utm_campaign, country, time_zone)
+         VALUES (CURRENT_DATE, $1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [input.kind, input.path, input.label, input.referrerHost, input.utmSource, input.utmMedium, input.utmCampaign, input.country, input.timeZone],
       );
     },
 
@@ -80,9 +85,10 @@ export function createPostgresAnalyticsStore(pool: Pool) {
         return {
           available: false, reason: 'Site analytics start after migration 013. Run npm run db:migrate:intake.',
           pageviews: 0, clicks: 0, signups: 0, formsCreated: 0, byDay: [], topPages: [], topReferrers: [], topSources: [], topClicks: [],
+          topCountries: [], countryPrecise: false,
         };
       }
-      const [totals, byDay, topPages, topReferrers, topSources, topClicks, signups, forms] = await Promise.all([
+      const [totals, byDay, topPages, topReferrers, topSources, topClicks, topCountries, signups, forms] = await Promise.all([
         pool.query(
           `SELECT kind, COUNT(*) AS count FROM site_events WHERE created_at >= $1 AND created_at < $2 GROUP BY kind`,
           [bounds.from, bounds.to],
@@ -116,6 +122,12 @@ export function createPostgresAnalyticsStore(pool: Pool) {
            GROUP BY label ORDER BY count DESC LIMIT 10`,
           [bounds.from, bounds.to],
         ),
+        pool.query(
+          `SELECT country AS name, COUNT(*) AS count, BOOL_OR(time_zone = '') AS precise FROM site_events
+           WHERE kind = 'pageview' AND country <> '' AND created_at >= $1 AND created_at < $2
+           GROUP BY country ORDER BY count DESC LIMIT 10`,
+          [bounds.from, bounds.to],
+        ).catch(() => ({ rows: [], rowCount: 0 })),
         pool.query(`SELECT COUNT(*) AS count FROM "user" WHERE "createdAt" >= $1 AND "createdAt" < $2`, [bounds.from, bounds.to])
           .catch(() => ({ rows: [{ count: 0 }], rowCount: 1 })),
         pool.query(`SELECT COUNT(*) AS count FROM form WHERE created_at >= $1 AND created_at < $2`, [bounds.from, bounds.to])
@@ -134,6 +146,8 @@ export function createPostgresAnalyticsStore(pool: Pool) {
         clicks,
         signups: signups.rows.length ? count(signups.rows[0]!) : 0,
         formsCreated: forms.rows.length ? count(forms.rows[0]!) : 0,
+        topCountries: topCountries.rows.map(row => ({ name: String(row.name ?? ''), count: count(row) })),
+        countryPrecise: topCountries.rows.some(row => row.precise === true),
         byDay: byDay.rows.map(row => ({ day: dayString(row.day), pageviews: Number(row.pageviews) || 0, clicks: Number(row.clicks) || 0 })),
         topPages: topPages.rows.map(row => ({ name: String(row.name ?? ''), count: count(row) })),
         topReferrers: topReferrers.rows.map(row => ({ name: String(row.name ?? ''), count: count(row) })),

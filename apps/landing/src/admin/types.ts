@@ -258,6 +258,8 @@ export interface AnalyticsData {
   topReferrers: Array<{ name: string; count: number }>;
   topSources: Array<{ name: string; count: number }>;
   topClicks: Array<{ name: string; count: number }>;
+  topCountries: Array<{ name: string; count: number }>;
+  countryPrecise: boolean;
 }
 
 export interface BillingSettingsData {

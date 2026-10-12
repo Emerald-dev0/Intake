@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import express from 'express';
 import { createPostgresAnalyticsStore } from '../server/analytics/store.ts';
 import { createAnalyticsRouter, referrerHost } from '../server/analytics/routes.ts';
+import { resolveCountry } from '../server/analytics/countries.ts';
 
 function fakePool(handler) {
   return {
@@ -22,6 +23,33 @@ test('referrer URLs are reduced to hostnames; anything else becomes empty', () =
   assert.equal(referrerHost('ftp://files.example.com/x'), '');
   assert.equal(referrerHost(''), '');
   assert.equal(referrerHost(null), '');
+});
+
+test('country resolution prefers edge headers, then timezone, then empty', () => {
+  assert.deepEqual(
+    resolveCountry({ headers: { 'cf-ipcountry': 'ng' }, timeZone: 'America/New_York' }),
+    { country: 'NG', timeZone: 'America/New_York', precise: true },
+  );
+  assert.deepEqual(
+    resolveCountry({ headers: { 'x-vercel-ip-country': 'DE' }, timeZone: '' }),
+    { country: 'DE', timeZone: '', precise: true },
+  );
+  assert.deepEqual(
+    resolveCountry({ headers: {}, timeZone: 'Africa/Lagos' }),
+    { country: 'NG', timeZone: 'Africa/Lagos', precise: false },
+  );
+  assert.deepEqual(
+    resolveCountry({ headers: { 'cf-ipcountry': 'XX' }, timeZone: 'Mars/Olympus' }),
+    { country: 'XX', timeZone: '', precise: true },
+  );
+  assert.deepEqual(
+    resolveCountry({ headers: {}, timeZone: 'Mars/Olympus' }),
+    { country: '', timeZone: '', precise: false },
+  );
+  assert.deepEqual(
+    resolveCountry({ headers: {}, timeZone: '' }),
+    { country: '', timeZone: '', precise: false },
+  );
 });
 
 test('analytics are unavailable with a reason before migration 013', async () => {
@@ -45,6 +73,12 @@ test('summary aggregates events, referrers, sources, clicks, signups and forms',
     if (sql.includes('referrer_host')) return { rows: [{ name: 'google.com', count: '4' }], rowCount: 1 };
     if (sql.includes('utm_source')) return { rows: [{ name: '(direct)', count: '5' }, { name: 'launch-post', count: '2' }], rowCount: 2 };
     if (sql.includes('GROUP BY label')) return { rows: [{ name: 'Start free', count: '3' }], rowCount: 1 };
+    if (sql.includes('GROUP BY country')) return {
+      rows: [
+        { name: 'NG', count: '4', precise: false },
+        { name: 'US', count: '2', precise: true },
+      ], rowCount: 2,
+    };
     if (sql.includes('FROM "user"')) return { rows: [{ count: '2' }], rowCount: 1 };
     if (sql.includes('FROM form')) return { rows: [{ count: '1' }], rowCount: 1 };
     throw new Error(`unexpected query: ${sql.slice(0, 80)}`);
@@ -58,6 +92,8 @@ test('summary aggregates events, referrers, sources, clicks, signups and forms',
   assert.deepEqual(summary.byDay[0], { day: '2026-10-03', pageviews: 5, clicks: 2 });
   assert.deepEqual(summary.topReferrers, [{ name: 'google.com', count: 4 }]);
   assert.deepEqual(summary.topClicks, [{ name: 'Start free', count: 3 }]);
+  assert.deepEqual(summary.topCountries, [{ name: 'NG', count: 4 }, { name: 'US', count: 2 }]);
+  assert.equal(summary.countryPrecise, true);
 });
 
 test('the public ingress accepts closed-shape events and rejects everything else', async () => {
@@ -81,6 +117,7 @@ test('the public ingress accepts closed-shape events and rejects everything else
     assert.deepEqual(recorded[0], {
       kind: 'pageview', path: '/pricing', label: '',
       referrerHost: 't.co', utmSource: 'launch', utmMedium: '', utmCampaign: '',
+      country: '', timeZone: '',
     });
 
     const click = await post({ kind: 'click', path: '/', label: 'Start free', referrer: '' });

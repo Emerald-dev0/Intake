@@ -3,7 +3,7 @@
   position: relative;
   border-radius: 22px;
   padding: 10px;
-  background: linear-gradient(180deg, rgba(241, 236, 226, 0.07), rgba(241, 236, 226, 0.02));
+  background: linear-gradient(180deg, rgba(var(--cream-rgb), 0.07), rgba(var(--cream-rgb), 0.02));
   border: 1px solid var(--line);
   box-shadow: 0 60px 120px -40px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(0, 0, 0, 0.4);
 }
@@ -323,7 +323,7 @@
   flex: none;
   border-radius: 12px;
   border: 1px solid var(--line);
-  background: rgba(241, 236, 226, 0.02);
+  background: rgba(var(--cream-rgb), 0.02);
   overflow: hidden;
 }
 .step-head {
@@ -505,7 +505,7 @@
   border-radius: 12px;
   border: 1px solid var(--line);
   padding: 10px 12px;
-  background: rgba(241, 236, 226, 0.02);
+  background: rgba(var(--cream-rgb), 0.02);
 }
 .opcard-head {
   display: flex;
@@ -601,7 +601,7 @@
 .st-canvas-grid {
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(rgba(241, 236, 226, 0.09) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(var(--cream-rgb), 0.09) 1px, transparent 1px);
   background-size: 22px 22px;
   mask-image: radial-gradient(100% 80% at 40% 40%, #000 30%, transparent 100%);
   pointer-events: none;
@@ -834,7 +834,7 @@
   gap: 4px 8px;
   padding: 8px 10px;
   border-radius: 8px;
-  background: rgba(241, 236, 226, 0.03);
+  background: rgba(var(--cream-rgb), 0.03);
   border: 1px solid var(--line);
   font-size: 11px;
   font-family: var(--mono);
@@ -1547,7 +1547,7 @@ button.pw-star[tabindex='0']:hover svg {
   padding: 10px;
   border-radius: 10px;
   border: 1px solid var(--line);
-  background: rgba(241, 236, 226, 0.03);
+  background: rgba(var(--cream-rgb), 0.03);
   display: flex;
   flex-direction: column;
   gap: 8px;

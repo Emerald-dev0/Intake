@@ -51,7 +51,7 @@
 }
 .nav-links a:hover {
   color: var(--cream);
-  background: rgba(241, 236, 226, 0.06);
+  background: rgba(var(--cream-rgb), 0.06);
 }
 .nav-cta {
   margin-left: auto;
@@ -113,7 +113,7 @@
   padding: 0 14px 0 5px;
   border-radius: 999px;
   border: 1px solid var(--line-2);
-  background: rgba(241, 236, 226, 0.03);
+  background: rgba(var(--cream-rgb), 0.03);
   font-size: 13px;
   color: var(--cream-2);
   transition: border-color 0.25s;
@@ -950,7 +950,7 @@
   gap: 12px;
   padding: 11px 14px;
   border-radius: 10px;
-  background: rgba(241, 236, 226, 0.03);
+  background: rgba(var(--cream-rgb), 0.03);
   border: 1px solid var(--line);
   font-size: 14px;
   color: var(--cream-2);
@@ -1778,7 +1778,7 @@
   letter-spacing: -0.075em;
   text-align: center;
   color: transparent;
-  background: linear-gradient(180deg, rgba(241, 236, 226, 0.14), rgba(241, 236, 226, 0.02) 85%);
+  background: linear-gradient(180deg, rgba(var(--cream-rgb), 0.14), rgba(var(--cream-rgb), 0.02) 85%);
   -webkit-background-clip: text;
   background-clip: text;
   user-select: none;
@@ -2293,7 +2293,7 @@
   border: 1px solid var(--line-2);
   font-size: 13px;
   color: var(--cream);
-  background: rgba(241, 236, 226, 0.03);
+  background: rgba(var(--cream-rgb), 0.03);
 }
 .play-create {
   margin-top: 14px;

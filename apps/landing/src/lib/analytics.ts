@@ -3,10 +3,11 @@ import { useEffect } from 'react';
 /**
  * Privacy-first engagement beacon for public marketing pages only.
  *
- * What is sent: the allowlisted page path, a CTA label for clicks, the document referrer
- * and any UTM tags on the URL. What is never sent: IP addresses, user agents, query strings,
- * cookies or anything identifying — the server accepts only that closed shape and stores
- * aggregates, so per-visitor counting is structurally impossible.
+ * What is sent: the allowlisted page path, a CTA label for clicks, the document referrer,
+ * the browser timezone (for approximate country reach) and any UTM tags on the URL. What is
+ * never sent: IP addresses, user agents, query strings, cookies or anything identifying — the
+ * server accepts only that closed shape and stores aggregates, so per-visitor counting is
+ * structurally impossible.
  *
  * The hook fires one pageview per mount and delegates one document-level click listener that
  * only records call-to-action navigations (auth, app, pricing). Same-page anchors, admin and
@@ -35,6 +36,14 @@ function utm(): { utmSource: string; utmMedium: string; utmCampaign: string } {
   }
 }
 
+function timeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone ?? '';
+  } catch {
+    return '';
+  }
+}
+
 function send(kind: 'pageview' | 'click', path: AnalyticsPath, label: string): void {
   if (optedOut()) return;
   let referrer = '';
@@ -43,7 +52,7 @@ function send(kind: 'pageview' | 'click', path: AnalyticsPath, label: string): v
   } catch {
     referrer = '';
   }
-  const body = JSON.stringify({ kind, path, label, referrer, ...utm() });
+  const body = JSON.stringify({ kind, path, label, referrer, timeZone: timeZone(), ...utm() });
   try {
     if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
       const blob = new Blob([body], { type: 'application/json' });
