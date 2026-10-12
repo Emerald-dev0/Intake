@@ -8,6 +8,7 @@ import './styles/base.css';
 import './styles/marketing.css';
 import { BrowserRouter, useRoutes } from 'react-router-dom';
 import { routes } from './app/routes';
+import { IntakeLoader } from './components/IntakeLoader';
 function Routes() { return useRoutes(routes); }
 import './styles/app.css';
 import './styles/drafts.css';
@@ -20,7 +21,7 @@ import './styles/billing.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <Suspense fallback={<div className="workspace-status" role="status">Opening Intake…</div>}>
+    <Suspense fallback={<IntakeLoader label="Opening Intake…" />}>
       <BrowserRouter><Routes /></BrowserRouter>
     </Suspense>
   </StrictMode>,

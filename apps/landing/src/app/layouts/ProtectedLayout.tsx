@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { api, ApiError, parseAuthenticationMethodSummary, type AuthenticationMethodSummary, type User } from '../../lib/api';
 import { SessionContext } from '../hooks/useSession';
+import { IntakeLoader } from '../../components/IntakeLoader';
 import { LogoMark } from '../../components/LogoMark';
 
 type State = { status: 'loading' | 'error' | 'signed-out' } | { status: 'ready'; user: User; authenticationMethods: AuthenticationMethodSummary | null };
@@ -39,6 +40,6 @@ export function ProtectedLayout() {
     };
   }, [load]);
   if (state.status === 'signed-out') return <Navigate to="/auth/sign-in" replace />;
-  if (state.status !== 'ready') return <div className="workspace-status"><a href="/" className="app-logo"><LogoMark size={28} /><span>intake</span></a>{state.status === 'loading' ? <p role="status">Opening your workspace…</p> : <div role="alert"><p>We couldn’t verify your session right now.</p><button className="btn btn-accent" onClick={() => void load()}>Try again</button></div>}</div>;
+  if (state.status !== 'ready') return <div className="workspace-status"><a href="/" className="app-logo"><LogoMark size={28} /><span>intake</span></a>{state.status === 'loading' ? <IntakeLoader label="Opening your workspace…" /> : <div role="alert"><p>We couldn’t verify your session right now.</p><button className="btn btn-accent" onClick={() => void load()}>Try again</button></div>}</div>;
   return <SessionContext.Provider value={{ user: state.user, authenticationMethods: state.authenticationMethods, clearSession }}><Outlet /></SessionContext.Provider>;
 }
