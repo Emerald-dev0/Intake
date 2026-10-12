@@ -58,6 +58,7 @@ export function AdminShell() {
     <div className="admin-app">
       <aside className={`admin-sidebar ${mobileOpen ? 'is-open' : ''}`}>
         <a className="admin-brand" href="/admin"><LogoMark size={26} /><span>intake</span><small>OPS</small></a>
+        <a className="admin-workspace-link" href="/app"><span aria-hidden>←</span> Back to workspace</a>
         <div className="admin-nav-label">OPERATIONS</div>
         <nav className="admin-nav" aria-label="Admin navigation">
           {NAVIGATION.map(item => (
@@ -72,9 +73,8 @@ export function AdminShell() {
           <div>Feature flags <small>Later</small></div>
         </div>
         <div className="admin-sidebar-footer">
-          <span className="admin-scope-dot" /> READ-ONLY CONSOLE
-          <p>No customer data or provider credentials are changed here.</p>
-          <a href="/app">← User workspace</a>
+          <span className="admin-scope-dot" /> OPERATOR CONSOLE
+          <p>Only plan allowances and prices can be changed here. Nothing else is mutated.</p>
         </div>
       </aside>
       {mobileOpen && <button className="admin-mobile-shade" onClick={closeNavigation} aria-label="Close admin navigation" />}

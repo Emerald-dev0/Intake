@@ -13,9 +13,12 @@ export function AdminGate() {
   >({ status: 'loading' });
   const generation = useRef(0);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (background = false) => {
     const current = ++generation.current;
-    setState({ status: 'loading' });
+    // Background revalidation must never flash the gate over a working admin
+    // screen: the current view stays until the check either confirms it or
+    // proves access is gone. A blip leaves the console untouched.
+    if (!background) setState({ status: 'loading' });
     try {
       const response = await adminApi<{ admin: AdminIdentity }>('/api/admin/access');
       if (current === generation.current) setState({ status: 'ready', admin: response.admin });
@@ -23,7 +26,7 @@ export function AdminGate() {
       if (current !== generation.current) return;
       if (error instanceof AdminApiError && error.status === 401) setState({ status: 'signed-out' });
       else if (error instanceof AdminApiError && error.status === 403) setState({ status: 'forbidden' });
-      else setState({ status: 'error' });
+      else if (!background) setState({ status: 'error' });
     }
   }, []);
 
@@ -40,7 +43,7 @@ export function AdminGate() {
     const previousRobots = robots.content;
     robots.content = 'noindex, nofollow, noarchive';
     void load();
-    const refresh = () => { void load(); };
+    const refresh = () => { void load(true); };
     window.addEventListener('focus', refresh);
     window.addEventListener('pageshow', refresh);
     return () => {

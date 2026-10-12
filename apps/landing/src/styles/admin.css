@@ -3,6 +3,9 @@
 .admin-sidebar { position:sticky; top:0; width:244px; height:100svh; flex:0 0 244px; display:flex; flex-direction:column; padding:22px 13px 18px; background:var(--ink); border-right:1px solid var(--line-2); z-index:20; }
 .admin-brand { display:flex; align-items:center; gap:9px; padding:4px 12px 22px; font-size:21px; font-weight:650; letter-spacing:-.06em; }
 .admin-brand small { margin-left:6px; padding:3px 5px; border:1px solid var(--line-2); border-radius:4px; color:var(--cream-3); font:9px var(--mono); letter-spacing:.1em; }
+.admin-workspace-link { display:flex; align-items:center; gap:8px; margin:0 0 18px; padding:9px 12px; border:1px solid var(--line-2); border-radius:7px; color:var(--cream-2); font-size:12px; font-weight:550; }
+.admin-workspace-link:hover { border-color:var(--accent); color:var(--accent); }
+.admin-workspace-link span { color:var(--accent); }
 .admin-nav-label,.admin-overline { display:block; color:var(--cream-3); font:10px var(--mono); letter-spacing:.11em; text-transform:uppercase; }
 .admin-nav-label { padding:0 13px; margin:12px 0 9px; }
 .admin-nav { display:grid; gap:3px; }
