@@ -126,10 +126,17 @@ export function createPostgresCreditStore(pool: Pool): CreditStore {
 
   const insertGrant = async (executor: PoolClient | Pool, userId: string, bucket: CreditBucket, entryType: GrantEntryType, credits: number, periodKey: string, now: Date): Promise<void> => {
     if (credits <= 0) return;
+    // The arbiter predicate must match the partial index exactly: Postgres refuses ON CONFLICT
+    // unless the query repeats the index WHERE clause. Daily/monthly grants live under
+    // credit_ledger_grant_unique (007); subscription grants under
+    // credit_ledger_subscription_grant_unique (011).
+    const predicate = entryType === 'subscription_grant'
+      ? `WHERE entry_type IN ('subscription_grant')`
+      : `WHERE entry_type IN ('daily_grant', 'monthly_grant')`;
     await executor.query(
       `INSERT INTO credit_ledger (user_id, entry_type, bucket, credits, period_key, note, created_at)
        VALUES ($1, $2, $3, $4, $5, 'automatic allowance', $6)
-       ON CONFLICT (user_id, entry_type, period_key) DO NOTHING`,
+       ON CONFLICT (user_id, entry_type, period_key) ${predicate} DO NOTHING`,
       [userId, entryType, bucket, credits, periodKey, now]);
   };
 

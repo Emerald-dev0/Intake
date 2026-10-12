@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { PLAN_CATALOG, proPriceComparison } from '../src/lib/plans.ts';
-import { createMemoryCreditStore, allocate, affordable, validOperationKey } from '../server/credits/ledger.ts';
+import { createMemoryCreditStore, createPostgresCreditStore, allocate, affordable, validOperationKey } from '../server/credits/ledger.ts';
 import { createCreditService, CreditError } from '../server/credits/service.ts';
 import {
   dailyPeriodKey, monthlyPeriodKey, nextDailyReset, nextMonthlyReset, PLANS, toPublicBalance,
@@ -215,6 +215,27 @@ test('allocation helpers follow the documented daily-then-monthly order', () => 
   assert.deepEqual(allocate(3, { daily: 0, monthly: 3, subscription: 0, purchased: 0, promotion: 0 }), { daily: 0, monthly: 3, subscription: 0, purchased: 0, promotion: 0 });
   assert.equal(affordable(3, { daily: 1, monthly: 2 }), true);
   assert.equal(affordable(3, { daily: 1, monthly: 1 }), false);
+});
+
+test('the Postgres grant insert repeats the partial-index predicate or Neon rejects it', async () => {
+  // Regression: ON CONFLICT against the partial credit_ledger_grant_unique index threw
+  // "no unique or exclusion constraint matching the ON CONFLICT specification" on every
+  // balance read in production, while memory-store tests stayed green. A recording pool
+  // cannot enforce constraints, so assert the arbiter predicate textually instead.
+  const queries = [];
+  const pool = { async query(sql, params) { queries.push(String(sql)); return { rows: [], rowCount: 0 }; } };
+  const store = createPostgresCreditStore(pool);
+  await store.ensureGrants({ userId: 'user-a', plan: 'free', subscriptionStatus: 'none', currentPeriodStart: null, currentPeriodEnd: null }, DAY_1);
+  const grant = queries.find(sql => sql.includes('INSERT INTO credit_ledger'));
+  assert.ok(grant, 'grants go through the ledger insert');
+  assert.match(grant, /ON CONFLICT \(user_id, entry_type, period_key\) WHERE entry_type IN \('daily_grant', 'monthly_grant'\) DO NOTHING/);
+
+  const proQueries = [];
+  const proPool = { async query(sql, params) { proQueries.push(String(sql)); return { rows: [], rowCount: 0 }; } };
+  await createPostgresCreditStore(proPool).ensureGrants({ userId: 'user-p', plan: 'pro', subscriptionStatus: 'active', currentPeriodStart: null, currentPeriodEnd: null }, DAY_1);
+  const sub = proQueries.find(sql => sql.includes('subscription_grant'));
+  assert.ok(sub, 'pro grants a subscription row');
+  assert.match(sub, /ON CONFLICT \(user_id, entry_type, period_key\) WHERE entry_type IN \('subscription_grant'\) DO NOTHING/);
 });
 
 test('the credit migration is additive, idempotent, and stores no credentials or model text', async () => {
