@@ -84,7 +84,7 @@
 .admin-pill { display:inline-flex; align-items:center; width:max-content; max-width:100%; padding:4px 7px; border:1px solid var(--line-2); border-radius:999px; color:var(--cream-3); font:9px/1.2 var(--mono); letter-spacing:.035em; text-transform:uppercase; white-space:normal; }
 .admin-pill.ok { border-color:#7fd8b044; color:var(--ok); }.admin-pill.warn { border-color:#f2c94c55; color:#e7c568; }.admin-pill.bad { border-color:#ff5a1f55; color:#ff9270; }.admin-pill.muted { color:var(--cream-3); }
 .admin-button { min-height:34px; padding:0 12px; border:1px solid var(--line-2); border-radius:6px; color:var(--cream-2); font-size:11px; white-space:nowrap; transition:background .15s,border-color .15s,color .15s; }
-.admin-button:hover:not(:disabled) { border-color:var(--cream-3); color:var(--cream); background:#ffffff08; }
+.admin-button:hover:not(:disabled) { border-color:var(--cream-3); color:var(--cream); background:rgba(var(--ink-rgb), .06); }
 .admin-button:disabled { opacity:.35; cursor:not-allowed; }
 .admin-button.primary { border-color:#ff5a1f88; color:#ff956e; background:#ff5a1f12; }.admin-button.primary:hover:not(:disabled) { border-color:var(--accent); background:#ff5a1f21; }
 .admin-text-link { color:var(--cream-2); font-size:11px; white-space:nowrap; }

@@ -241,7 +241,7 @@ pre {
   color: var(--ink);
 }
 .btn-cream:hover {
-  background: #fff;
+  background: color-mix(in srgb, var(--cream) 88%, var(--ink));
 }
 
 .pill {

@@ -596,7 +596,7 @@
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  background: radial-gradient(120% 90% at 30% 0%, #1b1a17 0%, var(--ink-1) 60%);
+  background: radial-gradient(120% 90% at 30% 0%, var(--ink-2) 0%, var(--ink-1) 60%);
 }
 .st-canvas-grid {
   position: absolute;
@@ -708,7 +708,7 @@
   bottom: 78px;
   border-radius: 14px;
   border: 1px solid var(--line);
-  background: rgba(12, 12, 11, 0.75);
+  background: rgba(var(--ink-rgb), 0.75);
   backdrop-filter: blur(8px);
   display: flex;
   flex-direction: column;
@@ -877,7 +877,7 @@
   height: 42px;
   padding: 0 18px 0 8px;
   border-radius: 999px;
-  background: rgba(12, 12, 11, 0.82);
+  background: rgba(var(--ink-rgb), 0.82);
   border: 1px solid var(--line-2);
   backdrop-filter: blur(10px);
 }
@@ -1410,7 +1410,7 @@ button.pw-star[tabindex='0']:hover svg {
   bottom: 78px;
   border-radius: 14px;
   border: 1px solid var(--line);
-  background: rgba(12, 12, 11, 0.78);
+  background: rgba(var(--ink-rgb), 0.78);
   backdrop-filter: blur(8px);
   display: flex;
   flex-direction: column;

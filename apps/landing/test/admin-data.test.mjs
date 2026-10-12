@@ -218,7 +218,7 @@ test('provider and system summaries distinguish configured state from a real hea
       { provider: 'google', status: 'connected', connections: '3' },
       { provider: 'google', status: 'reauthorization_required', connections: '1' },
     ], rowCount: 2 };
-    if (sql.includes('AS last_success')) return { rows: [{ last_success: new Date(), failures: '2' }], rowCount: 1 };
+    if (sql.includes('AS last_success')) return { rows: [{ last_success: new Date(Date.now() - 60_000), failures: '2' }], rowCount: 1 };
     if (sql.includes('SELECT 1 AS ready')) return { rows: [{ ready: 1 }], rowCount: 1 };
     if (sql.includes('SELECT id, applied_at FROM intake_schema_migration')) return { rows: [
       { id: '007_ai_credits.sql', applied_at: new Date('2026-10-02T00:00:00Z') },
