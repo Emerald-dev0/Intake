@@ -18,6 +18,15 @@ type Busy = 'loading' | 'interpreting' | 'revising' | 'creating' | 'cancelling' 
 export type RecentFormsState = { status: 'loading' | 'error' | 'ready'; forms: PublicFormSummary[] };
 type Recent = RecentFormsState;
 type Pending = { mode: 'new' | 'revise'; request: string; question: string; answers: string };
+/** Conversational thread entries. Interactive content (proposals, results) renders from live state;
+    history entries carry just enough snapshot to read as a transcript. */
+type ThreadEntry =
+  | { id: number; role: 'user'; text: string }
+  | { id: number; role: 'intake'; kind: 'text'; text: string }
+  | { id: number; role: 'intake'; kind: 'proposal'; draftId: string; version: number; title: string; questions: number }
+  | { id: number; role: 'intake'; kind: 'result'; result: CreateFormResult }
+  | { id: number; role: 'intake'; kind: 'failure'; failure: FormFailure; draftId: string | null };
+const greetingEntry = (): ThreadEntry => ({ id: 0, role: 'intake', kind: 'text', text: 'Hi, I’m Intake. Describe the form you need — I’ll plan the questions, you review, and nothing reaches Google until you say create.' });
 const STORAGE_KEY = 'intake:current-form-draft'; // only an opaque id, never the specification or chat text
 const EXAMPLE = 'Create a registration form for my final-year project. Ask for full name, email, phone number, department, and whether they need accommodation. If they do, ask what type of accommodation they need.';
 const MICROSOFT_REASON = 'Microsoft Forms creation is not available yet; Microsoft does not publish a supported creation API.';
@@ -89,10 +98,11 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
   const locationState = location.state as { initialPrompt?: unknown; mode?: unknown; initialRecordId?: unknown } | null;
   const initialPrompt = locationState?.initialPrompt;
   const [prompt, setPrompt] = useState(typeof initialPrompt === 'string' && initialPrompt.length <= 3000 ? initialPrompt : '');
-  const [revision, setRevision] = useState('');
-  const [editing, setEditing] = useState(false);
   const [pending, setPending] = useState<Pending | null>(null);
-  const [answer, setAnswer] = useState('');
+  const [thread, setThread] = useState<ThreadEntry[]>([greetingEntry()]);
+  const threadSeq = useRef(1);
+  const threadEndRef = useRef<HTMLDivElement | null>(null);
+  const seededDraftRef = useRef<string | null>(null);
   const [draft, setDraft] = useState<PublicDraft | null>(null);
   const [draftId, setDraftId] = useState(savedId);
   const [busy, setBusy] = useState<Busy>(draftId ? 'loading' : null);
@@ -110,6 +120,13 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
   const recent = useRecentForms();
   const alive = useAlive();
   const credits = useCredits();
+  function pushEntry(entry: Omit<ThreadEntry, 'id'>) {
+    const id = threadSeq.current++;
+    setThread(previous => [...previous, { ...entry, id } as ThreadEntry]);
+  }
+  useEffect(() => {
+    try { threadEndRef.current?.scrollIntoView?.({ block: 'end' }); } catch { /* headless or older engines */ }
+  }, [thread, busy]);
   // Stable idempotency keys for AI operations: one key per distinct submission.
   const operations = useRef(createOperationTracker()).current;
   const google = providers.providers?.find(provider => provider.id === 'google');
@@ -129,6 +146,12 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
         setDraft(parsed.draft);
         setResult(parsed.draft.result);
         setFailure(null);
+        if (seededDraftRef.current !== parsed.draft.id) {
+          seededDraftRef.current = parsed.draft.id;
+          pushEntry({ role: 'intake', kind: 'text', text: 'Welcome back — here’s where you left off.' });
+          pushEntry({ role: 'intake', kind: 'proposal', draftId: parsed.draft.id, version: parsed.draft.version, title: parsed.draft.specification.title, questions: parsed.draft.specification.questions.length });
+          if (parsed.draft.result) pushEntry({ role: 'intake', kind: 'result', result: parsed.draft.result });
+        }
       } else if (parsed.failure.code === 'draft_not_found') {
         remember(null);
         setDraftId(null);
@@ -168,19 +191,20 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
         setDraftId(parsed.draft.id);
         remember(parsed.draft.id);
         setResult(null);
-        setRevision('');
-        setEditing(false);
         setPending(null);
-        setAnswer('');
+        pushEntry({ role: 'intake', kind: 'proposal', draftId: parsed.draft.id, version: parsed.draft.version, title: parsed.draft.specification.title, questions: parsed.draft.specification.questions.length });
       } else if (parsed.status === 'needs_clarification') {
         setPending({ mode, request, question: parsed.question, answers: clarification ?? '' });
-        setAnswer('');
+        pushEntry({ role: 'intake', kind: 'text', text: parsed.question });
       } else if (parsed.status === 'unsupported') {
         setPending(null);
         setUnsupported(parsed.explanation);
+        pushEntry({ role: 'intake', kind: 'text', text: parsed.explanation });
       } else {
         const outOfCredits = isInsufficientCredits(parsed.failure.code);
-        setFailure(outOfCredits ? { ...parsed.failure, error: insufficientCreditsMessage(credits.state.credits) } : parsed.failure);
+        const failure = outOfCredits ? { ...parsed.failure, error: insufficientCreditsMessage(credits.state.credits) } : parsed.failure;
+        setFailure(failure);
+        pushEntry({ role: 'intake', kind: 'failure', failure, draftId: draft?.id ?? draftId });
         if (outOfCredits) credits.reload();
       }
     } catch {
@@ -192,23 +216,37 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
     }
   }
 
-  function submitDescription(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (prompt.trim()) void interpret('new', prompt.trim());
+  function submitDescription(text: string) {
+    pushEntry({ role: 'user', text });
+    setPrompt('');
+    void interpret('new', text);
   }
-  function submitRevision(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (revision.trim()) void interpret('revise', revision.trim());
+  function submitRevision(text: string) {
+    pushEntry({ role: 'user', text });
+    setPrompt('');
+    void interpret('revise', text);
   }
-  function submitAnswer(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!pending || !answer.trim()) return;
-    const combined = pending.answers ? `${pending.answers}\nFurther clarification: ${answer.trim()}` : answer.trim();
+  function submitAnswer(text: string) {
+    if (!pending) return;
+    const combined = pending.answers ? `${pending.answers}\nFurther clarification: ${text}` : text;
     if (combined.length > 1000) {
-      setFailure({ error: 'The clarification is too long. Shorten your answer to continue.', code: 'invalid_request', requestId: '', outcome: 'not_created' });
+      const failure = { error: 'The clarification is too long. Shorten your answer to continue.', code: 'invalid_request', requestId: '', outcome: 'not_created' } as FormFailure;
+      setFailure(failure);
+      pushEntry({ role: 'intake', kind: 'failure', failure, draftId: draft?.id ?? draftId });
       return;
     }
+    pushEntry({ role: 'user', text });
+    setPrompt('');
     void interpret(pending.mode, pending.request, combined);
+  }
+  /** One composer routes by conversation state: answer a question, revise a draft, or start fresh. */
+  function submitComposer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const text = prompt.trim();
+    if (!text || busy !== null) return;
+    if (pending) submitAnswer(text);
+    else if (draft && draft.status === 'ready') submitRevision(text);
+    else submitDescription(text);
   }
 
   async function confirm() {
@@ -222,6 +260,7 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
       if (!alive.current) return;
       const parsed = parseConfirmedResponse(status, body);
       setResult(parsed.result);
+      pushEntry({ role: 'intake', kind: 'result', result: parsed.result });
       if (parsed.draft) setDraft(parsed.draft);
       else if (parsed.result.ok || !['not_created'].includes(parsed.result.failure.outcome ?? 'unknown')) {
         // No readable status: fail closed until a GET confirms the draft is still ready.
@@ -255,6 +294,7 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
         return;
       }
       reset();
+      pushEntry({ role: 'intake', kind: 'text', text: 'Draft discarded. Describe your next form whenever you’re ready.' });
     } catch {
       if (alive.current) {
         setFailure({ error: 'Could not confirm that the draft was discarded. Check its status before continuing.', code: 'storage_unavailable', requestId: '', outcome: 'unknown' });
@@ -275,10 +315,9 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
     setFailure(null);
     setUnsupported('');
     setPending(null);
-    setAnswer('');
     setPrompt('');
-    setRevision('');
-    setEditing(false);
+    seededDraftRef.current = null;
+    setThread([greetingEntry()]);
   }
 
   const notice = google && google.status !== 'connected'
@@ -330,38 +369,31 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
       <div className="heading-description">Tell Intake what you need to collect. Review what it understood, then choose when to create a real Google Form in your account.</div>
     </div>
 
-    <div className="draft-steps" aria-label="Form creation steps"><span className="current">01 / DESCRIBE</span><span className={draft ? 'current' : ''}>02 / REVIEW</span><span className={finished ? 'current' : ''}>03 / USE</span></div>
     <section className="draft-provider" aria-label="Form provider"><span className="provider-symbol" aria-hidden>G</span><div><strong>Google Forms</strong><small>{googleLine}</small></div><span className="draft-provider-note">FORMS LIVE IN YOUR GOOGLE ACCOUNT</span></section>
     {notice && <div className="form-banner warn draft-notice" role="status"><p>{notice}</p><a href="/app/connections" className="btn btn-ghost btn-sm">View connections →</a></div>}
     {!draft && !draftId && <CreditCostPreview mode="create" guide={costGuide} credits={costCredits} />}
-    {draft?.status === 'ready' && editing && <CreditCostPreview mode="revise" guide={costGuide} credits={costCredits} />}
+    {draft?.status === 'ready' && <CreditCostPreview mode="revise" guide={costGuide} credits={costCredits} />}
 
     {busy === 'loading' && <div className="forms-panel draft-loading" role="status"><span className="spin" /> Checking your draft…</div>}
     {draftId && !draft && busy !== 'loading' && <div className="form-banner warn" role="alert"><p>We couldn’t open your saved draft yet.</p><button type="button" className="btn btn-ghost btn-sm" onClick={() => void loadDraft(draftId)}>Check draft status</button></div>}
 
-    {!draft && !draftId && <section className="forms-panel draft-describe" aria-labelledby="describe-title">
-      <div className="draft-panel-top"><span className="forms-legend">01 / THE IDEA</span><span>YOU DESCRIBE · INTAKE STRUCTURES</span></div>
-      <h2 id="describe-title">What should your form ask?</h2>
-      <p>Write naturally. Include any questions, answer choices, and who should see a follow-up.</p>
-      <form onSubmit={submitDescription} aria-busy={busy === 'interpreting'}>
-        <label className="sr-only" htmlFor="form-request">Describe the form you need</label>
-        <textarea id="form-request" className="draft-input" placeholder={EXAMPLE} value={prompt} onChange={event => setPrompt(event.target.value)} maxLength={3000} required disabled={busy !== null} aria-describedby="describe-help" />
-        <div className="draft-input-foot"><span id="describe-help">A clear first draft is enough. You can make changes before anything is created.</span><span>{prompt.length} / 3000</span></div>
-        <div className="forms-actions"><button className="btn btn-accent" type="submit" disabled={busy !== null || !prompt.trim()}>{busy === 'interpreting' ? 'Understanding your request…' : 'Understand my form →'}</button>{busy === 'interpreting' && <span className="forms-progress" role="status"><span className="spin sm" /> Intake is planning the questions. No form is being created yet.</span>}</div>
-      </form>
-      <div className="draft-example"><span>NEED A STARTING POINT?</span><button type="button" onClick={() => setPrompt(EXAMPLE)} disabled={busy !== null}>Use a registration example ↗</button></div>
-    </section>}
-
-    {pending && <section className="draft-question form-banner warn" aria-labelledby="clarification-title">
-      <span className="forms-legend">ONE QUICK QUESTION</span><h2 id="clarification-title">{pending.question}</h2>
-      <form onSubmit={submitAnswer}><label htmlFor="clarification-answer">Your answer</label><textarea id="clarification-answer" value={answer} onChange={event => setAnswer(event.target.value)} maxLength={1000} required disabled={busy !== null} placeholder="Add the missing detail…" />
-        <div className="forms-actions"><button className="btn btn-accent btn-sm" type="submit" disabled={busy !== null || !answer.trim()}>{busy === 'interpreting' || busy === 'revising' ? 'Understanding…' : 'Continue →'}</button><button className="btn btn-ghost btn-sm" type="button" disabled={busy !== null} onClick={() => { setPending(null); setAnswer(''); }}>Back to {draft ? 'review' : 'description'}</button></div>
-      </form>
-    </section>}
-    {pending && <OperationCostReceipt receipt={operationCost} />}
-    {unsupported && <div className="form-banner warn draft-feedback" role="alert"><strong>That isn’t available in Google Forms through Intake.</strong><p>{unsupported}</p><p>Rephrase the request using supported questions and section routing, or keep the current draft.</p></div>}
-    {unsupported && <OperationCostReceipt receipt={operationCost} />}
-    {failure && <FailureNotice failure={failure} onReload={draftId ? () => void loadDraft(draftId) : undefined} />}
+    <section className="thread" aria-label="Conversation with Intake">
+      {thread.map(entry => renderEntry(entry))}
+      {typingText && <div className="msg msg-intake msg-typing" role="status"><span className="spin sm" aria-hidden /> {typingText}</div>}
+      <div ref={threadEndRef} />
+    </section>
+    <OperationCostReceipt receipt={operationCost} />
+    <form className="thread-composer" onSubmit={submitComposer} aria-busy={busy !== null}>
+      <label className="sr-only" htmlFor="form-request">{composerLabel}</label>
+      <textarea id="form-request" className="draft-input" placeholder={composerPlaceholder} value={prompt} onChange={event => setPrompt(event.target.value)} maxLength={3000} required disabled={busy !== null} />
+      <div className="draft-input-foot"><span>{composerHint}</span><span>{prompt.length} / 3000</span></div>
+      <div className="forms-actions">
+        <button className="btn btn-accent" type="submit" disabled={busy !== null || !prompt.trim()}>{busy !== null ? 'Working…' : composerAction}</button>
+        {pending && <button className="btn btn-ghost btn-sm" type="button" disabled={busy !== null} onClick={() => setPending(null)}>Dismiss question</button>}
+      </div>
+    </form>
+    {!draft && thread.length <= 1 && <div className="draft-example"><span>NEED A STARTING POINT?</span><button type="button" onClick={() => setPrompt(EXAMPLE)} disabled={busy !== null}>Use a registration example ↗</button></div>}
+    {finished && <button className="btn btn-ghost draft-start-again" type="button" onClick={reset}>Start another form →</button>}
 
     {draft && <>
       <Review draft={draft} operationCost={operationCost} />

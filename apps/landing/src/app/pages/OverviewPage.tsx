@@ -21,15 +21,15 @@ export function OverviewPage() {
     <section className="dashboard-credit-card" aria-labelledby="dashboard-credit-title">
       {credits.status === 'ready' ? <>
         <div className="dashboard-credit-top">
-          <div><span className="info-index">YOUR PLAN · SERVER-REPORTED</span><h2 id="dashboard-credit-title">{PLAN_CATALOG[credits.credits.plan].label} <span>{credits.credits.plan === 'free' ? '· $0' : `· Billing ${billingStatusLabel(credits.credits.subscriptionStatus).toLowerCase()}`}</span></h2></div>
+          <div><span className="info-index">YOUR PLAN</span><h2 id="dashboard-credit-title">{PLAN_CATALOG[credits.credits.plan].label} <span>{credits.credits.plan === 'free' ? '· $0' : `· Billing ${billingStatusLabel(credits.credits.subscriptionStatus).toLowerCase()}`}</span></h2></div>
           <div className="dashboard-credit-total"><strong>{credits.credits.availableCredits}</strong><span>available now</span></div>
         </div>
         <p className="dashboard-credit-summary">{creditSummary(credits.credits)}</p>
         <div className="dashboard-credit-buckets">
-          <div><span>DAILY</span><strong>{credits.credits.dailyRemaining} <small>/ {credits.credits.dailyLimit}</small></strong><small>resets {resetInterval(credits.credits.nextDailyReset)} · 00:00 UTC</small></div>
-          <div><span>MONTHLY</span><strong>{credits.credits.monthlyLimit > 0 ? <>{credits.credits.monthlyRemaining} <small>/ {credits.credits.monthlyLimit}</small></> : 'Not included'}</strong><small>{credits.credits.monthlyLimit > 0 ? `resets ${resetInterval(credits.credits.nextMonthlyReset)} · no rollover` : 'Pro includes a monthly reserve'}</small></div>
+          <div><span>DAILY</span><strong>{credits.credits.dailyRemaining} <small>/ {credits.credits.dailyLimit}</small></strong><small>Resets {resetInterval(credits.credits.nextDailyReset)} (00:00 UTC)</small></div>
+          <div className={credits.credits.monthlyLimit > 0 ? undefined : 'is-empty'}><span>MONTHLY</span><strong>{credits.credits.monthlyLimit > 0 ? <>{credits.credits.monthlyRemaining} <small>/ {credits.credits.monthlyLimit}</small></> : 'Not included'}</strong><small>{credits.credits.monthlyLimit > 0 ? `Resets ${resetInterval(credits.credits.nextMonthlyReset)} (no rollover)` : <a href="/pricing">Pro includes a monthly reserve</a>}</small></div>
         </div>
-        {credits.credits.availableCredits === 0 && <p className="dashboard-credit-state" role="status">No credits are available right now. Nothing was created or changed. Daily credits renew {resetInterval(credits.credits.nextDailyReset)}.</p>}
+        {credits.credits.availableCredits === 0 && <p className="form-banner warn dashboard-credit-state" role="status">No credits are available right now. Nothing was created or changed. Daily credits renew {resetInterval(credits.credits.nextDailyReset)}.</p>}
         <div className="dashboard-credit-actions"><a href="/app/account">Manage account and credits <span aria-hidden>↗</span></a>{credits.credits.plan === 'free' && <a href="/pricing">{PAID_BILLING_ENABLED ? 'Explore Pro' : 'Pro is coming soon — see pricing'} <span aria-hidden>↗</span></a>}</div>
       </> : <>
         <div className="dashboard-credit-top"><div><span className="info-index">YOUR PLAN &amp; CREDITS</span><h2 id="dashboard-credit-title">{credits.status === 'loading' ? 'Checking your balance…' : 'Balance unavailable'}</h2></div></div>

@@ -156,12 +156,87 @@
 .email-security-field .otp-input { font-size:24px; }
 .email-security .form-error { margin:0; }
 
+/* ── Credits: dashboard card and account panels ─────────────────────────────── */
+.dashboard-credit-card { border:1px solid var(--line-2); border-radius:12px; background:var(--ink-2); padding:clamp(22px,3vw,32px); margin:26px 0 8px; }
+.dashboard-credit-top { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+.dashboard-credit-top h2 { margin:8px 0 0; font-size:24px; font-weight:550; letter-spacing:-.03em; }
+.dashboard-credit-top h2 span { color:var(--cream-3); font-weight:400; font-size:15px; }
+.dashboard-credit-total { flex:none; text-align:right; }
+.dashboard-credit-total strong { display:block; font-size:42px; line-height:1; font-weight:550; letter-spacing:-.04em; font-variant-numeric:tabular-nums; }
+.dashboard-credit-total span { font:11px var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--cream-3); }
+.dashboard-credit-summary { margin:10px 0 0; font-size:14px; color:var(--cream-2); }
+.dashboard-credit-buckets { display:flex; gap:12px; margin-top:18px; }
+.dashboard-credit-buckets > div { flex:1; min-width:0; border:1px solid var(--line); border-radius:8px; background:var(--ink-1); padding:14px 16px; }
+.dashboard-credit-buckets > div > span { font:10px var(--mono); letter-spacing:.12em; color:var(--cream-3); }
+.dashboard-credit-buckets strong { display:block; margin:6px 0 4px; font-size:22px; font-weight:550; font-variant-numeric:tabular-nums; }
+.dashboard-credit-buckets strong small { font-size:14px; font-weight:400; color:var(--cream-3); }
+.dashboard-credit-buckets > div > small { font-size:12px; color:var(--cream-3); }
+.dashboard-credit-buckets .is-empty strong { font-size:15px; font-weight:500; color:var(--cream-3); }
+.dashboard-credit-buckets a { color:var(--cream-2); text-decoration:underline; text-underline-offset:3px; }
+.dashboard-credit-buckets a:hover { color:var(--accent); }
+.dashboard-credit-state { margin-top:18px; }
+.dashboard-credit-actions { margin-top:18px; }
+.dashboard-credit-actions a { font-size:13px; color:var(--cream); }
+.dashboard-credit-actions a span { color:var(--accent); }
+.dashboard-credit-actions a:hover { color:var(--accent); }
+
+/* ── Account: plan card and credit panels ───────────────────────────────────── */
+.account-overview-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+.account-overview-grid .profile-card, .account-overview-grid .account-plan-card { max-width:none; margin-top:0; }
+.account-plan-card { border:1px solid var(--line-2); border-radius:10px; padding:28px; }
+.account-card-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.account-plan-card h2 { margin:8px 0 0; font-size:26px; font-weight:550; letter-spacing:-.03em; }
+.account-plan-summary { margin:10px 0 16px; font-size:14px; line-height:1.6; color:var(--cream-2); }
+.account-plan-card .btn { margin-top:4px; }
+.account-billing-status { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:12px 0 0; font-size:13px; color:var(--cream-3); }
+.account-billing-status strong { color:var(--cream); font-weight:550; }
+.account-disclaimer, .account-price-reference { margin:10px 0 0; font-size:12px; line-height:1.6; color:var(--cream-3); }
+.account-credit-panel { border:1px solid var(--line-2); border-radius:12px; background:var(--ink-2); padding:clamp(22px,3vw,32px); margin-top:14px; }
+.account-credit-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+.account-credit-heading h2 { margin:8px 0 0; font-size:24px; font-weight:550; letter-spacing:-.03em; }
+.account-available { flex:none; text-align:right; }
+.account-available strong { display:block; font-size:42px; line-height:1; font-weight:550; letter-spacing:-.04em; font-variant-numeric:tabular-nums; }
+.account-available span { font:11px var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--cream-3); }
+.account-credit-summary { margin:10px 0 0; font-size:14px; color:var(--cream-2); }
+.account-credit-alert { margin-top:16px; }
+.account-credit-alert strong { display:block; margin-bottom:4px; }
+.account-credit-alert p { margin:4px 0 8px; }
+.account-credit-alert a { color:var(--cream); text-decoration:underline; text-underline-offset:3px; }
+.account-credit-alert a:hover { color:var(--accent); }
+.account-limit-note { margin:14px 0 0; font-size:13px; color:var(--c-rule); }
+.account-credit-buckets { display:flex; gap:12px; margin-top:18px; }
+.account-credit-bucket { flex:1; min-width:0; border:1px solid var(--line); border-radius:8px; background:var(--ink-1); padding:14px 16px; }
+.account-credit-bucket > span { font:10px var(--mono); letter-spacing:.12em; color:var(--cream-3); }
+.account-credit-bucket strong { display:block; margin:6px 0 4px; font-size:22px; font-weight:550; font-variant-numeric:tabular-nums; }
+.account-credit-bucket strong small { font-size:14px; font-weight:400; color:var(--cream-3); }
+.account-credit-bucket p { margin:0; font-size:12px; line-height:1.55; color:var(--cream-3); }
+.account-credit-bucket.is-empty strong { font-size:15px; font-weight:500; color:var(--cream-3); }
+.account-credit-bucket p a { color:var(--cream-2); text-decoration:underline; text-underline-offset:3px; }
+.account-credit-bucket p a:hover { color:var(--accent); }
+.account-cost-note { margin:16px 0 0; font-size:13px; line-height:1.6; color:var(--cream-3); }
+.account-credit-rules { margin-top:26px; }
+.account-credit-rules h2 { margin:8px 0 12px; font-size:22px; font-weight:550; letter-spacing:-.03em; }
+.account-credit-rules ul { margin:0; padding:0; list-style:none; }
+.account-credit-rules li { font-size:14px; line-height:1.6; color:var(--cream-2); padding:9px 0 9px 14px; border-top:1px solid var(--line); position:relative; }
+.account-credit-rules li:first-child { border-top:0; }
+.account-credit-rules li::before { content:""; position:absolute; left:0; top:17px; width:5px; height:5px; border-radius:50%; background:var(--accent); }
+.account-credit-rules p { margin:14px 0 0; font-size:13px; color:var(--cream-3); }
+.account-credit-rules p a { color:var(--cream-2); text-decoration:underline; text-underline-offset:3px; }
+.account-credit-rules p a:hover { color:var(--accent); }
+.account-credit-unavailable { margin-top:14px; border:1px dashed var(--line-2); border-radius:8px; padding:16px; }
+.account-credit-unavailable p { margin:0 0 12px; font-size:14px; color:var(--cream-2); }
+.account-credit-unavailable .btn { margin-top:0; }
+@media (max-width:800px) { .account-overview-grid { grid-template-columns:1fr; } }
+
 /* Small-screen dashboard polish: action links wrap instead of squeezing. */
 .dashboard-credit-actions { display:flex; flex-wrap:wrap; gap:8px 20px; }
 @media (max-width:560px) {
   .dashboard-credit-actions { flex-direction:column; align-items:stretch; gap:10px; }
   .dashboard-credit-top { flex-direction:column; align-items:flex-start; gap:10px; }
   .dashboard-credit-buckets { flex-direction:column; align-items:stretch; }
+  .account-credit-heading { flex-direction:column; align-items:flex-start; gap:10px; }
+  .account-available { text-align:left; }
+  .account-credit-buckets { flex-direction:column; align-items:stretch; }
   .profile-card { flex-direction:column; padding:24px; }
   .billing-history-item { flex-direction:column; align-items:flex-start; gap:8px; }
 }
