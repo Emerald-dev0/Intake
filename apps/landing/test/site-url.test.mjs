@@ -60,6 +60,8 @@ test('VITE_SITE_URL drives the built canonical, Open Graph, robots and sitemap; 
     assert.ok(robots.split(/\r?\n/).includes('Sitemap: https://intake.example.test/sitemap.xml'));
     assert.ok(sitemap.includes('<loc>https://intake.example.test/</loc>'));
     assert.ok(sitemap.includes('<loc>https://intake.example.test/pricing</loc>'));
+    assert.ok(sitemap.includes('<loc>https://intake.example.test/privacy</loc>'));
+    assert.ok(sitemap.includes('<loc>https://intake.example.test/terms</loc>'));
     for (const document of [home, pricing, robots, sitemap]) {
       assert.doesNotMatch(document, /intake-six-blue\.vercel\.app/, 'the configured origin replaces the default everywhere');
       assert.doesNotMatch(document, /%SITE_URL%/);

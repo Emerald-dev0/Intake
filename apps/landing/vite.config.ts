@@ -243,6 +243,12 @@ function sitemapDocument(siteUrl: string): string {
     '  <url>',
     `    <loc>${siteUrl}/pricing</loc>`,
     '  </url>',
+    '  <url>',
+    `    <loc>${siteUrl}/privacy</loc>`,
+    '  </url>',
+    '  <url>',
+    `    <loc>${siteUrl}/terms</loc>`,
+    '  </url>',
     '</urlset>',
     '',
   ].join('\n');
