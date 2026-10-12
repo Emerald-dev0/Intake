@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { assessInterpretation, InterpretationError } from '../server/forms/interpretation/interpreter.ts';
+import { assessInterpretation, InterpretationError, isRepairablePlacement, placementIssues } from '../server/forms/interpretation/interpreter.ts';
 import { createFormInterpreter } from '../server/forms/interpretation/provider-interpreter.ts';
 import { createOpenAiProvider } from '../server/ai/openai.ts';
 import { createGroqProvider } from '../server/ai/groq.ts';
@@ -66,6 +66,40 @@ test('uncertainty and unsupported capabilities are distinct from complete specif
   invalid({ ...clarification('Which options?'), specification: registration() });
   invalid({ ...unsupported('File uploads are unavailable.'), assumptions: ['I ignored it'] });
   invalid({ ...ready(), question: 'Which?' });
+});
+
+test('back-to-back conditional groups are repaired with planner feedback, not shown as engineer text', async () => {
+  const branched = registration();
+  branched.questions.push(q('no_proof', 'Upload proof of otherwise', 'short_text', { visibility: { when: { question: 'need_accommodation', equals: 'No' } } }));
+  const rawBad = ready(branched);
+  const issues = placementIssues(rawBad);
+  assert.ok(issues.some(issue => issue.code === 'google_condition_placement'), 'the planner flags the layout');
+  assert.equal(isRepairablePlacement(issues), true);
+  assert.deepEqual(placementIssues(ready()), [], 'clean plans need no repair');
+  assert.deepEqual(placementIssues(clarification('Which?')), [], 'non-ready results need no repair');
+
+  // A residual failure the repair loop could not fix speaks plainly, without question ids.
+  const residual = assessInterpretation(rawBad);
+  assert.equal(residual.status, 'unsupported');
+  assert.match(residual.explanation, /back to back/);
+  assert.ok(!residual.explanation.includes('q10b') && !residual.explanation.includes('questions['), 'no engineer pointers leak');
+
+  // The interpreter itself retries once with the planner hint and returns the fixed draft.
+  const fixed = registration();
+  const script = [rawBad, ready(fixed)];
+  let calls = 0;
+  const interpreter = createFormInterpreter({
+    provider: createGroqProvider({
+      env: { GROQ_API_KEY: 'server-test-key' },
+      sleepImpl: async () => undefined,
+      fetchImpl: async () => modelResponse(script[Math.min(calls++, script.length - 1)]),
+    }),
+  });
+  const repaired = await interpreter.interpret({ mode: 'new', request: 'Registration with two follow-ups.', provider: 'google' });
+  assert.equal(calls, 2, 'one guided reshuffle retry');
+  const assessed = assessInterpretation(repaired);
+  assert.equal(assessed.status, 'ready');
+  assert.equal(assessed.specification.questions.length, fixed.questions.length);
 });
 
 test('the provider planner refuses unsupported branching instead of creating a draft that lies', () => {

@@ -90,9 +90,13 @@ test('Groq failures map to stable application codes without leaking provider pay
     [completion(ready, { finish_reason: 'length' }), 'model_invalid_output'],
     [completion(null, { refusal: 'I will not do that.' }), 'model_invalid_output'],
   ];
-  for (const [response, expected] of cases) {
+  for (const [makeResponse, expected, callsExpected] of cases.map(([response, expected]) => {
+    // Fresh Response per attempt: bodies read once, and transients now retry.
+    const retryable = response.status === 429 || response.status >= 500;
+    return [() => response.clone(), expected, retryable ? 3 : 1];
+  })) {
     let calls = 0;
-    const provider = createGroqProvider({ env: GROQ_ENV, fetchImpl: async () => { calls++; return response; } });
+    const provider = createGroqProvider({ env: GROQ_ENV, sleepImpl: async () => undefined, fetchImpl: async () => { calls++; return makeResponse(); } });
     const interpreter = createFormInterpreter({ provider });
     await assert.rejects(interpreter.interpret(input), error => {
       assert.equal(error.code, expected);
@@ -101,7 +105,7 @@ test('Groq failures map to stable application codes without leaking provider pay
       assert.equal(error.message.includes('groq-server-key'), false);
       return true;
     });
-    assert.equal(calls, 1, 'no automatic retry');
+    assert.equal(calls, callsExpected, callsExpected === 1 ? 'decisive failures never retry' : 'transients retry to the bound');
   }
 });
 

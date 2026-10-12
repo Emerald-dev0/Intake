@@ -1,9 +1,47 @@
 import type { AiFailureCode } from '../../ai/provider';
-import type { FormWarning } from '../../../src/lib/forms';
+import type { FormWarning, ValidationIssue } from '../../../src/lib/forms';
 import type { FormSpecification } from '../specification';
 import type { AiOperationContext } from '../../admin/ai-operations';
 import { planGoogleForm } from '../providers/google/plan';
 import { parseFormSpecification } from '../validation';
+
+/** Planner codes the model can fix by reshuffling: placement and controller shape, never content. */
+const REPAIRABLE_CODES = ['google_condition_placement', 'google_nested_condition', 'google_condition_source_not_required'];
+/** Subset whose raw messages are engineer jargon: these get plain language for the user. */
+const FRIENDLY_CODES = ['google_condition_placement', 'google_nested_condition'];
+
+/**
+ * Returns the Google planner issues for a raw model output that claims to be ready, or [] when
+ * there is nothing to repair (other statuses, unparseable specs, clean plans). Lets the caller
+ * retry the model with targeted feedback instead of showing engineer text to the user.
+ */
+export function placementIssues(value: unknown): ValidationIssue[] {
+  if (!record(value) || value.status !== 'ready' || !record(value.specification)) return [];
+  let specification: FormSpecification;
+  try {
+    const parsed = parseFormSpecification(value.specification);
+    if (!parsed.ok) return [];
+    specification = parsed.specification;
+  } catch {
+    return [];
+  }
+  const planned = planGoogleForm(specification);
+  if (planned.ok) return [];
+  return planned.issues;
+}
+
+/** True when every issue is a reshuffle problem rather than an unsupported-content problem. */
+export function isRepairablePlacement(issues: ValidationIssue[]): boolean {
+  return issues.length > 0 && issues.every(issue => REPAIRABLE_CODES.includes(issue.code));
+}
+
+/**
+ * Plain-language explanation for a layout Google Forms cannot express. Names what to do next
+ * instead of quoting question ids and section mechanics.
+ */
+export function friendlyPlacementExplanation(): string {
+  return 'Some follow-up questions branch in a way Google Forms cannot lay out: two conditional groups cannot sit back to back, conditions cannot chain, and a question that controls others must always be shown. Intake already tried reshuffling once. Try folding the second follow-up into the first group, splitting this into two forms, or answering the clarifying question so Intake can restructure it with you.';
+}
 
 /** The model can propose data. It cannot authorize, persist, or execute a provider operation. */
 export interface InterpretationInput {
@@ -74,7 +112,12 @@ export function assessInterpretation(value: unknown): InterpretationResult {
   if (!parsed.ok) throw invalid();
   const planned = planGoogleForm(parsed.specification);
   if (!planned.ok) {
-    // The planner's messages are specific to the requested layout and contain no provider payload.
+    // Back-to-back and nested layouts get plain language (the repair loop in provider-interpreter
+    // usually resolves them before this is ever shown); anything else keeps the planner's specific
+    // explanation, which contains no provider payload.
+    if (planned.issues.length > 0 && planned.issues.every(issue => FRIENDLY_CODES.includes(issue.code))) {
+      return { status: 'unsupported', explanation: friendlyPlacementExplanation() };
+    }
     const explanation = planned.issues.slice(0, 2).map(issue => issue.message).join(' ');
     return { status: 'unsupported', explanation: explanation.length > 500 ? `${explanation.slice(0, 497)}…` : explanation };
   }

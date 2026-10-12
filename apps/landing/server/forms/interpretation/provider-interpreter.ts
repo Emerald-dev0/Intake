@@ -1,7 +1,7 @@
 import { AiProviderError, type AiModelRequest, type AiProvider } from '../../ai/provider';
 import { runWithModelCallCollector, type ModelCallCollector } from '../../ai/usage-scope';
 import type { FormEditInterpreter, FormEditInterpretationInput } from './edit-interpreter';
-import { InterpretationError, type FormInterpreter, type InterpretationInput } from './interpreter';
+import { InterpretationError, isRepairablePlacement, placementIssues, type FormInterpreter, type InterpretationInput } from './interpreter';
 import { EDIT_SYSTEM, FORM_EDIT_INTERPRETATION_SCHEMA, INTERPRETATION_SCHEMA, SYSTEM } from './prompts';
 
 /**
@@ -21,10 +21,29 @@ export interface InterpreterOptions {
 /** Provider failures become application failures with the same stable codes the browser knows. */
 async function generate(options: InterpreterOptions, request: AiModelRequest): Promise<unknown> {
   const call: AiModelRequest = { ...request, maxCompletionTokens: request.maxCompletionTokens ?? options.maxCompletionTokens };
+  const invoke = (modelCall: AiModelRequest): Promise<unknown> => options.collector
+    ? runWithModelCallCollector(options.collector, () => options.provider.generate(modelCall))
+    : options.provider.generate(modelCall);
   try {
-    return await (options.collector
-      ? runWithModelCallCollector(options.collector, () => options.provider.generate(call))
-      : options.provider.generate(call));
+    const raw = await invoke(call);
+    const issues = placementIssues(raw);
+    // The model arranged the questions in a way Google Forms cannot lay out. Rather than showing
+    // engineer text, give it one guided chance to reshuffle: merge same-rule groups, reorder so
+    // each conditional group directly follows its controller, make at most one follow-up
+    // unconditional (noted in assumptions), or ask a clarifying question. Never silently drop a
+    // requested question. The retry costs operator tokens only: users are charged per validated
+    // proposal, and a failed arrangement is never a proposal.
+    if (isRepairablePlacement(issues) && typeof request.input === 'object' && request.input !== null) {
+      const feedback = (request.input as { request?: unknown }).request;
+      return invoke({
+        ...call,
+        input: {
+          ...(request.input as Record<string, unknown>),
+          request: `${typeof feedback === 'string' ? feedback : ''}\n\n[Intake planner feedback on your previous arrangement, which was rejected: ${issues.map(issue => issue.hint ?? issue.message).join(' ')} Reshuffle the questions to satisfy it — merge, reorder, make at most one follow-up unconditional and note it in assumptions, or return needs_clarification. Never drop a requested question.]`,
+        },
+      });
+    }
+    return raw;
   } catch (error) {
     if (error instanceof InterpretationError) throw error;
     if (error instanceof AiProviderError) throw new InterpretationError(error.code, error.message);
