@@ -241,15 +241,16 @@ test('the Postgres grant insert repeats the partial-index predicate or Neon reje
 test('the credit migration is additive, idempotent, and stores no credentials or model text', async () => {
   const { readFile, readdir } = await import('node:fs/promises');
   const files = (await readdir(new URL('../db/migrations/', import.meta.url))).filter(name => name.endsWith('.sql')).sort();
-  assert.equal(files.at(-9), '007_ai_credits.sql', 'credits are the entitlement and operation schema migration');
-  assert.equal(files.at(-8), '007_ai_operations.sql', 'the superseded migration id remains as a no-op for history compatibility');
-  assert.equal(files.at(-7), '008_ai_operation_compat.sql', 'legacy operation metadata is preserved and mapped');
-  assert.equal(files.at(-6), '009_admin_indexes.sql', 'admin adds query indexes after schema compatibility');
-  assert.equal(files.at(-5), '010_email.sql', 'transactional email is the tenth, additive migration');
-  assert.equal(files.at(-4), '011_billing.sql', 'billing tables are the eleventh, additive migration');
-  assert.equal(files.at(-3), '012_billing_settings.sql', 'billing settings are the twelfth, additive migration');
-  assert.equal(files.at(-2), '013_site_analytics.sql', 'site analytics are the thirteenth, additive migration');
-  assert.equal(files.at(-1), '014_site_analytics_geo.sql', 'analytics country columns are the fourteenth, additive migration');
+  assert.equal(files.at(-10), '007_ai_credits.sql', 'credits are the entitlement and operation schema migration');
+  assert.equal(files.at(-9), '007_ai_operations.sql', 'the superseded migration id remains as a no-op for history compatibility');
+  assert.equal(files.at(-8), '008_ai_operation_compat.sql', 'legacy operation metadata is preserved and mapped');
+  assert.equal(files.at(-7), '009_admin_indexes.sql', 'admin adds query indexes after schema compatibility');
+  assert.equal(files.at(-6), '010_email.sql', 'transactional email is the tenth, additive migration');
+  assert.equal(files.at(-5), '011_billing.sql', 'billing tables are the eleventh, additive migration');
+  assert.equal(files.at(-4), '012_billing_settings.sql', 'billing settings are the twelfth, additive migration');
+  assert.equal(files.at(-3), '013_site_analytics.sql', 'site analytics are the thirteenth, additive migration');
+  assert.equal(files.at(-2), '014_site_analytics_geo.sql', 'analytics country columns are the fourteenth, additive migration');
+  assert.equal(files.at(-1), '015_analytics_country_precise.sql', 'analytics country provenance is the fifteenth, additive migration');
   const text = await readFile(new URL('../db/migrations/007_ai_credits.sql', import.meta.url), 'utf8');
   const sql = text.replace(/--.*$/gm, '');
   assert.match(sql, /CREATE TABLE IF NOT EXISTS user_entitlement \(/);

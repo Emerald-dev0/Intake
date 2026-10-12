@@ -19,6 +19,8 @@ export interface SiteEventInput {
   utmCampaign: string;
   country: string;
   timeZone: string;
+  /** True only when the code came from an edge geo header. */
+  countryPrecise: boolean;
 }
 
 export interface AnalyticsDayPoint {
@@ -73,9 +75,9 @@ export function createPostgresAnalyticsStore(pool: Pool) {
   return {
     async record(input: SiteEventInput): Promise<void> {
       await pool.query(
-        `INSERT INTO site_events (day, kind, path, label, referrer_host, utm_source, utm_medium, utm_campaign, country, time_zone)
-         VALUES (CURRENT_DATE, $1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [input.kind, input.path, input.label, input.referrerHost, input.utmSource, input.utmMedium, input.utmCampaign, input.country, input.timeZone],
+        `INSERT INTO site_events (day, kind, path, label, referrer_host, utm_source, utm_medium, utm_campaign, country, time_zone, country_precise)
+         VALUES (CURRENT_DATE, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [input.kind, input.path, input.label, input.referrerHost, input.utmSource, input.utmMedium, input.utmCampaign, input.country, input.timeZone, input.countryPrecise],
       );
     },
 
@@ -123,7 +125,7 @@ export function createPostgresAnalyticsStore(pool: Pool) {
           [bounds.from, bounds.to],
         ),
         pool.query(
-          `SELECT country AS name, COUNT(*) AS count, BOOL_OR(time_zone = '') AS precise FROM site_events
+          `SELECT country AS name, COUNT(*) AS count, BOOL_OR(country_precise) AS precise FROM site_events
            WHERE kind = 'pageview' AND country <> '' AND created_at >= $1 AND created_at < $2
            GROUP BY country ORDER BY count DESC LIMIT 10`,
           [bounds.from, bounds.to],

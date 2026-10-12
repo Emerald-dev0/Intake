@@ -849,7 +849,6 @@ function AnalyticsContent({ data, range }: { data: AnalyticsData; range: AdminRa
   if (!data.available) {
     return <Panel title="Site analytics"><Unavailable>{data.reason ?? 'Analytics are unavailable.'}</Unavailable></Panel>;
   }
-  const peak = data.byDay.reduce((best, day) => Math.max(best, day.pageviews + day.clicks), 0);
   return (
     <>
       <div className="admin-metric-grid four">
@@ -861,28 +860,19 @@ function AnalyticsContent({ data, range }: { data: AnalyticsData; range: AdminRa
 
       <Panel title="Daily volume" eyebrow={rangeName(range).toUpperCase()}>
         {data.byDay.length
-          ? <div className="admin-bars">{data.byDay.map(day => (
-            <div className="admin-bar-row" key={day.day}>
-              <span>{dateOnly(`${day.day}T00:00:00Z`)}</span>
-              <div className="admin-bar-track">
-                <div className="admin-bar-fill views" style={{ width: `${peak ? Math.round((day.pageviews / peak) * 100) : 0}%` }} />
-                <div className="admin-bar-fill clicks" style={{ width: `${peak ? Math.round((day.clicks / peak) * 100) : 0}%` }} />
-              </div>
-              <b>{number(day.pageviews)} views · {number(day.clicks)} clicks</b>
-            </div>
-          ))}</div>
+          ? <TrafficChart days={data.byDay} />
           : <EmptyState title="No traffic recorded in this period" detail="Events appear once the public pages load with migration 013 applied." />}
       </Panel>
 
       <div className="admin-overview-columns">
         <Panel title="Top pages" eyebrow="WHERE THEY LAND">
           {data.topPages.length
-            ? <div className="admin-inline-facts">{data.topPages.map(row => <span key={row.name}><code>{row.name}</code> <b>{number(row.count)}</b></span>)}</div>
+            ? <RankBars rows={data.topPages} />
             : <EmptyState title="No page views yet" detail="Only / and /pricing are tracked." />}
         </Panel>
         <Panel title="Top referrers" eyebrow="WHERE THEY COME FROM">
           {data.topReferrers.length
-            ? <div className="admin-inline-facts">{data.topReferrers.map(row => <span key={row.name}>{row.name} <b>{number(row.count)}</b></span>)}</div>
+            ? <RankBars rows={data.topReferrers} />
             : <EmptyState title="No referrers yet" detail="Direct visits carry no referrer; the beacon only keeps hostnames." />}
         </Panel>
       </div>
@@ -890,8 +880,8 @@ function AnalyticsContent({ data, range }: { data: AnalyticsData; range: AdminRa
       <Panel title="Countries" eyebrow={data.countryPrecise ? 'EDGE-CONFIRMED' : 'APPROXIMATE · TIMEZONE'}>
         {data.topCountries.length
           ? <>
-            <div className="admin-inline-facts">{data.topCountries.map(row => <span key={row.name}>{row.name} <b>{number(row.count)}</b></span>)}</div>
-            {!data.countryPrecise && <p className="admin-note">Approximate: no edge geo header survived the proxy chain, so countries come from browser timezones. Two-letter codes, unknown stays empty rather than guessed.</p>}
+            <RankBars rows={data.topCountries} />
+            {!data.countryPrecise && <p className="admin-note">Approximate: no edge geo header survived the proxy chain, so countries come from browser timezones (full IANA coverage). Unknown stays empty rather than guessed.</p>}
           </>
           : <EmptyState title="No country data yet" detail="Codes arrive with the next page views — edge headers first, timezone second." />}
       </Panel>
@@ -899,15 +889,88 @@ function AnalyticsContent({ data, range }: { data: AnalyticsData; range: AdminRa
       <div className="admin-overview-columns">
         <Panel title="Campaign sources" eyebrow="UTM_SOURCE, DIRECT INCLUDED">
           {data.topSources.length
-            ? <div className="admin-inline-facts">{data.topSources.map(row => <span key={row.name}>{row.name} <b>{number(row.count)}</b></span>)}</div>
+            ? <RankBars rows={data.topSources} />
             : <EmptyState title="No sources yet" detail="Share links with ?utm_source= to attribute campaigns." />}
         </Panel>
         <Panel title="Top button clicks" eyebrow="WHAT THEY PRESS">
           {data.topClicks.length
-            ? <div className="admin-inline-facts">{data.topClicks.map(row => <span key={row.name}>{row.name} <b>{number(row.count)}</b></span>)}</div>
+            ? <RankBars rows={data.topClicks} />
             : <EmptyState title="No clicks yet" detail="Only call-to-action navigations are recorded." />}
         </Panel>
       </div>
     </>
+  );
+}
+
+/**
+ * Daily pageviews (area) and clicks (line) as dependency-free SVG. Scales to
+ * any range length; axis ticks thin out so labels never collide. The numbers
+ * stay in the DOM as text for screen readers and tests.
+ */
+function TrafficChart({ days }: { days: AnalyticsData['byDay'] }) {
+  const width = 680;
+  const height = 230;
+  const padLeft = 40;
+  const padRight = 12;
+  const padTop = 14;
+  const padBottom = 30;
+  const innerWidth = width - padLeft - padRight;
+  const innerHeight = height - padTop - padBottom;
+  const peak = days.reduce((best, day) => Math.max(best, day.pageviews, day.clicks), 0);
+  const top = Math.max(peak, 1);
+  const step = days.length > 1 ? innerWidth / (days.length - 1) : 0;
+  const x = (index: number) => padLeft + (days.length > 1 ? index * step : innerWidth / 2);
+  const y = (value: number) => padTop + innerHeight - (value / top) * innerHeight;
+  const line = (pick: (day: AnalyticsData['byDay'][number]) => number) =>
+    days.map((day, index) => `${index === 0 ? 'M' : 'L'}${x(index).toFixed(1)},${y(pick(day)).toFixed(1)}`).join(' ');
+  const viewsLine = line(day => day.pageviews);
+  const clicksLine = line(day => day.clicks);
+  const viewsArea = `${viewsLine} L${x(days.length - 1).toFixed(1)},${(padTop + innerHeight).toFixed(1)} L${x(0).toFixed(1)},${(padTop + innerHeight).toFixed(1)} Z`;
+  const gridlines = [0.25, 0.5, 0.75, 1].map(fraction => Math.round(top * fraction));
+  const tickEvery = Math.max(1, Math.ceil(days.length / 8));
+  return (
+    <figure className="admin-chart" role="img" aria-label={`Daily page views and clicks, peak ${peak} events in a day`}>
+      <svg viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+        {gridlines.map(value => (
+          <g key={value}>
+            <line x1={padLeft} x2={width - padRight} y1={y(value)} y2={y(value)} className="admin-chart__grid" />
+            <text x={padLeft - 8} y={y(value) + 3.5} textAnchor="end" className="admin-chart__tick">{value}</text>
+          </g>
+        ))}
+        <path d={viewsArea} className="admin-chart__area" />
+        <path d={viewsLine} className="admin-chart__line admin-chart__line--views" />
+        <path d={clicksLine} className="admin-chart__line admin-chart__line--clicks" />
+        {days.map((day, index) => index % tickEvery === 0 || index === days.length - 1 ? (
+          <text key={day.day} x={x(index)} y={height - 10} textAnchor="middle" className="admin-chart__tick">{day.day.slice(5)}</text>
+        ) : null)}
+        {days.map((day, index) => (
+          <circle key={day.day} cx={x(index)} cy={y(day.pageviews)} r="2.5" className="admin-chart__dot" />
+        ))}
+      </svg>
+      <figcaption>
+        <span><i className="admin-chart__swatch admin-chart__swatch--views" /> Page views</span>
+        <span><i className="admin-chart__swatch admin-chart__swatch--clicks" /> Clicks</span>
+        <span className="admin-chart__peak">Peak {number(peak)}/day</span>
+      </figcaption>
+    </figure>
+  );
+}
+
+/** Ranked rows with proportional bars and share percentages. Replaces loose fact chips. */
+function RankBars({ rows }: { rows: Array<{ name: string; count: number }> }) {
+  const total = rows.reduce((sum, row) => sum + row.count, 0);
+  const top = Math.max(1, ...rows.map(row => row.count));
+  return (
+    <ol className="admin-rank">
+      {rows.map(row => (
+        <li key={row.name}>
+          <span className="admin-rank__name"><code>{row.name}</code></span>
+          <span className="admin-rank__track" aria-hidden="true">
+            <i style={{ width: `${Math.max(2, Math.round((row.count / top) * 100))}%` }} />
+          </span>
+          <span className="admin-rank__value"><b>{number(row.count)}</b><small>{total ? `${Math.round((row.count / total) * 100)}%` : '—'}</small></span>
+        </li>
+      ))}
+    </ol>
   );
 }

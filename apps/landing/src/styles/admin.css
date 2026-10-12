@@ -186,6 +186,37 @@
 
 .admin-note { margin:10px 0 0; color:var(--cream-4); font-size:11px; line-height:1.55; }
 
+/* Analytics charts: dependency-free SVG time series and ranked bars. */
+.admin-chart { margin:4px 0 0; }
+.admin-chart svg { display:block; width:100%; height:auto; }
+.admin-chart__grid { stroke:var(--line-2); stroke-width:1; }
+.admin-chart__tick { fill:var(--cream-4); font:9px var(--mono); letter-spacing:.04em; }
+.admin-chart__area { fill:color-mix(in srgb, var(--accent) 16%, transparent); }
+.admin-chart__line { fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.admin-chart__line--views { stroke:var(--accent-2); }
+.admin-chart__line--clicks { stroke:#7fb0ff; stroke-dasharray:5 4; }
+.admin-chart__dot { fill:var(--accent-2); }
+.admin-chart figcaption { display:flex; align-items:center; gap:16px; margin-top:10px; color:var(--cream-3); font-size:11px; }
+.admin-chart figcaption > span { display:inline-flex; align-items:center; gap:7px; }
+.admin-chart__swatch { width:14px; height:3px; border-radius:2px; }
+.admin-chart__swatch--views { background:var(--accent-2); }
+.admin-chart__swatch--clicks { background:#7fb0ff; }
+.admin-chart__peak { margin-left:auto; color:var(--cream-4); font:10px var(--mono); }
+.admin-rank { display:grid; gap:0; margin:0; padding:0; list-style:none; }
+.admin-rank li { display:grid; grid-template-columns:minmax(110px, .9fr) minmax(0, 1.6fr) auto; align-items:center; gap:12px; padding:8px 0; border-top:1px solid var(--line); }
+.admin-rank li:first-child { border-top:0; }
+.admin-rank__name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--cream-2); font-size:11px; }
+.admin-rank__name code { color:var(--cream-3); font-size:10px; }
+.admin-rank__track { position:relative; height:8px; border-radius:4px; background:color-mix(in srgb, var(--line) 45%, transparent); overflow:hidden; }
+.admin-rank__track i { position:absolute; top:0; bottom:0; left:0; border-radius:4px; background:color-mix(in srgb, var(--accent) 72%, transparent); }
+.admin-rank__value { display:inline-flex; align-items:baseline; gap:8px; font-variant-numeric:tabular-nums; }
+.admin-rank__value b { color:var(--cream); font-size:12px; font-weight:550; }
+.admin-rank__value small { color:var(--cream-4); font-size:10px; }
+@media (max-width: 640px) {
+  .admin-rank li { grid-template-columns:minmax(0, 1fr) auto; }
+  .admin-rank__track { display:none; }
+}
+
 /* Analytics daily bars: stacked view/click widths, no chart library. */
 .admin-bars { display:flex; flex-direction:column; gap:7px; }
 .admin-bar-row { display:grid; grid-template-columns:92px 1fr auto; align-items:center; gap:10px; font-size:11px; color:var(--cream-3); }
