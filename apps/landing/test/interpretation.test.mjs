@@ -155,6 +155,54 @@ test('the Groq provider defaults to the configured strict-JSON model', async () 
   assert.equal(request.body.response_format.json_schema.strict, true);
 });
 
+test('transient provider wobbles retry with backoff; 4xx never retries', async () => {
+  const noSleep = async () => undefined;
+  const error = status => new Response(JSON.stringify({ error: { message: `provider says ${status}`, code: status } }), { status });
+
+  // 429 then success: one retry, honest result, no user charge for the wobble.
+  let attempts = 0;
+  const flaky = createFormInterpreter({
+    provider: createGroqProvider({
+      env: { GROQ_API_KEY: 'server-test-key' },
+      sleepImpl: noSleep,
+      fetchImpl: async () => (++attempts === 1 ? error(429) : modelResponse(ready())),
+    }),
+  });
+  const recovered = await flaky.interpret({ mode: 'new', request: 'Make a registration form.', provider: 'google' });
+  assert.equal(recovered.status, 'ready');
+  assert.equal(attempts, 2);
+
+  // Persistent 500s exhaust the bound and surface as unavailable, not credentials.
+  let down = 0;
+  const outage = createFormInterpreter({
+    provider: createGroqProvider({
+      env: { GROQ_API_KEY: 'server-test-key' },
+      sleepImpl: noSleep,
+      fetchImpl: async () => { down += 1; return error(500); },
+    }),
+  });
+  await assert.rejects(
+    outage.interpret({ mode: 'new', request: 'Make a registration form.', provider: 'google' }),
+    error => error instanceof InterpretationError && error.code === 'model_unavailable',
+  );
+  assert.equal(down, 3, 'retries are bounded');
+
+  // 400 is decisive: retrying the identical request cannot help.
+  let bad = 0;
+  const broken = createFormInterpreter({
+    provider: createGroqProvider({
+      env: { GROQ_API_KEY: 'server-test-key' },
+      sleepImpl: noSleep,
+      fetchImpl: async () => { bad += 1; return error(400); },
+    }),
+  });
+  await assert.rejects(
+    broken.interpret({ mode: 'new', request: 'Make a registration form.', provider: 'google' }),
+    error => error instanceof InterpretationError && error.code === 'model_not_configured',
+  );
+  assert.equal(bad, 1, 'client errors fail fast without retry');
+});
+
 test('missing credentials fail clearly without fake inference or network access', async () => {
   let calls = 0;
   const interpreter = openAiInterpreter({ env: {}, fetchImpl: async () => { calls++; return modelResponse(ready()); } });
@@ -162,22 +210,32 @@ test('missing credentials fail clearly without fake inference or network access'
   assert.equal(calls, 0);
 });
 
-test('the model boundary handles provider errors, refusal, truncation, invalid JSON and timeouts without retrying', async () => {
+test('the model boundary maps provider errors distinctly; only fast transients retry', async () => {
   const input = { mode: 'new', request: 'Registration', provider: 'google' };
+  // Decisive failures: classified, surfaced, single attempt.
   for (const [response, expected] of [
     [new Response('unauthorized', { status: 401 }), 'model_not_configured'],
     [new Response('invalid schema', { status: 400 }), 'model_not_configured'],
-    [new Response('busy', { status: 429 }), 'model_rate_limited'],
-    [new Response('down', { status: 503 }), 'model_unavailable'],
     [new Response('teapot', { status: 418 }), 'model_provider_error'],
     [modelResponse('{not-json'), 'model_invalid_output'],
     [modelResponse(ready(), { finish_reason: 'length' }), 'model_invalid_output'],
     [new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { refusal: 'No', content: null } }] }), { status: 200 }), 'model_invalid_output'],
   ]) {
     let calls = 0;
-    const interpreter = openAiInterpreter({ env: { OPENAI_API_KEY: 'test-key' }, fetchImpl: async () => { calls++; return response; } });
+    const interpreter = openAiInterpreter({ env: { OPENAI_API_KEY: 'test-key' }, sleepImpl: async () => undefined, fetchImpl: async () => { calls++; return response; } });
     await assert.rejects(interpreter.interpret(input), error => error.code === expected);
-    assert.equal(calls, 1, 'no automatic model retry');
+    assert.equal(calls, 1, 'decisive failures never retry');
+  }
+  // Fast transients: bounded retries, then the honest code. Each attempt gets a fresh
+  // Response: a body can only be read once, so reusing one across retries is unfaithful.
+  for (const [makeResponse, expected] of [
+    [() => new Response('busy', { status: 429 }), 'model_rate_limited'],
+    [() => new Response('down', { status: 503 }), 'model_unavailable'],
+  ]) {
+    let calls = 0;
+    const interpreter = openAiInterpreter({ env: { OPENAI_API_KEY: 'test-key' }, sleepImpl: async () => undefined, fetchImpl: async () => { calls++; return makeResponse(); } });
+    await assert.rejects(interpreter.interpret(input), error => error.code === expected);
+    assert.equal(calls, 3, 'transients retry to the bound, then surface truthfully');
   }
   const timeout = openAiInterpreter({ env: { OPENAI_API_KEY: 'test-key' }, fetchImpl: async () => { throw Object.assign(new Error('timeout secret'), { name: 'TimeoutError' }); } });
   await assert.rejects(timeout.interpret(input), error => error.code === 'model_timeout' && !error.message.includes('secret'));

@@ -21,6 +21,10 @@ export interface ChatCompletionsOptions {
   maxCompletionTokens?: number;
   /** Provider-specific body fields, e.g. Groq reasoning controls. Never user-controlled. */
   extraBody?: Record<string, unknown>;
+  /** Overrideable for tests so retry backoff does not sleep for real. */
+  sleepImpl?: (ms: number) => Promise<void>;
+  /** Total attempts including the first. Bounded: 3 (transient provider wobbles, not outages). */
+  maxAttempts?: number;
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -64,6 +68,32 @@ function classifyStatus(status: number): AiFailureCode {
   return 'model_provider_error';
 }
 
+/** Exponential backoff with jitter; honors Retry-After when sane (0–10s). */
+function retryDelayMs(failedAttempt: number, retryAfter: string | null): number {
+  if (retryAfter !== null) {
+    const seconds = Number(retryAfter.trim());
+    if (Number.isFinite(seconds) && seconds >= 0 && seconds <= 10) return Math.round(seconds * 1000);
+  }
+  return Math.min(8000, 800 * 2 ** Math.max(0, failedAttempt - 1)) + Math.floor(Math.random() * 250);
+}
+
+function logProviderRejection(provider: string, status: number, body: string): void {
+  try {
+    const detail = JSON.parse(body) as { error?: { message?: unknown; code?: unknown; type?: unknown } };
+    const message = typeof detail?.error?.message === 'string' ? detail.error.message.slice(0, 300) : '';
+    console.warn(JSON.stringify({
+      time: new Date().toISOString(), level: 'warn', event: 'ai.provider.rejected',
+      provider, providerStatus: status, providerCode: detail?.error?.code ?? null,
+      providerType: detail?.error?.type ?? null, providerMessage: message || null,
+    }));
+  } catch {
+    console.warn(JSON.stringify({
+      time: new Date().toISOString(), level: 'warn', event: 'ai.provider.rejected',
+      provider, providerStatus: status, providerCode: null, providerType: null, providerMessage: null,
+    }));
+  }
+}
+
 function messageFor(code: AiFailureCode, options: ChatCompletionsOptions): string {
   switch (code) {
     case 'model_not_configured':
@@ -101,34 +131,55 @@ export function createChatCompletionsProvider(options: ChatCompletionsOptions): 
         observe({ ok: false, errorCategory: 'model_not_configured' });
         throw new AiProviderError('model_not_configured', `Live interpretation is not configured on this Intake server (${options.apiKeyEnv} is missing). No changes were made.`);
       }
-      let response: Response;
-      let body: string;
-      try {
-        response = await (options.fetchImpl ?? fetch)(options.endpoint, {
-          method: 'POST',
-          headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json', accept: 'application/json' },
-          body: JSON.stringify({
-            model: options.model,
-            messages: [{ role: 'system', content: request.system }, { role: 'user', content: JSON.stringify(request.input) }],
-            response_format: { type: 'json_schema', json_schema: { name: request.schemaName, strict: true, schema: request.schema } },
-            max_completion_tokens: request.maxCompletionTokens ?? maxCompletionTokens,
-            ...(options.extraBody ?? {}),
-          }),
-          redirect: 'error',
-          signal: AbortSignal.timeout(timeoutMs),
-        });
-        body = await limitedText(response);
-      } catch (error) {
-        if (error instanceof AiProviderError) {
-          observe({ ok: false, errorCategory: error.code });
-          throw error;
+      // Bounded retry for fast transient failures (429/5xx): a provider wobble must not surface
+      // as a credentials error after one attempt. Timeouts are NOT retried — one 30s wait is
+      // already the whole user patience budget. 4xx (except 429) never retries: same request,
+      // same rejection.
+      const maxAttempts = Math.min(5, Math.max(1, options.maxAttempts ?? 3));
+      const sleep = options.sleepImpl ?? (ms => new Promise(resolve => setTimeout(resolve, ms)));
+      let response: Response | null = null;
+      let body = '';
+      let attempt = 0;
+      for (;;) {
+        attempt += 1;
+        try {
+          response = await (options.fetchImpl ?? fetch)(options.endpoint, {
+            method: 'POST',
+            headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json', accept: 'application/json' },
+            body: JSON.stringify({
+              model: options.model,
+              messages: [{ role: 'system', content: request.system }, { role: 'user', content: JSON.stringify(request.input) }],
+              response_format: { type: 'json_schema', json_schema: { name: request.schemaName, strict: true, schema: request.schema } },
+              max_completion_tokens: request.maxCompletionTokens ?? maxCompletionTokens,
+              ...(options.extraBody ?? {}),
+            }),
+            redirect: 'error',
+            signal: AbortSignal.timeout(timeoutMs),
+          });
+          body = await limitedText(response);
+        } catch (error) {
+          if (error instanceof AiProviderError) {
+            observe({ ok: false, errorCategory: error.code });
+            throw error;
+          }
+          const name = error instanceof Error ? error.name : '';
+          const code: AiFailureCode = name === 'TimeoutError' || name === 'AbortError' ? 'model_timeout' : 'model_unavailable';
+          observe({ ok: false, errorCategory: code });
+          throw new AiProviderError(code, messageFor(code, options));
         }
-        const name = error instanceof Error ? error.name : '';
-        const code: AiFailureCode = name === 'TimeoutError' || name === 'AbortError' ? 'model_timeout' : 'model_unavailable';
-        observe({ ok: false, errorCategory: code });
-        throw new AiProviderError(code, messageFor(code, options));
+        if (response.ok) break;
+        const retryable = response.status === 429 || response.status >= 500;
+        if (!retryable || attempt >= maxAttempts) break;
+        console.warn(JSON.stringify({
+          time: new Date().toISOString(), level: 'warn', event: 'ai.provider.retry',
+          provider: options.id, attempt, maxAttempts, providerStatus: response.status,
+        }));
+        await sleep(retryDelayMs(attempt, response.headers.get('retry-after')));
       }
       if (!response.ok) {
+        // Operator diagnostics: status plus the provider's error head. The request body (user
+        // words) and the key (bearer header) are never logged.
+        logProviderRejection(options.id, response.status, body);
         const code = classifyStatus(response.status);
         observe({ ok: false, errorCategory: code });
         throw new AiProviderError(code, messageFor(code, options));

@@ -15,6 +15,9 @@ export interface OpenAiProviderOptions {
   timeoutMs?: number;
   maxCompletionTokens?: number;
   endpoint?: string;
+  /** Test-only retry knobs; production uses the bounded defaults. */
+  sleepImpl?: (ms: number) => Promise<void>;
+  maxAttempts?: number;
 }
 
 export function readOpenAiModel(env: NodeJS.ProcessEnv): string {
@@ -32,5 +35,7 @@ export function createOpenAiProvider(options: OpenAiProviderOptions): AiProvider
     model: readOpenAiModel(options.env),
     timeoutMs: options.timeoutMs,
     maxCompletionTokens: options.maxCompletionTokens,
+    sleepImpl: options.sleepImpl,
+    maxAttempts: options.maxAttempts,
   });
 }

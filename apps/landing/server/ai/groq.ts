@@ -23,6 +23,9 @@ export interface GroqProviderOptions {
   maxCompletionTokens?: number;
   /** Overrides `GROQ_ENDPOINT`. Tests use it; production leaves it unset. */
   endpoint?: string;
+  /** Test-only retry knobs; production uses the bounded defaults. */
+  sleepImpl?: (ms: number) => Promise<void>;
+  maxAttempts?: number;
 }
 
 export function readGroqModel(env: NodeJS.ProcessEnv): string {
@@ -50,6 +53,8 @@ export function createGroqProvider(options: GroqProviderOptions): AiProvider {
     model: readGroqModel(options.env),
     timeoutMs: options.timeoutMs,
     maxCompletionTokens: options.maxCompletionTokens,
+    sleepImpl: options.sleepImpl,
+    maxAttempts: options.maxAttempts,
     // Only sent when an operator asks for it, so an unsupported parameter can never break the call.
     ...(effort ? { extraBody: { reasoning_effort: effort } } : {}),
   };
