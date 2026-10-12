@@ -262,6 +262,7 @@ const welcome: EmailTemplate = {
       <li>You get ${escapeHtml(text_(vars.dailyCredits, '20'))} credits every day, refreshed at 00:00 UTC. They do not roll over.</li>
     </ol>`,
     button(text_(vars.dashboardUrl), 'Build your first form'),
+    paragraph('One more thing: Intake is early and moving fast. I am shipping new capabilities every week, and I will write to you when something worth your attention lands — no noise, just the good stuff.'),
     paragraph('And one personal request: if anything confuses you, delights you, or breaks — just reply to this email. It lands in my inbox, and I read everything.', `font-size:14px;color:${MUTED}`),
     paragraph('— Daniel', `font-family:${SERIF};font-size:17px;color:${INK}`),
   ].join(''),
@@ -278,6 +279,8 @@ const welcome: EmailTemplate = {
     `  3. You get ${text_(vars.dailyCredits, '20')} credits every day, refreshed at 00:00 UTC. They do not roll over.`,
     '',
     `Build your first form: ${text_(vars.dashboardUrl)}`,
+    '',
+    'One more thing: Intake is early and moving fast. I am shipping new capabilities every week, and I will write to you when something worth your attention lands — no noise, just the good stuff.',
     '',
     'And one personal request: if anything confuses you, delights you, or breaks — just reply to this email. It lands in my inbox, and I read everything.',
     '',

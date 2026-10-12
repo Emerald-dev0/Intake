@@ -51,6 +51,16 @@ export const auth = betterAuth({
   },
   databaseHooks: {
     // Emails are best-effort by construction: a delivery failure must never block authentication.
+    user: {
+      create: {
+        // Every signup earns the welcome mail here — email/password and Google alike —
+        // instead of waiting for verification. The verify endpoint re-fires it as a
+        // backstop; the deterministic welcome:{userId} event id keeps that a no-op.
+        after: async user => {
+          await safeHook('onUserCreated', hooks => hooks.onUserCreated(user.id));
+        },
+      },
+    },
     session: {
       create: {
         after: async session => {

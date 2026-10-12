@@ -14,6 +14,8 @@ export interface AuthEmailHooks {
   sendPasswordReset(input: { userId: string; email: string; name: string | null; token: string }): Promise<void>;
   /** Called after a successful password reset. */
   onPasswordReset(userId: string): Promise<void>;
+  /** Called once when a user row is created, however they signed up. Fires the welcome mail. */
+  onUserCreated(userId: string): Promise<void>;
   /** Called after every new session. `networkSubject` is already derived from the trusted proxy. */
   onNewSession(input: { userId: string; networkSubject: string }): Promise<void>;
   /** Called when a Google sign-in account row is linked or unlinked. */

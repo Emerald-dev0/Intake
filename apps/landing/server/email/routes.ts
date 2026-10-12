@@ -190,7 +190,9 @@ export function createAccountEmailRouter(deps: AccountEmailRouterDeps): Router {
     const result = await deps.otp.verify({ userId: user.id, purpose: 'verify_email', code });
     if (result.status === 'verified') {
       await deps.users.setEmailVerified(user.id);
-      // The milestone that earns a welcome email is verification, not signup (mission §11).
+      // Backstop: signup already fired the welcome mail via the user-create hook; if that
+      // send was skipped or failed, verification delivers it now. Same deterministic
+      // welcome:{userId} event id, so a user who already got one never gets two.
       await deps.notifier.welcome(user.id).catch(() => undefined);
       return res.json({ status: 'verified' });
     }

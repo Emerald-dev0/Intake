@@ -41,7 +41,7 @@ export interface EmailConfig {
 }
 
 const DEFAULT_BASE_URL = 'https://api.calder.click';
-const DEFAULT_WELCOME_FROM_EMAIL = 'daniel@calder.click';
+const DEFAULT_WELCOME_FROM_EMAIL = 'daniel@intake.calder.click';
 const DEFAULT_WELCOME_FROM_NAME = 'Daniel from Intake';
 const EMAIL = /^[^\s@,]+@[^\s@,]+\.[^\s@,]{2,}$/;
 const ALIAS = /^[a-z0-9-]{1,100}$/;

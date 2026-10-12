@@ -77,9 +77,9 @@ test('the provider is Calder by default and reports not-configured without crede
 
 test('the welcome sender defaults to Daniel with a human reply-to', () => {
   const config_ = config();
-  assert.equal(config_.welcomeFromEmail, 'daniel@calder.click');
+  assert.equal(config_.welcomeFromEmail, 'daniel@intake.calder.click');
   assert.equal(config_.welcomeFromName, 'Daniel from Intake');
-  assert.equal(config_.welcomeReplyTo, 'daniel@calder.click');
+  assert.equal(config_.welcomeReplyTo, 'daniel@intake.calder.click');
   assert.equal(config({ CALDER_WELCOME_FROM_EMAIL: 'me@example.com' }).welcomeFromEmail, 'me@example.com');
   assert.equal(config({ CALDER_WELCOME_REPLY_TO: 'team@example.com' }).welcomeReplyTo, 'team@example.com');
   assert.throws(() => config({ CALDER_WELCOME_FROM_EMAIL: 'not-an-email' }), /CALDER_WELCOME_FROM_EMAIL/);
@@ -123,8 +123,8 @@ test('the welcome mail is personal (Daniel) while system mail uses the system se
   });
   assert.equal(welcome.status, 'sent');
   const welcomeBody = JSON.parse(welcomeCalls.calls[0].init.body);
-  assert.equal(welcomeBody.from, 'daniel@calder.click');
-  assert.equal(welcomeBody.reply_to, 'daniel@calder.click', 'replies to welcome land with a human');
+  assert.equal(welcomeBody.from, 'daniel@intake.calder.click');
+  assert.equal(welcomeBody.reply_to, 'daniel@intake.calder.click', 'replies to welcome land with a human');
   assert.equal(welcomeBody.fromName, undefined, 'Calder takes a bare address; display names live on sender identities');
 
   const otpCalls = fakeFetch(json({ id: 'em_o', status: 'queued' }));

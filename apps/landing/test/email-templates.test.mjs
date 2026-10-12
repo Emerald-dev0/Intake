@@ -87,6 +87,7 @@ test('the welcome mail is personal and every footer carries support contact', ()
   assert.match(welcome.html, /I am Daniel/, 'the body introduces Daniel');
   assert.match(welcome.html, /just reply to this email/, 'the reader is invited to reply');
   assert.match(welcome.text, /— Daniel/, 'the plaintext signs off');
+  assert.match(welcome.html, /shipping new capabilities every week/, 'the welcome mail promises continuous feature updates');
   assert.match(welcome.html, /20 credits every day/, 'launch allowance comes from the passed variable, never hardcoded');
 
   for (const [type, variables] of Object.entries(VARIABLES)) {

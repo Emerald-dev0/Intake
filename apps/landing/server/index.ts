@@ -247,6 +247,9 @@ setAuthEmailHooks({
   async onPasswordReset(userId) {
     await emailRuntime.notifier.passwordChanged(userId);
   },
+  async onUserCreated(userId) {
+    await emailRuntime.notifier.welcome(userId).catch(() => undefined);
+  },
   async onNewSession({ userId, networkSubject }) {
     await emailRuntime.notifier.newSignIn(userId, networkSubject);
   },
