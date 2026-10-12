@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { LogoMark } from '../../components/LogoMark';
+import { ThemeToggle } from '../../components/ThemeToggle';
 import { authClient as client } from '../../lib/auth';
 import { useSession } from '../hooks/useSession';
 import { useProviders } from '../Connections';
@@ -56,7 +57,7 @@ export function WorkspaceLayout() {
       </aside>
       {mobileOpen && <button className="mobile-shade" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
       <div className="app-body">
-        <header className="app-topbar"><button className="mobile-trigger" onClick={() => setMobileOpen(true)} aria-label="Open navigation">☰</button><div className="topbar-path">WORKSPACE <span>/</span> {page === 'home' ? 'OVERVIEW' : page === 'connections' ? 'CONNECTIONS' : page === 'library' ? 'LIBRARY' : page === 'forms' ? 'FORMS' : 'ACCOUNT'}</div><div className="account-wrap"><button className="account-trigger" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}><span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span><span className="account-name">{user.name}</span><span aria-hidden>⌄</span></button>{menuOpen && <div className="account-menu"><div className="account-identity"><strong>{user.name}</strong><span>{user.email}</span></div><a href="/app/account">Account</a><button disabled={signingOut} onClick={() => void signOut()}>{signingOut ? 'Signing out…' : 'Sign out →'}</button>{signOutError && <p role="alert">{signOutError}</p>}</div>}</div></header>
+        <header className="app-topbar"><button className="mobile-trigger" onClick={() => setMobileOpen(true)} aria-label="Open navigation">☰</button><div className="topbar-path">WORKSPACE <span>/</span> {page === 'home' ? 'OVERVIEW' : page === 'connections' ? 'CONNECTIONS' : page === 'library' ? 'LIBRARY' : page === 'forms' ? 'FORMS' : 'ACCOUNT'}</div><div className="account-wrap"><button className="account-trigger" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}><span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span><span className="account-name">{user.name}</span><span aria-hidden>⌄</span></button>{menuOpen && <div className="account-menu"><div className="account-identity"><strong>{user.name}</strong><span>{user.email}</span></div><a href="/app/account">Account</a><ThemeToggle menuItem /><button disabled={signingOut} onClick={() => void signOut()}>{signingOut ? 'Signing out…' : 'Sign out →'}</button>{signOutError && <p role="alert">{signOutError}</p>}</div>}</div></header>
         <main className="app-content">
           <Outlet context={{ user, providers: providers.state, reloadProviders: providers.load, credits: credits.state, reloadCredits: credits.reload, noteCredits: credits.note }} />
         </main>

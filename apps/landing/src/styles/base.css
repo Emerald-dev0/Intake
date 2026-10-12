@@ -4,12 +4,12 @@
   --ink-2: #181815;
   --ink-3: #22221e;
   --ink-4: #2e2d28;
-  --line: rgba(241, 236, 226, 0.09);
-  --line-2: rgba(241, 236, 226, 0.16);
+  --line: rgba(var(--cream-rgb), 0.09);
+  --line-2: rgba(var(--cream-rgb), 0.16);
   --cream: #f1ece2;
-  --cream-2: rgba(241, 236, 226, 0.72);
-  --cream-3: rgba(241, 236, 226, 0.48);
-  --cream-4: rgba(241, 236, 226, 0.28);
+  --cream-2: rgba(var(--cream-rgb), 0.72);
+  --cream-3: rgba(var(--cream-rgb), 0.48);
+  --cream-4: rgba(var(--cream-rgb), 0.28);
   --accent: #ff5a1f;
   --accent-2: #ff7b47;
   --accent-soft: rgba(255, 90, 31, 0.14);
@@ -33,6 +33,45 @@
   --wrap: 1240px;
   --wrap-wide: 1400px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Channel triplets so translucent layers follow the theme without new variables per alpha. */
+  --cream-rgb: 241, 236, 226;
+  --ink-rgb: 12, 12, 11;
+}
+
+/**
+ * Light theme: the same semantic roles remapped onto warm paper. Dark is the default
+ * (no attribute); `data-theme="light"` flips every var-driven surface at once, and the
+ * channel triplets above keep translucent layers legible in both modes.
+ */
+html[data-theme='light'] {
+  --ink: #f5f0e6;
+  --ink-1: #eee7d5;
+  --ink-2: #e6dbc4;
+  --ink-3: #fffdf9;
+  --ink-4: #ddd2b8;
+  --line: rgba(27, 26, 23, 0.12);
+  --line-2: rgba(27, 26, 23, 0.22);
+  --cream: #1b1a17;
+  --cream-2: rgba(27, 26, 23, 0.72);
+  --cream-3: rgba(27, 26, 23, 0.52);
+  --cream-4: rgba(27, 26, 23, 0.3);
+  --accent: #f04e12;
+  --accent-2: #c73e0a;
+  --accent-soft: rgba(240, 78, 18, 0.12);
+  --paper: #fffdf9;
+  --paper-2: #f5f0e6;
+  --paper-ink: #1b1a17;
+  --paper-mute: #7d766a;
+  --paper-line: #d9d0bf;
+  --c-field: #e8480c;
+  --c-logic: #4a5fc4;
+  --c-rule: #96700f;
+  --c-meta: #1d7a5c;
+  --ok: #1d7a5c;
+  --cream-rgb: 27, 26, 23;
+  --ink-rgb: 245, 240, 230;
+  color-scheme: light;
 }
 
 *,
@@ -376,8 +415,8 @@ pre {
 .btn-ghost {
   color: var(--cream);
   border: 1px solid var(--line-2);
-  background: rgba(241, 236, 226, 0.03);
+  background: rgba(var(--cream-rgb), 0.03);
 }
 .btn-ghost:hover {
-  background: rgba(241, 236, 226, 0.08);
+  background: rgba(var(--cream-rgb), 0.08);
 }

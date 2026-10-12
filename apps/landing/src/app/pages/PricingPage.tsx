@@ -5,6 +5,7 @@ import { pricingFaqEntries } from '../../content/pricing';
 import { PLAN_CATALOG, formatUsd } from '../../lib/plans';
 import { comparePlanPrices, useBillingPlans } from '../../lib/useBillingPlans';
 import { useSiteAnalytics } from '../../lib/analytics';
+import { ThemeToggle } from '../../components/ThemeToggle';
 
 type BillingCadence = 'month' | 'year';
 
@@ -44,7 +45,7 @@ export function PricingPage() {
     <a className="skip-link" href="#pricing-main">Skip to pricing details</a>
     <header className="pricing-header">
       <a href="/" className="app-logo" aria-label="Intake home"><LogoMark size={28} /><span>intake</span></a>
-      <nav aria-label="Pricing navigation"><a href="/#how-it-works">How it works</a>{!authenticated && <a href="/auth/sign-in">Sign in</a>}<a className="btn btn-accent btn-sm" href={authenticated ? '/app' : '/auth/sign-up'}>{authenticated ? 'Open Intake' : 'Start free'}</a></nav>
+      <nav aria-label="Pricing navigation"><a href="/#how-it-works">How it works</a>{!authenticated && <a href="/auth/sign-in">Sign in</a>}<ThemeToggle className="pricing-theme-toggle" /><a className="btn btn-accent btn-sm" href={authenticated ? '/app' : '/auth/sign-up'}>{authenticated ? 'Open Intake' : 'Start free'}</a></nav>
     </header>
 
     <main id="pricing-main" tabIndex={-1}>

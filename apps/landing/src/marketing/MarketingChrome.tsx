@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { CREATOR } from '../content/site';
 import { LogoMark } from '../components/LogoMark';
+import { ThemeToggle } from '../components/ThemeToggle';
 import { useScrolled, useScrollProgress } from './motion';
 
 export function StartLink({
@@ -77,6 +78,7 @@ export function MarketingNav({ authenticated }: { authenticated: boolean }) {
           </nav>
 
           <div className="mk-header__actions">
+            <ThemeToggle className="mk-theme-toggle" />
             {!authenticated && <a className="mk-sign-in" href="/auth/sign-in">Sign in</a>}
             <StartLink authenticated={authenticated} className="mk-button mk-button--primary mk-button--nav" />
           </div>
@@ -112,6 +114,7 @@ export function MarketingNav({ authenticated }: { authenticated: boolean }) {
             </a>
           ))}
           <div className="mk-sheet__actions">
+            <ThemeToggle menuItem className="mk-sheet__theme" />
             {!authenticated && <a className="mk-button mk-button--secondary" href="/auth/sign-in" onClick={() => setMenuOpen(false)}>Sign in</a>}
             <StartLink authenticated={authenticated} className="mk-button mk-button--primary" />
           </div>

@@ -23,6 +23,22 @@
 .pricing-header nav > a:not(.btn):hover,
 .pricing-footer > a:last-child:hover { color: var(--accent-2); }
 .pricing-header nav .btn { color: var(--ink); }
+.pricing-theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--cream-2);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.pricing-theme-toggle:hover { color: var(--cream); border-color: var(--cream-3); }
 .pricing-intro {
   max-width: 760px;
   margin: 0 auto;
@@ -102,7 +118,7 @@
   padding: clamp(24px, 3.5vw, 38px);
   border: 1px solid var(--line-2);
   border-radius: 13px;
-  background: linear-gradient(145deg, rgba(241,236,226,.035), rgba(241,236,226,.012) 54%), var(--ink-1);
+  background: linear-gradient(145deg, rgba(var(--cream-rgb),.035), rgba(var(--cream-rgb),.012) 54%), var(--ink-1);
 }
 .pricing-plan-card.is-pro {
   border-color: rgba(255, 123, 71, .43);
@@ -206,7 +222,7 @@
   padding: 15px 18px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgba(241,236,226,.025);
+  background: rgba(var(--cream-rgb),.025);
   color: var(--cream-3);
   font-size: 12px;
   line-height: 1.65;
