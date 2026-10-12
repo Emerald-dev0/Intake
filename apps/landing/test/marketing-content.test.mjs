@@ -17,11 +17,11 @@ test('the homepage fallback keeps its product promise, one H1, pricing, and craw
   assert.match(fallback, /Change anything you like/);
   assert.match(fallback, /Confirm, and it is real/);
   assert.match(fallback, /Free · \$0/);
-  assert.match(fallback, /10 credits every day/);
+  assert.match(fallback, /20 credits every day/);
   assert.match(fallback, /Pro · opens later/);
   assert.match(fallback, /not on sale yet/);
   assert.match(fallback, /1000 monthly credits/);
-  assert.match(fallback, /Designed by <a href="https:\/\/github\.com\/Emerald-dev0">Emerald<\/a>/);
+  assert.match(fallback, /Designed by <a href="https:\/\/emerald\.pxxl\.click">Emerald<\/a>/);
 });
 
 test('the built homepage carries no unfinished-work or vendor wording', async () => {

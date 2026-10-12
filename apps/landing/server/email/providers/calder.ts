@@ -100,8 +100,11 @@ export function createCalderProvider(options: CalderProviderOptions): EmailProvi
     if (!config.apiKey || !(config.senderId || config.fromEmail)) {
       throw new EmailError('email_provider_not_configured', 'Calder is not configured on this server.');
     }
+    // Per-message senders win (the welcome mail goes out as Daniel); the global sender
+    // identity or system address is the fallback. Calder's send schema takes a bare address
+    // or sender id only — display names live on dashboard-managed sender identities.
     const body: Record<string, unknown> = {
-      from: config.senderId || config.fromEmail,
+      from: message.from || config.senderId || config.fromEmail,
       to: message.to,
       subject: message.subject,
       html: message.html,

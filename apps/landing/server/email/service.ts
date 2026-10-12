@@ -126,14 +126,17 @@ export function createEmailService(options: EmailServiceOptions): EmailService {
       return { status: 'failed', deliveryId, errorCode: 'email_template_error', retryable: false };
     }
 
+    // The welcome mail is personal (from Daniel); everything else — OTPs, resets,
+    // security and product notices — goes out under the system sender.
+    const isWelcome = request.type === 'welcome';
     const message: EmailMessage = {
       to: recipient,
       subject: rendered.subject,
       html: rendered.html,
       text: rendered.text,
-      from: config.fromEmail || undefined,
-      fromName: config.fromName,
-      replyTo: config.replyTo ?? undefined,
+      from: (isWelcome ? config.welcomeFromEmail : config.fromEmail) || undefined,
+      fromName: isWelcome ? config.welcomeFromName : config.fromName,
+      replyTo: (isWelcome ? config.welcomeReplyTo : config.replyTo) ?? undefined,
       stream: 'transactional' satisfies EmailStream,
       tags: [{ name: 'email_type', value: request.type }, ...(request.tags ?? [])].slice(0, 20),
       metadata: request.metadata,

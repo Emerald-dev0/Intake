@@ -75,6 +75,16 @@ test('the provider is Calder by default and reports not-configured without crede
   assert.throws(() => readEmailConfig({ ...ENV, EMAIL_PROVIDER: 'resend' }), /EMAIL_PROVIDER/);
 });
 
+test('the welcome sender defaults to Daniel with a human reply-to', () => {
+  const config_ = config();
+  assert.equal(config_.welcomeFromEmail, 'daniel@calder.click');
+  assert.equal(config_.welcomeFromName, 'Daniel from Intake');
+  assert.equal(config_.welcomeReplyTo, 'daniel@calder.click');
+  assert.equal(config({ CALDER_WELCOME_FROM_EMAIL: 'me@example.com' }).welcomeFromEmail, 'me@example.com');
+  assert.equal(config({ CALDER_WELCOME_REPLY_TO: 'team@example.com' }).welcomeReplyTo, 'team@example.com');
+  assert.throws(() => config({ CALDER_WELCOME_FROM_EMAIL: 'not-an-email' }), /CALDER_WELCOME_FROM_EMAIL/);
+});
+
 test('sending is skipped, not faked, when Calder is not configured', async () => {
   const provider = createMemoryEmailProvider();
   const { service } = serviceWith(provider, readEmailConfig({}));
@@ -102,6 +112,26 @@ test('a successful send records the provider id and the delivery', async () => {
   assert.equal(body.stream, 'transactional', 'Intake only sends transactional mail');
   assert.equal(body.from, 'hello@intake.test');
   assert.ok(body.html && body.text, 'every email carries a plaintext alternative');
+});
+
+test('the welcome mail is personal (Daniel) while system mail uses the system sender', async () => {
+  const welcomeCalls = fakeFetch(json({ id: 'em_w', status: 'queued' }));
+  const welcomeService = serviceWith(providerWith(config(), welcomeCalls.impl), config());
+  const welcome = await welcomeService.service.send({
+    type: 'welcome', to: 'ada@example.com', eventId: 'welcome-1', userId: 'user-1',
+    variables: { userName: 'Ada', dashboardUrl: 'https://intake.example/app' },
+  });
+  assert.equal(welcome.status, 'sent');
+  const welcomeBody = JSON.parse(welcomeCalls.calls[0].init.body);
+  assert.equal(welcomeBody.from, 'daniel@calder.click');
+  assert.equal(welcomeBody.reply_to, 'daniel@calder.click', 'replies to welcome land with a human');
+  assert.equal(welcomeBody.fromName, undefined, 'Calder takes a bare address; display names live on sender identities');
+
+  const otpCalls = fakeFetch(json({ id: 'em_o', status: 'queued' }));
+  const otpService = serviceWith(providerWith(config(), otpCalls.impl), config());
+  await otpService.service.send(REQUEST);
+  const otpBody = JSON.parse(otpCalls.calls[0].init.body);
+  assert.equal(otpBody.from, 'hello@intake.test', 'OTPs and notices use the system sender, never Daniel');
 });
 
 test('idempotency keys are deterministic per business event', () => {
@@ -225,8 +255,11 @@ test('the OTP email states the code, the expiry and what to do if it was not you
 test('emails link to Intake, never to the provider', () => {
   const email = renderEmail('password_reset', { resetUrl: 'https://intake.test/auth/reset-password?token=abc' });
   assert.match(email.html, /https:\/\/intake\.test\/auth\/reset-password/);
-  assert.ok(!/calder/i.test(email.html), 'Calder is infrastructure and never appears in the email');
-  assert.ok(!/calder/i.test(email.text));
+  // The support contact address is a feature, not infrastructure leakage: allow exactly it.
+  const scrubbedHtml = email.html.replaceAll('support@intake.calder.click', '');
+  const scrubbedText = email.text.replaceAll('support@intake.calder.click', '');
+  assert.ok(!/calder/i.test(scrubbedHtml), 'Calder is infrastructure and never appears in the email');
+  assert.ok(!/calder/i.test(scrubbedText));
 });
 
 test('the service exposes reconciliation status without sending anything', async () => {

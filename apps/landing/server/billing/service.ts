@@ -21,7 +21,12 @@
 import { randomUUID } from 'node:crypto';
 import type { CreditService } from '../credits/service';
 import type { EntitlementPlanId } from './plans';
-import { PLANS, entitlementPlanFor, planDefinition, creditPackDefinition, type BillingPlanId, type CreditPackId } from './plans';
+import { PLANS, entitlementPlanFor, type BillingPlanId, type CreditPackId } from './plans';
+import { effectiveCreditPackDefinition, effectivePlanDefinition } from './settings';
+// Checkout and lifecycle amounts honour admin overrides (billing_settings).
+// The raw planDefinition/creditPackDefinition records stay as code defaults.
+const planDefinition = effectivePlanDefinition;
+const creditPackDefinition = effectiveCreditPackDefinition;
 import type { PaymentProvider, WebhookEvent, CreateCheckoutInput } from './payment-provider';
 import type { BillingStore } from './store';
 import type { PaymentPurpose } from './types';

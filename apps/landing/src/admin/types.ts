@@ -246,8 +246,34 @@ export interface ProviderData {
   };
 }
 
-export interface ProviderHealth {
-  configured: boolean;
+export interface AnalyticsData {
+  available: boolean;
+  reason: string | null;
+  pageviews: number;
+  clicks: number;
+  signups: number;
+  formsCreated: number;
+  byDay: Array<{ day: string; pageviews: number; clicks: number }>;
+  topPages: Array<{ name: string; count: number }>;
+  topReferrers: Array<{ name: string; count: number }>;
+  topSources: Array<{ name: string; count: number }>;
+  topClicks: Array<{ name: string; count: number }>;
+}
+
+export interface BillingSettingsData {
+  freeDailyCredits: number;
+  proDailyCredits: number;
+  proMonthlyCents: number;
+  proAnnualCents: number;
+  packStarterCents: number;
+  packStandardCents: number;
+  packPowerCents: number;
+  source: 'code' | 'database';
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
+export interface ProviderHealth {  configured: boolean;
   activeConnections: number | null;
   connected: number | null;
   expired: number | null;

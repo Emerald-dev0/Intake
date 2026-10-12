@@ -87,7 +87,7 @@ test('JSON-LD connects Intake to its creator and matches the visible FAQ', async
 
   const fallback = html.match(/<noscript>([\s\S]*?)<\/noscript>/)?.[1];
   assert.ok(fallback, 'the built HTML must retain a crawlable no-script content fallback');
-  assert.match(fallback, /Designed by <a href="https:\/\/github\.com\/Emerald-dev0">Emerald<\/a>/);
+  assert.match(fallback, /Designed by <a href="https:\/\/emerald\.pxxl\.click">Emerald<\/a>/);
   assert.ok(faq.mainEntity.length > 0);
   for (const question of faq.mainEntity) {
     assert.equal(question['@type'], 'Question');

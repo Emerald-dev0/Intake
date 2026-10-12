@@ -8,6 +8,7 @@ import type {
 import { pageResult } from './ranges';
 import { DEFAULT_GROQ_MODEL } from '../ai/groq';
 import { isTestCredential, readEmailConfig } from '../email/config';
+import { createPostgresAnalyticsStore } from '../analytics/store';
 
 const AI_UNAVAILABLE = 'AI operation history becomes available after migration 007_ai_credits.sql is applied.';
 const EMAIL_UNAVAILABLE = 'Email delivery history becomes available after migration 010_email.sql is applied.';
@@ -675,6 +676,10 @@ export function createPostgresAdminStore(pool: Pool, env: NodeJS.ProcessEnv = pr
           createdAt: date(row.created_at) ?? generatedAt,
         })),
       };
+    },
+
+    async getAnalytics(bounds: RangeBounds) {
+      return createPostgresAnalyticsStore(pool).summary(bounds);
     },
 
     async getProviders(): Promise<ProviderSummary> {

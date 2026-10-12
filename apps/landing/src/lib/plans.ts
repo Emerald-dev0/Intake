@@ -5,8 +5,8 @@
  * The authoritative billing configuration lives in `server/billing/plans.ts`.
  *
  * Phase 18 update: pricing now reflects the production billing model.
- *   Free:  $0 — 10 credits/day
- *   Pro:   $7.99/month or $69/year — 1,000 subscription credits per billing period + 10 daily
+ *   Free:  $0 — 20 credits/day
+ *   Pro:   $7.99/month or $69/year — 1,000 subscription credits per billing period + 20 daily
  *   Annual saves $26.89 vs 12 monthly payments (28.0%)
  *
  * Credit packs (purchased, distinguishable from subscription):
@@ -22,7 +22,7 @@ export type ProBillingInterval = 'month' | 'year';
 /**
  * Display mirror of the server's launch flag (server/billing/plans.ts).
  * While false, paid plans and credit packs render as "Coming soon" and every
- * account runs on Free with 10 daily credits. The server enforces this; this
+ * account runs on Free with 20 daily credits. The server enforces this; this
  * flag only decides what the UI offers. Flip together with the server flag.
  */
 export const PAID_BILLING_ENABLED = false;
@@ -40,14 +40,14 @@ export const PLAN_CATALOG: Record<PlanId, PlanCatalogEntry> = {
   free: {
     id: 'free',
     label: 'Free',
-    dailyCredits: 10,
+    dailyCredits: 20,
     monthlyCredits: 0,
     prices: null,
   },
   pro: {
     id: 'pro',
     label: 'Pro',
-    dailyCredits: 10,
+    dailyCredits: 20,
     monthlyCredits: 1000,
     prices: { month: 799, year: 6900 },
   },

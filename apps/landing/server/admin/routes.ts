@@ -1,8 +1,9 @@
-import { Router, type NextFunction, type Request, type Response } from 'express';
+import express, { Router, type NextFunction, type Request, type Response } from 'express';
 import type { RateLimitStore } from '../security/rate-limit';
 import type { AdminOperation, AdminOperationStatus, AdminRange, AdminStore } from './contracts';
 import { boundedText, parseAdminPage, parseRange, positiveId, rangeBounds } from './ranges';
 import type { SessionUser } from '../providers/service';
+import { createBillingSettingsService, type BillingSettingsService } from '../billing/settings';
 
 const RANGE_DEFAULT: AdminRange = '7d';
 const EMAIL = /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/;
@@ -21,6 +22,8 @@ export interface AdminRouterDeps {
   rateLimiter: RateLimitStore;
   env: NodeJS.ProcessEnv;
   now?: () => Date;
+  /** Billing settings service. Absent in tests and minimal harnesses: reads report code defaults and writes are refused. */
+  settings?: BillingSettingsService;
 }
 
 function asyncRoute(handler: AdminHandler) {
@@ -174,6 +177,44 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
     res.json(deps.store.getCredits());
   }));
 
+  // Plan allowances and prices. Reads are public-safe numbers any admin may
+  // see; writes are allowlisted, verified-session gated, strictly validated,
+  // and rate-limited. The dashboard is the only writer; code constants stay
+  // the fallback when no row was ever saved.
+  const billingSettingsService = deps.settings ?? createBillingSettingsService(null);
+
+  router.get('/billing/settings', asyncRoute(async (_req, res) => {
+    if (!await allowRequest(_req, res, 'read')) return;
+    try {
+      res.json(await billingSettingsService.refresh());
+    } catch {
+      res.status(503).json({ error: 'settings_unavailable', message: 'Billing settings storage is temporarily unavailable.' });
+    }
+  }));
+
+  router.put(
+    '/billing/settings',
+    express.json({ limit: '16kb', strict: true }),
+    asyncRoute(async (req, res) => {
+      if (!await allowRequest(req, res, 'analytics')) return;
+      const identity = res.locals.admin as { email?: string } | undefined;
+      try {
+        const result = await billingSettingsService.update(req.body, identity?.email ?? null);
+        if (!result.ok) {
+          if ('_store' in result.errors) {
+            res.status(503).json({ error: 'settings_unavailable', message: 'Billing settings storage is temporarily unavailable.' });
+            return;
+          }
+          res.status(400).json({ error: 'invalid_settings', message: 'Every field must be a whole number in range.', fieldErrors: result.errors });
+          return;
+        }
+        res.json(result.settings);
+      } catch {
+        res.status(503).json({ error: 'settings_unavailable', message: 'Billing settings could not be saved.' });
+      }
+    }),
+  );
+
   router.get('/forms', asyncRoute(async (req, res) => {
     if (!await allowRequest(req, res, 'search')) return;
     const page = readPage(req);
@@ -215,6 +256,13 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
     const userId = optionalId(queryValue(req, 'userId'));
     if (!page || !range || type === null || userId === null) return invalid(res);
     res.json(await deps.store.listActivity({ ...page, bounds: rangeBounds(range, now()), type, userId: userId || '' }));
+  }));
+
+  router.get('/analytics', asyncRoute(async (req, res) => {
+    if (!await allowRequest(req, res, 'analytics')) return;
+    const range = readRange(req);
+    if (!range) return invalid(res);
+    res.json(await deps.store.getAnalytics(rangeBounds(range, now())));
   }));
 
   router.get('/errors', asyncRoute(async (req, res) => {

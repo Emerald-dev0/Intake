@@ -179,6 +179,7 @@ const EXPECTED_TABLES = [
   'provider_connection', 'form', 'form_draft', 'form_edit_draft',
   'api_rate_limit', 'user_entitlement', 'credit_ledger', 'ai_operation',
   'email_delivery', 'email_suppression', 'email_webhook_event', 'user_sign_in_marker',
+  'billing_settings', 'site_events',
 ];
 
 /** Read-only database verification. Never prints the connection string or row contents. */

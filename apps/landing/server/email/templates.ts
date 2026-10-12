@@ -17,6 +17,8 @@ export interface EmailVariables {
   userName?: string;
   otpCode?: string;
   expiryMinutes?: string | number;
+  /** Free-plan daily allowance, always passed explicitly by the notifier — never hardcoded. */
+  dailyCredits?: string | number;
   resetUrl?: string;
   dashboardUrl?: string;
   securityUrl?: string;
@@ -46,6 +48,10 @@ export interface EmailTemplate {
   body(vars: EmailVariables): string;
   text(vars: EmailVariables): string;
 }
+
+// The human support address, shown as plain text in every footer. It is intentionally never a
+// `mailto:` link: the test suite forbids provider-domain hrefs, and reply-to already answers.
+export const SUPPORT_EMAIL = 'support@intake.calder.click';
 
 // ── Palette (mirrors src/styles/base.css, hard-coded because email clients strip custom properties)
 const INK = '#0c0c0b';
@@ -140,6 +146,7 @@ function layout(preheader: string, heading: string, body: string, footerNote: st
     </td></tr>
     <tr><td style="padding:22px 4px 0">
       <p style="margin:0 0 8px;font:13px/1.6 ${SANS};color:${MUTED}">${footerNote}</p>
+      <p style="margin:0 0 8px;font:13px/1.6 ${SANS};color:${MUTED}">Questions, trouble, or a salty edge case? Just reply to this email, or write to ${SUPPORT_EMAIL} — a human being reads everything.</p>
       <p style="margin:0;font:12px/1.6 ${SANS};color:${MUTED}">You are receiving this because it relates to activity on your Intake account. Transactional notices like this one are required to keep your account secure.</p>
     </td></tr>
   </table>
@@ -241,34 +248,40 @@ const passwordReset: EmailTemplate = {
 const welcome: EmailTemplate = {
   id: 'welcome',
   alias: 'intake-welcome',
-  subject: () => 'Your Intake account is ready',
-  preheader: () => 'Describe the form you need, review the questions, and Intake builds it in your own Google account.',
-  heading: () => 'Your account is ready.',
+  subject: vars => `${text_(vars.userName) ? `${text_(vars.userName)}, welcome` : 'Welcome'} to Intake — I am Daniel`,
+  preheader: () => 'You are in. Here is how your first form gets built, and how to reach me directly.',
+  heading: () => 'Welcome in.',
   body: vars => [
     paragraph(greeting(vars)),
-    paragraph('Intake turns a plain-English description into a real Google Form. You see every question before anything is created, change what does not fit, and confirm when it is ready. Editing works the same way: point Intake at a form you already have and describe the change.'),
+    paragraph('I am Daniel — I built Intake. Thank you for being here this early: every account is free while we launch, and what you make now comes with you when paid plans open.'),
+    paragraph('Here is the whole product in one paragraph. Describe the form you need in plain words. Intake turns it into a list of questions for you to review — rewrite, drop, add or reorder anything — and only when it looks right does it become a real Google Form in your own Google account. Editing works the same way: point Intake at a form you already have and describe the change.'),
     paragraph('Three things worth knowing before you start:'),
     `<ol style="margin:0 0 22px;padding-left:20px;font:16px/1.62 ${SANS};color:${BODY}">
-      <li style="margin-bottom:8px">Nothing is created until you confirm it.</li>
+      <li style="margin-bottom:8px">Nothing is ever created until you confirm it.</li>
       <li style="margin-bottom:8px">Connecting Google Forms is a separate authorization from signing in.</li>
-      <li>Daily credits refresh at 00:00 UTC and do not roll over.</li>
+      <li>You get ${escapeHtml(text_(vars.dailyCredits, '20'))} credits every day, refreshed at 00:00 UTC. They do not roll over.</li>
     </ol>`,
-    button(text_(vars.dashboardUrl), 'Open your workspace'),
-    paragraph(`If anything looks off, reply to this email or read the ${link(text_(vars.supportUrl) || 'https://intake.example.com', 'help guide')}.`, `font-size:14px;color:${MUTED}`),
+    button(text_(vars.dashboardUrl), 'Build your first form'),
+    paragraph('And one personal request: if anything confuses you, delights you, or breaks — just reply to this email. It lands in my inbox, and I read everything.', `font-size:14px;color:${MUTED}`),
+    paragraph('— Daniel', `font-family:${SERIF};font-size:17px;color:${INK}`),
   ].join(''),
   text: vars => [
     greeting(vars),
     '',
-    'Intake turns a plain-English description into a real Google Form. You see every question before anything is created, change what does not fit, and confirm when it is ready. Editing works the same way: point Intake at a form you already have and describe the change.',
+    'I am Daniel — I built Intake. Thank you for being here this early: every account is free while we launch, and what you make now comes with you when paid plans open.',
+    '',
+    'Here is the whole product in one paragraph. Describe the form you need in plain words. Intake turns it into a list of questions for you to review — rewrite, drop, add or reorder anything — and only when it looks right does it become a real Google Form in your own Google account. Editing works the same way: point Intake at a form you already have and describe the change.',
     '',
     'Three things worth knowing before you start:',
-    '  1. Nothing is created until you confirm it.',
+    '  1. Nothing is ever created until you confirm it.',
     '  2. Connecting Google Forms is a separate authorization from signing in.',
-    '  3. Daily credits refresh at 00:00 UTC and do not roll over.',
+    `  3. You get ${text_(vars.dailyCredits, '20')} credits every day, refreshed at 00:00 UTC. They do not roll over.`,
     '',
-    `Open your workspace: ${text_(vars.dashboardUrl)}`,
+    `Build your first form: ${text_(vars.dashboardUrl)}`,
     '',
-    'If anything looks off, just reply to this email.',
+    'And one personal request: if anything confuses you, delights you, or breaks — just reply to this email. It lands in my inbox, and I read everything.',
+    '',
+    '— Daniel',
   ].join('\n'),
 };
 
@@ -492,7 +505,7 @@ const billingSubscriptionStarted: EmailTemplate = {
   heading: () => 'Welcome to Pro',
   body: vars => [
     paragraph(greeting(vars)),
-    paragraph(`Your Intake Pro subscription is now active. You have <strong style="font-weight:600;color:${INK}">${escapeHtml(text_(vars.subscriptionCredits, '1,000'))} credits</strong> for this billing period, plus your ${escapeHtml(text_(vars.dailyCredits, '10'))} daily credits.`),
+    paragraph(`Your Intake Pro subscription is now active. You have <strong style="font-weight:600;color:${INK}">${escapeHtml(text_(vars.subscriptionCredits, '1,000'))} credits</strong> for this billing period, plus your ${escapeHtml(text_(vars.dailyCredits, '20'))} daily credits.`),
     detailsTable([
       detailRow('Plan', text_(vars.planLabel, 'Pro')),
       detailRow('Billing', text_(vars.interval, 'monthly')),
@@ -505,7 +518,7 @@ const billingSubscriptionStarted: EmailTemplate = {
   text: vars => [
     greeting(vars),
     '',
-    `Your Intake Pro subscription is now active. You have ${text_(vars.subscriptionCredits, '1,000')} credits for this billing period, plus your ${text_(vars.dailyCredits, '10')} daily credits.`,
+    `Your Intake Pro subscription is now active. You have ${text_(vars.subscriptionCredits, '1,000')} credits for this billing period, plus your ${text_(vars.dailyCredits, '20')} daily credits.`,
     '',
     `Plan: ${text_(vars.planLabel, 'Pro')}`,
     `Billing: ${text_(vars.interval, 'monthly')}`,
@@ -797,9 +810,10 @@ export function renderEmail(type: EmailType, variables: EmailVariables): Rendere
   const subject = template.subject(variables);
   const heading = template.heading(variables);
   const footer = 'Intake · Google Forms from a sentence.';
+  const supportLine = `Questions? Just reply, or write to ${SUPPORT_EMAIL} — a human reads everything.`;
   return {
     subject,
     html: layout(template.preheader(variables), heading, template.body(variables), footer),
-    text: `${subject}\n\n${template.text(variables)}\n\n—\nIntake · Google Forms from a sentence.`,
+    text: `${subject}\n\n${template.text(variables)}\n\n—\nIntake · Google Forms from a sentence.\n${supportLine}`,
   };
 }

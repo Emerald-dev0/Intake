@@ -4,6 +4,7 @@ import type { EmailLogger } from './logging';
 import { createEmailLogger } from './logging';
 import type { EmailService } from './service';
 import type { EmailType } from './types';
+import { effectiveDailyCredits } from '../billing/settings';
 
 /**
  * The event layer: named, typed things that happened in Intake.
@@ -89,7 +90,8 @@ export function createEmailNotifier(options: NotifierOptions): EmailNotifier {
     const user = await options.users.getById(userId);
     if (!user) return;
     // Idempotent on the user: verifying twice can never produce two welcome emails.
-    await emit('welcome', `welcome:${userId}`, user, { userName: user.name ?? '' });
+    // The allowance is passed explicitly so the template never hardcodes a number.
+    await emit('welcome', `welcome:${userId}`, user, { userName: user.name ?? '', dailyCredits: String(effectiveDailyCredits('free')) });
   }
 
   async function passwordChanged(userId: string): Promise<void> {

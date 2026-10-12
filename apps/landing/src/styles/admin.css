@@ -118,6 +118,8 @@
 @keyframes admin-spin { to { transform:rotate(360deg); } }
 .admin-state-card { padding:17px; border:1px solid var(--line-2); border-radius:7px; background:var(--ink-1); }
 .admin-state-card.error { border-color:#ff5a1f44; }
+.admin-state-card.ok { border-color:#7fd8b044; }
+.admin-form-actions { display:flex; align-items:center; gap:10px; margin-top:14px; }
 .admin-state-card strong { font-size:13px; }.admin-state-card p { margin:6px 0 12px; color:var(--cream-3); font-size:11px; line-height:1.5; }
 .admin-inline-error { color:#ff9270; font-size:11px; }
 .admin-detail-grid { margin:0 0 13px; }
@@ -181,3 +183,12 @@
   .admin-pagination { flex-direction:column; align-items:flex-start; }.admin-pagination > div { width:100%; }.admin-pagination .admin-button { flex:1; }
   .admin-table { min-width:900px; }
 }
+
+/* Analytics daily bars: stacked view/click widths, no chart library. */
+.admin-bars { display:flex; flex-direction:column; gap:7px; }
+.admin-bar-row { display:grid; grid-template-columns:92px 1fr auto; align-items:center; gap:10px; font-size:11px; color:var(--cream-3); }
+.admin-bar-row b { color:var(--cream-2); font-weight:550; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.admin-bar-track { position:relative; height:10px; border-radius:5px; background:color-mix(in srgb, var(--line) 45%, transparent); overflow:hidden; }
+.admin-bar-fill { position:absolute; top:0; bottom:0; left:0; border-radius:5px; }
+.admin-bar-fill.views { background:color-mix(in srgb, var(--accent) 70%, transparent); z-index:1; }
+.admin-bar-fill.clicks { background:color-mix(in srgb, #3b82f6 65%, transparent); }

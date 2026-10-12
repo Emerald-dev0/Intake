@@ -1,3 +1,6 @@
+import type { AnalyticsSummary } from '../analytics/store';
+export type { AnalyticsSummary };
+
 export type AdminRange = 'today' | '7d' | '30d';
 export type AdminOperation = 'form_create' | 'form_revise' | 'form_edit';
 export type AdminOperationStatus = 'succeeded' | 'failed' | 'no_result';
@@ -373,6 +376,7 @@ export interface AdminStore {
     archived: 'active' | 'archived' | 'all';
   }): Promise<AdminFormsResult>;
   getProviders(): Promise<ProviderSummary>;
+  getAnalytics(bounds: RangeBounds): Promise<AnalyticsSummary>;
   getEmail(bounds: RangeBounds): Promise<EmailSummary>;
   getSystem(): Promise<SystemStatus>;
   listActivity(input: PageRequest & { bounds: RangeBounds; type: string; userId: string }): Promise<AdminActivityResult>;

@@ -111,7 +111,7 @@ function noScriptContent(): string {
       <h2 id="fallback-faq">Frequently asked questions</h2>
       ${faq}
     </section>
-    <footer>Designed by <a href="${escapeHtml(CREATOR.github)}">${escapeHtml(CREATOR.credit)}</a>.</footer>
+    <footer>Designed by <a href="${escapeHtml(CREATOR.site)}">${escapeHtml(CREATOR.credit)}</a>.</footer>
   </main>`;
 }
 

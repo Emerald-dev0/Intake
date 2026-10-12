@@ -14,9 +14,11 @@ import {
   PricingSection,
 } from './MarketingSections';
 import { usePublicSession } from './usePublicSession';
+import { useSiteAnalytics } from '../lib/analytics';
 
 export default function MarketingHome() {
   const authenticated = usePublicSession();
+  useSiteAnalytics('/');
 
   return (
     <div className="marketing-page">

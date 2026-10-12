@@ -8,6 +8,7 @@
  */
 
 import { PLAN_CATALOG, PLAN_IDS, isPlanId, type PlanId } from '../../src/lib/plans';
+import { effectiveDailyCredits } from '../billing/settings';
 export { PLAN_IDS, isPlanId };
 export type { PlanId };
 
@@ -55,7 +56,11 @@ export function usesLegacyMonthlyBucket(plan: PlanId): boolean {
 }
 
 export function planDefinition(plan: PlanId): PlanDefinition {
-  return PLANS[plan];
+  // Daily allowances honour admin overrides (billing_settings); monthly and
+  // subscription buckets stay code-defined. Without a saved row this returns
+  // the code constants, so tests and fresh databases behave identically.
+  const base = PLANS[plan];
+  return { ...base, dailyCredits: effectiveDailyCredits(plan) };
 }
 
 export interface Entitlement {

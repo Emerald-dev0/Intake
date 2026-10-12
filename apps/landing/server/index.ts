@@ -36,7 +36,9 @@ import { setAuthEmailHooks } from './email/bridge';
 import { createAccountEmailRouter } from './email/routes';
 import { createEmailRuntime } from './email/runtime';
 import { calderWebhookHandler } from './email/webhooks';
-import { createBillingRuntime, createBillingRouter, createBachsWebhookRouter } from './billing';
+import { createBillingRuntime, createBillingRouter, createBachsWebhookRouter, bindBillingSettingsStore, billingSettings, createPostgresBillingSettingsStore } from './billing';
+import { createAnalyticsRouter } from './analytics/routes';
+import { createPostgresAnalyticsStore } from './analytics/store';
 const app = express();
 app.disable('x-powered-by');
 if (serverConfig.trustProxyHops > 0) app.set('trust proxy', serverConfig.trustProxyHops);
@@ -126,7 +128,13 @@ const getSession = async (req: express.Request): Promise<SessionUser | null> => 
   return { id: session.user.id, email: session.user.email, name: session.user.name };
 };
 const adminStore = createPostgresAdminStore(pool, providerEnv);
-app.use('/api/admin', createAdminRouter({ store: adminStore, getSession, rateLimiter: abuseLimiter, env: providerEnv }));
+// Admin-editable allowances and prices share the process-wide settings service,
+// so a dashboard save takes effect for grants and checkout immediately.
+bindBillingSettingsStore(createPostgresBillingSettingsStore(pool));
+app.use('/api/admin', createAdminRouter({ store: adminStore, getSession, rateLimiter: abuseLimiter, env: providerEnv, settings: billingSettings }));
+// Public, privacy-first engagement ingress. No auth, no cookies, no identifiers: the payload
+// carries only an allowlisted path, a click label, a referrer hostname and UTM tags.
+app.use('/api/analytics', createAnalyticsRouter({ store: createPostgresAnalyticsStore(pool), rateLimiter: abuseLimiter }));
 app.use('/api/providers', createProviderRouter({ service: providerService, env: providerEnv, getSession, abuseLimiter }));
 
 // Form creation and safe edits share the same provider service, user-scoped metadata store,

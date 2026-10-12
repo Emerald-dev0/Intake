@@ -91,7 +91,7 @@ test('the homepage footer credits Emerald without a personal name, and keeps the
   const credit = footer.querySelector('.mk-footer__credit');
   assert.ok(credit, 'the footer has a credit line');
   assert.match(credit.textContent ?? '', /^Designed by Emerald$/);
-  assert.equal(credit.querySelector('a')?.getAttribute('href'), 'https://github.com/Emerald-dev0');
+  assert.equal(credit.querySelector('a')?.getAttribute('href'), 'https://emerald.pxxl.click');
   assert.doesNotMatch(footer.textContent ?? '', /Oluwadare/, 'no personal name in the footer');
   assert.match(footer.textContent ?? '', /© \d{4} Intake/);
 });

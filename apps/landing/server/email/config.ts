@@ -15,9 +15,15 @@ export interface EmailConfig {
   provider: 'calder' | 'memory' | 'none';
   baseUrl: string;
   apiKey: string;
+  /** System sender: OTPs, resets, security and product notices. Never the welcome mail. */
   fromEmail: string;
   fromName: string;
   replyTo: string | null;
+  /** Personal sender for the welcome mail only. Defaults to Daniel. */
+  welcomeFromEmail: string;
+  welcomeFromName: string;
+  /** Replies to the welcome mail go here; defaults to the welcome sender so users reach a human. */
+  welcomeReplyTo: string | null;
   /** Optional Calder sender identity (`sender_…`). When set, Calder resolves address + display name. */
   senderId: string | null;
   /** Per-attempt timeout. Bounded so an email can never hang an Intake request (mission §7). */
@@ -35,6 +41,8 @@ export interface EmailConfig {
 }
 
 const DEFAULT_BASE_URL = 'https://api.calder.click';
+const DEFAULT_WELCOME_FROM_EMAIL = 'daniel@calder.click';
+const DEFAULT_WELCOME_FROM_NAME = 'Daniel from Intake';
 const EMAIL = /^[^\s@,]+@[^\s@,]+\.[^\s@,]{2,}$/;
 const ALIAS = /^[a-z0-9-]{1,100}$/;
 
@@ -100,6 +108,9 @@ export function readEmailConfig(env: NodeJS.ProcessEnv = process.env): EmailConf
   const fromEmail = (env.CALDER_FROM_EMAIL ?? '').trim().toLowerCase();
   const fromName = (env.CALDER_FROM_NAME ?? '').trim() || 'Intake';
   const replyTo = (env.CALDER_REPLY_TO ?? '').trim().toLowerCase() || null;
+  const welcomeFromEmail = (env.CALDER_WELCOME_FROM_EMAIL ?? '').trim().toLowerCase() || DEFAULT_WELCOME_FROM_EMAIL;
+  const welcomeFromName = (env.CALDER_WELCOME_FROM_NAME ?? '').trim() || DEFAULT_WELCOME_FROM_NAME;
+  const welcomeReplyToRaw = (env.CALDER_WELCOME_REPLY_TO ?? '').trim().toLowerCase() || null;
   const baseUrl = (env.CALDER_BASE_URL ?? '').trim() || DEFAULT_BASE_URL;
   const senderIdRaw = (env.CALDER_SENDER_ID ?? '').trim();
 
@@ -112,6 +123,8 @@ export function readEmailConfig(env: NodeJS.ProcessEnv = process.env): EmailConf
     }
     if (fromEmail && !EMAIL.test(fromEmail)) throw new Error('CALDER_FROM_EMAIL must be a valid email address.');
     if (replyTo && !EMAIL.test(replyTo)) throw new Error('CALDER_REPLY_TO must be a valid email address.');
+    if (!EMAIL.test(welcomeFromEmail)) throw new Error('CALDER_WELCOME_FROM_EMAIL must be a valid email address.');
+    if (welcomeReplyToRaw && !EMAIL.test(welcomeReplyToRaw)) throw new Error('CALDER_WELCOME_REPLY_TO must be a valid email address.');
     if (fromEmail && apiKey) httpsUrl(baseUrl, 'CALDER_BASE_URL');
   }
 
@@ -125,6 +138,9 @@ export function readEmailConfig(env: NodeJS.ProcessEnv = process.env): EmailConf
     fromEmail,
     fromName,
     replyTo,
+    welcomeFromEmail,
+    welcomeFromName,
+    welcomeReplyTo: welcomeReplyToRaw || replyTo || welcomeFromEmail,
     senderId: senderIdRaw || null,
     timeoutMs: integer(env.EMAIL_TIMEOUT_MS, 10_000, 1_000, 30_000, 'EMAIL_TIMEOUT_MS'),
     maxAttempts: integer(env.EMAIL_MAX_ATTEMPTS, 3, 1, 5, 'EMAIL_MAX_ATTEMPTS'),

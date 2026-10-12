@@ -177,7 +177,7 @@ export function MarketingFooter({ authenticated }: { authenticated: boolean }) {
         <div className="mk-footer__bottom">
           <span>© {new Date().getFullYear()} Intake</span>
           <span className="mk-footer__credit">
-            Designed by <a href={CREATOR.github} target="_blank" rel="noreferrer">{CREATOR.credit}</a>
+            Designed by <a href={CREATOR.site} target="_blank" rel="noreferrer">{CREATOR.credit}</a>
           </span>
         </div>
       </div>

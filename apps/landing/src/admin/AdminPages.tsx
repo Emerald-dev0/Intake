@@ -1,8 +1,9 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAdminQuery, type QueryState } from './useAdminQuery';
+import { formatUsd } from '../lib/plans';
 import type {
-  ActivityItem, AdminRange, AiData, AiOperation, EmailData, ErrorsData, ErrorItem, FormItem, FormsData,
+  ActivityItem, AdminRange, AiData, AiOperation, AnalyticsData, BillingSettingsData, EmailData, ErrorsData, ErrorItem, FormItem, FormsData,
   OverviewData, ProviderData, SystemData, UserDetail, UserSummary,
 } from './types';
 
@@ -101,6 +102,117 @@ function RangeSelect({ value, onChange, id = 'admin-range' }: { value: AdminRang
 
 function StatusPill({ label, tone = 'muted' }: { label: string; tone?: 'ok' | 'warn' | 'bad' | 'muted' }) {
   return <span className={`admin-pill ${tone}`}>{label}</span>;
+}
+
+type BillingSettingsDraft = Record<'freeDailyCredits' | 'proDailyCredits' | 'proMonthlyCents' | 'proAnnualCents' | 'packStarterCents' | 'packStandardCents' | 'packPowerCents', string>;
+
+const BILLING_SETTING_FIELDS = [
+  { key: 'freeDailyCredits', label: 'Free daily credits', kind: 'credits' },
+  { key: 'proDailyCredits', label: 'Pro daily credits', kind: 'credits' },
+  { key: 'proMonthlyCents', label: 'Pro monthly price · cents', kind: 'cents' },
+  { key: 'proAnnualCents', label: 'Pro annual price · cents', kind: 'cents' },
+  { key: 'packStarterCents', label: 'Starter pack price · cents', kind: 'cents' },
+  { key: 'packStandardCents', label: 'Standard pack price · cents', kind: 'cents' },
+  { key: 'packPowerCents', label: 'Power pack price · cents', kind: 'cents' },
+] as const satisfies ReadonlyArray<{ key: keyof BillingSettingsDraft; label: string; kind: 'credits' | 'cents' }>;
+
+/**
+ * Dashboard-controlled allowances and prices. Saving writes the single
+ * billing_settings row; grants, checkout amounts and the public plan metadata
+ * pick it up without a redeploy. Opening paid billing itself stays a code
+ * flag and is deliberately not editable here.
+ */
+function BillingSettingsPanel() {
+  const { state, refresh } = useAdminQuery<BillingSettingsData>('/api/admin/billing/settings');
+  const [draft, setDraft] = useState<BillingSettingsDraft | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof BillingSettingsDraft, string>>>({});
+
+  useEffect(() => {
+    if (state.status !== 'ready' || draft !== null) return;
+    setDraft({
+      freeDailyCredits: String(state.data.freeDailyCredits),
+      proDailyCredits: String(state.data.proDailyCredits),
+      proMonthlyCents: String(state.data.proMonthlyCents),
+      proAnnualCents: String(state.data.proAnnualCents),
+      packStarterCents: String(state.data.packStarterCents),
+      packStandardCents: String(state.data.packStandardCents),
+      packPowerCents: String(state.data.packPowerCents),
+    });
+  }, [state, draft]);
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!draft || saving) return;
+    setSaving(true);
+    setNotice(null);
+    setFieldErrors({});
+    try {
+      const response = await fetch('/api/admin/billing/settings', {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify(Object.fromEntries(BILLING_SETTING_FIELDS.map(field => [field.key, Number(draft[field.key])]))),
+      });
+      const body = await response.json().catch(() => null) as { fieldErrors?: Record<string, string>; error?: string } | null;
+      if (response.ok) {
+        setNotice({ tone: 'ok', text: 'Saved. Grants, checkout amounts and plan display now use these values.' });
+        setDraft(null);
+        refresh();
+        return;
+      }
+      if (response.status === 400 && body?.fieldErrors) {
+        setFieldErrors(body.fieldErrors);
+        setNotice({ tone: 'bad', text: 'Some values are out of range. Nothing was saved.' });
+      } else {
+        setNotice({ tone: 'bad', text: 'Settings could not be saved. Nothing was changed.' });
+      }
+    } catch {
+      setNotice({ tone: 'bad', text: 'The admin service could not be reached. Nothing was saved.' });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Panel
+      title="Plan allowances & prices"
+      eyebrow="DASHBOARD-CONTROLLED"
+      description="Daily credit allowances and Pro/pack prices. Takes effect without a redeploy. Paid billing itself (Coming soon) stays a code flag and cannot be opened from here."
+      action={state.status === 'ready' ? <StatusPill label={state.data.source === 'database' ? 'custom · saved' : 'code defaults'} tone={state.data.source === 'database' ? 'ok' : 'muted'} /> : null}
+    >
+      {state.status === 'loading' && <QueryLoading label="Loading plan settings…" />}
+      {state.status === 'error' && <QueryError state={state} retry={() => { setDraft(null); refresh(); }} />}
+      {state.status === 'ready' && !draft && <QueryLoading label="Loading plan settings…" />}
+      {state.status === 'ready' && draft && <>
+        {state.data.updatedAt && <p className="admin-footnote">Last saved {state.data.updatedAt}{state.data.updatedBy ? ` by ${state.data.updatedBy}` : ''}.</p>}
+        <form onSubmit={save}>
+          <div className="admin-filter-row multi">
+            {BILLING_SETTING_FIELDS.map(field => (
+              <label className="admin-field compact" key={field.key} htmlFor={`billing-${field.key}`}>
+                <span>{field.label}</span>
+                <input
+                  id={`billing-${field.key}`}
+                  inputMode="numeric"
+                  value={draft[field.key]}
+                  onChange={event => setDraft(current => current ? { ...current, [field.key]: event.target.value } : current)}
+                />
+                {field.kind === 'cents' && Number.isSafeInteger(Number(draft[field.key])) && Number(draft[field.key]) >= 0
+                  ? <small className="admin-footnote">{formatUsd(Number(draft[field.key]))}</small>
+                  : null}
+                {fieldErrors[field.key] && <small className="admin-inline-error" role="alert">{fieldErrors[field.key]}</small>}
+              </label>
+            ))}
+          </div>
+          <div className="admin-form-actions">
+            <button className="admin-button primary" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save settings'}</button>
+          </div>
+        </form>
+        {notice && <div className={`admin-state-card ${notice.tone === 'ok' ? 'ok' : 'error'}`} role={notice.tone === 'ok' ? 'status' : 'alert'}><p>{notice.text}</p></div>}
+      </>}
+    </Panel>
+  );
 }
 
 function statusTone(status: string): 'ok' | 'warn' | 'bad' | 'muted' {
@@ -435,6 +547,7 @@ export function AdminCreditsPage() {
   const { state, refresh } = useAdminQuery<{ available: false; reason: string; summary: null; items: [] }>('/api/admin/credits');
   return <>
     <Heading kicker="CREDITS / BALANCES" title="An honest empty surface." description="No credit ledger or entitlement source exists in this checkout, so balances and events remain unavailable. No credit mutations are exposed." />
+    <BillingSettingsPanel />
     {state.status === 'loading' && <QueryLoading />}
     {state.status === 'error' && <QueryError state={state} retry={refresh} />}
     {state.status === 'ready' && <Panel title="Credit accounting unavailable" eyebrow="NO LEDGER IN THIS CHECKOUT"><div className="admin-unavailable-block prominent"><strong>Not enough data yet</strong><p>{state.data.reason}</p></div><p className="admin-footnote">No granted, consumed, expired, failed, or rolled-back totals are inferred. Manual adjustments remain deferred until an immutable ledger and authorization policy exist.</p></Panel>}
@@ -712,4 +825,80 @@ function ErrorTable({ items }: { items: ErrorItem[] }) {
     <td>{item.category}</td><td>{item.userId ? <Link to={`/admin/users/${encodeURIComponent(item.userId)}`}>{item.userName || item.userEmail}</Link> : '—'}</td>
     <td><code>{item.requestId || '—'}</code></td><td><StatusPill label="Unknown" tone="muted" /></td>
   </tr>)}</tbody></table></div>;
+}
+
+export function AdminAnalyticsPage() {
+  const [range, setRange] = useState<AdminRange>('7d');
+  const { state, refresh } = useAdminQuery<AnalyticsData>(`/api/admin/analytics?range=${range}`);
+  return (
+    <>
+      <Heading
+        kicker="GROWTH / TRAFFIC"
+        title="Where visitors come from."
+        description="Page views, button clicks, referrers and campaign tags from the public pages only. Privacy-first by construction: no IP addresses, user agents, cookies or visitor identifiers are collected, so visits means events — per-visitor counting is impossible."
+        action={<RangeSelect value={range} onChange={setRange} />}
+      />
+      {state.status === 'loading' && <QueryLoading label="Reading engagement records…" />}
+      {state.status === 'error' && <QueryError state={state} retry={refresh} />}
+      {state.status === 'ready' && <AnalyticsContent data={state.data} range={range} />}
+    </>
+  );
+}
+
+function AnalyticsContent({ data, range }: { data: AnalyticsData; range: AdminRange }) {
+  if (!data.available) {
+    return <Panel title="Site analytics"><Unavailable>{data.reason ?? 'Analytics are unavailable.'}</Unavailable></Panel>;
+  }
+  const peak = data.byDay.reduce((best, day) => Math.max(best, day.pageviews + day.clicks), 0);
+  return (
+    <>
+      <div className="admin-metric-grid four">
+        <Metric label="Page views" value={number(data.pageviews)} note="Public pages in range" tone="green" />
+        <Metric label="Button clicks" value={number(data.clicks)} note="Call-to-action presses" />
+        <Metric label="Signups" value={number(data.signups)} note="New accounts in range" tone={data.signups ? 'green' : 'neutral'} />
+        <Metric label="Forms created" value={number(data.formsCreated)} note="Google Forms confirmed" tone={data.formsCreated ? 'green' : 'neutral'} />
+      </div>
+
+      <Panel title="Daily volume" eyebrow={rangeName(range).toUpperCase()}>
+        {data.byDay.length
+          ? <div className="admin-bars">{data.byDay.map(day => (
+            <div className="admin-bar-row" key={day.day}>
+              <span>{dateOnly(`${day.day}T00:00:00Z`)}</span>
+              <div className="admin-bar-track">
+                <div className="admin-bar-fill views" style={{ width: `${peak ? Math.round((day.pageviews / peak) * 100) : 0}%` }} />
+                <div className="admin-bar-fill clicks" style={{ width: `${peak ? Math.round((day.clicks / peak) * 100) : 0}%` }} />
+              </div>
+              <b>{number(day.pageviews)} views · {number(day.clicks)} clicks</b>
+            </div>
+          ))}</div>
+          : <EmptyState title="No traffic recorded in this period" detail="Events appear once the public pages load with migration 013 applied." />}
+      </Panel>
+
+      <div className="admin-overview-columns">
+        <Panel title="Top pages" eyebrow="WHERE THEY LAND">
+          {data.topPages.length
+            ? <div className="admin-inline-facts">{data.topPages.map(row => <span key={row.name}><code>{row.name}</code> <b>{number(row.count)}</b></span>)}</div>
+            : <EmptyState title="No page views yet" detail="Only / and /pricing are tracked." />}
+        </Panel>
+        <Panel title="Top referrers" eyebrow="WHERE THEY COME FROM">
+          {data.topReferrers.length
+            ? <div className="admin-inline-facts">{data.topReferrers.map(row => <span key={row.name}>{row.name} <b>{number(row.count)}</b></span>)}</div>
+            : <EmptyState title="No referrers yet" detail="Direct visits carry no referrer; the beacon only keeps hostnames." />}
+        </Panel>
+      </div>
+
+      <div className="admin-overview-columns">
+        <Panel title="Campaign sources" eyebrow="UTM_SOURCE, DIRECT INCLUDED">
+          {data.topSources.length
+            ? <div className="admin-inline-facts">{data.topSources.map(row => <span key={row.name}>{row.name} <b>{number(row.count)}</b></span>)}</div>
+            : <EmptyState title="No sources yet" detail="Share links with ?utm_source= to attribute campaigns." />}
+        </Panel>
+        <Panel title="Top button clicks" eyebrow="WHAT THEY PRESS">
+          {data.topClicks.length
+            ? <div className="admin-inline-facts">{data.topClicks.map(row => <span key={row.name}>{row.name} <b>{number(row.count)}</b></span>)}</div>
+            : <EmptyState title="No clicks yet" detail="Only call-to-action navigations are recorded." />}
+        </Panel>
+      </div>
+    </>
+  );
 }

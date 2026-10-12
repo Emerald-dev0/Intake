@@ -17,7 +17,7 @@ export const BILLING_CURRENCY = 'USD' as const;
 export type BillingCurrency = typeof BILLING_CURRENCY;
 
 /**
- * Launch mode: the product is free for everyone (10 daily credits, no expiry tricks).
+ * Launch mode: the product is free for everyone (20 daily credits, no expiry tricks).
  * While false, paid checkout is rejected server-side, the plans endpoint reports paid
  * items as unavailable, and the UI shows Pro and credit packs as "Coming soon".
  * Flip to true when paid billing opens; the plan/pack catalogue below is already final.
@@ -62,7 +62,7 @@ export const PLANS: Record<BillingPlanId, PlanDefinition> = {
     priceCents: 0,
     currency: BILLING_CURRENCY,
     subscriptionCreditsPerPeriod: 0,
-    dailyCredits: 10,
+    dailyCredits: 20,
     active: true,
   },
   pro_monthly: {
@@ -72,7 +72,7 @@ export const PLANS: Record<BillingPlanId, PlanDefinition> = {
     priceCents: 799,
     currency: BILLING_CURRENCY,
     subscriptionCreditsPerPeriod: 1000,
-    dailyCredits: 10,
+    dailyCredits: 20,
     active: true,
   },
   pro_annual: {
@@ -82,7 +82,7 @@ export const PLANS: Record<BillingPlanId, PlanDefinition> = {
     priceCents: 6900,
     currency: BILLING_CURRENCY,
     subscriptionCreditsPerPeriod: 1000,
-    dailyCredits: 10,
+    dailyCredits: 20,
     active: true,
   },
 };

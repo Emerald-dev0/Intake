@@ -1,6 +1,7 @@
 import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { FAQS, PROMPT_EXAMPLES, WORKFLOW_STEPS } from '../content/site';
-import { PLAN_CATALOG, formatUsd, proPriceComparison } from '../lib/plans';
+import { formatUsd } from '../lib/plans';
+import { useBillingPlans, comparePlanPrices } from '../lib/useBillingPlans';
 import { LogoMark } from '../components/LogoMark';
 import { StartLink } from './MarketingChrome';
 import { useViewState } from './motion';
@@ -97,6 +98,7 @@ const HERO_QUESTIONS = [
 
 function ProductPreview() {
   const [mode, setMode] = useState<PreviewMode>('create');
+  const plans = useBillingPlans();
 
   return (
     <article className="mk-product-preview" aria-label="Example Intake workspace">
@@ -117,7 +119,7 @@ function ProductPreview() {
           <span>Library</span>
           <span className="is-active"><i aria-hidden="true">＋</i> Forms</span>
           <span>Connections</span>
-          <div className="mk-preview-rail__bottom">PLAN<br /><b>Free · {PLAN_CATALOG.free.dailyCredits} daily credits</b></div>
+          <div className="mk-preview-rail__bottom">PLAN<br /><b>Free · {plans.freeDailyCredits} daily credits</b></div>
         </div>
 
         <div className="mk-preview-main">
@@ -308,6 +310,7 @@ function HeroStory() {
 }
 
 export function Hero({ authenticated }: { authenticated: boolean }) {
+  const plans = useBillingPlans();
   return (
     <section className="mk-hero" id="top" aria-labelledby="mk-hero-title">
       <div className="mk-container mk-hero__grid">
@@ -325,7 +328,7 @@ export function Hero({ authenticated }: { authenticated: boolean }) {
             <a className="mk-button mk-button--secondary" href="#creation">See it work <Arrow /></a>
           </div>
           <p className="mk-hero__trust mk-anim-in" style={{ '--d': '490ms' } as CSSProperties}>
-            Free during launch · {PLAN_CATALOG.free.dailyCredits} credits daily · Lives in your Google account
+            Free during launch · {plans.freeDailyCredits} credits daily · Lives in your Google account
           </p>
           <div className="mk-hero__facts mk-anim-in" style={{ '--d': '540ms' } as CSSProperties} role="group" aria-label="What Intake does">
             <span>Real Google Forms</span>
@@ -610,16 +613,16 @@ export function GoogleConnection({ authenticated }: { authenticated: boolean }) 
   );
 }
 
-const FREE_FEATURES = [
-  `${PLAN_CATALOG.free.dailyCredits} credits every day`,
-  'Create forms from a description',
-  'Edit forms you already have',
-  'A library of everything you made',
-  'Review before anything is applied',
-] as const;
-
 export function PricingSection({ authenticated }: { authenticated: boolean }) {
-  const prices = proPriceComparison();
+  const plans = useBillingPlans();
+  const prices = comparePlanPrices(plans.proMonthlyCents, plans.proAnnualCents);
+  const freeFeatures = [
+    `${plans.freeDailyCredits} credits every day`,
+    'Create forms from a description',
+    'Edit forms you already have',
+    'A library of everything you made',
+    'Review before anything is applied',
+  ];
   return (
     <section className="mk-section mk-pricing" id="pricing" aria-labelledby="mk-pricing-title">
       <div className="mk-container">
@@ -641,7 +644,7 @@ export function PricingSection({ authenticated }: { authenticated: boolean }) {
                 {authenticated ? 'Open Intake' : 'Start free'}
               </StartLink>
               <ul className="mk-feature-list">
-                {FREE_FEATURES.map(feature => <li key={feature}><Check />{feature}</li>)}
+                {freeFeatures.map(feature => <li key={feature}><Check />{feature}</li>)}
               </ul>
             </article>
           </Reveal>
@@ -655,7 +658,7 @@ export function PricingSection({ authenticated }: { authenticated: boolean }) {
               <p className="mk-price-card__annual">or {formatUsd(prices.annualCents)} a year</p>
               <a className="mk-button mk-button--secondary mk-price-card__cta" href="/pricing">See what is included <Arrow /></a>
               <ul className="mk-feature-list">
-                <li><Check />{PLAN_CATALOG.pro.dailyCredits} credits a day plus {PLAN_CATALOG.pro.monthlyCredits} a month</li>
+                <li><Check />{plans.proDailyCredits} credits a day plus {plans.proMonthlyCredits} a month</li>
                 <li><Check />Every workflow from Free, unchanged</li>
                 <li><Check />Daily credits are used first</li>
                 <li><Check />Unused credits do not roll over</li>

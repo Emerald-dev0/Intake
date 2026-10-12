@@ -88,7 +88,9 @@ export function createCreditService(options: CreditServiceOptions): CreditServic
       const entitlement = await settled(() => options.store.ensureEntitlement(userId));
       await settled(() => options.store.ensureGrants(entitlement, at));
       const buckets = await settled(() => options.store.balances(entitlement, at));
-      if (buckets.daily + buckets.monthly < minimumCost) throw new CreditError('insufficient_credits', INSUFFICIENT);
+      // Affordability counts every spendable bucket, including the Pro
+      // subscription reserve — the browser-facing monthly total already does.
+      if ((buckets.daily ?? 0) + (buckets.monthly ?? 0) + (buckets.subscription ?? 0) < minimumCost) throw new CreditError('insufficient_credits', INSUFFICIENT);
     },
     async charge(input) {
       if (!Number.isSafeInteger(input.cost) || input.cost < 1) throw new Error('Invalid credit cost');

@@ -23,6 +23,8 @@ export const CREATOR = {
   displayName: 'Oluwadare Daniel — Emerald',
   /** Shown in the footer. Deliberately short and impersonal. */
   credit: 'Emerald',
+  /** Personal site behind the footer credit. */
+  site: 'https://emerald.pxxl.click',
   github: 'https://github.com/Emerald-dev0',
   profiles: [
     'https://x.com/Dev_emeraldX',

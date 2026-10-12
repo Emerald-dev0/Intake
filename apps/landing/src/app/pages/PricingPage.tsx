@@ -1,33 +1,44 @@
 import { useState } from 'react';
 import { LogoMark } from '../../components/LogoMark';
 import { usePublicSession } from '../../marketing/usePublicSession';
-import { PRICING_FAQS } from '../../content/pricing';
-import { PLAN_CATALOG, CREDIT_PACK_CATALOG, PAID_BILLING_ENABLED, formatUsd, proPriceComparison } from '../../lib/plans';
+import { pricingFaqEntries } from '../../content/pricing';
+import { PLAN_CATALOG, formatUsd } from '../../lib/plans';
+import { comparePlanPrices, useBillingPlans } from '../../lib/useBillingPlans';
+import { useSiteAnalytics } from '../../lib/analytics';
 
 type BillingCadence = 'month' | 'year';
 
-const FREE_FEATURES = [
-  `${PLAN_CATALOG.free.dailyCredits} credits refreshed each day at 00:00 UTC`,
-  'Create Google Forms from a description',
-  'Check and change every question before it is created',
-  'Make changes to forms you already have',
-  'A private library of everything you make',
-];
-
-const PRO_FEATURES = [
-  `${PLAN_CATALOG.pro.dailyCredits} daily credits, plus ${PLAN_CATALOG.pro.monthlyCredits} monthly credits`,
-  'Everything on Free, unchanged',
-  'Daily credits are used first, then the monthly reserve',
-  'Monthly credits refresh each period and do not roll over',
-];
-
 export function PricingPage() {
   const authenticated = usePublicSession();
+  useSiteAnalytics('/pricing');
+  const plans = useBillingPlans();
   const [cadence, setCadence] = useState<BillingCadence>(() =>
     new URLSearchParams(window.location.search).get('billing') === 'annual' ? 'year' : 'month',
   );
-  const comparison = proPriceComparison();
+  // Amounts and allowances come from the server (admin dashboard overrides
+  // included) and fall back to the build-time catalogue while loading.
+  const comparison = comparePlanPrices(plans.proMonthlyCents, plans.proAnnualCents);
   const amount = cadence === 'month' ? comparison.monthlyCents : comparison.annualCents;
+  const freeFeatures = [
+    `${plans.freeDailyCredits} credits refreshed each day at 00:00 UTC`,
+    'Create Google Forms from a description',
+    'Check and change every question before it is created',
+    'Make changes to forms you already have',
+    'A private library of everything you make',
+  ];
+  const proFeatures = [
+    `${plans.proDailyCredits} daily credits, plus ${plans.proMonthlyCredits} monthly credits`,
+    'Everything on Free, unchanged',
+    'Daily credits are used first, then the monthly reserve',
+    'Monthly credits refresh each period and do not roll over',
+  ];
+  const faqs = pricingFaqEntries({
+    freeDailyCredits: plans.freeDailyCredits,
+    proDailyCredits: plans.proDailyCredits,
+    proMonthlyCredits: plans.proMonthlyCredits,
+    monthlyCents: comparison.monthlyCents,
+    annualCents: comparison.annualCents,
+  });
 
   return <div className="pricing-page">
     <a className="skip-link" href="#pricing-main">Skip to pricing details</a>
@@ -40,7 +51,7 @@ export function PricingPage() {
       <section className="pricing-intro" aria-labelledby="pricing-title">
         <span className="eyebrow">FREE DURING LAUNCH · PRO COMING SOON</span>
         <h1 id="pricing-title">Free while we launch.<br /><em>Pro comes next.</em></h1>
-        <p>Everyone gets {PLAN_CATALOG.free.dailyCredits} credits a day, refreshed at 00:00 UTC. Sign up free and build — Pro and credit packs open later, and everything you make comes with you.</p>
+        <p>Everyone gets {plans.freeDailyCredits} credits a day, refreshed at 00:00 UTC. Sign up free and build — Pro and credit packs open later, and everything you make comes with you.</p>
         <div className="pricing-cadence-wrap">
           <div className="pricing-cadence" role="group" aria-label="Choose how to display Pro pricing">
             <button type="button" aria-pressed={cadence === 'month'} className={cadence === 'month' ? 'selected' : ''} onClick={() => setCadence('month')}>Monthly</button>
@@ -57,14 +68,14 @@ export function PricingPage() {
           <p className="pricing-plan-description">Everything you need to build forms from a sentence.</p>
           <p className="pricing-amount"><strong>$0</strong><span>forever</span></p>
           <a className="btn btn-ghost pricing-plan-action" href={authenticated ? '/app' : '/auth/sign-up'}>{authenticated ? 'Open Intake' : 'Create a free account'} <span aria-hidden>→</span></a>
-          <ul>{FREE_FEATURES.map(feature => <li key={feature}>{feature}</li>)}</ul>
+          <ul>{freeFeatures.map(feature => <li key={feature}>{feature}</li>)}</ul>
         </article>
 
         <article className="pricing-plan-card is-pro" aria-labelledby="pro-plan-title">
           <div className="pricing-plan-top"><span className="info-index">02 / MORE CREDITS</span><span className="pricing-plan-tag">COMING SOON</span></div>
           <h2 id="pro-plan-title">{PLAN_CATALOG.pro.label}</h2>
           <p className="pricing-plan-description">A larger monthly credit reserve for the months when you build a lot. Not on sale yet — the prices below are what Pro will cost when it opens.</p>
-          {PAID_BILLING_ENABLED ? (
+          {plans.paidBillingEnabled ? (
             <>
               <p className="pricing-amount" aria-live="polite" aria-atomic="true"><strong>{formatUsd(amount)}</strong><span>/{cadence === 'month' ? 'month' : 'year'}</span></p>
               {cadence === 'year' && <p className="pricing-equivalent">Equivalent to {formatUsd(comparison.monthlyEquivalentCents)} per month, billed annually.</p>}
@@ -76,7 +87,7 @@ export function PricingPage() {
             <p className="pricing-amount" aria-live="polite" aria-atomic="true"><strong>Coming soon</strong><span> · {formatUsd(amount)}/{cadence === 'month' ? 'month' : 'year'} at launch</span></p>
           )}
           <a className="btn btn-accent pricing-plan-action" href={authenticated ? '/app' : '/auth/sign-up?plan=pro'}>{authenticated ? 'Open Intake' : 'Notify me when Pro opens'} <span aria-hidden>→</span></a>
-          <ul>{PRO_FEATURES.map(feature => <li key={feature}>{feature}</li>)}</ul>
+          <ul>{proFeatures.map(feature => <li key={feature}>{feature}</li>)}</ul>
         </article>
       </section>
 
@@ -85,7 +96,7 @@ export function PricingPage() {
         <div><span className="info-index">NEED MORE? · COMING SOON</span><h2 id="packs-title">Credit packs</h2></div>
         <p className="pricing-section-note">Credit packs are not on sale yet. Sign up free and build with your daily credits — packs open later.</p>
         <div className="pricing-packs-grid">
-          {CREDIT_PACK_CATALOG.map(pack => (
+          {plans.packs.map(pack => (
             <article key={pack.id} className="pricing-pack-card" aria-labelledby={`pack-${pack.id}`}>
               <h3 id={`pack-${pack.id}`}>{pack.label}</h3>
               <p className="pricing-pack-credits">{pack.credits} credits</p>
@@ -112,7 +123,7 @@ export function PricingPage() {
 
       <section className="pricing-faq" id="faq" aria-labelledby="pricing-faq-title">
         <div className="pricing-faq-heading"><span className="info-index">COMMON QUESTIONS</span><h2 id="pricing-faq-title">Before you decide.</h2></div>
-        <div className="pricing-faq-list">{PRICING_FAQS.map(({ question, answer }) => <details key={question}>
+        <div className="pricing-faq-list">{faqs.map(({ question, answer }) => <details key={question}>
           <summary>{question}</summary><p>{answer}</p>
         </details>)}</div>
       </section>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { creditSummary, resetInterval } from '../../lib/credits';
-import { CREDIT_PACK_CATALOG, PAID_BILLING_ENABLED, formatUsd } from '../../lib/plans';
+import { CREDIT_PACK_CATALOG, PAID_BILLING_ENABLED, PLAN_CATALOG, formatUsd } from '../../lib/plans';
 import { useCredits } from '../hooks/useCredits';
 import { useWorkspace } from '../hooks/useWorkspace';
 
@@ -160,7 +160,7 @@ export function BillingPage() {
             </div>
             <div className="billing-plan-actions">
               {!PAID_BILLING_ENABLED && !isPro && (
-                <p className="billing-coming-soon">You are on Free with 10 daily credits. Pro and credit packs are coming soon.</p>
+                <p className="billing-coming-soon">You are on Free with {credits?.dailyLimit ?? PLAN_CATALOG.free.dailyCredits} daily credits. Pro and credit packs are coming soon.</p>
               )}
               {PAID_BILLING_ENABLED && !isPro && (
                 <p className="billing-coming-soon">Paid checkout opens from the pricing page.</p>

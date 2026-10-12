@@ -18,7 +18,8 @@ import { Router } from 'express';
 import type { BillingService } from './service';
 import type { PaymentProvider } from './payment-provider';
 import type { BillingStore } from './store';
-import { isBillingPlanId, isCreditPackId, PLANS, CREDIT_PACKS, PAID_BILLING_ENABLED, formatMoney, planDefinition, creditPackDefinition } from './plans';
+import { isBillingPlanId, isCreditPackId, PAID_BILLING_ENABLED, formatMoney } from './plans';
+import { billingSettings, effectiveCreditPackDefinition, effectiveCreditPacks, effectivePlanDefinition, effectivePlans } from './settings';
 
 interface GetSession {
   (req: import('express').Request): Promise<{ id: string; email: string; name: string } | null>;
@@ -50,7 +51,7 @@ export function createBillingRouter(options: BillingRouterOptions): Router {
     res.set('Cache-Control', 'public, max-age=300');
     res.json({
       paidBillingEnabled: PAID_BILLING_ENABLED,
-      plans: Object.values(PLANS).map(p => ({
+      plans: effectivePlans().map(p => ({
         id: p.id,
         label: p.label,
         interval: p.interval,
@@ -62,7 +63,7 @@ export function createBillingRouter(options: BillingRouterOptions): Router {
         // Free is always available; paid plans report unavailable during free launch.
         active: p.priceCents === 0 ? p.active : (p.active && PAID_BILLING_ENABLED),
       })),
-      creditPacks: Object.values(CREDIT_PACKS).map(p => ({
+      creditPacks: effectiveCreditPacks().map(p => ({
         id: p.id,
         label: p.label,
         credits: p.credits,
@@ -82,14 +83,14 @@ export function createBillingRouter(options: BillingRouterOptions): Router {
       const { plan } = req.body as { plan?: unknown };
 
       if (!PAID_BILLING_ENABLED) {
-        return res.status(503).json({ error: 'billing_unavailable', message: 'Paid plans are coming soon. Everyone is on Free with 10 daily credits.' });
+        return res.status(503).json({ error: 'billing_unavailable', message: `Paid plans are coming soon. Everyone is on Free with ${billingSettings.get().freeDailyCredits} daily credits.` });
       }
 
       if (!isBillingPlanId(plan)) {
         return res.status(400).json({ error: 'invalid_plan', message: 'A valid plan is required.' });
       }
 
-      const planDef = planDefinition(plan);
+      const planDef = effectivePlanDefinition(plan);
       if (planDef.priceCents === 0) {
         return res.status(400).json({ error: 'free_plan', message: 'The free plan does not require checkout.' });
       }
@@ -122,14 +123,14 @@ export function createBillingRouter(options: BillingRouterOptions): Router {
       const { pack } = req.body as { pack?: unknown };
 
       if (!PAID_BILLING_ENABLED) {
-        return res.status(503).json({ error: 'billing_unavailable', message: 'Credit packs are coming soon. Everyone is on Free with 10 daily credits.' });
+        return res.status(503).json({ error: 'billing_unavailable', message: `Credit packs are coming soon. Everyone is on Free with ${billingSettings.get().freeDailyCredits} daily credits.` });
       }
 
       if (!isCreditPackId(pack)) {
         return res.status(400).json({ error: 'invalid_pack', message: 'A valid credit pack is required.' });
       }
 
-      const packDef = creditPackDefinition(pack);
+      const packDef = effectiveCreditPackDefinition(pack);
       if (!packDef.active) {
         return res.status(400).json({ error: 'pack_unavailable', message: 'This credit pack is not currently available.' });
       }

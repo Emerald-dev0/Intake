@@ -3,7 +3,7 @@ import { authClient as client } from '../../lib/auth';
 import { fetchPublicEmailConfig, type PublicEmailConfig } from '../../lib/email';
 import { oauthErrorMessage } from '../../lib/sign-in-errors';
 import { useSignInConfig } from '../hooks/useSignInConfig';
-import { LogoMark } from '../../components/LogoMark';
+import { GoogleMark, LogoMark } from '../../components/LogoMark';
 
 export function AuthPage({ signUp = false }: { signUp?: boolean }) {
   const [name, setName] = useState('');
@@ -83,7 +83,7 @@ export function AuthPage({ signUp = false }: { signUp?: boolean }) {
           {oauthError && <div className="form-error" role="alert">{oauthErrorMessage(oauthError)}</div>}
           {google.status === 'available' && <>
             <button className="btn auth-google" type="button" aria-describedby="google-signin-note" onClick={() => void continueWithGoogle()} disabled={busyAny}>
-              <span aria-hidden>G</span>{googleBusy ? 'Opening Google…' : 'Continue with Google'}
+              <GoogleMark />{googleBusy ? 'Opening Google…' : 'Continue with Google'}
             </button>
             <p className="auth-provider-note" id="google-signin-note">Google sign-in authenticates you to Intake only. It does not authorize Google Forms access.</p>
             <div className="auth-or" aria-hidden><span>or continue with email</span></div>
