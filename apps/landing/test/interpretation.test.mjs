@@ -84,19 +84,24 @@ test('back-to-back conditional groups are repaired with planner feedback, not sh
   assert.match(residual.explanation, /back to back/);
   assert.ok(!residual.explanation.includes('q10b') && !residual.explanation.includes('questions['), 'no engineer pointers leak');
 
-  // The interpreter itself retries once with the planner hint and returns the fixed draft.
+  // The interpreter itself retries once with adaptation-first guidance and returns the fixed draft.
   const fixed = registration();
   const script = [rawBad, ready(fixed)];
   let calls = 0;
+  const bodies = [];
   const interpreter = createFormInterpreter({
     provider: createGroqProvider({
       env: { GROQ_API_KEY: 'server-test-key' },
       sleepImpl: async () => undefined,
-      fetchImpl: async () => modelResponse(script[Math.min(calls++, script.length - 1)]),
+      fetchImpl: async (_url, init) => { bodies.push(JSON.parse(init.body)); return modelResponse(script[Math.min(calls++, script.length - 1)]); },
     }),
   });
   const repaired = await interpreter.interpret({ mode: 'new', request: 'Registration with two follow-ups.', provider: 'google' });
   assert.equal(calls, 2, 'one guided reshuffle retry');
+  const retryRequest = JSON.parse(bodies[1].messages[1].content).request;
+  assert.match(retryRequest, /Produce a working arrangement/, 'repair demands output, not apology');
+  assert.match(retryRequest, /bridging Yes\/No/, 'repair teaches the bridging pattern');
+  assert.match(retryRequest, /last resort/, 'refusal stays the final fallback');
   const assessed = assessInterpretation(repaired);
   assert.equal(assessed.status, 'ready');
   assert.equal(assessed.specification.questions.length, fixed.questions.length);

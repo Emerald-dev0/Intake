@@ -27,19 +27,18 @@ async function generate(options: InterpreterOptions, request: AiModelRequest): P
   try {
     const raw = await invoke(call);
     const issues = placementIssues(raw);
-    // The model arranged the questions in a way Google Forms cannot lay out. Rather than showing
-    // engineer text, give it one guided chance to reshuffle: merge same-rule groups, reorder so
-    // each conditional group directly follows its controller, make at most one follow-up
-    // unconditional (noted in assumptions), or ask a clarifying question. Never silently drop a
-    // requested question. The retry costs operator tokens only: users are charged per validated
-    // proposal, and a failed arrangement is never a proposal.
+    // The model arranged the questions in a way Google Forms cannot lay out. Adapt, don't refuse:
+    // give it one guided chance to produce a WORKING arrangement. The goal is an output, not an
+    // apology. Only fall back to needs_clarification when adaptation would distort the request's
+    // meaning, and to unsupported when nothing preserves it. The retry costs operator tokens only:
+    // users are charged per validated proposal, and a failed arrangement is never a proposal.
     if (isRepairablePlacement(issues) && typeof request.input === 'object' && request.input !== null) {
       const feedback = (request.input as { request?: unknown }).request;
       return invoke({
         ...call,
         input: {
           ...(request.input as Record<string, unknown>),
-          request: `${typeof feedback === 'string' ? feedback : ''}\n\n[Intake planner feedback on your previous arrangement, which was rejected: ${issues.map(issue => issue.hint ?? issue.message).join(' ')} Reshuffle the questions to satisfy it — merge, reorder, make at most one follow-up unconditional and note it in assumptions, or return needs_clarification. Never drop a requested question.]`,
+          request: `${typeof feedback === 'string' ? feedback : ''}\n\n[Intake planner feedback on your previous arrangement, which was rejected: ${issues.map(issue => issue.hint ?? issue.message).join(' ')} Produce a working arrangement that collects the same information. Preferred fixes, in order: (1) insert a bridging Yes/No question after the controller and hang ONE conditional group off it (e.g. "Would you like to tell us more?" then the follow-ups under Yes); (2) merge the follow-ups into a single group under one shared condition; (3) make at most one follow-up unconditional and note it in assumptions. Only return needs_clarification if every adaptation would distort what was asked, and unsupported as a last resort. Never drop a requested question, never emit the rejected layout again.]`,
         },
       });
     }
