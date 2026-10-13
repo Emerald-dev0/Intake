@@ -36,7 +36,7 @@ globalThis.location = dom.window.location;
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 test('all public and protected paths have explicit ownership', () => {
-  for (const path of ['/', '/auth/sign-in', '/auth/sign-up', '/app', '/app/connections', '/app/forms', '/app/library', '/app/account']) {
+  for (const path of ['/', '/auth/sign-in', '/auth/sign-up', '/waitlist', '/app', '/app/connections', '/app/forms', '/app/library', '/app/account']) {
     const matches = matchRoutes(routes, path);
     assert.ok(matches);
     assert.notEqual(matches.at(-1).route.path, '*');
@@ -68,7 +68,7 @@ test('public auth pages and protected pages render with shared authentication en
     for (const [path, status, expected] of [
       ['/', 200, 'Tell Intake what you need.'],
       ['/auth/sign-in', 503, 'Welcome back'],
-      ['/auth/sign-up', 503, 'Create your account'],
+      ['/auth/sign-up', 503, 'Less busywork.'],
       ['/app', 200, 'What do you need'],
       ['/app/connections', 200, 'Your forms stay'],
       ['/app/forms', 200, 'What should your form ask?'],

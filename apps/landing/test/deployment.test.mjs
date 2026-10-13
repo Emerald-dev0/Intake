@@ -60,7 +60,7 @@ test('deployment routes reserve API before the generic SPA fallback', async () =
   for (const route of ['/auth/sign-in', '/auth/sign-up', '/app', '/app/connections', '/app/forms', '/admin']) {
     assert.ok(privatePage.test(route), `${route} must use the private document`);
   }
-  for (const route of ['/', '/about', '/faq', '/pricing']) assert.ok(publicPage.test(route), `${route} must use the public document`);
+  for (const route of ['/', '/about', '/faq', '/pricing', '/waitlist']) assert.ok(publicPage.test(route), `${route} must use the public document`);
 });
 
 test('production Vite output serves direct and repeated document requests; API proxy preserves methods, queries and cookies', async () => {
@@ -73,7 +73,7 @@ test('production Vite output serves direct and repeated document requests; API p
   const server = await preview({ preview: { port: 0, proxy: { '^/api(?:/|$)': { target: `http://127.0.0.1:${backend.address().port}` } } } });
   const base = `http://127.0.0.1:${server.httpServer.address().port}`;
   try {
-    for (const path of ['/', '/pricing', '/auth/sign-in', '/auth/sign-up', '/app', '/app/connections', '/app/account', '/admin', '/admin/users/owner-id']) {
+    for (const path of ['/', '/pricing', '/waitlist', '/auth/sign-in', '/auth/sign-up', '/app', '/app/connections', '/app/account', '/admin', '/admin/users/owner-id']) {
       for (let attempt = 0; attempt < 2; attempt++) {
         const res = await fetch(base + path);
         assert.equal(res.status, 200);
@@ -82,6 +82,10 @@ test('production Vite output serves direct and repeated document requests; API p
         if (path === '/pricing') {
           assert.ok(html.includes('<link rel="canonical" href="https://intake-six-blue.vercel.app/pricing" />'));
           assert.ok(html.includes('<title>Intake Pricing — Free during launch, Pro coming soon</title>'));
+        }
+        if (path === '/waitlist') {
+          assert.ok(html.includes('<link rel="canonical" href="https://intake-six-blue.vercel.app/waitlist" />'));
+          assert.ok(html.includes('<title>Join the Intake wait-list'));
         }
         if (path.startsWith('/admin')) {
           // Vite preview serves the SPA fallback directly; production's Vercel route sends every

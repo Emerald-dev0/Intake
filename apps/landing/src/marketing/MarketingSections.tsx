@@ -186,9 +186,9 @@ function HeroPromptBox({ authenticated }: { authenticated: boolean }) {
           </div>
           <div className="mk-hero-try__cta">
             <StartLink authenticated={authenticated}>
-              {authenticated ? 'Open Intake' : 'Start free — create this for real'}
+              {authenticated ? 'Open Intake' : 'Join the wait-list'}
             </StartLink>
-            <span>Free account · Creating a form needs sign-in, looking never does.</span>
+            <span>Explore the preview now. We’ll email you when early access opens.</span>
           </div>
         </div>
       )}
@@ -838,8 +838,8 @@ export function UseCaseSection({ authenticated }: { authenticated: boolean }) {
                   Use this prompt <Arrow />
                 </Link>
               ) : (
-                <a className="mk-text-link" href="/auth/sign-up">
-                  Start free <Arrow />
+                <a className="mk-text-link" href="/waitlist">
+                  Join the wait-list <Arrow />
                 </a>
               )}
             </Reveal>
@@ -983,7 +983,7 @@ export function PricingSection({ authenticated }: { authenticated: boolean }) {
               <p className="mk-price-card__description">Everything you need to build and change forms.</p>
               <p className="mk-price"><strong>$0</strong><span>forever</span></p>
               <StartLink authenticated={authenticated} className="mk-button mk-button--secondary mk-price-card__cta">
-                {authenticated ? 'Open Intake' : 'Start free'}
+                {authenticated ? 'Open Intake' : 'Join the wait-list'}
               </StartLink>
               <p className="mk-price-card__fine">No card needed · Free forever</p>
               <ul className="mk-feature-list">

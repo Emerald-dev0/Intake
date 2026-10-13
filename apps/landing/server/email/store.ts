@@ -75,16 +75,26 @@ function columnFor(field: keyof EmailDeliveryUpdate): string {
 export function createPostgresEmailStore(pool: Pool): EmailStore {
   return {
     async createDelivery(input) {
-      await pool.query(
+      const result = await pool.query<{ id: string }>(
         `INSERT INTO email_delivery
            (id, event_id, email_type, user_id, recipient, subject, status, provider, idempotency_key, attempts)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0)
-         ON CONFLICT (idempotency_key) DO NOTHING`,
+         ON CONFLICT (idempotency_key) DO UPDATE SET
+           subject = CASE WHEN excluded.status = 'pending' THEN excluded.subject ELSE email_delivery.subject END,
+           provider = COALESCE(excluded.provider, email_delivery.provider)
+         RETURNING id`,
         [
           input.id, input.eventId, input.emailType, input.userId, input.recipient.toLowerCase(),
           input.subject.slice(0, 500), input.status, input.provider, input.idempotencyKey,
         ],
       );
+      if (!result.rows[0]) throw new Error('email_store_unavailable');
+      return result.rows[0].id;
+    },
+
+    async findByIdempotencyKey(key) {
+      const result = await pool.query<Row>('SELECT * FROM email_delivery WHERE idempotency_key = $1 LIMIT 1', [key]);
+      return result.rows[0] ? toRecord(result.rows[0]) : null;
     },
 
     async updateDelivery(id, update) {
@@ -205,9 +215,16 @@ export function createMemoryEmailStore(): EmailStore & { deliveries: EmailDelive
   }
 
   return {
-    deliveries: [] as EmailDeliveryRecord[],
+    get deliveries() { return [...deliveries.values()]; },
     async createDelivery(input) {
       if (!deliveries.has(input.idempotencyKey)) deliveries.set(input.idempotencyKey, blank(input));
+      const record = deliveries.get(input.idempotencyKey)!;
+      if (input.status === 'pending') record.subject = input.subject;
+      if (input.provider) record.provider = input.provider;
+      return record.id;
+    },
+    async findByIdempotencyKey(key) {
+      return deliveries.get(key) ?? null;
     },
     async updateDelivery(id, update) {
       for (const record of deliveries.values()) {
@@ -259,7 +276,8 @@ export function createMemoryEmailStore(): EmailStore & { deliveries: EmailDelive
 
 /** A store whose absence degrades logging but never blocks a critical path. */
 export const NULL_EMAIL_STORE: EmailStore = {
-  async createDelivery() {},
+  async createDelivery(input) { return input.id; },
+  async findByIdempotencyKey() { return null; },
   async updateDelivery() {},
   async findByProviderMessageId() { return null; },
   async isSuppressed() { return null; },

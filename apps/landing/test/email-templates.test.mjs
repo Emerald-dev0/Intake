@@ -20,6 +20,7 @@ const VARIABLES = {
   otp: { otpCode: '482913', expiryMinutes: 10 },
   password_reset: { resetUrl: 'https://intake.example/reset?token=abc', expiryMinutes: 60 },
   welcome: { userName: 'Ada', dashboardUrl: APP.dashboardUrl, dailyCredits: '20' },
+  waitlist_welcome: {},
   security_password_changed: { timestamp: APP.timestamp, securityUrl: APP.securityUrl },
   security_email_changed: { timestamp: APP.timestamp, securityUrl: APP.securityUrl, newEmail: 'ada@new.test', previousEmail: 'ada@example.com' },
   security_new_sign_in: { timestamp: APP.timestamp, securityUrl: APP.securityUrl, method: 'Password · Chrome on macOS' },
@@ -76,7 +77,7 @@ test('links inside emails point at Intake, never at the provider', () => {
   for (const [type, variables] of Object.entries(VARIABLES)) {
     const rendered = renderEmail(type, { ...APP, ...variables });
     for (const href of rendered.html.matchAll(/href="([^"]+)"/g)) {
-      assert.doesNotMatch(href[1], /calder|api\.calder\.click/i, `${type} links must not point at Calder`);
+      assert.ok(['intake.example', 'intake.calder.click'].includes(new URL(href[1]).hostname), `${type} links must point at Intake, not at the provider API`);
     }
   }
 });
@@ -84,13 +85,14 @@ test('links inside emails point at Intake, never at the provider', () => {
 test('the welcome mail is personal and every footer carries support contact', () => {
   const welcome = renderEmail('welcome', { ...APP, ...VARIABLES.welcome });
   assert.match(welcome.subject, /Daniel/, 'the subject is signed by Daniel');
-  assert.match(welcome.html, /I am Daniel/, 'the body introduces Daniel');
+  assert.match(welcome.html, /I'm Daniel/, 'the body introduces Daniel');
   assert.match(welcome.html, /just reply to this email/, 'the reader is invited to reply');
   assert.match(welcome.text, /— Daniel/, 'the plaintext signs off');
-  assert.match(welcome.html, /shipping new capabilities every week/, 'the welcome mail promises continuous feature updates');
+  assert.match(welcome.html, /keep listening, improving, and shipping/, 'the welcome mail promises improvement, not an invented weekly cadence');
   assert.match(welcome.html, /20 credits every day/, 'launch allowance comes from the passed variable, never hardcoded');
 
   for (const [type, variables] of Object.entries(VARIABLES)) {
+    if (type === 'waitlist_welcome') continue; // No account/security footer on Daniel’s exact signup letter.
     const rendered = renderEmail(type, { ...APP, ...variables });
     assert.match(rendered.html, /support@intake\.calder\.click/, `${type} footer names the support address`);
     assert.match(rendered.text, /support@intake\.calder\.click/, `${type} plaintext footer names the support address`);

@@ -140,7 +140,7 @@ export function readEmailConfig(env: NodeJS.ProcessEnv = process.env): EmailConf
     replyTo,
     welcomeFromEmail,
     welcomeFromName,
-    welcomeReplyTo: welcomeReplyToRaw || replyTo || welcomeFromEmail,
+    welcomeReplyTo: welcomeReplyToRaw || welcomeFromEmail,
     senderId: senderIdRaw || null,
     timeoutMs: integer(env.EMAIL_TIMEOUT_MS, 10_000, 1_000, 30_000, 'EMAIL_TIMEOUT_MS'),
     maxAttempts: integer(env.EMAIL_MAX_ATTEMPTS, 3, 1, 5, 'EMAIL_MAX_ATTEMPTS'),

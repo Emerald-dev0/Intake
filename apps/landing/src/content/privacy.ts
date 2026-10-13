@@ -57,7 +57,7 @@ export const PRIVACY_SECTIONS = [
   {
     heading: 'Voluntary lists and anonymous analytics',
     body: [
-      'If you join the Pro waitlist or the product-updates list, Intake stores only your email address and which list you joined. You will hear about each shipped item once — nothing else — and every message explains how to leave the list. One deletion request removes you entirely.',
+      'If you join the early-access wait-list, Intake stores your email address, signup time, and welcome-email processing status so we can reliably send your welcome note. Reply to Daniel or email daniel@intake.calder.click to leave the list. If you join the Pro waitlist or the product-updates list, Intake stores only your email address and which list you joined. You will hear about each shipped item once — nothing else — and every message explains how to leave the list. One deletion request removes you entirely.',
       'The public site records anonymous pageviews and button clicks to understand what visitors need. No IP addresses, cookies, or identifiers are stored with these events, and they can never be traced back to you or your account.',
     ],
   },

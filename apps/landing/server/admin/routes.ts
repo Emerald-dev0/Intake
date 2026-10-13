@@ -4,6 +4,7 @@ import type { AdminOperation, AdminOperationStatus, AdminRange, AdminStore } fro
 import { boundedText, parseAdminPage, parseRange, positiveId, rangeBounds } from './ranges';
 import type { SessionUser } from '../providers/service';
 import { createBillingSettingsService, type BillingSettingsService } from '../billing/settings';
+import type { WaitlistStore } from '../waitlist/store';
 
 const RANGE_DEFAULT: AdminRange = '7d';
 const EMAIL = /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/;
@@ -24,6 +25,7 @@ export interface AdminRouterDeps {
   now?: () => Date;
   /** Billing settings service. Absent in tests and minimal harnesses: reads report code defaults and writes are refused. */
   settings?: BillingSettingsService;
+  waitlist?: Pick<WaitlistStore, 'list'>;
 }
 
 function asyncRoute(handler: AdminHandler) {
@@ -141,6 +143,21 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
     const range = readRange(req);
     if (!range) return invalid(res, 'Choose today, 7d, or 30d for the reporting range.');
     res.json(await deps.store.getOverview(rangeBounds(range, now())));
+  }));
+
+  // The early-access list contains personal addresses and belongs behind this same verified,
+  // exact-allowlist gate, not on a second unguarded app.get('/api/admin/waitlist').
+  router.get('/waitlist', asyncRoute(async (req, res) => {
+    if (!await allowRequest(req, res, 'read')) return;
+    const page = readPage(req);
+    if (!page) return invalid(res);
+    if (!deps.waitlist) return res.status(503).json({ error: 'Wait-list storage is unavailable.' });
+    try {
+      const data = await deps.waitlist.list({ limit: page.limit, offset: page.offset });
+      res.json({ ...data, page: page.page, pageSize: page.limit, totalPages: Math.ceil(data.total / page.limit) });
+    } catch {
+      res.status(503).json({ error: 'Wait-list storage is temporarily unavailable.' });
+    }
   }));
 
   router.get('/users', asyncRoute(async (req, res) => {

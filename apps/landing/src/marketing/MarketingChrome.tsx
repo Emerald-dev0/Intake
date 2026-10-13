@@ -13,8 +13,8 @@ export function StartLink({
   className?: string;
 }) {
   return (
-    <a className={className} href={authenticated ? '/app' : '/auth/sign-up'}>
-      <span>{children ?? (authenticated ? 'Open Intake' : 'Start free')}</span>
+    <a className={className} href={authenticated ? '/app' : '/waitlist'}>
+      <span>{children ?? (authenticated ? 'Open Intake' : 'Join the wait-list')}</span>
       <svg aria-hidden="true" viewBox="0 0 16 16" width="15" height="15">
         <path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
@@ -78,9 +78,7 @@ export function MarketingNav({ authenticated }: { authenticated: boolean }) {
 
           <div className="mk-header__actions">
             {!authenticated && <a className="mk-sign-in" href="/auth/sign-in">Sign in</a>}
-            <a className="mk-button mk-button--primary mk-button--nav" href="/waitlist">
-              Join the wait‑list
-            </a>
+            <StartLink authenticated={authenticated} className="mk-button mk-button--primary mk-button--nav" />
           </div>
 
           <button

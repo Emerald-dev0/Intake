@@ -1,23 +1,14 @@
+import { fileURLToPath } from 'node:url';
 import type { RequestHandler } from 'express';
-// @ts-ignore
-import { chromium } from 'playwright';
 
-export const getOGPNG: RequestHandler = async (req, res) => {
-  const pagePath = req.query.path || '/';
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({
-    viewport: { width: 1200, height: 630 },
-    userAgent: 'Intake Share Preview',
-  });
-  const page = await context.newPage();
-  const base = process.env.VITE_SITE_URL || 'https://intake.calder.click';
-  await page.goto(base + pagePath, { waitUntil: 'networkidle' });
+const socialImage = fileURLToPath(new URL('../public/og.png', import.meta.url));
 
-  // Wait a moment for any dynamic content (e.g. hero text) to settle
-  await page.waitForTimeout(300);
-
-  const buffer = await page.screenshot({ type: 'png' });
-  await browser.close();
-  res.set('Content-Type', 'image/png');
-  res.send(buffer);
+/**
+ * A share image must not require a browser binary (or a frontend network request) on the API host.
+ * The branded 1200×630 card is checked in and also served by Vercel at /og.png. Retain this API URL
+ * for already-shared links; historical ?path=… parameters intentionally use the same safe card.
+ */
+export const getOGPNG: RequestHandler = (_req, res, next) => {
+  res.type('png');
+  res.sendFile(socialImage, error => { if (error) next(error); });
 };

@@ -12,6 +12,7 @@ import {
 import { DEFAULT_SITE_URL, isNonPublicHost, normalizeSiteUrl } from './src/lib/site-url.ts';
 import { PLAN_CATALOG, formatUsd, proPriceComparison } from './src/lib/plans.ts';
 import { PRICING_DESCRIPTION, PRICING_FAQS, PRICING_TITLE } from './src/content/pricing.ts';
+import { WAITLIST_DESCRIPTION, WAITLIST_TITLE } from './src/content/waitlist.ts';
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, character => ({
@@ -146,6 +147,12 @@ function siteMeta(siteUrl: string): Plugin {
     transformIndexHtml(html) {
       return html
         .replace('%HOMEPAGE_TITLE%', escapeHtml(HOMEPAGE_TITLE))
+        .replaceAll('%WAITLIST_TITLE%', escapeHtml(WAITLIST_TITLE))
+        .replaceAll('%WAITLIST_DESCRIPTION%', escapeHtml(WAITLIST_DESCRIPTION))
+        .replace('%WAITLIST_SCHEMA%', JSON.stringify({
+          '@context': 'https://schema.org', '@type': 'WebPage',
+          name: WAITLIST_TITLE, description: WAITLIST_DESCRIPTION, url: `${siteUrl}/waitlist`,
+        }).replace(/</g, '\\u003c'))
         .replace('%META_DESCRIPTION%', escapeHtml(META_DESCRIPTION))
         .replace('%CREATOR_DISPLAY_NAME%', escapeHtml(CREATOR.displayName))
         .replaceAll('%SITE_URL%', siteUrl)
@@ -205,7 +212,7 @@ function pricingNoScriptContent(): string {
       <p>Start with a free account; Pro opens to existing accounts first and can be switched on from your account page. Google’s own limits apply the same way on both plans.</p>
     </section>
     <section id="faq" aria-labelledby="pricing-fallback-faq"><h2 id="pricing-fallback-faq">Pricing questions</h2>${faq}</section>
-    <footer><a href="/auth/sign-up">Start with Free</a> · <a href="/">Back to Intake</a></footer>
+    <footer><a href="/waitlist">Join the wait-list</a> · <a href="/">Back to Intake</a></footer>
   </main>`;
 }
 
@@ -265,7 +272,7 @@ function robotsDocument(siteUrl: string): string {
   ].join('\n');
 }
 
-const SITEMAP_PATHS = ['/', '/pricing', '/privacy', '/terms', '/vs', '/templates', '/guides', '/trust', '/changelog'];
+const SITEMAP_PATHS = ['/', '/waitlist', '/pricing', '/privacy', '/terms', '/vs', '/templates', '/guides', '/trust', '/changelog'];
 
 function sitemapDocument(siteUrl: string): string {
   const urls = SITEMAP_PATHS.map(path => [
@@ -295,6 +302,7 @@ function llmsDocument(siteUrl: string): string {
     `- Guides: ${siteUrl}/guides — how to create a Google Form with AI in five steps`,
     `- Trust: ${siteUrl}/trust — what Intake asks Google for and what it never does`,
     `- Changelog: ${siteUrl}/changelog — what shipped and what is next`,
+    `- Wait-list: ${siteUrl}/waitlist — join for early access and product updates, no account required`,
     `- Pricing: ${siteUrl}/pricing — Free forever, Pro coming soon with a waitlist`,
     `- Privacy: ${siteUrl}/privacy — written against Google's API Services User Data Policy`,
     `- Terms: ${siteUrl}/terms`,
@@ -334,6 +342,7 @@ export default defineConfig(({ mode }) => {
     main: 'index.html',
     private: 'private.html',
     pricing: 'pricing.html',
+    waitlist: 'waitlist.html',
   };
   // CAPTURE=1 also builds the dev-only pages used to record demos / render the social card.
   if (env.CAPTURE) {

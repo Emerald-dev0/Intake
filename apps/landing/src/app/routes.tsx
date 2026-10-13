@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import type { RouteObject } from 'react-router-dom';
+import { Navigate, type RouteObject } from 'react-router-dom';
 import { ProtectedLayout } from './layouts/ProtectedLayout';
 import { WorkspaceLayout } from './layouts/WorkspaceLayout';
 
@@ -35,6 +35,7 @@ const AdminEmailPage = lazy(() => import('../admin/AdminPages').then(m => ({ def
 const AdminSystemPage = lazy(() => import('../admin/AdminPages').then(m => ({ default: m.AdminSystemPage })));
 const AdminActivityPage = lazy(() => import('../admin/AdminPages').then(m => ({ default: m.AdminActivityPage })));
 const AdminAnalyticsPage = lazy(() => import('../admin/AdminPages').then(m => ({ default: m.AdminAnalyticsPage })));
+const AdminWaitlistPage = lazy(() => import('../admin/AdminWaitlistPage'));
 function NotFoundPage() {
   return <main className="workspace-status"><h1>Page not found</h1><a href="/">Back to Intake</a></main>;
 }
@@ -50,7 +51,7 @@ export const routes: RouteObject[] = [
   { path: '/privacy', element: <PrivacyPage /> },
   { path: '/terms', element: <TermsPage /> },
   { path: '/auth/sign-in', element: <AuthPage key="sign-in" /> },
-  { path: '/auth/sign-up', element: <AuthPage key="sign-up" signUp /> },
+  { path: '/auth/sign-up', element: <Navigate to="/waitlist" replace /> },
   { path: '/waitlist', element: <WaitlistPage /> },
   { path: '/auth/verify', element: <VerifyEmailPage /> },
   { path: '/auth/reset-password', element: <ResetPasswordPage /> },
@@ -64,6 +65,7 @@ export const routes: RouteObject[] = [
       { path: 'forms', element: <AdminFormsPage /> },
       { path: 'providers', element: <AdminProvidersPage /> },
       { path: 'email', element: <AdminEmailPage /> },
+      { path: 'waitlist', element: <AdminWaitlistPage /> },
       { path: 'system', element: <AdminSystemPage /> },
       { path: 'activity', element: <AdminActivityPage /> },
       { path: 'analytics', element: <AdminAnalyticsPage /> },

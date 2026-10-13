@@ -6,6 +6,7 @@ import '@fontsource-variable/fraunces/standard.css';
 import '@fontsource-variable/fraunces/standard-italic.css';
 import './styles/base.css';
 import './styles/marketing.css';
+import './styles/waitlist.css';
 import { BrowserRouter, useRoutes } from 'react-router-dom';
 import { routes } from './app/routes';
 import { IntakeLoader } from './components/IntakeLoader';

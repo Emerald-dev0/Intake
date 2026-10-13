@@ -28,7 +28,9 @@ import { createCreditRouter } from './credits/routes';
 import { createFormEditInterpreter, createFormInterpreter } from './forms/interpretation/provider-interpreter';
 import { createFormDraftRouter } from './forms/interpretation/routes';
 import { createPostgresRateLimitStore } from './security/rate-limit';
-import { listWaitlist } from './waitlist';
+import { createWaitlistRouter } from './waitlist/routes';
+import { createPostgresWaitlistStore } from './waitlist/store';
+import { createWaitlistDelivery } from './waitlist/delivery';
 import { createSignInRouter } from './sign-in/routes';
 import { readAuthenticationMethods } from './sign-in/account-methods';
 import { logSafe } from './providers/oauth';
@@ -83,9 +85,9 @@ app.get('/api/health', async (req, res) => {
     return res.status(503).json({ ok: false, database: 'unavailable' });
   }
 });
-  // Open Graph image generation
-  app.get('/api/og', getOGPNG);
-  // Public sign-in capabilities (booleans only). Mounted before the API 404 below.
+// Compatibility for existing share-image links; no runtime browser dependency.
+app.get('/api/og', getOGPNG);
+// Public sign-in capabilities (booleans only). Mounted before the API 404 below.
 app.use('/api/sign-in', createSignInRouter({ env: process.env }));
 // This route must precede application body middleware. The parsers enforce the bound for both
 // declared and chunked bodies; Better Auth's Node adapter safely re-serializes req.body.
@@ -109,6 +111,13 @@ const abuseLimiter = createPostgresRateLimitStore(pool, serverConfig.authSecret)
  * `emailService`/`notifier`; only `server/email/providers/calder.ts` knows Calder's HTTP API.
  */
 const emailRuntime = createEmailRuntime({ pool, env: providerEnv, secret: serverConfig.authSecret });
+const waitlistStore = createPostgresWaitlistStore(pool);
+const waitlistDelivery = createWaitlistDelivery({
+  store: waitlistStore, emails: emailRuntime.emails, onError: label => logSafe(label),
+});
+app.use('/api/waitlist', createWaitlistRouter({
+  store: waitlistStore, rateLimiter: abuseLimiter, onJoin: () => { void waitlistDelivery.flush(); },
+}));
 
 /**
  * Calder delivery webhooks. Mounted on an unparsed route: the HMAC covers the raw bytes, so the
@@ -139,19 +148,10 @@ const adminStore = createPostgresAdminStore(pool, providerEnv);
 // Admin-editable allowances and prices share the process-wide settings service,
 // so a dashboard save takes effect for grants and checkout immediately.
 bindBillingSettingsStore(createPostgresBillingSettingsStore(pool));
-app.use('/api/admin', createAdminRouter({ store: adminStore, getSession, rateLimiter: abuseLimiter, env: providerEnv, settings: billingSettings }));
-// Wait‑list API
-app.get('/api/admin/waitlist', async (_req, res) => {
-  const data = await listWaitlist();
-  res.json(data);
-});
-// Redirect sign‑up and sign‑in to the wait‑list page
-app.get('/auth/sign-up', async (_req, res) => {
-  res.redirect(301, '/waitlist');
-});
-app.get('/auth/sign-in', async (_req, res) => {
-  res.redirect(301, '/waitlist');
-});
+app.use('/api/admin', createAdminRouter({
+  store: adminStore, getSession, rateLimiter: abuseLimiter, env: providerEnv,
+  settings: billingSettings, waitlist: waitlistStore,
+}));
 // Public, privacy-first engagement ingress. No auth, no cookies, no identifiers: the payload
 // carries only an allowlisted path, a click label, a referrer hostname and UTM tags.
 app.use('/api/analytics', createAnalyticsRouter({ store: createPostgresAnalyticsStore(pool), rateLimiter: abuseLimiter }));
@@ -336,7 +336,10 @@ app.use((error: Error & { status?: number }, req: express.Request, res: express.
 });
 
 const port = serverConfig.port;
-const server = app.listen(port, '0.0.0.0', () => console.log(`Intake listening on ${port}`));
+const server = app.listen(port, '0.0.0.0', () => {
+  console.log(`Intake listening on ${port}`);
+  waitlistDelivery.start();
+});
 let shutdownStarted = false;
 async function shutdown(reason: string, exitCode = 0): Promise<void> {
   if (shutdownStarted) return;
@@ -355,6 +358,7 @@ async function shutdown(reason: string, exitCode = 0): Promise<void> {
     process.exitCode = 1;
   }
   try {
+    await waitlistDelivery.stop();
     await pool.end();
   } catch (error) {
     logSafe('Database pool shutdown failed', error);
