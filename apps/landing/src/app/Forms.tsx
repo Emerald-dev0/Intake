@@ -27,6 +27,14 @@ type ThreadEntry =
   | { id: number; role: 'intake'; kind: 'result'; result: CreateFormResult }
   | { id: number; role: 'intake'; kind: 'failure'; failure: FormFailure; draftId: string | null };
 const greetingEntry = (): ThreadEntry => ({ id: 0, role: 'intake', kind: 'text', text: 'Hi, I’m Intake. Describe the form you need — I’ll plan the questions, you review, and nothing reaches Google until you say create.' });
+/** pushEntry takes the same shapes minus the auto-assigned id. Omit does not distribute over the
+    union, so the input union is spelled out. */
+type ThreadEntryInput =
+  | { role: 'user'; text: string }
+  | { role: 'intake'; kind: 'text'; text: string }
+  | { role: 'intake'; kind: 'proposal'; draftId: string; version: number; title: string; questions: number }
+  | { role: 'intake'; kind: 'result'; result: CreateFormResult }
+  | { role: 'intake'; kind: 'failure'; failure: FormFailure; draftId: string | null };
 const STORAGE_KEY = 'intake:current-form-draft'; // only an opaque id, never the specification or chat text
 const EXAMPLE = 'Create a registration form for my final-year project. Ask for full name, email, phone number, department, and whether they need accommodation. If they do, ask what type of accommodation they need.';
 const MICROSOFT_REASON = 'Microsoft Forms creation is not available yet; Microsoft does not publish a supported creation API.';
@@ -107,9 +115,9 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
   const [draftId, setDraftId] = useState(savedId);
   const [busy, setBusy] = useState<Busy>(draftId ? 'loading' : null);
   const busyRef = useRef(false); // guard two click handlers before React renders the disabled state
-  const [failure, setFailure] = useState<FormFailure | null>(null);
-  const [unsupported, setUnsupported] = useState('');
-  const [result, setResult] = useState<CreateFormResult | null>(null);
+  const [, setFailure] = useState<FormFailure | null>(null);
+  const [, setUnsupported] = useState('');
+  const [, setResult] = useState<CreateFormResult | null>(null);
   const [operationCost, setOperationCost] = useState<PublicOperationCost | null>(null);
   const [workspaceMode, setWorkspaceMode] = useState<'create' | 'edit' | 'library'>(
     locationState?.mode === 'edit' ? 'edit' : locationState?.mode === 'library' ? 'library' : 'create'
@@ -120,7 +128,7 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
   const recent = useRecentForms();
   const alive = useAlive();
   const credits = useCredits();
-  function pushEntry(entry: Omit<ThreadEntry, 'id'>) {
+  function pushEntry(entry: ThreadEntryInput) {
     const id = threadSeq.current++;
     setThread(previous => [...previous, { ...entry, id } as ThreadEntry]);
   }
@@ -245,6 +253,11 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
     const text = prompt.trim();
     if (!text || busy !== null) return;
     if (pending) submitAnswer(text);
+    else if (finished) {
+      // A completed form stays in history; the new request starts a clean thread.
+      reset();
+      submitDescription(text);
+    }
     else if (draft && draft.status === 'ready') submitRevision(text);
     else submitDescription(text);
   }
@@ -332,6 +345,47 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
     : connectionLine(google);
   const blocked = draft?.status === 'creating' || draft?.status === 'blocked';
   const finished = draft?.status === 'created';
+  const typingText = busy === 'interpreting'
+    ? 'Intake is planning the questions. No form is being created yet.'
+    : busy === 'revising'
+      ? 'Updating the draft only. Google has not been contacted.'
+      : busy === 'creating'
+        ? 'Google is building your form. This can take several seconds. Keep this page open.'
+        : null;
+  const composerPlaceholder = pending
+    ? 'Answer Intake’s question…'
+    : draft && draft.status === 'ready'
+      ? 'What would you change? — e.g. make email optional, then move phone number below it.'
+      : 'Describe the form you need…';
+  const composerAction = pending ? 'Continue →' : draft && draft.status === 'ready' ? 'Send change →' : 'Send →';
+  const composerLabel = pending ? 'Answer Intake’s question' : draft && draft.status === 'ready' ? 'Request a change to the draft' : 'Describe the form you need';
+  const composerHint = pending
+    ? 'Your answer goes back with the original request.'
+    : draft && draft.status === 'ready'
+      ? 'Anything you send now revises this draft. Nothing reaches Google until you create.'
+      : 'A clear first draft is enough. You can make changes before anything is created.';
+  function renderEntry(entry: ThreadEntry) {
+    if (entry.role === 'user') return <div key={entry.id} className="msg msg-user">{entry.text}</div>;
+    if (entry.kind === 'text') return <div key={entry.id} className="msg msg-intake">{entry.text}</div>;
+    if (entry.kind === 'failure') {
+      return <div key={entry.id} className="msg msg-intake msg-wide"><FailureNotice failure={entry.failure} onReload={entry.draftId ? () => void loadDraft(entry.draftId as string) : undefined} /></div>;
+    }
+    if (entry.kind === 'result') {
+      return <div key={entry.id} className="msg msg-intake msg-wide"><Outcome result={entry.result} /></div>;
+    }
+    const live = draft?.id === entry.draftId && draft?.version === entry.version && draft?.status === 'ready';
+    if (!live || !draft) {
+      return <div key={entry.id} className="msg msg-intake">Proposed “{entry.title}” — {entry.questions} {entry.questions === 1 ? 'question' : 'questions'} (superseded).</div>;
+    }
+    return <div key={entry.id} className="msg msg-intake msg-wide">
+      <Review draft={draft} operationCost={operationCost} />
+      <div className="draft-review-actions">
+        <button type="button" className="btn btn-accent" onClick={() => void confirm()} disabled={busy !== null}>{busy === 'creating' ? 'Creating your form…' : 'Create form →'}</button>
+        <button type="button" className="draft-cancel" onClick={() => void cancel()} disabled={busy !== null}>{busy === 'cancelling' ? 'Discarding…' : 'Cancel'}</button>
+      </div>
+      <p className="forms-help">Nothing has been sent to Google yet. Creating requires your confirmation, and this draft can only be submitted once.</p>
+    </div>;
+  }
   const workspaceSwitch = <nav className="forms-mode-switch" aria-label="Form workflow">
     <button type="button" className={workspaceMode === 'create' ? 'selected' : ''} aria-current={workspaceMode === 'create' ? 'page' : undefined} onClick={() => setWorkspaceMode('create')}>Create a new form</button>
     <button type="button" className={workspaceMode === 'edit' ? 'selected' : ''} aria-current={workspaceMode === 'edit' ? 'page' : undefined} onClick={() => setWorkspaceMode('edit')}>Edit an existing form</button>
@@ -395,18 +449,7 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
     {!draft && thread.length <= 1 && <div className="draft-example"><span>NEED A STARTING POINT?</span><button type="button" onClick={() => setPrompt(EXAMPLE)} disabled={busy !== null}>Use a registration example ↗</button></div>}
     {finished && <button className="btn btn-ghost draft-start-again" type="button" onClick={reset}>Start another form →</button>}
 
-    {draft && <>
-      <Review draft={draft} operationCost={operationCost} />
-      {draft.status === 'ready' && <section className="draft-controls" aria-label="Review actions">
-        {!pending && <div className="draft-review-actions"><button type="button" className="btn btn-accent" onClick={() => void confirm()} disabled={busy !== null}>{busy === 'creating' ? 'Creating your form…' : 'Create form →'}</button><button type="button" className="btn btn-ghost" onClick={() => setEditing(value => !value)} disabled={busy !== null}>Edit with Intake</button><button type="button" className="draft-cancel" onClick={() => void cancel()} disabled={busy !== null}>{busy === 'cancelling' ? 'Discarding…' : 'Cancel'}</button></div>}
-        {busy === 'creating' && <p className="forms-progress" role="status"><span className="spin sm" /> Google is building your form. This can take several seconds. Keep this page open.</p>}
-        <p className="forms-help">Nothing has been sent to Google yet. Creating requires your confirmation, and this draft can only be submitted once.</p>
-        {editing && !pending && <form className="draft-revision" onSubmit={submitRevision} aria-busy={busy === 'revising'}><label htmlFor="revision-request">What would you change?</label><textarea id="revision-request" value={revision} onChange={event => setRevision(event.target.value)} disabled={busy !== null} maxLength={3000} required placeholder="e.g. Make email optional, then move phone number below it." /><div className="forms-actions"><button className="btn btn-accent btn-sm" type="submit" disabled={busy !== null || !revision.trim()}>{busy === 'revising' ? 'Applying your change…' : 'Apply change →'}</button>{busy === 'revising' && <span className="forms-progress" role="status">Updating the draft only. Google has not been contacted.</span>}</div></form>}
-      </section>}
-      {blocked && <div className="form-banner warn draft-feedback" role="alert"><strong>Do not create this draft again.</strong><p>{draft.status === 'creating' ? 'Creation was started, but Intake has not confirmed its outcome. It may still be running. Check Recent forms and Google Forms before starting a new draft.' : 'The creation attempt had a partial or uncertain outcome. Check the result and Google Forms; Intake will not submit this draft again.'}</p><div className="draft-recovery-actions"><button className="btn btn-ghost btn-sm" type="button" disabled={busy !== null} onClick={() => void loadDraft(draft.id)}>Check draft status</button><button className="btn btn-ghost btn-sm" type="button" disabled={busy !== null} onClick={reset}>Start a different form after checking Google →</button></div></div>}
-      {result && <Outcome result={result} />}
-      {finished && <button className="btn btn-ghost draft-start-again" type="button" onClick={reset}>Start another form →</button>}
-    </>}
+    {blocked && draft && <div className="form-banner warn draft-feedback" role="alert"><strong>Do not create this draft again.</strong><p>{draft.status === 'creating' ? 'Creation was started, but Intake has not confirmed its outcome. It may still be running. Check Recent forms and Google Forms before starting a new draft.' : 'The creation attempt had a partial or uncertain outcome. Check the result and Google Forms; Intake will not submit this draft again.'}</p><div className="draft-recovery-actions"><button className="btn btn-ghost btn-sm" type="button" disabled={busy !== null} onClick={() => void loadDraft(draft.id)}>Check draft status</button><button className="btn btn-ghost btn-sm" type="button" disabled={busy !== null} onClick={reset}>Start a different form after checking Google →</button></div></div>}
 
     <section className="forms-recent" aria-labelledby="recent-forms-title">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>

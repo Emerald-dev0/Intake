@@ -34,3 +34,18 @@
 .draft-controls .forms-help { margin-top:16px; }.draft-revision { border-top:1px solid var(--line-2); margin-top:22px; padding-top:22px; }.draft-revision textarea { min-height:105px; font-size:14px; }.draft-revision .forms-actions { padding-top:14px; }
 .draft-result { padding:26px; }.draft-result > strong { font-size:24px; letter-spacing:-.04em; }.draft-start-again { margin-top:16px; }.draft-boundary { color:var(--cream-3); font-size:12px; line-height:1.6; margin:30px 0 0; }
 @media (max-width:650px) { .draft-steps { gap:8px; font-size:9px; justify-content:space-between; }.draft-provider-note { display:none; }.draft-panel-top > span:last-child { display:none; }.draft-review-head { flex-direction:column; }.draft-review-actions { align-items:stretch; }.draft-review-actions .btn { width:100%; }.draft-cancel { margin:4px auto; }.draft-input { min-height:210px; }.draft-input-foot { flex-direction:column; }.draft-input-foot span:last-child { text-align:right; } }
+
+/* ── Conversational thread: message bubbles plus a bottom composer. Bubbles reuse the
+   workspace paper/ink roles so both themes follow without extra rules. */
+.thread { display:flex; flex-direction:column; gap:10px; margin:22px 0 6px; }
+.msg { max-width:min(620px, 100%); padding:12px 15px; border-radius:13px; font-size:14px; line-height:1.6; overflow-wrap:anywhere; }
+.msg-user { align-self:flex-end; background:var(--ink-3); border:1px solid var(--line-2); border-bottom-right-radius:5px; color:var(--cream); white-space:pre-wrap; }
+.msg-intake { align-self:flex-start; background:var(--ink-2); border:1px solid var(--line); border-bottom-left-radius:5px; color:var(--cream-2); white-space:pre-wrap; }
+.msg-wide { align-self:stretch; max-width:100%; background:transparent; border:0; padding:0; white-space:normal; }
+.msg-typing { display:flex; align-items:center; gap:10px; }
+.thread-composer { position:sticky; bottom:12px; z-index:5; margin-top:14px; padding:16px; border:1px solid var(--line-2); border-radius:14px; background:color-mix(in srgb, var(--ink-1) 88%, transparent); backdrop-filter:blur(10px); }
+.thread-composer .draft-input { min-height:88px; }
+@media (max-width:650px) {
+  .msg { max-width:100%; font-size:13.5px; }
+  .thread-composer { bottom:8px; padding:12px; }
+}

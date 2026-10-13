@@ -88,7 +88,7 @@ async function mount({ handlers = {}, google = {}, recent = [], start = '/app/fo
   return page;
 }
 async function withPage(options, run) { const page = await mount(options); try { return await run(page); } finally { await page.unmount(); } }
-async function describe(page) { await page.type(page.$('#form-request'), 'Create a final-year project registration form with name, email and accommodation.'); await page.click(page.button('Understand my form →')); await page.until(() => page.$('#review-title'), 'draft review is visible'); }
+async function describe(page) { await page.type(page.$('#form-request'), 'Create a final-year project registration form with name, email and accommodation.'); await page.click(page.button('Send →')); await page.until(() => page.$('#review-title'), 'draft review is visible'); }
 
 // ------------------------------------------------------------------ describe, clarify, review
 
@@ -108,8 +108,8 @@ test('interpretation shows a loading state, then a readable review with routing 
   const pending = new Promise(ok => { resolve = ok; });
   return withPage({ handlers: { 'POST /api/forms/interpret': () => pending } }, async page => {
     await page.type(page.$('#form-request'), 'Register for my project');
-    await page.click(page.button('Understand my form →'));
-    assert.ok(page.button('Understanding your request…').disabled);
+    await page.click(page.button('Send →'));
+    assert.ok(page.button('Working…').disabled);
     assert.match(page.text(), /No form is being created yet/);
     assert.equal(page.posts('/confirm').length, 0);
     resolve(ready());
@@ -122,7 +122,7 @@ test('interpretation shows a loading state, then a readable review with routing 
     assert.match(page.$('.draft-review').textContent, /Science/);
     assert.match(page.$('.draft-review').textContent, /Google does not check email address format/);
     assert.ok(page.button('Create form →'));
-    assert.ok(page.button('Edit with Intake'));
+    assert.ok(page.button('Send change →'), 'the composer becomes the revision box once a draft is ready');
     assert.ok(page.button('Cancel'));
     assert.equal(page.posts('/confirm').length, 0, 'never auto-creates because a model returned a spec');
     assert.equal(sessionStorage.getItem('intake:current-form-draft'), ID);
@@ -134,11 +134,10 @@ test('clarification is a focused follow-up and its answer is sent with the origi
     ? json({ status: 'needs_clarification', question: 'Which departments should respondents choose from?' }) : ready(),
 } }, async page => {
   await page.type(page.$('#form-request'), 'List our departments.');
-  await page.click(page.button('Understand my form →'));
-  await page.until(() => page.$('#clarification-answer'), 'the question is displayed');
-  assert.match(page.text(), /Which departments/);
+  await page.click(page.button('Send →'));
+  await page.until(() => page.text().includes('Which departments'), 'the question is displayed as a thread message');
   assert.equal(page.posts('/confirm').length, 0);
-  await page.type(page.$('#clarification-answer'), 'Computer Science, Economics, Statistics');
+  await page.type(page.$('#form-request'), 'Computer Science, Economics, Statistics');
   await page.click(page.button('Continue →'));
   await page.until(() => page.$('#review-title'), 'a draft appears');
   const second = JSON.parse(page.posts('/interpret')[1].init.body);
@@ -154,12 +153,13 @@ test('unsupported requests and model failures are recoverable without inventing 
     : failure({ code: 'model_not_configured', error: 'GROQ_API_KEY is missing. Nothing was created.' }, 503),
 } }, async page => {
   await page.type(page.$('#form-request'), 'Collect a file');
-  await page.click(page.button('Understand my form →'));
+  await page.click(page.button('Send →'));
   assert.match(page.text(), /File uploads cannot be created/);
   assert.equal(page.$('#review-title'), null);
-  await page.click(page.button('Understand my form →'));
+  await page.type(page.$('#form-request'), 'Collect a file again');
+  await page.click(page.button('Send →'));
   assert.match(page.text(), /GROQ_API_KEY is missing/);
-  assert.ok(!page.button('Understand my form →').disabled);
+  assert.ok(!page.button('Send →').disabled);
   assert.equal(page.posts('/confirm').length, 0);
 }));
 
@@ -246,9 +246,8 @@ test('editing with Intake sends only the draft id/version and instruction; prese
   },
 } }, async page => {
   await describe(page);
-  await page.click(page.button('Edit with Intake'));
-  await page.type(page.$('#revision-request'), 'Make email optional and add a student ID question.');
-  await page.click(page.button('Apply change →'));
+  await page.type(page.$('#form-request'), 'Make email optional and add a student ID question.');
+  await page.click(page.button('Send change →'));
   await page.until(() => page.$$('.draft-item').length === SPEC.questions.length + 1, 'updated review');
   assert.match(page.$('.draft-review').textContent, /Student ID/);
   assert.equal(page.$$('.draft-item').find(item => item.textContent.includes('Email address')).textContent.includes('Optional'), true);
@@ -256,8 +255,7 @@ test('editing with Intake sends only the draft id/version and instruction; prese
   assert.match(revisionKey, /^[A-Za-z0-9_-]{8,64}$/);
   assert.deepEqual(revision, { draftId: ID, version: 1, request: 'Make email optional and add a student ID question.' });
   assert.equal(page.posts('/confirm').length, 0);
-  await page.click(page.button('Edit with Intake'));
-  assert.ok(page.$('#revision-request'), 'another revision can be requested');
+  assert.ok(page.button('Send change →'), 'another revision can be requested from the composer');
 }));
 
 test('a failed revision leaves the review and confirmation intact', () => withPage({ handlers: {
@@ -265,9 +263,8 @@ test('a failed revision leaves the review and confirmation intact', () => withPa
   'POST /api/forms/revise': () => failure({ error: 'Intake could not validate the interpretation.', code: 'model_invalid_output', outcome: 'not_created' }),
 } }, async page => {
   await describe(page);
-  await page.click(page.button('Edit with Intake'));
-  await page.type(page.$('#revision-request'), 'Add a date picker.');
-  await page.click(page.button('Apply change →'));
+  await page.type(page.$('#form-request'), 'Add a date picker.');
+  await page.click(page.button('Send change →'));
   assert.match(page.text(), /could not validate the interpretation/);
   assert.equal(page.$('#review-title').textContent, SPEC.title);
   assert.ok(page.button('Create form →'));
