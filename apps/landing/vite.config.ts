@@ -150,6 +150,7 @@ function siteMeta(siteUrl: string): Plugin {
         .replace('%CREATOR_DISPLAY_NAME%', escapeHtml(CREATOR.displayName))
         .replaceAll('%SITE_URL%', siteUrl)
         .replace('%STRUCTURED_DATA%', structuredData(siteUrl))
+        .replace('%GOOGLE_VERIFICATION%', (process.env.VITE_GOOGLE_VERIFICATION || '').replace(/[&<>"']/g, c => ({'&':'&','<':'<','>':'>','"':'"',"'":"'"}[c]!)))
         .replace('%NOSCRIPT_CONTENT%', noScriptContent());
     },
   };
