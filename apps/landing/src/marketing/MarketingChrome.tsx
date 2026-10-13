@@ -1,7 +1,6 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { CREATOR } from '../content/site';
 import { LogoMark } from '../components/LogoMark';
-import { ThemeToggle } from '../components/ThemeToggle';
 import { useScrolled, useScrollProgress } from './motion';
 
 export function StartLink({
@@ -78,7 +77,6 @@ export function MarketingNav({ authenticated }: { authenticated: boolean }) {
           </nav>
 
           <div className="mk-header__actions">
-            <ThemeToggle className="mk-theme-toggle" />
             {!authenticated && <a className="mk-sign-in" href="/auth/sign-in">Sign in</a>}
             <StartLink authenticated={authenticated} className="mk-button mk-button--primary mk-button--nav" />
           </div>
@@ -114,7 +112,6 @@ export function MarketingNav({ authenticated }: { authenticated: boolean }) {
             </a>
           ))}
           <div className="mk-sheet__actions">
-            <ThemeToggle menuItem className="mk-sheet__theme" />
             {!authenticated && <a className="mk-button mk-button--secondary" href="/auth/sign-in" onClick={() => setMenuOpen(false)}>Sign in</a>}
             <StartLink authenticated={authenticated} className="mk-button mk-button--primary" />
           </div>
@@ -188,7 +185,8 @@ export function MarketingFooter({ authenticated }: { authenticated: boolean }) {
         </div>
 
         <div className="mk-footer__maker">
-          <p><strong>A note from the maker.</strong> Intake is built by {CREATOR.displayName} — one developer who got tired of setting up the same form questions by hand. Every decision favors your control: you approve each question, your forms stay in your Google account, and the free plan is actually free. If something breaks or confuses you, write to <a href="mailto:support@intake.calder.click">support@intake.calder.click</a> — a human reads everything.</p>
+          <p><strong>Support.</strong> Write to <a href="mailto:support@intake.calder.click">support@intake.calder.click</a> — a human reads everything.</p>
+          <p>You'll hear from the founder with regular updates.</p>
         </div>
 
         <div className="mk-footer__bottom">
