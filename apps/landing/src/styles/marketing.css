@@ -87,6 +87,23 @@ html[data-theme='light'] .marketing-page {
   --mk-shadow-3: 0 60px 130px -50px rgba(27, 26, 23, .4);
 }
 
+/** Light theme: hardcoded dark surfaces become paper cards; light-ink accents go terracotta. */
+html[data-theme='light'] .mk-sheet__panel,
+html[data-theme='light'] .mk-product-preview,
+html[data-theme='light'] .mk-workflow-compare,
+html[data-theme='light'] .mk-reveal.mk-price-card {
+  background: #fffdf9;
+}
+html[data-theme='light'] .mk-reveal.mk-price-card--pro {
+  background: linear-gradient(180deg, rgba(240, 78, 18, .07), rgba(240, 78, 18, 0) 60%), #fffdf9;
+}
+html[data-theme='light'] .mk-editing__request > span,
+html[data-theme='light'] .mk-edit-proposal__change > span { color: #9a5a30; }
+html[data-theme='light'] .mk-edit-proposal .mk-review-card__head,
+html[data-theme='light'] .mk-edit-proposal__note { color: #5f594e; }
+html[data-theme='light'] .mk-workflow-compare__column--intake .mk-eyebrow { color: #b34416; }
+html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
+
 .marketing-page [id] { scroll-margin-top: 92px; }
 .marketing-page :focus-visible { outline: 2px solid var(--mk-accent); outline-offset: 3px; }
 .marketing-page img, .marketing-page svg { max-width: 100%; }
