@@ -28,6 +28,7 @@ import { createCreditRouter } from './credits/routes';
 import { createFormEditInterpreter, createFormInterpreter } from './forms/interpretation/provider-interpreter';
 import { createFormDraftRouter } from './forms/interpretation/routes';
 import { createPostgresRateLimitStore } from './security/rate-limit';
+import { listWaitlist } from './waitlist';
 import { createSignInRouter } from './sign-in/routes';
 import { readAuthenticationMethods } from './sign-in/account-methods';
 import { logSafe } from './providers/oauth';
@@ -139,6 +140,18 @@ const adminStore = createPostgresAdminStore(pool, providerEnv);
 // so a dashboard save takes effect for grants and checkout immediately.
 bindBillingSettingsStore(createPostgresBillingSettingsStore(pool));
 app.use('/api/admin', createAdminRouter({ store: adminStore, getSession, rateLimiter: abuseLimiter, env: providerEnv, settings: billingSettings }));
+// Wait‑list API
+app.get('/api/admin/waitlist', async (_req, res) => {
+  const data = await listWaitlist();
+  res.json(data);
+});
+// Redirect sign‑up and sign‑in to the wait‑list page
+app.get('/auth/sign-up', async (_req, res) => {
+  res.redirect(301, '/waitlist');
+});
+app.get('/auth/sign-in', async (_req, res) => {
+  res.redirect(301, '/waitlist');
+});
 // Public, privacy-first engagement ingress. No auth, no cookies, no identifiers: the payload
 // carries only an allowlisted path, a click label, a referrer hostname and UTM tags.
 app.use('/api/analytics', createAnalyticsRouter({ store: createPostgresAnalyticsStore(pool), rateLimiter: abuseLimiter }));

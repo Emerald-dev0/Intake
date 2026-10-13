@@ -78,7 +78,9 @@ export function MarketingNav({ authenticated }: { authenticated: boolean }) {
 
           <div className="mk-header__actions">
             {!authenticated && <a className="mk-sign-in" href="/auth/sign-in">Sign in</a>}
-            <StartLink authenticated={authenticated} className="mk-button mk-button--primary mk-button--nav" />
+            <a className="mk-button mk-button--primary mk-button--nav" href="/waitlist">
+              Join the wait‑list
+            </a>
           </div>
 
           <button

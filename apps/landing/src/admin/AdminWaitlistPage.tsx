@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { fetchWaitlist, removeWaitlist } from '../../server/admin/adminWaitlist';
+import { listWaitlist, removeWaitlist } from '../../server/admin/adminWaitlist';
 
 export default function AdminWaitlistPage() {
   const [list, setList] = useState<{ id: string; email: string; createdAt: Date }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchWaitlist().then((data) => {
+    listWaitlist().then((data) => {
       setList(data);
       setLoading(false);
     });
