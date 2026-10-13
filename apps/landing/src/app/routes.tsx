@@ -12,6 +12,7 @@ const LibraryPage = lazy(() => import('./pages/LibraryPage').then(m => ({ defaul
 const AccountPage = lazy(() => import('./pages/AccountPage').then(m => ({ default: m.AccountPage })));
 const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage').then(m => ({ default: m.VerifyEmailPage })));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
+const WaitlistPage = lazy(() => import('./WaitlistPage'));
 const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ default: m.PricingPage })));
 const VsPage = lazy(() => import('../marketing/MarketingPages').then(m => ({ default: m.VsPage })));
 const TemplatesPage = lazy(() => import('../marketing/MarketingPages').then(m => ({ default: m.TemplatesPage })));
@@ -50,6 +51,7 @@ export const routes: RouteObject[] = [
   { path: '/terms', element: <TermsPage /> },
   { path: '/auth/sign-in', element: <AuthPage key="sign-in" /> },
   { path: '/auth/sign-up', element: <AuthPage key="sign-up" signUp /> },
+  { path: '/waitlist', element: <WaitlistPage /> },
   { path: '/auth/verify', element: <VerifyEmailPage /> },
   { path: '/auth/reset-password', element: <ResetPasswordPage /> },
   { path: '/admin', element: <AdminGate />, children: [
