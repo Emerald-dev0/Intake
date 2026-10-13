@@ -93,12 +93,45 @@ function connectionLine(google: PublicProvider | undefined): string {
   return 'Not connected';
 }
 
-async function post(path: string, data: unknown): Promise<{ status: number; body: unknown }> {
-  const response = await fetch(path, {
-    method: 'POST', credentials: 'same-origin', cache: 'no-store',
-    headers: { accept: 'application/json', 'content-type': 'application/json' }, body: JSON.stringify(data),
-  });
-  return { status: response.status, body: await response.json().catch(() => null) as unknown };
+/**
+ * Cold-start-aware POST. The free API tier sleeps after ~15 minutes idle and needs up to a
+ * minute to wake: one attempt gets 75 seconds, and network failures, timeouts and 502/503/429
+ * get exactly one automatic retry (all Intake mutations are idempotent — operation ids for
+ * interpret/revise, version gating for confirm — so a retried submission can never double-apply
+ * or double-charge). `onWake` fires when the first attempt looks like a sleeping server so the
+ * thread can say so honestly instead of failing.
+ */
+async function post(
+  path: string,
+  data: unknown,
+  options: { onWake?: () => void; retry?: boolean } = {},
+): Promise<{ status: number; body: unknown }> {
+  const asleep: (status: number) => boolean = status => status === 502 || status === 503 || status === 429;
+  // Confirmation is never retried: creating a Google Form is the one irreversible action, and an
+  // ambiguous drop must be checked by the user, not re-fired. Interpret/revise are model reads
+  // under idempotency keys, so one wake retry is safe there.
+  const attempts = options.retry ? 2 : 1;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 75_000);
+    // Never hold a test runner or a background tab hostage for an abandoned request.
+    (timer as unknown as { unref?: () => void }).unref?.();
+    try {
+      const response = await fetch(path, {
+        method: 'POST', credentials: 'same-origin', cache: 'no-store',
+        headers: { accept: 'application/json', 'content-type': 'application/json' }, body: JSON.stringify(data),
+        signal: controller.signal,
+      });
+      const body = await response.json().catch(() => null) as unknown;
+      if (!asleep(response.status)) return { status: response.status, body };
+    } catch {
+      // Network failure or timeout: fall through to the wake retry below.
+    } finally {
+      clearTimeout(timer);
+    }
+    if (attempt === 1) options.onWake?.();
+  }
+  throw new Error('Intake could not be reached after two attempts.');
 }
 
 export function Forms({ providers, reloadProviders }: { providers: ProviderLoad; reloadProviders: () => void }) {
@@ -114,6 +147,7 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
   const [draft, setDraft] = useState<PublicDraft | null>(null);
   const [draftId, setDraftId] = useState(savedId);
   const [busy, setBusy] = useState<Busy>(draftId ? 'loading' : null);
+  const [waking, setWaking] = useState(false);
   const busyRef = useRef(false); // guard two click handlers before React renders the disabled state
   const [, setFailure] = useState<FormFailure | null>(null);
   const [, setUnsupported] = useState('');
@@ -170,7 +204,7 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
       if (alive.current) setFailure({ error: 'Could not load your draft. Nothing was changed. Try checking its status again.', code: 'storage_unavailable', requestId: '', outcome: 'not_created' });
     } finally {
       busyRef.current = false;
-      if (alive.current) setBusy(null);
+      if (alive.current) { setBusy(null); setWaking(false); }
     }
   }
   useEffect(() => { if (draftId) void loadDraft(draftId); }, []);
@@ -188,7 +222,8 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
     try {
       const { status, body } = await post(mode === 'new' ? '/api/forms/interpret' : '/api/forms/revise',
         mode === 'new' ? { provider: 'google', request, operationId, ...(clarification ? { clarification } : {}) }
-          : { draftId: draft!.id, version: draft!.version, request, operationId, ...(clarification ? { clarification } : {}) });
+          : { draftId: draft!.id, version: draft!.version, request, operationId, ...(clarification ? { clarification } : {}) },
+        { retry: true, onWake: () => { if (alive.current) setWaking(true); } });
       if (!alive.current) return;
       operations.settle();
       credits.note(body);
@@ -220,7 +255,7 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
       if (alive.current) setFailure({ error: 'Intake could not confirm the interpretation result. No Google Form was created by this step. If you were revising, check the draft status before trying again.', code: 'model_unavailable', requestId: '', outcome: 'not_created', retryable: true });
     } finally {
       busyRef.current = false;
-      if (alive.current) setBusy(null);
+      if (alive.current) { setBusy(null); setWaking(false); }
     }
   }
 
@@ -269,7 +304,8 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
     setFailure(null);
     setResult(null);
     try {
-      const { status, body } = await post('/api/forms/confirm', { draftId: draft.id, version: draft.version, confirm: true });
+      const { status, body } = await post('/api/forms/confirm', { draftId: draft.id, version: draft.version, confirm: true },
+        { onWake: () => { if (alive.current) setWaking(true); } });
       if (!alive.current) return;
       const parsed = parseConfirmedResponse(status, body);
       setResult(parsed.result);
@@ -289,7 +325,7 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
       }
     } finally {
       busyRef.current = false;
-      if (alive.current) setBusy(null);
+      if (alive.current) { setBusy(null); setWaking(false); }
     }
   }
 
@@ -315,11 +351,12 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
       }
     } finally {
       busyRef.current = false;
-      if (alive.current) setBusy(null);
+      if (alive.current) { setBusy(null); setWaking(false); }
     }
   }
 
   function reset() {
+    setWaking(false);
     remember(null);
     setDraftId(null);
     setDraft(null);
@@ -345,7 +382,9 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
     : connectionLine(google);
   const blocked = draft?.status === 'creating' || draft?.status === 'blocked';
   const finished = draft?.status === 'created';
-  const typingText = busy === 'interpreting'
+  const typingText = waking
+    ? 'Waking up the server — the free tier sleeps when idle and can take up to a minute. Holding on…'
+    : busy === 'interpreting'
     ? 'Intake is planning the questions. No form is being created yet.'
     : busy === 'revising'
       ? 'Updating the draft only. Google has not been contacted.'
@@ -439,7 +478,12 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
     <OperationCostReceipt receipt={operationCost} />
     <form className="thread-composer" onSubmit={submitComposer} aria-busy={busy !== null}>
       <label className="sr-only" htmlFor="form-request">{composerLabel}</label>
-      <textarea id="form-request" className="draft-input" placeholder={composerPlaceholder} value={prompt} onChange={event => setPrompt(event.target.value)} maxLength={3000} required disabled={busy !== null} />
+      <textarea id="form-request" className="draft-input" placeholder={composerPlaceholder} value={prompt} onChange={event => setPrompt(event.target.value)} maxLength={3000} required disabled={busy !== null} onKeyDown={event => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+          event.preventDefault();
+          (event.currentTarget.form as HTMLFormElement | null)?.requestSubmit();
+        }
+      }} />
       <div className="draft-input-foot"><span>{composerHint}</span><span>{prompt.length} / 3000</span></div>
       <div className="forms-actions">
         <button className="btn btn-accent" type="submit" disabled={busy !== null || !prompt.trim()}>{busy !== null ? 'Working…' : composerAction}</button>

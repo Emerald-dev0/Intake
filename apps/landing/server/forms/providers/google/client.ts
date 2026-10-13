@@ -43,7 +43,7 @@ async function limitedText(response: Response): Promise<string> {
   return new TextDecoder().decode(Buffer.concat(chunks));
 }
 
-export type GoogleFormsOperation = 'forms.create' | 'forms.get' | 'forms.batchUpdate' | 'forms.setPublishSettings';
+export type GoogleFormsOperation = 'forms.create' | 'forms.get' | 'forms.batchUpdate' | 'forms.setPublishSettings' | 'forms.listResponses';
 
 export interface GoogleFormResource {
   formId: string;
@@ -109,6 +109,13 @@ export interface GoogleFormsClient {
   getForm(accessToken: string, formId: string): Promise<GoogleFormResource>;
   batchUpdate(accessToken: string, formId: string, requests: readonly GoogleRequest[], writeControl?: { requiredRevisionId: string }): Promise<{ replies: unknown[] }>;
   setPublishSettings(accessToken: string, formId: string, state: { isPublished: boolean; isAcceptingResponses: boolean }): Promise<PublishStateResponse>;
+  listResponses(accessToken: string, formId: string, pageToken?: string): Promise<GoogleFormResponsesPage>;
+}
+
+/** One page of answers, normalized to plain strings. Raw respondent payloads never leave this module. */
+export interface GoogleFormResponsesPage {
+  answers: Array<Record<string, string[]>>;
+  nextPageToken: string | null;
 }
 
 export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
@@ -200,7 +207,52 @@ export function createGoogleFormsClient(options: { fetchImpl?: FetchLike; timeou
         isAcceptingResponses: typeof published?.isAcceptingResponses === 'boolean' ? published.isAcceptingResponses : null,
       };
     },
+
+    async listResponses(accessToken, formId, pageToken) {
+      if (pageToken !== undefined && (typeof pageToken !== 'string' || !pageToken || pageToken.length > 2000)) {
+        throw new GoogleFormsApiError({ operation: 'forms.listResponses', kind: 'malformed_response' });
+      }
+      const json = await call(
+        'forms.listResponses',
+        accessToken,
+        `${formPath('forms.listResponses', formId)}/responses`,
+        undefined,
+        { pageSize: '200', ...(pageToken ? { pageToken } : {}) },
+        'GET',
+      );
+      return parseResponsesPage(json);
+    },
   };
+}
+
+/** Copy out only question ids mapped to plain answer strings, bounded per value. */
+function parseResponsesPage(json: Record<string, unknown>): GoogleFormResponsesPage {
+  const raw = Array.isArray(json.responses) ? json.responses : [];
+  if (raw.length > 200) throw new GoogleFormsApiError({ operation: 'forms.listResponses', kind: 'malformed_response' });
+  const answers: Array<Record<string, string[]>> = [];
+  for (const entry of raw) {
+    const record = asRecord(entry);
+    const answerMap = record ? asRecord(record.answers) : null;
+    if (!answerMap) continue;
+    const normalized: Record<string, string[]> = {};
+    for (const [questionId, value] of Object.entries(answerMap)) {
+      if (!validItemId(questionId)) continue;
+      const answer = asRecord(value);
+      const textAnswers = answer ? asRecord(answer.textAnswers) : null;
+      const list = textAnswers && Array.isArray(textAnswers.answers) ? textAnswers.answers : [];
+      const values: string[] = [];
+      for (const item of list.slice(0, 10)) {
+        const candidate = asRecord(item)?.value;
+        if (typeof candidate === 'string' && candidate.trim() && candidate.length <= 2000) values.push(candidate);
+      }
+      if (values.length) normalized[questionId] = values;
+    }
+    answers.push(normalized);
+  }
+  const nextPageToken = typeof json.nextPageToken === 'string' && json.nextPageToken && json.nextPageToken.length <= 2000
+    ? json.nextPageToken
+    : null;
+  return { answers, nextPageToken };
 }
 
 function validItemId(value: unknown): value is string {

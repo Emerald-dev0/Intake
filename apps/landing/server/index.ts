@@ -16,6 +16,8 @@ import { createPostgresFormEditDraftStore } from './forms/edit-postgres-store';
 import { createFormEditRouter } from './forms/edit-routes';
 import { createInterpretationLimiter } from './forms/interpretation/routes';
 import { createFormsRouter } from './forms/routes';
+import { createInsightsRouter } from './forms/insights/routes';
+import { getProviderConnection } from './providers/service';
 import { createPostgresDraftStore } from './forms/draft-postgres-store';
 import { aiProviderLabel, resolveAiProvider } from './ai/registry';
 import { createAiOperationRunner } from './ai/operations';
@@ -216,6 +218,15 @@ app.use('/api/account/email', createAccountEmailRouter({
   hashKey: serverConfig.authSecret,
 }));
 app.use('/api/forms', createFormsRouter({ engine: formsEngine, getSession, env: providerEnv, abuseLimiter, allowDirectCreation: false }));
+// Response insights: computed summaries, never stored. Mounted after the forms
+// router; its single-segment :id routes cannot swallow the two-segment path.
+app.use('/api/forms', createInsightsRouter({
+  getSession,
+  getForm: (userId, id) => formsEngine.getForm(userId, id).then(outcome => (outcome.ok ? { ok: true as const, form: outcome.form } : { ok: false as const })),
+  entitlement: userId => creditService.entitlement(userId),
+  getConnection: (userId, provider) => getProviderConnection(userId, provider),
+  abuseLimiter,
+}));
 /**
  * Password reset: Better Auth generates, stores, expires and single-uses the token; Intake sends the
  * email. The link always points at Intake. The idempotency key hashes the token so a reset token is

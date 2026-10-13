@@ -27,6 +27,18 @@ const RATE_WINDOW_MS = 10 * 60 * 1000;
 const RATE_LIMIT = 8;
 const MSA_TENANT = '9188040d-6c67-4c5b-b112-36a304b66dad';
 
+/**
+ * Scopes a signed-in user may add to an existing grant through the extend
+ * endpoint. Must stay equal to FORMS_RESPONSES_READONLY_SCOPE in
+ * server/forms/providers/google/adapter.ts; a test checks both directions so
+ * the default connect set can never silently grow.
+ */
+const OPTIONAL_SCOPES = ['https://www.googleapis.com/auth/forms.responses.readonly'] as const;
+type OptionalScope = (typeof OPTIONAL_SCOPES)[number];
+
+/** The one scope the extend endpoint may add. Exported so the route cannot invent its own. */
+export const RESPONSES_READONLY_SCOPE: OptionalScope = OPTIONAL_SCOPES[0];
+
 export interface SessionUser {
   id: string;
   email: string;
@@ -49,7 +61,7 @@ export interface ProviderDeps {
 
 export interface ProviderService {
   list(userId: string): Promise<PublicProvider[]>;
-  start(userId: string, provider: ProviderId): Promise<{ ok: true; url: string } | { ok: false; result: ResultCode }>;
+  start(userId: string, provider: ProviderId, extraScopes?: string[]): Promise<{ ok: true; url: string } | { ok: false; result: ResultCode }>;
   complete(userId: string, provider: ProviderId, query: CallbackQuery): Promise<{ result: ResultCode; revocation?: RevocationOutcome }>;
   disconnect(userId: string, provider: ProviderId): Promise<{ result: ResultCode; revocation: RevocationOutcome }>;
   getAuthorizedConnection(userId: string, provider: string): Promise<AuthorizedConnection>;
@@ -109,8 +121,8 @@ export function createProviderService(deps: ProviderDeps): ProviderService {
 
   return {
     list: userId => listProviders(deps, userId, now()),
-    start(userId, provider) {
-      return startAuthorization(deps, userId, provider, now(), allow);
+    start(userId, provider, extraScopes = []) {
+      return startAuthorization(deps, userId, provider, now(), allow, extraScopes);
     },
     complete(userId, provider, query) {
       return completeAuthorization(deps, userId, provider, query, now());
@@ -201,7 +213,7 @@ async function listProviders(deps: ProviderDeps, userId: string, at: Date): Prom
   });
 }
 
-async function startAuthorization(deps: ProviderDeps, userId: string, provider: ProviderId, at: Date, allow: (userId: string, now: number) => boolean): Promise<{ ok: true; url: string } | { ok: false; result: ResultCode }> {
+async function startAuthorization(deps: ProviderDeps, userId: string, provider: ProviderId, at: Date, allow: (userId: string, now: number) => boolean, extraScopes: string[] = []): Promise<{ ok: true; url: string } | { ok: false; result: ResultCode }> {
   const definition = providerDefinition(provider, deps.env);
   if (definition.configurationError) return { ok: false, result: 'not_configured' };
   const origin = publicOrigin(deps.env.BETTER_AUTH_URL);
@@ -227,7 +239,10 @@ async function startAuthorization(deps: ProviderDeps, userId: string, provider: 
     endpoint: definition.authorizationEndpoint,
     clientId,
     redirectUri: callback,
-    scopes: definition.scopes,
+    // Incremental authorization: extra scopes merge into the existing grant
+    // (include_granted_scopes), so enabling response summaries never disturbs
+    // the forms.body grant. Only allowlisted optional scopes are accepted.
+    scopes: [...definition.scopes, ...extraScopes.filter(scope => OPTIONAL_SCOPES.includes(scope as OptionalScope))],
     state,
     nonce,
     codeChallenge: challenge,

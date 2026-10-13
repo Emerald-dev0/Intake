@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { isProviderId, isResultCode, isRevocationOutcome, type ProviderId, type ResultCode, type RevocationOutcome } from '../../src/lib/connections';
 import { logSafe, publicOrigin } from './oauth';
-import { createProviderService, storageResult, type ProviderDeps, type ProviderService, type SessionUser } from './service';
+import { createProviderService, storageResult, RESPONSES_READONLY_SCOPE, type ProviderDeps, type ProviderService, type SessionUser } from './service';
 import { consumeRequestLimit, setRateLimitHeaders, type AbuseScope, type RateLimitStore } from '../security/rate-limit';
 
 const FORBIDDEN_KEYS = new Set([
@@ -57,6 +57,26 @@ export function createProviderRouter(deps: ProviderRouterDeps): Router {
     if (!await allowExpensive(req, res, user.id, 'oauth.start')) return;
     try {
       const started = await deps.service.start(user.id, provider);
+      if (!started.ok) return redirect(res, provider, started.result);
+      return res.redirect(303, started.url);
+    } catch (error) {
+      return redirect(res, provider, storageResult(error));
+    }
+  });
+
+  // Incremental grant: adds response-summary reading to the existing Forms
+  // connection without touching it. Google merges the scope
+  // (include_granted_scopes); declining keeps the current grant untouched.
+  router.post('/:provider/extend', async (req, res) => {
+    const provider = providerParam(req);
+    if (!provider) return redirect(res, null, 'unsupported_provider');
+    if (provider !== 'google') return redirect(res, provider, 'unsupported_provider');
+    const user = await session(deps, req, res);
+    if (!user) return;
+    if (!trustedMutation(req, deps.env)) return res.status(403).json({ error: 'Request was rejected.' });
+    if (!await allowExpensive(req, res, user.id, 'oauth.start')) return;
+    try {
+      const started = await deps.service.start(user.id, provider, [RESPONSES_READONLY_SCOPE]);
       if (!started.ok) return redirect(res, provider, started.result);
       return res.redirect(303, started.url);
     } catch (error) {

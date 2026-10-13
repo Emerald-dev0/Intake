@@ -90,11 +90,12 @@ function googleDefinition(): ProviderDefinition {
     identity: { type: 'google-userinfo', url: 'https://openidconnect.googleapis.com/v1/userinfo' },
     revocation: { type: 'google', url: 'https://oauth2.googleapis.com/revoke' },
     formsApi: 'supported',
-    formsNote: 'Intake uses the Google Forms API to create forms in this account. It cannot read responses or your Drive files.',
+    formsNote: 'Intake uses the Google Forms API to create forms in this account. It cannot read responses unless you separately enable response summaries.',
     scopeLabels: {
       openid: 'Confirm the Google account you connect',
       email: 'See the email address of that Google account',
       'https://www.googleapis.com/auth/forms.body': 'Create and edit your Google Forms',
+      'https://www.googleapis.com/auth/forms.responses.readonly': 'Read response summaries for your forms (only if you enable them)',
     },
     permissionLinks: [{ label: 'Google account permissions', href: 'https://myaccount.google.com/permissions' }],
     sendScopesOnRefresh: false,

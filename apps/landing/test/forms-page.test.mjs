@@ -103,6 +103,36 @@ test('the protected workspace starts with natural language, never a JSON editor 
   assert.equal(page.posts('/confirm').length, 0);
 }));
 
+test('Enter sends the composer like the button; Shift+Enter keeps a newline', () => withPage({ handlers: {
+  'POST /api/forms/interpret': () => ready(),
+} }, async page => {
+  await page.type(page.$('#form-request'), 'Line one');
+  const box = page.$('#form-request');
+  await act(async () => { box.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); });
+  await page.until(() => page.$('#review-title'), 'Enter submits the description');
+  assert.match(page.text(), /Final Year Project Registration/);
+}));
+
+test('a sleeping server gets one automatic retry with an honest waking note, not an error', () => withPage({ handlers: {
+  'POST /api/forms/interpret': (_init, calls) => calls.filter(call => call.url === '/api/forms/interpret').length === 1
+    ? (async () => { throw new Error('socket hang up'); })()
+    : (async () => {
+      // Hold the recovery until the waking note has painted, so the test observes
+      // narration deterministically instead of racing an instant retry.
+      for (let i = 0; i < 50 && !document.body.textContent.includes('Waking up the server'); i++) {
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      return ready();
+    })(),
+} }, async page => {
+  await page.type(page.$('#form-request'), 'Register for my project');
+  await page.click(page.button('Send →'));
+  await page.until(() => page.text().includes('Waking up the server'), 'the retry is narrated, not silent');
+  await page.until(() => page.$('#review-title'), 'the retried submission produces a review');
+  assert.equal(page.posts('/interpret').length, 2, 'exactly one wake retry');
+  assert.ok(!page.text().includes('could not confirm'), 'no failure bubble for a healed request');
+}));
+
 test('interpretation shows a loading state, then a readable review with routing and warnings; Google is untouched', () => {
   let resolve;
   const pending = new Promise(ok => { resolve = ok; });
