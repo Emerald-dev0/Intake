@@ -1,4 +1,5 @@
 import type { RequestHandler } from 'express';
+// @ts-ignore
 import { chromium } from 'playwright';
 
 export const getOGPNG: RequestHandler = async (req, res) => {
