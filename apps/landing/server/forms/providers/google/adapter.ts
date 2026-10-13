@@ -14,6 +14,8 @@ import { buildGoogleQuestionItem, buildInitialBatch, buildRoutingBatch, countQue
 
 /** Must stay equal to the required scope in server/providers/registry.ts; a test checks it. */
 export const FORMS_BODY_SCOPE = 'https://www.googleapis.com/auth/forms.body';
+/** Optional, opt-in scope for response summaries. Never requested by default; a test checks it stays out of the default set. */
+export const FORMS_RESPONSES_READONLY_SCOPE = 'https://www.googleapis.com/auth/forms.responses.readonly';
 
 export interface GoogleFormsProviderDeps {
   /** The existing provider connection service. Refreshes an expired access token itself. */
