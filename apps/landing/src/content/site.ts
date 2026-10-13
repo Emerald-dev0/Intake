@@ -13,8 +13,8 @@ function viteSiteUrl(): string | undefined {
 export const SITE_URL = normalizeSiteUrl(viteSiteUrl(), DEFAULT_SITE_URL);
 
 export const SITE_NAME = 'Intake';
-export const HOMEPAGE_TITLE = 'Intake — Google Forms, built from a sentence';
-export const META_DESCRIPTION = 'Describe the form you need. Intake shows you every question it will ask, you change what you like, and the form appears in your own Google Forms account.';
+export const HOMEPAGE_TITLE = 'Intake, AI Google Forms builder — describe it, review it, done';
+export const META_DESCRIPTION = 'Intake is an AI tool that creates and edits Google Forms from a plain-English description. Free plan includes 20 daily credits. You approve every question before anything is created.';
 export const PRODUCT_DESCRIPTION = 'Intake turns a plain-English description into a real Google Form. You see the questions before anything is created, adjust them, and confirm when the form is ready.';
 
 export const CREATOR = {
@@ -66,14 +66,140 @@ export const PROMPT_EXAMPLES = [
   'Make every question optional except the first',
 ] as const;
 
+/** Worked example proposals for the signup-free hero demo. Clearly labelled as examples. */
+export interface DemoQuestion { title: string; kind: string; detail?: string }
+export interface DemoProposal { prompt: string; questions: DemoQuestion[] }
+export const HERO_DEMO_PROMPTS: DemoProposal[] = [
+  {
+    prompt: 'RSVP for my birthday',
+    questions: [
+      { title: 'Your name', kind: 'Short answer' },
+      { title: 'How many people are coming?', kind: 'Multiple choice', detail: 'Just me · Me + 1 · Me + 2 · A crowd' },
+      { title: 'Dietary needs or allergies', kind: 'Paragraph' },
+      { title: 'Song request for the playlist', kind: 'Short answer' },
+    ],
+  },
+  {
+    prompt: 'Customer feedback survey',
+    questions: [
+      { title: 'Overall satisfaction', kind: 'Multiple choice', detail: 'Very satisfied · Satisfied · Neutral · Dissatisfied' },
+      { title: 'What did you like most?', kind: 'Paragraph' },
+      { title: 'What could we improve?', kind: 'Paragraph' },
+      { title: 'Would you recommend us?', kind: 'Multiple choice', detail: 'Yes · No' },
+    ],
+  },
+  {
+    prompt: 'Student club sign-up',
+    questions: [
+      { title: 'Full name', kind: 'Short answer' },
+      { title: 'Email address', kind: 'Short answer' },
+      { title: 'Department', kind: 'Dropdown', detail: 'Sciences · Arts · Engineering · Other' },
+      { title: 'Which teams interest you?', kind: 'Checkboxes', detail: 'Events · Media · Outreach · Welfare' },
+    ],
+  },
+];
+
+/** The before/after proof: one prompt, the question list it produced. */
+export const PROOF_EXAMPLE: DemoProposal = {
+  prompt: 'Teacher parent check-in: ask who the student is, how contactable the parent is, and whether anything changed at home this term.',
+  questions: [
+    { title: "Student's full name", kind: 'Short answer' },
+    { title: 'Class', kind: 'Dropdown', detail: 'JSS 1 · JSS 2 · JSS 3 · SS 1 · SS 2 · SS 3' },
+    { title: 'Best number to reach you on', kind: 'Short answer' },
+    { title: 'Preferred contact time', kind: 'Multiple choice', detail: 'Morning · Afternoon · Evening' },
+    { title: 'Anything changed at home this term we should know about?', kind: 'Paragraph' },
+  ],
+};
+
+export interface UseCase { audience: string; headline: string; body: string; prompt: string }
+export const USE_CASES: UseCase[] = [
+  {
+    audience: 'Teachers',
+    headline: 'Quizzes and parent check-ins without the setup',
+    body: 'Class surveys, homework collection, and parent contact forms from one description. Required flags and answer types come out right.',
+    prompt: 'Weekly homework check for JSS 2 maths: name, class, which questions were hard, and what to revise',
+  },
+  {
+    audience: 'Event organizers',
+    headline: 'RSVPs that ask the follow-up questions for you',
+    body: 'Headcounts, dietary needs, plus-ones, and song requests. Branching handles the “if yes, then what” logic.',
+    prompt: 'RSVP for our end-of-year dinner: name, headcount, dietary needs, and a song request',
+  },
+  {
+    audience: 'HR teams',
+    headline: 'Onboarding and pulse surveys in minutes',
+    body: 'Department, role, satisfaction scales, and open feedback. Section routing keeps long surveys readable.',
+    prompt: 'New-hire onboarding survey with department, role, satisfaction rating, and what felt confusing',
+  },
+  {
+    audience: 'Clinics',
+    headline: 'Intake forms that respect the front desk',
+    body: 'Patient details, visit reason, and consent confirmations as clean required fields. Responses stay in your Google account.',
+    prompt: 'New patient visit form: full name, phone, reason for visit, and consent to be contacted',
+  },
+  {
+    audience: 'Student orgs',
+    headline: 'Sign-ups and feedback between lectures',
+    body: 'Club registration, event feedback, and election ballots described once and shared the same day.',
+    prompt: 'Drama club auditions sign-up: name, email, preferred role, and availability this weekend',
+  },
+];
+
+export interface CompareRow { label: string; intake: string; googleAi: string; typeformAi: string; chatgpt: string }
+export const COMPARISON_ROWS: CompareRow[] = [
+  { label: 'Lives in your Google account', intake: 'Yes — a real Google Form', googleAi: 'Yes', typeformAi: 'No — lives on Typeform', chatgpt: 'No — you copy text by hand' },
+  { label: 'You approve questions first', intake: 'Always, before anything exists', googleAi: 'Draft-first, then you fix it', typeformAi: 'Draft-first, then you fix it', chatgpt: 'No form at all, just text' },
+  { label: 'Edits your existing forms', intake: 'Yes, in place, no copies', googleAi: 'Limited', typeformAi: 'Within Typeform only', chatgpt: 'No — retype everything' },
+  { label: 'Free plan', intake: '$0, 20 credits daily', googleAi: 'Needs a paid Workspace plan', typeformAi: 'Free tier is limited', chatgpt: 'Free, but manual work' },
+  { label: 'Knows Google Forms features', intake: 'Sections, routing, required flags', googleAi: 'Native, but basic', typeformAi: 'Typeform features, not Google’s', chatgpt: 'Describes them; builds nothing' },
+];
+
+export interface ComingSoon { title: string; body: string }
+export const COMING_SOON: ComingSoon[] = [
+  { title: 'Responses inside Intake', body: 'Read answers and simple summaries without opening Google Forms.' },
+  { title: 'Telegram and WhatsApp', body: 'Describe a form from chat and get the link back in the same thread.' },
+  { title: 'Quiz mode', body: 'Self-marking quizzes with answer keys and points, from one description.' },
+];
+
+export interface ChangelogEntry { date: string; title: string; body: string }
+export const CHANGELOG: ChangelogEntry[] = [
+  { date: '2026-10-01', title: 'Launch', body: 'Intake opens: create and edit Google Forms from a description, with daily free credits for everyone.' },
+  { date: '2026-10-06', title: 'Welcome mail', body: 'Every new signup gets a personal welcome from Daniel, with the shipping cadence spelled out.' },
+  { date: '2026-10-12', title: 'Traffic analytics', body: 'Anonymous pageview and click analytics on the marketing site, with country reach that never touches IP addresses.' },
+];
+
 export const FAQS = [
   {
     question: 'What is Intake?',
-    answer: 'Intake builds Google Forms from a sentence. You describe what you want to collect, look over the questions it came up with, and confirm when it looks right. The finished form lives in your own Google account.',
+    answer: 'Intake is an AI tool that creates and edits Google Forms from a plain-English description. The Free plan includes 20 daily credits. You describe what you want to collect, look over the questions it came up with, and confirm when it looks right. The finished form lives in your own Google account, never on some other platform.',
+  },
+  {
+    question: 'Can AI create a Google Form?',
+    answer: 'Yes. Intake takes a sentence like “customer feedback survey with a rating and a comments box” and turns it into a real Google Form with typed questions, choices, and required flags. You review the full question list first and change anything, then confirm once. Creation happens only after your approval, and the form appears in your own Google account.',
+  },
+  {
+    question: 'How do I make a Google Form from text?',
+    answer: 'Write one description of what the form should collect, for example “RSVP for my birthday with name, headcount, and dietary needs”. Intake converts it into a proposed question list. Read it, adjust wording, drop or add questions, then confirm. Intake builds the Google Form for you in under a minute, without you touching the Forms editor at all.',
+  },
+  {
+    question: 'Is there a free AI Google Forms generator?',
+    answer: 'Intake is free during launch: $0 with 20 credits renewed every day, no card required. A standard form costs about 2 credits and a simple edit costs 1, so the daily allowance covers real daily use. You can even preview a proposed question list on the homepage without signing up; an account is only needed to create the form.',
   },
   {
     question: 'Do I need a Google account?',
     answer: 'Yes, because the form is created inside Google Forms. You sign in to Intake once, then connect the Google account you want the form to live in. The two steps are separate, so signing in never gives Intake access to your forms by itself.',
+  },
+  {
+    question: 'What permissions does Intake need?',
+    answer: 'Two separate ones. Signing in uses only your basic identity (name, email, profile) and never touches your forms. Creating and editing forms uses one extra scope, forms.body, which permits creating and editing forms you own. Intake never asks for Gmail, Drive, Calendar, Contacts, Sheets, or the right to read your responses, and you can disconnect either permission at any time.',
+  },
+  {
+    question: 'Can Intake read my form responses?',
+    answer: 'No. Intake does not request the responses scope, so it has no technical way to read answers submitted to your forms. Responses go straight to Google and land in the form you own, ready for the responses tab or Google Sheets. Intake only ever handles the form structure: titles, questions, choices, and settings.',
+  },
+  {
+    question: 'Do I need to sign up to try it?',
+    answer: 'Not to see how it works. The homepage prompt box shows you a proposed question list for sample requests with no account. Signing up is free and takes a minute, and you only need an account when you want Intake to actually create or edit a form in your Google account.',
   },
   {
     question: 'Can I change the questions before they are created?',

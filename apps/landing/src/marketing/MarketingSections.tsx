@@ -1,5 +1,6 @@
-import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { FAQS, PROMPT_EXAMPLES, WORKFLOW_STEPS } from '../content/site';
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import { FAQS, COMPARISON_ROWS, HERO_DEMO_PROMPTS, PROOF_EXAMPLE, PROMPT_EXAMPLES, USE_CASES, WORKFLOW_STEPS, type DemoProposal } from '../content/site';
 import { formatUsd } from '../lib/plans';
 import { useBillingPlans, comparePlanPrices } from '../lib/useBillingPlans';
 import { LogoMark } from '../components/LogoMark';
@@ -95,6 +96,104 @@ const HERO_QUESTIONS = [
   { title: 'What could we improve?', kind: 'Paragraph' },
   { title: 'Would you recommend us?', kind: 'Multiple choice', detail: 'Yes · No' },
 ] as const;
+
+/**
+ * Picks the closest worked example for whatever the visitor typed. Pure, so the
+ * homepage demo and its unit test share the exact same behaviour.
+ */
+export function demoProposalFor(text: string): DemoProposal {
+  const words = text.toLowerCase().split(/[^a-z]+/).filter(word => word.length > 2);
+  const HINTS: Array<[number, string[]]> = [
+    [0, ['birthday', 'rsvp', 'party', 'wedding', 'dinner', 'invite', 'guests']],
+    [1, ['feedback', 'customer', 'survey', 'satisfaction', 'review', 'recommend']],
+    [2, ['club', 'student', 'signup', 'sign', 'member', 'audition', 'school', 'volunteer']],
+  ];
+  let best = 1;
+  let bestScore = 0;
+  for (const [index, hints] of HINTS) {
+    const score = hints.filter(hint => words.includes(hint)).length;
+    if (score > bestScore) { bestScore = score; best = index; }
+  }
+  return HERO_DEMO_PROMPTS[best]!;
+}
+
+/**
+ * The conversion lever: type a request, see a proposed question list, no account.
+ * Proposals are worked examples, labelled as such; creating a real form needs
+ * the free account, and the call to action says exactly that.
+ */
+function HeroPromptBox({ authenticated }: { authenticated: boolean }) {
+  const [value, setValue] = useState('');
+  const [proposal, setProposal] = useState<DemoProposal | null>(null);
+
+  function run(event?: FormEvent) {
+    event?.preventDefault();
+    if (!value.trim()) return;
+    setProposal(demoProposalFor(value));
+  }
+  function tryPrompt(prompt: string) {
+    setValue(prompt);
+    setProposal(demoProposalFor(prompt));
+  }
+
+  return (
+    <div className="mk-hero-try mk-anim-in" style={{ '--d': '470ms' } as CSSProperties}>
+      <form className="mk-hero-try__form" onSubmit={run}>
+        <label htmlFor="mk-hero-prompt">Try it — no signup needed</label>
+        <div className="mk-hero-try__row">
+          <input
+            id="mk-hero-prompt"
+            type="text"
+            value={value}
+            onChange={event => setValue(event.target.value)}
+            placeholder="e.g. RSVP for my birthday"
+            maxLength={140}
+            autoComplete="off"
+          />
+          <button className="mk-button mk-button--primary" type="submit" disabled={!value.trim()}>
+            <span>See the questions</span>
+            <Arrow />
+          </button>
+        </div>
+      </form>
+      <div className="mk-hero-try__chips" role="group" aria-label="Example requests">
+        {HERO_DEMO_PROMPTS.map(item => (
+          <button key={item.prompt} type="button" onClick={() => tryPrompt(item.prompt)}>
+            “{item.prompt}”
+          </button>
+        ))}
+      </div>
+      {proposal && (
+        <div className="mk-hero-try__result" key={proposal.prompt} role="status">
+          <div className="mk-review-card">
+            <div className="mk-review-card__head">
+              <span>EXAMPLE PROPOSAL</span>
+              <span className="mk-chip mk-chip--warm">SAMPLE</span>
+            </div>
+            <ul className="mk-preview-questions">
+              {proposal.questions.map((question, index) => (
+                <li key={question.title} style={{ '--i': index } as CSSProperties}>
+                  <span className="mk-preview-question__number">{String(index + 1).padStart(2, '0')}</span>
+                  <span className="mk-preview-question__body">
+                    <strong>{question.title}</strong>
+                    <small>{question.kind}{question.detail ? ` · ${question.detail}` : ''}</small>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="mk-review-card__note"><Check /> Your real proposal works exactly like this — then you confirm.</div>
+          </div>
+          <div className="mk-hero-try__cta">
+            <StartLink authenticated={authenticated}>
+              {authenticated ? 'Open Intake' : 'Start free — create this for real'}
+            </StartLink>
+            <span>Free account · Creating a form needs sign-in, looking never does.</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ProductPreview() {
   const [mode, setMode] = useState<PreviewMode>('create');
@@ -321,12 +420,13 @@ export function Hero({ authenticated }: { authenticated: boolean }) {
             <span className="mk-hero__accent mk-anim-in" style={{ '--d': '240ms' } as CSSProperties}>It builds the form for you.</span>
           </h1>
           <p className="mk-hero__lede mk-anim-in" style={{ '--d': '340ms' } as CSSProperties}>
-            Say what you want to collect, in a sentence. You get the questions first, change whatever you like, and only then does the form appear in your Google account.
+            Intake is an AI tool that creates and edits Google Forms from a plain-English description. The Free plan includes 20 daily credits. Say what you want to collect, in a sentence: you get the questions first, change whatever you like, and only then does the form appear in your Google account.
           </p>
           <div className="mk-hero__actions mk-anim-in" style={{ '--d': '440ms' } as CSSProperties}>
             <StartLink authenticated={authenticated} />
             <a className="mk-button mk-button--secondary" href="#creation">See it work <Arrow /></a>
           </div>
+          <HeroPromptBox authenticated={authenticated} />
           <p className="mk-hero__trust mk-anim-in" style={{ '--d': '490ms' } as CSSProperties}>
             Free during launch · {plans.freeDailyCredits} credits daily · Lives in your Google account
           </p>
@@ -360,29 +460,95 @@ export function Hero({ authenticated }: { authenticated: boolean }) {
 
 const DIFFERENCES = [
   {
-    title: 'Write it, do not configure it',
-    text: 'Skip the question-by-question setup. One description covers the title, the questions, the choices and what is required.',
+    title: 'You approve every question before it exists',
+    text: 'Nothing is created, sent, or touched until you confirm the proposal. Rewrite, drop, add, or reorder — the form only becomes real when you say so.',
   },
   {
-    title: 'A real form in your account',
-    text: 'What gets created is a normal Google Form. Same links, same responses tab, same everything, because it is one.',
+    title: 'It edits your existing forms without making copies',
+    text: 'Point Intake at a form you already have and describe the change. It proposes the edit and applies it to that same form. No duplicates, no migration.',
   },
   {
-    title: 'Look before it lands',
-    text: 'The proposal comes first, every time. Read it, push back, adjust. Google Forms is not touched until you confirm.',
-  },
-  {
-    title: 'Works on forms you already have',
-    text: 'Point Intake at an existing form and ask for a change. It proposes the edit, and applies it to that same form.',
+    title: 'The form lives in your own Google account',
+    text: 'What gets created is a normal Google Form: same links, same responses tab, same Sheets integration. Your data never moves to another platform.',
   },
 ] as const;
+
+/**
+ * Types the example prompt character by character, then reveals the proposal.
+ * With reduced motion (or no JavaScript timing) the full text simply appears.
+ */
+function Typewriter({ text }: { text: string }) {
+  const [shown, setShown] = useState(text);
+  const [done, setDone] = useState(true);
+
+  useEffect(() => {
+    if (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    setShown('');
+    setDone(false);
+    let index = 0;
+    const timer = window.setInterval(() => {
+      index += 2;
+      setShown(text.slice(0, index));
+      if (index >= text.length) { window.clearInterval(timer); setDone(true); }
+    }, 36);
+    return () => window.clearInterval(timer);
+  }, [text]);
+
+  return (
+    <p>“{shown}{!done && <i className="mk-caret" aria-hidden="true" />}{done && <span className="mk-proof__done">Proposal ready ↓</span>}”</p>
+  );
+}
+
+/**
+ * Before/after proof: one prompt on the left, the question list it produced on
+ * the right. A worked example, not a live call — it replaces explaining with proof.
+ */
+export function ProofSection() {
+  return (
+    <section className="mk-section mk-proof" id="proof" aria-labelledby="mk-proof-title">
+      <div className="mk-container">
+        <SectionIntro eyebrow="PROOF, NOT PROMISES" titleId="mk-proof-title" title={<>One sentence in. A question list out.</>}>
+          This is a real example of what a description becomes. Type your own in the box above and see another.
+        </SectionIntro>
+        <div className="mk-proof__grid">
+          <Reveal className="mk-proof__before" variant="fade">
+            <div className="mk-request-card mk-request-card--large">
+              <span>BEFORE · THE PROMPT</span>
+              <Typewriter text={PROOF_EXAMPLE.prompt} />
+            </div>
+          </Reveal>
+          <Reveal className="mk-proof__after" delay={140} variant="rise">
+            <div className="mk-review-card">
+              <div className="mk-review-card__head">
+                <span>AFTER · THE PROPOSAL</span>
+                <span className="mk-chip mk-chip--warm">SAMPLE</span>
+              </div>
+              <ul className="mk-preview-questions">
+                {PROOF_EXAMPLE.questions.map((question, index) => (
+                  <li key={question.title} style={{ '--i': index } as CSSProperties}>
+                    <span className="mk-preview-question__number">{String(index + 1).padStart(2, '0')}</span>
+                    <span className="mk-preview-question__body">
+                      <strong>{question.title}</strong>
+                      <small>{question.kind}{question.detail ? ` · ${question.detail}` : ''}</small>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mk-review-card__note"><Check /> You would now rewrite, drop, or confirm each one.</div>
+            </div>
+          </Reveal>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export function DifferenceSection() {
   return (
     <section className="mk-section mk-difference" id="product" aria-labelledby="mk-difference-title">
       <div className="mk-container">
         <div className="mk-difference__intro">
-          <SectionIntro eyebrow="WHY INTAKE" titleId="mk-difference-title" title={<>Not another form builder.</>}>
+          <SectionIntro eyebrow="WHY INTAKE" titleId="mk-difference-title" title={<>Three things the others do not do.</>}>
             Intake does not move your forms somewhere new. It gives you a faster way to make and change the Google Forms you were always going to use.
           </SectionIntro>
           <Reveal className="mk-difference__aside" as="p" delay={120} variant="fade" fadeOut>
@@ -424,6 +590,50 @@ export function DifferenceSection() {
             </Reveal>
           ))}
         </ul>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Head-to-head against the obvious alternatives. Claims stay modest and checkable:
+ * native AI drafts inside someone else's product, a chatbot gives text — Intake
+ * builds reviewable Google Forms and edits them in place.
+ */
+export function CompareSection() {
+  return (
+    <section className="mk-section mk-compare" id="compare" aria-labelledby="mk-compare-title">
+      <div className="mk-container">
+        <SectionIntro eyebrow="INTAKE VS THE ALTERNATIVES" titleId="mk-compare-title" title={<>How does it compare?</>}>
+          The alternatives draft text or lock you into their platform. Intake builds the actual Google Form and lets you approve it first.
+        </SectionIntro>
+        <Reveal variant="rise">
+          <div className="mk-compare__scroll">
+            <table className="mk-compare__table">
+              <caption>Intake compared with Google&rsquo;s built-in AI help, Typeform AI, and asking a chatbot</caption>
+              <thead>
+                <tr>
+                  <th scope="col"><span className="mk-compare__th-label">Capability</span></th>
+                  <th scope="col" className="is-intake"><span className="mk-compare__th-label">Intake</span></th>
+                  <th scope="col"><span className="mk-compare__th-label">Google&rsquo;s built-in AI</span></th>
+                  <th scope="col"><span className="mk-compare__th-label">Typeform AI</span></th>
+                  <th scope="col"><span className="mk-compare__th-label">ChatGPT</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {COMPARISON_ROWS.map(row => (
+                  <tr key={row.label}>
+                    <th scope="row">{row.label}</th>
+                    <td className="is-intake"><Check />{row.intake}</td>
+                    <td>{row.googleAi}</td>
+                    <td>{row.typeformAi}</td>
+                    <td>{row.chatgpt}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Reveal>
       </div>
     </section>
   );
@@ -556,6 +766,97 @@ export function EditingDemo() {
             <p>The form is updated where it already lives. Links people have stay the same.</p>
           </Reveal>
         </ol>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Who it is for, with a prompt each audience can steal. Every card links into
+ * the workspace with the prompt prefilled for signed-in visitors.
+ */
+export function UseCaseSection({ authenticated }: { authenticated: boolean }) {
+  return (
+    <section className="mk-section mk-use-cases" id="use-cases" aria-labelledby="mk-use-cases-title">
+      <div className="mk-container">
+        <SectionIntro eyebrow="WHO IT IS FOR" titleId="mk-use-cases-title" title={<>Made for the form you need this week.</>}>
+          Five jobs people bring to Intake. Steal the prompt, change the details, make it yours.
+        </SectionIntro>
+        <ul className="mk-use-case-grid">
+          {USE_CASES.map((useCase, index) => (
+            <Reveal as="li" className="mk-use-case-card" key={useCase.audience} delay={index * 80} variant="rise">
+              <span className="mk-eyebrow">{useCase.audience}</span>
+              <h3>{useCase.headline}</h3>
+              <p>{useCase.body}</p>
+              <div className="mk-use-case-prompt">
+                <span>TRY THIS PROMPT</span>
+                <p>“{useCase.prompt}”</p>
+              </div>
+              {authenticated ? (
+                <Link className="mk-text-link" to="/app/forms" state={{ initialPrompt: useCase.prompt }}>
+                  Use this prompt <Arrow />
+                </Link>
+              ) : (
+                <a className="mk-text-link" href="/auth/sign-up">
+                  Start free <Arrow />
+                </a>
+              )}
+            </Reveal>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Plain-language permissions: what Intake asks Google for, why, and what it
+ * never does. Mirrors the privacy policy; the sensitive scope (forms.body) is
+ * named exactly as Google names it.
+ */
+const TRUST_ASK = [
+  {
+    title: 'Your basic identity, to sign you in',
+    text: 'Name, email address, and profile info (the openid, email, and profile scopes). This never touches your forms.',
+  },
+  {
+    title: 'forms.body, only when you connect',
+    text: 'One extra scope, requested in a separate step you start yourself: permission to create and edit the Google Forms you own. Nothing else.',
+  },
+] as const;
+
+const TRUST_NEVER = [
+  'Read your form responses',
+  'Touch Gmail, Drive, Calendar, Contacts, or Sheets',
+  'Delete a form or change who it is shared with',
+  'Train models on your forms or sell your data',
+  'Show ads or send marketing email you did not ask for',
+] as const;
+
+export function TrustSection() {
+  return (
+    <section className="mk-section mk-trust" id="trust" aria-labelledby="mk-trust-title">
+      <div className="mk-container">
+        <SectionIntro eyebrow="PERMISSIONS, IN PLAIN LANGUAGE" titleId="mk-trust-title" title={<>What Intake asks for, and what it never does.</>}>
+          Two permissions, each with a reason. Everything else on this list is something Intake cannot do — by design, not by promise.
+        </SectionIntro>
+        <div className="mk-trust__grid">
+          <Reveal variant="fade">
+            <h3>What Intake asks for</h3>
+            <ul className="mk-trust__ask">
+              {TRUST_ASK.map(item => (
+                <li key={item.title}><strong>{item.title}</strong><p>{item.text}</p></li>
+              ))}
+            </ul>
+          </Reveal>
+          <Reveal delay={120} variant="fade">
+            <h3>What Intake never does</h3>
+            <ul className="mk-feature-list mk-trust__never">
+              {TRUST_NEVER.map(item => <li key={item}><span className="mk-cross" aria-hidden="true">✕</span>{item}</li>)}
+            </ul>
+            <p className="mk-trust__policy">The full version lives in the <a href="/privacy">privacy policy</a>, written for Google&rsquo;s API data policy.</p>
+          </Reveal>
+        </div>
       </div>
     </section>
   );

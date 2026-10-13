@@ -2,6 +2,7 @@ import { MarketingFooter, MarketingNav } from './MarketingChrome';
 import { MarketingIndex } from './MarketingIndex';
 import { MobileActionBar } from './MobileActionBar';
 import {
+  CompareSection,
   ControlSection,
   CreationDemo,
   DifferenceSection,
@@ -12,6 +13,9 @@ import {
   Hero,
   HowItWorks,
   PricingSection,
+  ProofSection,
+  TrustSection,
+  UseCaseSection,
 } from './MarketingSections';
 import { usePublicSession } from './usePublicSession';
 import { useSiteAnalytics } from '../lib/analytics';
@@ -28,10 +32,14 @@ export default function MarketingHome() {
       <main id="main-content" tabIndex={-1}>
         <Hero authenticated={authenticated} />
         <DifferenceSection />
+        <ProofSection />
+        <CompareSection />
         <HowItWorks />
         <CreationDemo authenticated={authenticated} />
         <EditingDemo />
+        <UseCaseSection authenticated={authenticated} />
         <ControlSection />
+        <TrustSection />
         <GoogleConnection authenticated={authenticated} />
         <PricingSection authenticated={authenticated} />
         <FAQSection />

@@ -12,12 +12,13 @@ import { useEffect, useState } from 'react';
 
 const ENTRIES = [
   ['01', 'Why Intake', '#product'],
-  ['02', 'How it works', '#how-it-works'],
-  ['03', 'Create', '#creation'],
-  ['04', 'Edit', '#editing'],
-  ['05', 'Control', '#control'],
-  ['06', 'Pricing', '#pricing'],
-  ['07', 'Questions', '#faq'],
+  ['02', 'Proof', '#proof'],
+  ['03', 'How it works', '#how-it-works'],
+  ['04', 'Create', '#creation'],
+  ['05', 'Edit', '#editing'],
+  ['06', 'Control', '#control'],
+  ['07', 'Pricing', '#pricing'],
+  ['08', 'Questions', '#faq'],
 ] as const;
 
 export function MarketingIndex() {
