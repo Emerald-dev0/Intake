@@ -36,6 +36,7 @@ export type EmailType =
   | 'otp'
   | 'password_reset'
   | 'welcome'
+  | 'waitlist_welcome'
   | 'security_password_changed'
   | 'security_email_changed'
   | 'security_new_sign_in'
@@ -184,7 +185,9 @@ export interface EmailStats {
 
 /** Storage contract for delivery records, suppressions and webhook replay protection. */
 export interface EmailStore {
-  createDelivery(input: EmailDeliveryInput): Promise<void>;
+  /** Returns the canonical record id, including when the event was recorded by an earlier attempt. */
+  createDelivery(input: EmailDeliveryInput): Promise<string>;
+  findByIdempotencyKey(key: string): Promise<EmailDeliveryRecord | null>;
   updateDelivery(id: string, update: EmailDeliveryUpdate): Promise<void>;
   findByProviderMessageId(providerMessageId: string): Promise<EmailDeliveryRecord | null>;
   isSuppressed(email: string): Promise<EmailSuppressionReason | null>;

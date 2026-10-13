@@ -147,6 +147,7 @@ export function runPreflight(env: NodeJS.ProcessEnv = process.env): PreflightChe
     } else {
       add('email', 'pass', `Calder is configured (${email.baseUrl}, sender ${email.fromEmail || email.senderId || 'sender id'}). Confirm the sending domain's SPF, DKIM and DMARC records and that CALDER_WEBHOOK_SECRET matches the registered endpoint.`);
     }
+    add('welcome sender', 'info', `Personal welcome mail uses ${email.welcomeFromEmail}, replies to ${email.welcomeReplyTo}. Confirm this sender domain is verified in Calder; configuration alone does not prove delivery.`);
     add('email webhooks', email.webhookSecret ? 'pass' : 'warn', email.webhookSecret
       ? 'CALDER_WEBHOOK_SECRET is set: delivery, bounce and complaint events are verified before they change state.'
       : 'No CALDER_WEBHOOK_SECRET: Calder webhooks are rejected. Delivery, bounce and complaint state will never update, so suppressions cannot be maintained automatically.');
@@ -179,7 +180,7 @@ const EXPECTED_TABLES = [
   'provider_connection', 'form', 'form_draft', 'form_edit_draft',
   'api_rate_limit', 'user_entitlement', 'credit_ledger', 'ai_operation',
   'email_delivery', 'email_suppression', 'email_webhook_event', 'user_sign_in_marker',
-  'billing_settings', 'site_events',
+  'billing_settings', 'site_events', 'update_subscription', 'waitlist',
 ];
 
 /** Read-only database verification. Never prints the connection string or row contents. */
@@ -205,6 +206,18 @@ export async function checkDatabase(env: NodeJS.ProcessEnv = process.env): Promi
     checks.push(missing.length
       ? { name: 'schema', status: 'fail', detail: `Missing tables: ${missing.join(', ')}. Run npm run db:migrate (Better Auth) and then npm run db:migrate:intake.` }
       : { name: 'schema', status: 'pass', detail: `All ${EXPECTED_TABLES.length} expected tables exist.` });
+
+    if (!missing.includes('waitlist')) {
+      const columns = await pool.query<{ column_name: string }>(
+        `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'waitlist'`,
+      );
+      const present = new Set(columns.rows.map(row => row.column_name));
+      const needed = ['welcome_status', 'welcome_attempts', 'welcome_next_attempt_at', 'welcome_claimed_at', 'welcome_accepted_at', 'welcome_error_code'];
+      const absent = needed.filter(name => !present.has(name));
+      checks.push(absent.length
+        ? { name: 'wait-list welcome queue', status: 'fail', detail: 'Wait-list outbox columns are missing. Run npm run db:migrate:intake through 018_waitlist_welcome.sql before deploying.' }
+        : { name: 'wait-list welcome queue', status: 'pass', detail: 'Durable wait-list welcome queue columns exist.' });
+    }
 
     if (tables.rows[0]?.migrations) {
       const applied = await pool.query<{ id: string }>('SELECT id FROM intake_schema_migration ORDER BY id');

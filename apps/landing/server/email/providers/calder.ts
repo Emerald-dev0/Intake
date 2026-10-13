@@ -24,7 +24,7 @@ import type { EmailMessage, EmailProvider, EmailStatusSnapshot, ProviderSendResu
  * by the `email.delivered` webhook (mission §23).
  */
 
-const USER_AGENT = 'Intake-Email/1.0 (+https://intake.example.com)';
+const USER_AGENT = 'Intake-Email/1.0 (+https://intake.calder.click)';
 
 export interface CalderProviderOptions {
   config: EmailConfig;
@@ -78,19 +78,33 @@ export function createCalderProvider(options: CalderProviderOptions): EmailProvi
   const sleep = options.sleep ?? (ms => new Promise<void>(resolve => setTimeout(resolve, ms)));
   const random = options.random ?? Math.random;
 
-  async function request(path: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  async function request(path: string, init: RequestInit, timeoutMs: number): Promise<{ response: Response; body: string }> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let timer: ReturnType<typeof setTimeout>;
+    const deadline = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new EmailError('email_timeout', `Calder did not respond within ${timeoutMs} ms.`, { retryable: true }));
+      }, timeoutMs);
+    });
     try {
-      return await fetchImpl(`${config.baseUrl}${path}`, { ...init, signal: controller.signal });
+      // Fetch resolves at the headers, not the end of the body. The deadline must cover BOTH or a
+      // stalled response body can hold a welcome lease (and process shutdown) open indefinitely.
+      return await Promise.race([
+        (async () => {
+          const response = await fetchImpl(`${config.baseUrl}${path}`, { ...init, signal: controller.signal });
+          return { response, body: await response.text() };
+        })(),
+        deadline,
+      ]);
     } catch (error) {
-      // AbortError is our own timeout: report it as a timeout, not as an opaque network error.
-      if (error instanceof Error && error.name === 'AbortError') {
+      if (error instanceof EmailError) throw error;
+      if (controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')) {
         throw new EmailError('email_timeout', `Calder did not respond within ${timeoutMs} ms.`, { retryable: true });
       }
       throw new EmailError('email_provider_unavailable', 'Calder could not be reached.', { retryable: true });
     } finally {
-      clearTimeout(timer);
+      clearTimeout(timer!);
     }
   }
 
@@ -130,8 +144,9 @@ export function createCalderProvider(options: CalderProviderOptions): EmailProvi
     while (attempts < config.maxAttempts) {
       attempts += 1;
       let response: Response;
+      let text: string;
       try {
-        response = await request('/v1/emails', {
+        ({ response, body: text } = await request('/v1/emails', {
           method: 'POST',
           headers: {
             authorization: `Bearer ${config.apiKey}`,
@@ -140,14 +155,13 @@ export function createCalderProvider(options: CalderProviderOptions): EmailProvi
             'user-agent': USER_AGENT,
           },
           body: JSON.stringify(body),
-        }, config.timeoutMs);
+        }, config.timeoutMs));
       } catch (error) {
         lastError = error instanceof EmailError ? error : new EmailError('email_provider_unavailable', 'Calder request failed.', { retryable: true });
         if (lastError.retryable && attempts < config.maxAttempts) await sleep(backoffMs(attempts, random));
         continue;
       }
 
-      const text = await response.text();
       let parsed: unknown = null;
       if (text) {
         try {
@@ -187,13 +201,14 @@ export function createCalderProvider(options: CalderProviderOptions): EmailProvi
 
   async function getStatus(providerMessageId: string): Promise<EmailStatusSnapshot | null> {
     if (!providerMessageId.startsWith('em_')) return null;
-    const response = await request(
+    const result = await request(
       `/v1/emails/${encodeURIComponent(providerMessageId)}`,
       { method: 'GET', headers: { authorization: `Bearer ${config.apiKey}`, 'user-agent': USER_AGENT } },
       config.timeoutMs,
     ).catch(() => null);
-    if (!response?.ok) return null;
-    const payload = await response.json().catch(() => null) as { data?: Record<string, unknown> } | null;
+    if (!result?.response.ok) return null;
+    let payload: { data?: Record<string, unknown> } | null;
+    try { payload = JSON.parse(result.body) as typeof payload; } catch { return null; }
     const data = payload?.data;
     if (!data || typeof data.status !== 'string') return null;
     return {

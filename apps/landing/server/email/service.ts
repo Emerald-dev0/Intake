@@ -77,7 +77,7 @@ export function createEmailService(options: EmailServiceOptions): EmailService {
   async function send(request: SendEmailRequest): Promise<EmailSendOutcome> {
     const at = now();
     const idempotencyKey = idempotencyKeyFor(request.type, request.eventId);
-    const deliveryId = newId();
+    let deliveryId = newId();
     const recipient = request.to.trim().toLowerCase();
     const variables: EmailVariables = { ...baseVariables(config, at), ...request.variables };
 
@@ -100,6 +100,12 @@ export function createEmailService(options: EmailServiceOptions): EmailService {
           recipient: maskEmail(recipient), reason: suppressed,
         });
         return { status: 'skipped', deliveryId, reason: 'suppressed' };
+      }
+      const existing = await store.findByIdempotencyKey(idempotencyKey);
+      if (existing?.providerMessageId && ['accepted', 'queued', 'sent', 'delivered', 'bounced', 'complained', 'failed_remote'].includes(existing.status)) {
+        // Local acceptance outlives the provider's replay window. A recovered outbox must not send
+        // a second welcome just because the server was down longer than that window.
+        return { status: 'sent', deliveryId: existing.id, providerMessageId: existing.providerMessageId, replayed: true };
       }
     } catch {
       // A storage failure must not silently bypass suppression: fail closed (mission §18).
@@ -128,7 +134,7 @@ export function createEmailService(options: EmailServiceOptions): EmailService {
 
     // The welcome mail is personal (from Daniel); everything else — OTPs, resets,
     // security and product notices — goes out under the system sender.
-    const isWelcome = request.type === 'welcome';
+    const isWelcome = request.type === 'welcome' || request.type === 'waitlist_welcome';
     const message: EmailMessage = {
       to: recipient,
       subject: rendered.subject,
@@ -143,17 +149,25 @@ export function createEmailService(options: EmailServiceOptions): EmailService {
       idempotencyKey,
     };
     // Opt-in only: dashboard-managed templates never become a hard dependency (mission §15).
-    const alias = config.templateAliases[request.type.replace(/_/g, '-')];
+    const alias = request.type === 'waitlist_welcome' ? undefined : config.templateAliases[request.type.replace(/_/g, '-')];
     if (alias) {
       message.template = alias;
       // Only the variables this template needs, so a generic blob can never leak context.
       message.variables = Object.fromEntries(Object.entries(variables).map(([key, value]) => [key, String(value ?? '')]));
     }
 
-    await store.createDelivery({
-      id: deliveryId, eventId: request.eventId, emailType: request.type, userId: request.userId ?? null,
-      recipient, subject: rendered.subject.slice(0, 500), idempotencyKey, status: 'pending', provider: provider.id,
-    }).catch(() => log('email.store.unavailable', { stage: 'createDelivery' }));
+    try {
+      // An OTP may appear in the outgoing subject, but must not be persisted in the audit table.
+      deliveryId = await store.createDelivery({
+        id: deliveryId, eventId: request.eventId, emailType: request.type, userId: request.userId ?? null,
+        recipient, subject: request.type === 'otp' ? 'Your Intake verification code' : rendered.subject.slice(0, 500),
+        idempotencyKey, status: 'pending', provider: provider.id,
+      });
+    } catch {
+      // Do not hand a new side effect to the provider without a durable event record.
+      log('email.store.unavailable', { stage: 'createDelivery' });
+      return { status: 'failed', deliveryId, errorCode: 'email_internal_error', retryable: true };
+    }
 
     log('email.send.started', {
       emailType: request.type, eventId: request.eventId, userId: request.userId ?? null,

@@ -157,7 +157,7 @@ export function TemplatesPage() {
                   {authenticated ? (
                     <Link className="mk-text-link" to="/app/forms" state={{ initialPrompt: useCase.prompt }}>Use it now <Arrow /></Link>
                   ) : (
-                    <a className="mk-text-link" href="/auth/sign-up">Start free <Arrow /></a>
+                    <a className="mk-text-link" href="/waitlist">Join the wait-list <Arrow /></a>
                   )}
                 </div>
               </Reveal>

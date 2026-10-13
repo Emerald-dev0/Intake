@@ -18,8 +18,8 @@ export function PrivacyPage() {
         <nav aria-label="Privacy navigation">
           <a href="/#how-it-works">How it works</a>
           {!authenticated && <a href="/auth/sign-in">Sign in</a>}
-          <a className="btn btn-accent btn-sm" href={authenticated ? '/app' : '/auth/sign-up'}>
-            {authenticated ? 'Open Intake' : 'Start free'}
+          <a className="btn btn-accent btn-sm" href={authenticated ? '/app' : '/waitlist'}>
+            {authenticated ? 'Open Intake' : 'Join the wait-list'}
           </a>
         </nav>
       </header>

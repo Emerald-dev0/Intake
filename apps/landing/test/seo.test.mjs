@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const SITE_ORIGIN = 'https://intake-six-blue.vercel.app';
 const CREATOR_NAME = 'Oluwadare Daniel — Emerald';
-const SOCIAL_IMAGE_ALT = 'Intake showing a form proposal: a written request on the left, the questions it understood on the right.';
+const SOCIAL_IMAGE_ALT = 'An example Google Forms proposal in Intake, labeled “EXAMPLE - NOT APPLIED.”';
 
 function metadata(html) {
   const entries = new Map();
@@ -126,7 +126,7 @@ test('robots, sitemap and private document expose only intended public indexable
   }
   assert.ok(robots.split(/\r?\n/).includes(`Sitemap: ${SITE_ORIGIN}/sitemap.xml`));
   const locations = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(([, location]) => location);
-  assert.deepEqual(locations, [`${SITE_ORIGIN}/`, `${SITE_ORIGIN}/pricing`, `${SITE_ORIGIN}/privacy`, `${SITE_ORIGIN}/terms`, `${SITE_ORIGIN}/vs`, `${SITE_ORIGIN}/templates`, `${SITE_ORIGIN}/guides`, `${SITE_ORIGIN}/trust`, `${SITE_ORIGIN}/changelog`]);
+  assert.deepEqual(locations, [`${SITE_ORIGIN}/`, `${SITE_ORIGIN}/waitlist`, `${SITE_ORIGIN}/pricing`, `${SITE_ORIGIN}/privacy`, `${SITE_ORIGIN}/terms`, `${SITE_ORIGIN}/vs`, `${SITE_ORIGIN}/templates`, `${SITE_ORIGIN}/guides`, `${SITE_ORIGIN}/trust`, `${SITE_ORIGIN}/changelog`]);
   for (const path of ['/vs', '/templates', '/guides', '/trust', '/changelog']) {
     assert.ok(llms.includes(`${SITE_ORIGIN}${path}`), `llms.txt must link ${path}`);
   }

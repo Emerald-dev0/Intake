@@ -1,5 +1,8 @@
 # PR 04: Routing and deployment foundation
 
+> **Wait-list rollout:** see [WAITLIST.md](WAITLIST.md) for migration 018, Daniel’s sender,
+> durable welcome-mail delivery, and the live inbox verification checklist.
+
 > **First deployment?** Follow [LAUNCH.md](LAUNCH.md) instead: it is the ordered Neon → Google Cloud →
 > Groq → Render → Vercel → migrations → verification procedure, with the rollback and free-tier
 > reality that this file only summarises. Everything below documents how the routing and deployment

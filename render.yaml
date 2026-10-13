@@ -66,7 +66,7 @@ services:
         value: Intake
       # The welcome mail is personal and never uses the system sender above.
       - key: CALDER_WELCOME_FROM_EMAIL
-        value: daniel@calder.click
+        value: daniel@intake.calder.click
       - key: CALDER_WELCOME_FROM_NAME
         value: Daniel from Intake
       # Optional; defaults to the welcome sender so replies reach a human.

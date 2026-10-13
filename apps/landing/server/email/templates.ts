@@ -1,4 +1,5 @@
 import type { EmailType } from './types';
+import { WAITLIST_WELCOME_TEXT } from './waitlist-welcome';
 
 /**
  * Centralized email templates.
@@ -245,69 +246,61 @@ const passwordReset: EmailTemplate = {
   ].join('\n'),
 };
 
+// A signup confirmation is a personal letter, not an account-security notification. In particular,
+// it must not tell wait-list subscribers that they have an account, a password, or access already.
+const waitlistWelcome: EmailTemplate = {
+  id: 'waitlist_welcome',
+  alias: 'intake-waitlist-welcome',
+  subject: () => "You're on the Intake wait-list — a note from Daniel",
+  preheader: () => "I'm Daniel, the person building Intake, and I'm glad you're here.",
+  heading: () => 'A note from Daniel',
+  body: () => WAITLIST_WELCOME_TEXT.split('\n\n').map(part => paragraph(
+    escapeHtml(part).replace(/\n/g, '<br />').replace('https://intake.calder.click', link('https://intake.calder.click', 'https://intake.calder.click')),
+  )).join(''),
+  text: () => WAITLIST_WELCOME_TEXT,
+};
+
+function letterLayout(subject: string, preheader: string, body: string): string {
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(subject)}</title></head>
+<body style="margin:0;padding:0;background:${PAPER}">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all">${escapeHtml(preheader)}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${PAPER}"><tr><td align="center" style="padding:32px 16px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px">
+<tr><td style="padding:0 0 20px;font:500 20px/1.3 ${SERIF};color:${INK}">intake<span style="color:${ACCENT}">.</span></td></tr>
+<tr><td bgcolor="${CARD}" style="padding:28px 24px 12px;border:1px solid ${LINE};border-top:3px solid ${ACCENT};background:${CARD}">${body}</td></tr>
+</table></td></tr></table></body></html>`;
+}
+
 const welcome: EmailTemplate = {
   id: 'welcome',
   alias: 'intake-welcome',
-  subject: vars => `${text_(vars.userName) ? `${text_(vars.userName)}, welcome` : 'Welcome'} to Intake — I am Daniel`,
-  preheader: () => 'You are in. Here is how your first form gets built, and how to reach me directly.',
+  subject: vars => `${text_(vars.userName) ? `${text_(vars.userName)}, welcome` : 'Welcome'} to Intake — a note from Daniel`,
+  preheader: () => 'Your workspace is ready. Here is how to get started, and how to reach me.',
   heading: () => 'Welcome in.',
   body: vars => [
     paragraph(greeting(vars)),
-    paragraph('Hey there,'),
-    '',
-    paragraph('Welcome to Intake! \uD83C\uDFFD'),
-    '',
     paragraph("I'm Daniel, the person building Intake, and I'm really glad you're here."),
-    '',
-    paragraph("I started building Intake because creating and updating Google Forms shouldn't mean spending time manually working through every little detail. With Intake, you can describe what you want in plain English, let AI help prepare the changes, and review everything before applying it."),
-    '',
-    paragraph('And this is just the beginning.'),
-    '',
-    paragraph("We're committed to making Intake better with every update, improving existing features, fixing what doesn't work as well as it should, and building things that genuinely make your work easier. We'll keep listening, learning, and shipping."),
-    '',
-    paragraph('Since you\'re here early, your feedback matters a lot. If something feels confusing, something breaks, or you have an idea that could make Intake more useful, I\'d genuinely love to hear from you.'),
-    '',
-    paragraph('Thanks for giving Intake a try and being part of what we\'re building.'),
-    '',
-    paragraph('Here\'s to making form creation a little less tedious.'),
-    '',
-    paragraph('<strong>Daniel</strong>'),
-    paragraph('Founder & Builder, Intake'),
-    paragraph('<a href="https://intake.calder.click">https://intake.calder.click</a>'),
-    '',
-    paragraph('<em>P.S. You can simply reply to this email. It comes from me, and I\'d love to hear what you think.</em>'),
+    paragraph("Describe the form you need in plain English, review the questions, and confirm when it looks right. Intake creates it in your own Google account. Editing the forms you already have works the same way."),
+    text_(vars.dailyCredits) ? paragraph(`Your Free account comes with ${escapeHtml(text_(vars.dailyCredits))} credits every day.`) : '',
+    button(text_(vars.dashboardUrl), 'Open Intake'),
+    paragraph("And this is just the beginning. We'll keep listening, improving, and shipping things that genuinely make your work easier."),
+    paragraph("If something feels confusing, something breaks, or there's something you'd love Intake to help you do, just reply to this email. I'd genuinely love to hear from you."),
+    paragraph('Thanks for being here early.'),
     paragraph('— Daniel', `font-family:${SERIF};font-size:17px;color:${INK}`),
+    paragraph('Founder &amp; Builder, Intake', `font-size:13px;color:${MUTED}`),
   ].join(''),
   text: vars => [
-    greeting(vars),
-    '',
-    'Hey there,',
-    '',
-    '',
-    'Welcome to Intake! \uD83C\uDFFD',
-    '',
-    'I am Daniel, the person building Intake, and I am really glad you are here.',
-    '',
-    'I started building Intake because creating and updating Google Forms should not mean spending time manually working through every little detail. With Intake, you can describe what you want in plain English, let AI help prepare the changes, and review everything before applying it.',
-    '',
-    'And this is just the beginning.',
-    '',
-    "We're committed to making Intake better with every update, improving existing features, fixing what doesn't work as well as it should, and building things that genuinely make your work easier. We'll keep listening, learning, and shipping.",
-    '',
-    'Since you are here early, your feedback matters a lot. If something feels confusing, something breaks, or you have an idea that could make Intake more useful, I would genuinely love to hear from you.',
-    '',
-    'Thanks for giving Intake a try and being part of what we are building.',
-    '',
-    "Here's to making form creation a little less tedious.",
-    '',
-    '**Daniel**',
-    'Founder & Builder, Intake',
-    'https://intake.calder.click',
-    '',
-    '*P.S. You can simply reply to this email. It comes from me, and I would love to hear what you think.',
-    '',
-    '— Daniel',
-  ].join('\n'),
+    text_(vars.userName) ? `Hi ${text_(vars.userName)},` : 'Hi there,',
+    "I'm Daniel, the person building Intake, and I'm really glad you're here.",
+    'Describe the form you need in plain English, review the questions, and confirm when it looks right. Intake creates it in your own Google account. Editing the forms you already have works the same way.',
+    text_(vars.dailyCredits) ? `Your Free account comes with ${text_(vars.dailyCredits)} credits every day.` : '',
+    `Open Intake: ${text_(vars.dashboardUrl)}`,
+    "And this is just the beginning. We'll keep listening, improving, and shipping things that genuinely make your work easier.",
+    "If something feels confusing, something breaks, or there's something you'd love Intake to help you do, just reply to this email. I'd genuinely love to hear from you.",
+    'Thanks for being here early.',
+    '— Daniel\nFounder & Builder, Intake',
+  ].filter(Boolean).join('\n\n'),
 };
 
 const securityPasswordChanged: EmailTemplate = {
@@ -802,6 +795,7 @@ export const EMAIL_TEMPLATES: readonly EmailTemplate[] = [
   otp,
   passwordReset,
   welcome,
+  waitlistWelcome,
   securityPasswordChanged,
   securityEmailChanged,
   securityNewSignIn,
@@ -834,6 +828,9 @@ export function renderEmail(type: EmailType, variables: EmailVariables): Rendere
   const template = templateFor(type);
   const subject = template.subject(variables);
   const heading = template.heading(variables);
+  if (type === 'waitlist_welcome') {
+    return { subject, html: letterLayout(subject, template.preheader(variables), template.body(variables)), text: template.text(variables) };
+  }
   const footer = 'Intake · Google Forms from a sentence.';
   const supportLine = `Questions? Just reply, or write to ${SUPPORT_EMAIL} — a human reads everything.`;
   return {

@@ -1,5 +1,7 @@
 # Intake transactional email
 
+The early-access `waitlist_welcome` flow is documented in [WAITLIST.md](../../WAITLIST.md), including Daniel’s approved copy, durable retries, sender configuration, and the live delivery checklist.
+
 Calder is Intake's email provider. **This directory is the only place in Intake that knows that.**
 
 ```
@@ -119,12 +121,13 @@ intake:{type}:{eventId}
 - OTP:            `intake:otp:{challengeId}` (or `{eventId}` when the caller supplies one)
 - Password reset: `intake:password-reset:{sha256(token)}`
 - Welcome:        `intake:welcome:{userId}`
+- Wait-list:      `intake:waitlist-welcome:waitlist:{entryId}`
 - Low credits:    `intake:credits-low:{userId}:{utc-day}`
 - Security:       `intake:security-*:{eventId}`
 
-A retry, a double-click or a duplicated hook therefore replays Calder's stored response instead of
-sending twice. The delivery is also recorded locally *before* the request goes out, so a crash
-mid-send leaves a `sending` row rather than a mystery.
+A retry, a double-click or a duplicated hook therefore replays an accepted local delivery record
+(or Calder’s stored response while a send is still uncertain) instead of sending twice. The delivery is also recorded locally *before* the request goes out, so a crash
+mid-send leaves a `pending` delivery record rather than a mystery. Retry attempts retain the canonical record id so provider webhooks still find the event. OTP subjects are stored without their plaintext code.
 
 ---
 

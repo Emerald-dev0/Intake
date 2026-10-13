@@ -272,3 +272,35 @@ test('the service exposes reconciliation status without sending anything', async
   assert.deepEqual(status, { providerMessageId: 'em_1', status: 'delivered', updatedAt: '2026-10-05T10:00:00.000Z' });
   assert.equal(await service.status('not-a-provider-id'), null);
 });
+
+test('the timeout includes a stalled response body, not just the HTTP headers', async () => {
+  const config_ = { ...config(), timeoutMs: 20, maxAttempts: 2 };
+  const { impl, calls } = fakeFetch(() => new Response(new ReadableStream({ start() {} }), { status: 202 }));
+  const { service } = serviceWith(providerWith(config_, impl), config_);
+  const outcome = await service.send(REQUEST);
+  assert.equal(outcome.status, 'failed');
+  assert.equal(outcome.errorCode, 'email_timeout');
+  assert.equal(outcome.retryable, true);
+  assert.equal(calls.length, 2);
+});
+
+test('accepted events replay locally and a failed send retry updates one canonical delivery record', async () => {
+  const config_ = config();
+  const responses = fakeFetch(
+    json({ error: { code: 'internal_error' } }, 503),
+    json({ id: 'em_retry', status: 'queued' }),
+  );
+  const { service, store } = serviceWith(providerWith({ ...config_, maxAttempts: 1 }, responses.impl), config_);
+  const failed = await service.send(REQUEST);
+  assert.equal(failed.status, 'failed');
+  const retried = await service.send(REQUEST);
+  assert.equal(retried.status, 'sent');
+  assert.equal(retried.deliveryId, failed.deliveryId);
+  assert.equal(store.deliveries.length, 1);
+  assert.equal(store.deliveries[0].providerMessageId, 'em_retry');
+  assert.equal(store.deliveries[0].status, 'accepted');
+  assert.equal(store.deliveries[0].subject, 'Your Intake verification code', 'OTP subjects in the audit table contain no code');
+  const replay = await service.send(REQUEST);
+  assert.equal(replay.replayed, true);
+  assert.equal(responses.calls.length, 2, 'accepted events never need another provider call');
+});

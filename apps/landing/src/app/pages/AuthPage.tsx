@@ -99,7 +99,7 @@ export function AuthPage({ signUp = false }: { signUp?: boolean }) {
             <button className="btn btn-accent auth-submit" type="submit" disabled={busyAny}>{busy ? 'Please wait…' : signUp ? 'Create account →' : 'Sign in →'}</button>
             {!signUp && <div className="auth-forgot"><a href="/auth/reset-password">Forgot your password?</a></div>}
           </form>
-          <div className="auth-switch">{signUp ? 'Already have an account?' : 'New to Intake?'} <a href={signUp ? '/auth/sign-in' : '/auth/sign-up'}>{signUp ? 'Sign in' : 'Create an account'}</a></div>
+          <div className="auth-switch">{signUp ? 'Already have an account?' : 'New to Intake?'} <a href={signUp ? '/auth/sign-in' : '/waitlist'}>{signUp ? 'Sign in' : 'Join the wait-list'}</a></div>
         </section>
       </main>
       <footer className="auth-footer"><span>INTAKE © {new Date().getFullYear()}</span><span>Built to work with the tools you already use.</span><a href="/pricing">Plans &amp; pricing</a></footer>
