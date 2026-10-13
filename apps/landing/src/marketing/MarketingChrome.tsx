@@ -128,21 +128,31 @@ const FOOTER_COLUMNS = [
   {
     heading: 'Product',
     links: [
-      ['Why Intake', '#product'],
-      ['How it works', '#how-it-works'],
-      ['Create a form', '#creation'],
-      ['Edit a form', '#editing'],
+      ['Why Intake', '/#product'],
+      ['See the proof', '/#proof'],
+      ['Compare', '/vs'],
+      ['Templates', '/templates'],
+      ['Guides', '/guides'],
+      ['Pricing', '/pricing'],
     ],
   },
   {
-    heading: 'Project',
+    heading: 'Resources',
     links: [
+      ['Changelog', '/changelog'],
+      ['Trust & permissions', '/trust'],
+      ['Contact', 'mailto:support@intake.calder.click'],
       ['GitHub', CREATOR.github, true],
-      ['Contributing', `${CREATOR.github}/blob/main/README.md#contributing`, true],
-      ['License', `${CREATOR.github}/blob/main/LICENSE`, true],
-      ['Pricing', '/pricing'],
+      ['Calder', 'https://calder.click', true],
+    ],
+  },
+  {
+    heading: 'Legal',
+    links: [
       ['Privacy', '/privacy'],
       ['Terms', '/terms'],
+      ['Contributing', `${CREATOR.github}/blob/main/README.md#contributing`, true],
+      ['License', `${CREATOR.github}/blob/main/LICENSE`, true],
     ],
   },
 ] as const;
@@ -177,10 +187,14 @@ export function MarketingFooter({ authenticated }: { authenticated: boolean }) {
           </div>
         </div>
 
+        <div className="mk-footer__maker">
+          <p><strong>A note from the maker.</strong> Intake is built by {CREATOR.displayName} — one developer who got tired of setting up the same form questions by hand. Every decision favors your control: you approve each question, your forms stay in your Google account, and the free plan is actually free. If something breaks or confuses you, write to <a href="mailto:support@intake.calder.click">support@intake.calder.click</a> — a human reads everything.</p>
+        </div>
+
         <div className="mk-footer__bottom">
           <span>© {new Date().getFullYear()} Intake</span>
           <span className="mk-footer__credit">
-            Designed by <a href={CREATOR.site} target="_blank" rel="noreferrer">{CREATOR.credit}</a>
+            Designed by <a href={CREATOR.site} target="_blank" rel="noreferrer">{CREATOR.credit}</a> · Email by <a href="https://calder.click" target="_blank" rel="noreferrer">Calder</a>
           </span>
         </div>
       </div>

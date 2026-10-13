@@ -250,7 +250,7 @@ test('the credit migration is additive, idempotent, and stores no credentials or
   assert.equal(files.at(-4), '012_billing_settings.sql', 'billing settings are the twelfth, additive migration');
   assert.equal(files.at(-3), '013_site_analytics.sql', 'site analytics are the thirteenth, additive migration');
   assert.equal(files.at(-2), '014_site_analytics_geo.sql', 'analytics country columns are the fourteenth, additive migration');
-  assert.equal(files.at(-1), '015_analytics_country_precise.sql', 'analytics country provenance is the fifteenth, additive migration');
+  assert.equal(files.at(-1), '016_update_subscriptions.sql', 'update subscriptions are the sixteenth, additive migration');
   const text = await readFile(new URL('../db/migrations/007_ai_credits.sql', import.meta.url), 'utf8');
   const sql = text.replace(/--.*$/gm, '');
   assert.match(sql, /CREATE TABLE IF NOT EXISTS user_entitlement \(/);

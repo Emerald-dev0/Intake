@@ -32,7 +32,7 @@ test('production homepage metadata uses the verified production origin and an ac
   const canonical = html.match(/<link rel="canonical" href="([^"]+)"\s*\/>/)?.[1];
 
   assert.equal(canonical, `${SITE_ORIGIN}/`);
-  assert.match(html, /<title>Intake — Google Forms, built from a sentence<\/title>/);
+  assert.match(html, /<title>Intake, AI Google Forms builder — describe it, review it, done<\/title>/);
   assert.equal(meta.get('robots'), 'index,follow,max-image-preview:large');
   assert.equal(meta.get('author'), CREATOR_NAME);
   assert.equal(meta.get('og:type'), 'website');
@@ -66,12 +66,17 @@ test('JSON-LD connects Intake to its creator and matches the visible FAQ', async
   const graph = data['@graph'];
   const software = graph.find(entity => entity['@type'] === 'SoftwareApplication');
   const creator = graph.find(entity => entity['@type'] === 'Person');
+  const organization = graph.find(entity => entity['@type'] === 'Organization');
+  const website = graph.find(entity => entity['@type'] === 'WebSite');
   const faq = graph.find(entity => entity['@type'] === 'FAQPage');
   assert.ok(software);
   assert.ok(creator);
+  assert.ok(organization);
+  assert.ok(website);
   assert.ok(faq);
 
-  assert.equal(software.name, 'Intake');
+  assert.equal(software.name, 'Intake, AI Google Forms builder');
+  assert.equal(software.offers.price, '0', 'the genuine free plan is the only offer ever marked up');
   assert.equal(software.url, `${SITE_ORIGIN}/`);
   assert.equal(software.creator['@id'], creator['@id']);
   assert.equal(software.author['@id'], creator['@id']);
@@ -97,22 +102,33 @@ test('JSON-LD connects Intake to its creator and matches the visible FAQ', async
   }
 
   const graphText = JSON.stringify(graph);
-  assert.doesNotMatch(graphText, /localhost|127\.0\.0\.1|\.e2b\.app|preview/i);
-  assert.doesNotMatch(graphText, /aggregateRating|reviewCount|ratingValue|offers/i);
+  // Host guard, not word guard: prose may legitimately say "preview" (it does),
+  // but no schema URL may ever point at localhost, a sandbox, or a preview host.
+  assert.doesNotMatch(graphText, /localhost|127\.0\.0\.1|\.e2b\.app|https?:\/\/[^"]*preview/i);
+  // Ratings are banned outright (Intake has none to mark up); the only offer
+  // allowed is the genuine $0 free plan asserted above.
+  assert.doesNotMatch(graphText, /aggregateRating|reviewCount|ratingValue/i);
 });
 
 test('robots, sitemap and private document expose only intended public indexable routes', async () => {
   const robots = await readFile('dist/robots.txt', 'utf8');
   const sitemap = await readFile('dist/sitemap.xml', 'utf8');
+  const llms = await readFile('dist/llms.txt', 'utf8');
   const privateHtml = await readFile('dist/private.html', 'utf8');
 
   assert.match(robots, /^User-agent: \*/m);
   assert.match(robots, /^Allow: \/$/m);
+  for (const bot of ['GPTBot', 'PerplexityBot', 'ClaudeBot', 'Google-Extended']) {
+    assert.ok(robots.split(/\r?\n/).includes(`User-agent: ${bot}`), `AI crawler ${bot} must be explicitly allowed`);
+  }
   for (const path of ['/app', '/admin', '/auth', '/api', '/private.html', '/capture.html', '/og.html']) {
     assert.ok(robots.split(/\r?\n/).includes(`Disallow: ${path}`), `missing robots exclusion for ${path}`);
   }
   assert.ok(robots.split(/\r?\n/).includes(`Sitemap: ${SITE_ORIGIN}/sitemap.xml`));
   const locations = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(([, location]) => location);
-  assert.deepEqual(locations, [`${SITE_ORIGIN}/`, `${SITE_ORIGIN}/pricing`, `${SITE_ORIGIN}/privacy`, `${SITE_ORIGIN}/terms`]);
+  assert.deepEqual(locations, [`${SITE_ORIGIN}/`, `${SITE_ORIGIN}/pricing`, `${SITE_ORIGIN}/privacy`, `${SITE_ORIGIN}/terms`, `${SITE_ORIGIN}/vs`, `${SITE_ORIGIN}/templates`, `${SITE_ORIGIN}/guides`, `${SITE_ORIGIN}/trust`, `${SITE_ORIGIN}/changelog`]);
+  for (const path of ['/vs', '/templates', '/guides', '/trust', '/changelog']) {
+    assert.ok(llms.includes(`${SITE_ORIGIN}${path}`), `llms.txt must link ${path}`);
+  }
   assert.match(privateHtml, /<meta name="robots" content="noindex, nofollow"\s*\/>/);
 });

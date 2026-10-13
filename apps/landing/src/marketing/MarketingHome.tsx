@@ -2,6 +2,7 @@ import { MarketingFooter, MarketingNav } from './MarketingChrome';
 import { MarketingIndex } from './MarketingIndex';
 import { MobileActionBar } from './MobileActionBar';
 import {
+  ComingSoonSection,
   CompareSection,
   ControlSection,
   CreationDemo,
@@ -34,7 +35,7 @@ export default function MarketingHome() {
         <DifferenceSection />
         <ProofSection />
         <CompareSection />
-        <HowItWorks />
+        <HowItWorks authenticated={authenticated} />
         <CreationDemo authenticated={authenticated} />
         <EditingDemo />
         <UseCaseSection authenticated={authenticated} />
@@ -42,7 +43,8 @@ export default function MarketingHome() {
         <TrustSection />
         <GoogleConnection authenticated={authenticated} />
         <PricingSection authenticated={authenticated} />
-        <FAQSection />
+        <ComingSoonSection />
+        <FAQSection authenticated={authenticated} />
         <FinalCTA authenticated={authenticated} />
       </main>
       <MarketingFooter authenticated={authenticated} />

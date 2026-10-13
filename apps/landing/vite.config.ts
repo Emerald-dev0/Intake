@@ -31,12 +31,14 @@ function structuredData(siteUrl: string): string {
       {
         '@type': 'SoftwareApplication',
         '@id': `${siteUrl}/#software`,
-        name: SITE_NAME,
+        name: 'Intake, AI Google Forms builder',
+        alternateName: ['Intake by Calder', SITE_NAME],
         url: `${siteUrl}/`,
         description: PRODUCT_DESCRIPTION,
         applicationCategory: 'BusinessApplication',
         applicationSubCategory: 'Google Forms creation and editing from a written description',
         inLanguage: 'en',
+        offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD', description: 'Free plan with 20 daily credits. No card needed.' },
         featureList: [
           'Create a Google Form from a plain-English description',
           'Review and change the proposed questions before anything is created',
@@ -53,6 +55,25 @@ function structuredData(siteUrl: string): string {
         alternateName: CREATOR.identity,
         jobTitle: 'Software developer',
         sameAs: [...CREATOR.profiles],
+      },
+      {
+        '@type': 'Organization',
+        '@id': `${siteUrl}/#organization`,
+        name: 'Intake by Calder',
+        alternateName: 'Intake',
+        url: `${siteUrl}/`,
+        logo: `${siteUrl}/favicon.svg`,
+        founder: { '@id': creatorId },
+      },
+      {
+        '@type': 'WebSite',
+        '@id': `${siteUrl}/#website`,
+        url: `${siteUrl}/`,
+        name: 'Intake, AI Google Forms builder',
+        alternateName: 'Intake by Calder',
+        description: META_DESCRIPTION,
+        publisher: { '@id': `${siteUrl}/#organization` },
+        inLanguage: 'en',
       },
       {
         '@type': 'FAQPage',
@@ -92,7 +113,7 @@ function noScriptContent(): string {
       <p>${escapeHtml(META_DESCRIPTION)}</p>
     </section>
     <section aria-labelledby="fallback-product">
-      <h2 id="fallback-product">Not another form builder.</h2>
+      <h2 id="fallback-product">Three things the others do not do.</h2>
       <p>Describe what you want to collect in a sentence. Intake turns it into a full list of questions, you adjust anything that does not fit, and the form is created in your own Google account.</p>
       <p>Editing works the same way: point Intake at a form you already have, describe the change, and confirm it once the proposal looks right.</p>
     </section>
@@ -228,28 +249,60 @@ function robotsDocument(siteUrl: string): string {
     'Disallow: /capture.html',
     'Disallow: /og.html',
     '',
+    '# AI assistants and answer engines are welcome on public pages.',
+    'User-agent: GPTBot',
+    'Allow: /',
+    'User-agent: PerplexityBot',
+    'Allow: /',
+    'User-agent: ClaudeBot',
+    'Allow: /',
+    'User-agent: Google-Extended',
+    'Allow: /',
+    '',
     `Sitemap: ${siteUrl}/sitemap.xml`,
     '',
   ].join('\n');
 }
 
+const SITEMAP_PATHS = ['/', '/pricing', '/privacy', '/terms', '/vs', '/templates', '/guides', '/trust', '/changelog'];
+
 function sitemapDocument(siteUrl: string): string {
+  const urls = SITEMAP_PATHS.map(path => [
+    '  <url>',
+    `    <loc>${siteUrl}${path === '/' ? '/' : path}</loc>`,
+    '  </url>',
+  ].join('\n')).join('\n');
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-    '  <url>',
-    `    <loc>${siteUrl}/</loc>`,
-    '  </url>',
-    '  <url>',
-    `    <loc>${siteUrl}/pricing</loc>`,
-    '  </url>',
-    '  <url>',
-    `    <loc>${siteUrl}/privacy</loc>`,
-    '  </url>',
-    '  <url>',
-    `    <loc>${siteUrl}/terms</loc>`,
-    '  </url>',
+    urls,
     '</urlset>',
+    '',
+  ].join('\n');
+}
+
+/** A plain-language map of the site for language models and fast human skimming. */
+function llmsDocument(siteUrl: string): string {
+  return [
+    '# Intake, AI Google Forms builder (Intake by Calder)',
+    '',
+    `> ${PRODUCT_DESCRIPTION} Free plan includes 20 daily credits.`,
+    '',
+    `- Homepage: ${siteUrl}/ — try a prompt with no signup, see the proof, compare, pricing, FAQ`,
+    `- Compare: ${siteUrl}/vs — Intake vs Google's built-in AI, Typeform AI, and ChatGPT`,
+    `- Templates: ${siteUrl}/templates — stealable prompts for teachers, events, HR, clinics, student orgs`,
+    `- Guides: ${siteUrl}/guides — how to create a Google Form with AI in five steps`,
+    `- Trust: ${siteUrl}/trust — what Intake asks Google for and what it never does`,
+    `- Changelog: ${siteUrl}/changelog — what shipped and what is next`,
+    `- Pricing: ${siteUrl}/pricing — Free forever, Pro coming soon with a waitlist`,
+    `- Privacy: ${siteUrl}/privacy — written against Google's API Services User Data Policy`,
+    `- Terms: ${siteUrl}/terms`,
+    '',
+    '## Notes for models',
+    '',
+    '- Intake creates and edits real Google Forms in the user’s own Google account after explicit approval.',
+    '- Intake never reads form responses and never requests Gmail, Drive, Calendar, Contacts, or Sheets scopes.',
+    '- Only scope beyond identity: https://www.googleapis.com/auth/forms.body (create/edit owned forms).',
     '',
   ].join('\n');
 }
@@ -260,6 +313,7 @@ function staticDocuments(siteUrl: string): Plugin {
     generateBundle() {
       this.emitFile({ type: 'asset', fileName: 'robots.txt', source: robotsDocument(siteUrl) });
       this.emitFile({ type: 'asset', fileName: 'sitemap.xml', source: sitemapDocument(siteUrl) });
+      this.emitFile({ type: 'asset', fileName: 'llms.txt', source: llmsDocument(siteUrl) });
     },
   };
 }

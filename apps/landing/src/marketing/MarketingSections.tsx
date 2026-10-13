@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { FAQS, COMPARISON_ROWS, HERO_DEMO_PROMPTS, PROOF_EXAMPLE, PROMPT_EXAMPLES, USE_CASES, WORKFLOW_STEPS, type DemoProposal } from '../content/site';
+import { FAQS, COMPARISON_ROWS, COMING_SOON, HERO_DEMO_PROMPTS, PROOF_EXAMPLE, PROMPT_EXAMPLES, USE_CASES, WORKFLOW_STEPS, type DemoProposal } from '../content/site';
+import { NotifyForm } from './NotifyForm';
 import { formatUsd } from '../lib/plans';
 import { useBillingPlans, comparePlanPrices } from '../lib/useBillingPlans';
 import { LogoMark } from '../components/LogoMark';
 import { StartLink } from './MarketingChrome';
 import { useViewState } from './motion';
 
-function Arrow({ diagonal = false }: { diagonal?: boolean }) {
+export function Arrow({ diagonal = false }: { diagonal?: boolean }) {
   return diagonal ? (
     <svg aria-hidden="true" viewBox="0 0 16 16" width="15" height="15">
       <path d="M5 11 11 5M5.5 5H11v5.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -19,7 +20,7 @@ function Arrow({ diagonal = false }: { diagonal?: boolean }) {
   );
 }
 
-function Check() {
+export function Check() {
   return <span className="mk-check" aria-hidden="true">✓</span>;
 }
 
@@ -36,7 +37,7 @@ function Check() {
  */
 type RevealVariant = 'rise' | 'fade' | 'wipe' | 'scale';
 
-function Reveal({
+export function Reveal({
   children,
   className = '',
   delay = 0,
@@ -66,7 +67,7 @@ function Reveal({
   );
 }
 
-function SectionIntro({
+export function SectionIntro({
   eyebrow,
   title,
   titleId,
@@ -639,7 +640,44 @@ export function CompareSection() {
   );
 }
 
-export function HowItWorks() {
+/**
+ * What's next, with an email capture. Each item is something visitors asked
+ * for; the list tells Intake what to build first.
+ */
+export function ComingSoonSection() {
+  return (
+    <section className="mk-section mk-coming" id="coming-soon" aria-labelledby="mk-coming-title">
+      <div className="mk-container mk-coming__grid">
+        <Reveal variant="fade">
+          <SectionIntro eyebrow="COMING SOON" titleId="mk-coming-title" title={<>What Intake learns next.</>}>
+            Three things on the workbench. Leave your email and you will hear about each one exactly once — when it ships.
+          </SectionIntro>
+          <NotifyForm interest="updates" buttonLabel="Email me" id="mk-coming-notify" />
+        </Reveal>
+        <ul className="mk-coming__list">
+          {COMING_SOON.map((item, index) => (
+            <Reveal as="li" key={item.title} delay={index * 90} variant="rise">
+              <span className="mk-coming__number">{String(index + 1).padStart(2, '0')}</span>
+              <div><h3>{item.title}</h3><p>{item.body}</p></div>
+            </Reveal>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+/** A repeated call to action: same promise, no new words to learn. */
+function RepeatCta({ authenticated, label }: { authenticated: boolean; label: string }) {
+  return (
+    <div className="mk-repeat-cta">
+      <span>{label}</span>
+      <StartLink authenticated={authenticated} className="mk-button mk-button--primary" />
+    </div>
+  );
+}
+
+export function HowItWorks({ authenticated }: { authenticated: boolean }) {
   return (
     <section className="mk-section mk-how" id="how-it-works" aria-labelledby="mk-how-title">
       <div className="mk-container">
@@ -659,6 +697,9 @@ export function HowItWorks() {
           <span className="mk-how__edit-mark" aria-hidden="true">↳</span>
           <p>Editing is the same story: Intake reads the form first, shows the change, then applies it.</p>
           <a href="#editing">See an edit example <Arrow /></a>
+        </Reveal>
+        <Reveal delay={200} variant="fade">
+          <RepeatCta authenticated={authenticated} label="Understood the loop? Your first form is one sentence away." />
         </Reveal>
       </div>
     </section>
@@ -944,6 +985,7 @@ export function PricingSection({ authenticated }: { authenticated: boolean }) {
               <StartLink authenticated={authenticated} className="mk-button mk-button--secondary mk-price-card__cta">
                 {authenticated ? 'Open Intake' : 'Start free'}
               </StartLink>
+              <p className="mk-price-card__fine">No card needed · Free forever</p>
               <ul className="mk-feature-list">
                 {freeFeatures.map(feature => <li key={feature}><Check />{feature}</li>)}
               </ul>
@@ -956,7 +998,7 @@ export function PricingSection({ authenticated }: { authenticated: boolean }) {
               <h3 id="mk-pro-title">Pro</h3>
               <p className="mk-price-card__description">More credits a month, same straightforward workflow.</p>
               <p className="mk-price"><strong>{formatUsd(prices.monthlyCents)}</strong><span>/ month</span></p>
-              <p className="mk-price-card__annual">or {formatUsd(prices.annualCents)} a year</p>
+              <p className="mk-price-card__annual">or {formatUsd(prices.annualCents)} a year — save {prices.annualSavingsPercent}% ({formatUsd(prices.annualSavingsCents)} off)</p>
               <a className="mk-button mk-button--secondary mk-price-card__cta" href="/pricing">See what is included <Arrow /></a>
               <ul className="mk-feature-list">
                 <li><Check />{plans.proDailyCredits} credits a day plus {plans.proMonthlyCredits} a month</li>
@@ -964,6 +1006,10 @@ export function PricingSection({ authenticated }: { authenticated: boolean }) {
                 <li><Check />Daily credits are used first</li>
                 <li><Check />Unused credits do not roll over</li>
               </ul>
+              <div className="mk-price-card__waitlist">
+                <p>Pro is not on sale yet.</p>
+                <NotifyForm interest="pro" buttonLabel="Notify me" id="mk-pro-notify" />
+              </div>
             </article>
           </Reveal>
         </div>
@@ -1003,7 +1049,7 @@ function FaqItem({ question, answer, index }: { question: string; answer: string
   );
 }
 
-export function FAQSection() {
+export function FAQSection({ authenticated }: { authenticated: boolean }) {
   return (
     <section className="mk-section mk-faq" id="faq" aria-labelledby="mk-faq-title">
       <div className="mk-container mk-faq__layout">
@@ -1015,6 +1061,9 @@ export function FAQSection() {
         <div className="mk-faq__list">
           {FAQS.map((faq, index) => <FaqItem key={faq.question} question={faq.question} answer={faq.answer} index={index} />)}
         </div>
+        <Reveal variant="fade" className="mk-faq__cta">
+          <RepeatCta authenticated={authenticated} label="Still deciding? The fastest answer is your own first form." />
+        </Reveal>
       </div>
     </section>
   );

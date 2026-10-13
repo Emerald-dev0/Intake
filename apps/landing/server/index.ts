@@ -39,6 +39,8 @@ import { calderWebhookHandler } from './email/webhooks';
 import { createBillingRuntime, createBillingRouter, createBachsWebhookRouter, bindBillingSettingsStore, billingSettings, createPostgresBillingSettingsStore } from './billing';
 import { createAnalyticsRouter } from './analytics/routes';
 import { createPostgresAnalyticsStore } from './analytics/store';
+import { createUpdatesRouter } from './updates/routes';
+import { createPostgresUpdatesStore } from './updates/store';
 const app = express();
 app.disable('x-powered-by');
 if (serverConfig.trustProxyHops > 0) app.set('trust proxy', serverConfig.trustProxyHops);
@@ -135,6 +137,8 @@ app.use('/api/admin', createAdminRouter({ store: adminStore, getSession, rateLim
 // Public, privacy-first engagement ingress. No auth, no cookies, no identifiers: the payload
 // carries only an allowlisted path, a click label, a referrer hostname and UTM tags.
 app.use('/api/analytics', createAnalyticsRouter({ store: createPostgresAnalyticsStore(pool), rateLimiter: abuseLimiter }));
+// Update subscriptions: the Pro waitlist and the product-updates list. Public, validated, rate-limited.
+app.use('/api/updates', createUpdatesRouter({ store: createPostgresUpdatesStore(pool), rateLimiter: abuseLimiter }));
 app.use('/api/providers', createProviderRouter({ service: providerService, env: providerEnv, getSession, abuseLimiter }));
 
 // Form creation and safe edits share the same provider service, user-scoped metadata store,

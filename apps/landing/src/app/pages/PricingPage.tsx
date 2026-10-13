@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { LogoMark } from '../../components/LogoMark';
+import { NotifyForm } from '../../marketing/NotifyForm';
 import { usePublicSession } from '../../marketing/usePublicSession';
 import { pricingFaqEntries } from '../../content/pricing';
 import { PLAN_CATALOG, formatUsd } from '../../lib/plans';
@@ -69,6 +70,7 @@ export function PricingPage() {
           <p className="pricing-plan-description">Everything you need to build forms from a sentence.</p>
           <p className="pricing-amount"><strong>$0</strong><span>forever</span></p>
           <a className="btn btn-ghost pricing-plan-action" href={authenticated ? '/app' : '/auth/sign-up'}>{authenticated ? 'Open Intake' : 'Create a free account'} <span aria-hidden>→</span></a>
+          <p className="pricing-no-card">No card needed · Free forever</p>
           <ul>{freeFeatures.map(feature => <li key={feature}>{feature}</li>)}</ul>
         </article>
 
@@ -87,7 +89,10 @@ export function PricingPage() {
           ) : (
             <p className="pricing-amount" aria-live="polite" aria-atomic="true"><strong>Coming soon</strong><span> · {formatUsd(amount)}/{cadence === 'month' ? 'month' : 'year'} at launch</span></p>
           )}
-          <a className="btn btn-accent pricing-plan-action" href={authenticated ? '/app' : '/auth/sign-up?plan=pro'}>{authenticated ? 'Open Intake' : 'Notify me when Pro opens'} <span aria-hidden>→</span></a>
+          <div className="pricing-waitlist">
+            <p><strong>Pro is not on sale yet.</strong> Join the waitlist and you will hear the day it opens.</p>
+            <NotifyForm interest="pro" buttonLabel="Notify me" id="pricing-pro-notify" />
+          </div>
           <ul>{proFeatures.map(feature => <li key={feature}>{feature}</li>)}</ul>
         </article>
       </section>

@@ -10,12 +10,12 @@
 
 // Update this to a mailbox you actually monitor. It should match the support
 // email on the Google Cloud OAuth consent screen.
-export const PRIVACY_CONTACT_EMAIL = 'oluwadare458@gmail.com';
+export const PRIVACY_CONTACT_EMAIL = 'support@intake.calder.click';
 
 export const PRIVACY_TITLE = 'Intake Privacy Policy';
 export const PRIVACY_DESCRIPTION =
   'How Intake uses your account, your Google authorization, and your form drafts — and what it never touches.';
-export const PRIVACY_EFFECTIVE_DATE = '11 October 2026';
+export const PRIVACY_EFFECTIVE_DATE = '13 October 2026';
 
 export const PRIVACY_SECTIONS = [
   {
@@ -50,8 +50,15 @@ export const PRIVACY_SECTIONS = [
   {
     heading: 'What Intake shares',
     body: [
-      'Nothing is sold. Google tokens are used only to call the Google Forms API on your behalf after you confirm an action. No Google user data is shared with advertisers, analytics vendors, or AI providers beyond the form specification Intake itself generates for the operation you asked for.',
+      'Nothing is sold. Google tokens are used only to call the Google Forms API on your behalf after you confirm an action. The description you wrote is sent to the AI provider solely to generate the proposal you asked for. Intake does not allow its providers to use Google user data for advertising, sale, or training generalized models, and no human reads your forms except support staff when you explicitly ask for help.',
       'Intake’s use of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.',
+    ],
+  },
+  {
+    heading: 'Voluntary lists and anonymous analytics',
+    body: [
+      'If you join the Pro waitlist or the product-updates list, Intake stores only your email address and which list you joined. You will hear about each shipped item once — nothing else — and every message explains how to leave the list. One deletion request removes you entirely.',
+      'The public site records anonymous pageviews and button clicks to understand what visitors need. No IP addresses, cookies, or identifiers are stored with these events, and they can never be traced back to you or your account.',
     ],
   },
   {

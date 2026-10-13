@@ -13,6 +13,11 @@ const AccountPage = lazy(() => import('./pages/AccountPage').then(m => ({ defaul
 const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage').then(m => ({ default: m.VerifyEmailPage })));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
 const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ default: m.PricingPage })));
+const VsPage = lazy(() => import('../marketing/MarketingPages').then(m => ({ default: m.VsPage })));
+const TemplatesPage = lazy(() => import('../marketing/MarketingPages').then(m => ({ default: m.TemplatesPage })));
+const GuidesPage = lazy(() => import('../marketing/MarketingPages').then(m => ({ default: m.GuidesPage })));
+const TrustPage = lazy(() => import('../marketing/MarketingPages').then(m => ({ default: m.TrustPage })));
+const ChangelogPage = lazy(() => import('../marketing/MarketingPages').then(m => ({ default: m.ChangelogPage })));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage').then(m => ({ default: m.PrivacyPage })));
 const TermsPage = lazy(() => import('./pages/TermsPage').then(m => ({ default: m.TermsPage })));
 const BillingPage = lazy(() => import('./pages/BillingPage').then(m => ({ default: m.BillingPage })));
@@ -36,6 +41,11 @@ function NotFoundPage() {
 export const routes: RouteObject[] = [
   { path: '/', element: <LandingPage /> },
   { path: '/pricing', element: <PricingPage /> },
+  { path: '/vs', element: <VsPage /> },
+  { path: '/templates', element: <TemplatesPage /> },
+  { path: '/guides', element: <GuidesPage /> },
+  { path: '/trust', element: <TrustPage /> },
+  { path: '/changelog', element: <ChangelogPage /> },
   { path: '/privacy', element: <PrivacyPage /> },
   { path: '/terms', element: <TermsPage /> },
   { path: '/auth/sign-in', element: <AuthPage key="sign-in" /> },
