@@ -18,6 +18,7 @@ import { createInterpretationLimiter } from './forms/interpretation/routes';
 import { createFormsRouter } from './forms/routes';
 import { createInsightsRouter } from './forms/insights/routes';
 import { getProviderConnection } from './providers/service';
+import { getOGPNG } from './og';
 import { createPostgresDraftStore } from './forms/draft-postgres-store';
 import { aiProviderLabel, resolveAiProvider } from './ai/registry';
 import { createAiOperationRunner } from './ai/operations';
@@ -81,7 +82,9 @@ app.get('/api/health', async (req, res) => {
     return res.status(503).json({ ok: false, database: 'unavailable' });
   }
 });
-// Public sign-in capabilities (booleans only). Mounted before the API 404 below.
+  // Open Graph image generation
+  app.get('/api/og', getOGPNG);
+  // Public sign-in capabilities (booleans only). Mounted before the API 404 below.
 app.use('/api/sign-in', createSignInRouter({ env: process.env }));
 // This route must precede application body middleware. The parsers enforce the bound for both
 // declared and chunked bodies; Better Auth's Node adapter safely re-serializes req.body.
