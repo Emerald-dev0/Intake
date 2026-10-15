@@ -48,7 +48,8 @@ export type FormLogEvent =
   | 'form.library.import_failed'
   | 'form.library.import_rejected'
   | 'form.library.archive'
-  | 'form.library.remove';
+  | 'form.library.remove'
+  | 'form.draft.updated';
 
 type LogValue = string | number | boolean | null | undefined | readonly string[];
 export type FormLogFields = Record<string, LogValue>;
@@ -101,6 +102,7 @@ const LEVELS: Record<FormLogEvent, LogLevel> = {
   'form.library.import_rejected': 'warn',
   'form.library.archive': 'info',
   'form.library.remove': 'info',
+  'form.draft.updated': 'info',
 };
 
 function cleanString(value: string): string {

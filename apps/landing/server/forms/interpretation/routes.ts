@@ -12,6 +12,7 @@ import type { AiOperationRunner } from '../../ai/operations';
 import { CreditError } from '../../credits/service';
 import { costForFormCreation, creationComplexity } from '../../credits/pricing';
 import { assessInterpretation, InterpretationError, type FormInterpreter, type InterpretationInput, type InterpretationResult } from './interpreter';
+import { parseFormSpecification } from '../validation';
 
 const MAX_REQUEST = 3000;
 const MAX_CLARIFICATION = 1000;
@@ -256,6 +257,32 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
     if (draft.status !== 'ready') return send(res, locked);
     if (!await deps.store.discard(user(res).id, draft.id)) return send(res, conflict);
     res.status(204).end();
+  }));
+
+  router.patch('/draft/:id', auth, mutation, express.json({ limit: MAX_BODY, strict: true }), asyncRoute(async (req, res) => {
+    if (!DRAFT_ID.test(req.params.id)) return send(res, missingDraft);
+    const body = readInput(req.body, ['version', 'specification', 'assumptions', 'warnings']);
+    if (!body || !version(body.version) || !isRecord(body.specification)) {
+      return send(res, invalidRequest('Send a valid draft id, version, and specification. Nothing was changed.'));
+    }
+    const draft = await deps.store.get(user(res).id, req.params.id);
+    if (!draft) return send(res, missingDraft);
+    if (draft.status !== 'ready') return send(res, locked);
+    if (draft.version !== body.version) return send(res, conflict);
+
+    // Validate the specification before saving
+    const parsed = parseFormSpecification(body.specification);
+    if (!parsed.ok) {
+      log('form.draft.validation_failed', { requestId: requestId(res), userId: user(res).id, draftId: draft.id, issueCount: parsed.issues.length });
+      return send(res, { code: 'validation_failed', message: 'The specification is not valid. Nothing was saved.', issues: parsed.issues, outcome: 'not_created', retryable: false });
+    }
+
+    const updated = await deps.store.update(user(res).id, draft.id, draft.version,
+      { specification: parsed.specification, assumptions: Array.isArray(body.assumptions) ? body.assumptions.map(String) : [], warnings: Array.isArray(body.warnings) ? body.warnings : [] }, now());
+    if (!updated) return send(res, conflict);
+
+    log('form.draft.updated', { requestId: requestId(res), userId: user(res).id, draftId: updated.id, version: updated.version, questionCount: updated.specification.questions.length });
+    sendJson(res, 200, { requestId: requestId(res), draft: publicDraft(updated) });
   }));
 
   router.post('/confirm', auth, mutation, express.json({ limit: MAX_BODY, strict: true }), asyncRoute(async (req, res) => {

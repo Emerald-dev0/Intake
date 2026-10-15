@@ -22,6 +22,13 @@ export function createMemoryDraftStore(): DraftStore & { all(): DraftRecord[] } 
       records.set(id, copy(updated));
       return copy(updated);
     },
+    async update(userId, id, version, changes, now) {
+      const draft = records.get(id);
+      if (!draft || draft.userId !== userId || draft.status !== 'ready' || draft.version !== version) return null;
+      const updated: DraftRecord = { ...draft, ...changes, version: version + 1, result: null, updatedAt: now };
+      records.set(id, copy(updated));
+      return copy(updated);
+    },
     async claim(userId, id, version, now) {
       const draft = records.get(id);
       if (!draft || draft.userId !== userId || draft.status !== 'ready' || draft.version !== version) return null;

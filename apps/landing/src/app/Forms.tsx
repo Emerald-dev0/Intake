@@ -13,6 +13,9 @@ import { useCredits } from './hooks/useCredits';
 import { createOperationTracker } from '../lib/operation-id';
 import { insufficientCreditsMessage, isInsufficientCredits, type PublicOperationCost } from '../lib/credits';
 import { CreditCostPreview, OperationCostReceipt } from './components/CreditCostPreview';
+import { DraftEditor } from './components/DraftEditor';
+import { Preview } from './components/Preview';
+import type { FormSpecification } from '../lib/specification';
 
 type Busy = 'loading' | 'interpreting' | 'revising' | 'creating' | 'cancelling' | null;
 export type RecentFormsState = { status: 'loading' | 'error' | 'ready'; forms: PublicFormSummary[] };
@@ -159,6 +162,7 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
   const [selectedEditRecordId, setSelectedEditRecordId] = useState<string | undefined>(
     typeof locationState?.initialRecordId === 'string' ? locationState.initialRecordId : undefined
   );
+  const [editMode, setEditMode] = useState<'review' | 'edit' | 'preview'>('review');
   const recent = useRecentForms();
   const alive = useAlive();
   const credits = useCredits();
@@ -355,6 +359,40 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
     }
   }
 
+  async function updateDraft(spec: FormSpecification) {
+    if (busyRef.current || !draft || draft.status !== 'ready') return;
+    busyRef.current = true;
+    setBusy('revising');
+    setFailure(null);
+    try {
+      const response = await fetch(`/api/forms/draft/${encodeURIComponent(draft.id)}`, {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { accept: 'application/json', 'content-type': 'application/json' },
+        body: JSON.stringify({ version: draft.version, specification: spec, assumptions: draft.assumptions, warnings: draft.warnings }),
+      });
+      if (!alive.current) return;
+      if (!response.ok) {
+        const rejected = parseFormFailure(response.status, await response.json().catch(() => null));
+        setFailure(rejected);
+        return;
+      }
+      const data = await response.json();
+      if (data.draft) {
+        setDraft(data.draft);
+        setDraftId(data.draft.id);
+        remember(data.draft.id);
+        setEditMode('review');
+      }
+    } catch {
+      if (alive.current) setFailure({ error: 'Could not save your changes. Please try again.', code: 'storage_unavailable', requestId: '', outcome: 'not_created' });
+    } finally {
+      busyRef.current = false;
+      if (alive.current) { setBusy(null); setWaking(false); }
+    }
+  }
+
   function reset() {
     setWaking(false);
     remember(null);
@@ -416,10 +454,35 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
     if (!live || !draft) {
       return <div key={entry.id} className="msg msg-intake">Proposed “{entry.title}” — {entry.questions} {entry.questions === 1 ? 'question' : 'questions'} (superseded).</div>;
     }
+
+    if (editMode === 'edit') {
+      return <div key={entry.id} className="msg msg-intake msg-wide">
+        <DraftEditor draft={draft.specification} onUpdate={updateDraft} onCancel={() => setEditMode('review')} disabled={busy !== null} />
+        <div className="draft-review-actions">
+          <button type="button" className="btn btn-accent" onClick={() => void confirm()} disabled={busy !== null}>{busy === 'creating' ? 'Creating your form…' : 'Create form →'}</button>
+          <button type="button" className="draft-cancel" onClick={() => void cancel()} disabled={busy !== null}>{busy === 'cancelling' ? 'Discarding…' : 'Cancel'}</button>
+        </div>
+        <p className="forms-help">Nothing has been sent to Google yet. Creating requires your confirmation.</p>
+      </div>;
+    }
+
+    if (editMode === 'preview') {
+      return <div key={entry.id} className="msg msg-intake msg-wide">
+        <Preview spec={draft.specification} onClose={() => setEditMode('review')} onEdit={() => setEditMode('edit')} />
+        <div className="draft-review-actions">
+          <button type="button" className="btn btn-accent" onClick={() => void confirm()} disabled={busy !== null}>{busy === 'creating' ? 'Creating your form…' : 'Create form →'}</button>
+          <button type="button" className="draft-cancel" onClick={() => void cancel()} disabled={busy !== null}>{busy === 'cancelling' ? 'Discarding…' : 'Cancel'}</button>
+        </div>
+        <p className="forms-help">Nothing has been sent to Google yet. Creating requires your confirmation.</p>
+      </div>;
+    }
+
     return <div key={entry.id} className="msg msg-intake msg-wide">
       <Review draft={draft} operationCost={operationCost} />
       <div className="draft-review-actions">
         <button type="button" className="btn btn-accent" onClick={() => void confirm()} disabled={busy !== null}>{busy === 'creating' ? 'Creating your form…' : 'Create form →'}</button>
+        <button type="button" className="btn btn-ghost" onClick={() => setEditMode('edit')} disabled={busy !== null}>Edit questions</button>
+        <button type="button" className="btn btn-ghost" onClick={() => setEditMode('preview')} disabled={busy !== null}>Preview</button>
         <button type="button" className="draft-cancel" onClick={() => void cancel()} disabled={busy !== null}>{busy === 'cancelling' ? 'Discarding…' : 'Cancel'}</button>
       </div>
       <p className="forms-help">Nothing has been sent to Google yet. Creating requires your confirmation, and this draft can only be submitted once.</p>

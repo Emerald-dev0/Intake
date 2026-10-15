@@ -71,5 +71,14 @@ export function createPostgresDraftStore(pool: Pool): DraftStore {
       const result = await pool.query('DELETE FROM form_draft WHERE user_id = $1 AND id = $2 AND status = $3', [userId, id, 'ready']);
       return result.rowCount === 1;
     },
+    async update(userId, id, version, changes, now) {
+      const result = await pool.query<Row>(
+        `UPDATE form_draft SET specification = $4::jsonb, assumptions = $5::jsonb, warnings = $6::jsonb,
+           version = version + 1, updated_at = $7
+         WHERE user_id = $1 AND id = $2 AND version = $3 AND status = 'ready' RETURNING ${COLUMNS}`,
+        [userId, id, version, JSON.stringify(changes.specification), JSON.stringify(changes.assumptions), JSON.stringify(changes.warnings), now],
+      );
+      return result.rows[0] ? map(result.rows[0]) : null;
+    },
   };
 }
