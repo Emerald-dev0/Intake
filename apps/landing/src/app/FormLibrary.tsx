@@ -7,6 +7,7 @@ import {
   type PublicLibraryForm,
   type PublicFormSummary,
 } from '../lib/forms';
+import { Insights } from './components/Insights';
 
 export interface FormLibraryProps {
   providers: ProviderLoad;
@@ -78,6 +79,10 @@ export function FormLibrary({
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // Insights state
+  const [insightsOpen, setInsightsOpen] = useState(false);
+  const [isPro, setIsPro] = useState(false);
 
   const alive = useRef(true);
   const loadSequence = useRef(0);
@@ -354,6 +359,31 @@ export function FormLibrary({
     }
   }
 
+  async function openInsights(form: PublicLibraryForm) {
+    if (!alive.current) return;
+    try {
+      const response = await fetch('/api/credits', {
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { accept: 'application/json' },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setIsPro(data.credits?.plan === 'pro' && data.credits?.subscriptionStatus === 'active');
+      }
+    } catch { /* ignore */ }
+
+    // Check if responses scope is granted
+    const googleProvider = providers.providers?.find(p => p.id === 'google');
+    if (googleProvider?.status === 'connected') {
+      // The insights endpoint will return 403 with code 'responses_scope_required' if not granted
+      // We'll let the Insights component handle the error display
+    }
+    setInspectingForm(form);
+    setInsightsOpen(true);
+    setActionError(null);
+  }
+
   function clearFilters() {
     setSearchQuery('');
     setSourceFilter('all');
@@ -601,6 +631,15 @@ export function FormLibrary({
                     }}
                   >
                     View details
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => void openInsights(form)}
+                    disabled={!isGoogleConnected}
+                    title={isGoogleConnected ? 'View response insights' : 'Connect Google to view insights'}
+                  >
+                    View insights
                   </button>
                 </div>
               </li>
@@ -879,6 +918,16 @@ export function FormLibrary({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Insights Modal */}
+      {insightsOpen && inspectingForm && (
+        <Insights
+          form={inspectingForm}
+          onClose={() => { setInsightsOpen(false); setInspectingForm(null); }}
+          isPro={isPro}
+          hasResponsesScope={true}
+        />
       )}
     </div>
   );
