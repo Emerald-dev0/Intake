@@ -4,7 +4,7 @@ import {
   describeFailure, parseFormFailure, parseFormList,
   type CreateFormResult, type FormFailure, type FormStage, type PublicFormSummary,
 } from '../lib/forms';
-import { parseConfirmedResponse, parseDraftLoad, parseInterpretResponse, type PublicDraft } from '../lib/drafts';
+import { parseConfirmedResponse, parseDraftLoad, parseInterpretResponse, parseDraftList, type PublicDraft } from '../lib/drafts';
 import type { PublicProvider } from '../lib/connections';
 import type { ProviderLoad } from './Connections';
 import { FormEditWorkspace } from './FormEditWorkspace';
@@ -77,6 +77,24 @@ export function useRecentForms() {
       if (alive.current) setState({ status: 'ready', forms });
     } catch {
       if (alive.current) setState(previous => ({ status: 'error', forms: previous.forms }));
+    }
+  }
+  useEffect(() => { void load(); }, []);
+  return { state, load };
+}
+
+export function useDrafts() {
+  const [state, setState] = useState<{ status: 'loading' | 'error' | 'ready'; drafts: PublicDraft[] }>({ status: 'loading', drafts: [] });
+  const alive = useAlive();
+  async function load() {
+    try {
+      const response = await fetch('/api/forms/drafts', { credentials: 'same-origin', cache: 'no-store', headers: { accept: 'application/json' } });
+      if (!response.ok) throw new Error('unavailable');
+      const drafts = parseDraftList(await response.json());
+      if (!drafts) throw new Error('invalid');
+      if (alive.current) setState({ status: 'ready', drafts });
+    } catch {
+      if (alive.current) setState({ status: 'error', drafts: [] });
     }
   }
   useEffect(() => { void load(); }, []);
@@ -164,6 +182,7 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
   );
   const [editMode, setEditMode] = useState<'review' | 'edit' | 'preview'>('review');
   const recent = useRecentForms();
+  const drafts = useDrafts();
   const alive = useAlive();
   const credits = useCredits();
   function pushEntry(entry: ThreadEntryInput) {
@@ -567,6 +586,33 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
       {recent.state.status === 'error' && <div className="form-banner bad" role="alert"><p>Intake couldn’t load your recent forms. This does not mean they are gone.</p><button className="btn btn-ghost btn-sm" type="button" onClick={() => void recent.load()}>Try again</button></div>}
       {recent.state.status === 'ready' && recent.state.forms.length === 0 && <p className="fine-print">Forms you create here will be listed.</p>}
       {recent.state.forms.length > 0 && <ul className="provider-list forms-list">{recent.state.forms.map(form => <RecentRow key={form.id} form={form} />)}</ul>}
+    </section>
+
+    <section className="forms-drafts" aria-labelledby="drafts-title">
+      <h2 id="drafts-title" className="forms-legend" style={{ margin: 0 }}>SAVED DRAFTS</h2>
+      {drafts.state.status === 'loading' && <p className="fine-print" role="status">Loading your drafts…</p>}
+      {drafts.state.status === 'error' && <div className="form-banner bad" role="alert"><p>Intake couldn't load your saved drafts.</p><button className="btn btn-ghost btn-sm" type="button" onClick={() => void drafts.load()}>Try again</button></div>}
+      {drafts.state.status === 'ready' && drafts.state.drafts.length === 0 && <p className="fine-print">Drafts you save will appear here. They persist across sessions.</p>}
+      {drafts.state.drafts.length > 0 && (
+        <ul className="provider-list drafts-list">
+          {drafts.state.drafts.filter(d => d.status === 'ready').map(draft => (
+            <li key={draft.id} className="provider-row drafts-row">
+              <span className="provider-symbol" aria-hidden>✎</span>
+              <div className="provider-main">
+                <div className="provider-title">
+                  <h3>{draft.specification.title}</h3>
+                  <span className="status-pill ok">{draft.specification.questions.length} question{draft.specification.questions.length !== 1 ? 's' : ''}</span>
+                </div>
+                <p className="provider-note">Updated {formatWhen(draft.updatedAt)} · v{draft.version}</p>
+              </div>
+              <div className="provider-actions">
+                <button type="button" className="btn btn-accent btn-sm" onClick={() => void loadDraft(draft.id)} disabled={busy !== null}>Resume</button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => void loadDraft(draft.id)} disabled={busy !== null}>View</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
     <p className="draft-boundary">Google Forms is the only creation target today. {MICROSOFT_REASON} Intake never hosts responses.</p>
   </>;

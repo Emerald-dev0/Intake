@@ -47,6 +47,13 @@ export function createMemoryDraftStore(): DraftStore & { all(): DraftRecord[] } 
       if (!draft || draft.userId !== userId || draft.status !== 'ready') return false;
       return records.delete(id);
     },
+    async listForUser(userId) {
+      const userDrafts: DraftRecord[] = [];
+      for (const draft of records.values()) {
+        if (draft.userId === userId) userDrafts.push(draft);
+      }
+      return userDrafts.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()).slice(0, 50);
+    },
     all() { return [...records.values()].map(copy); },
   };
 }

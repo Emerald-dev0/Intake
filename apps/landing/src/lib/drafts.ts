@@ -130,3 +130,15 @@ export function parseConfirmedResponse(status: number, value: unknown): { result
   const row = record(value);
   return { result: parseCreateFormResponse(status, value), draft: parsePublicDraft(row?.draft) };
 }
+
+export function parseDraftList(value: unknown): PublicDraft[] | null {
+  const row = record(value);
+  if (!row || !Array.isArray(row.drafts)) return null;
+  const drafts: PublicDraft[] = [];
+  for (const item of row.drafts.slice(0, 50)) {
+    const draft = parsePublicDraft(item);
+    if (!draft) return null;
+    drafts.push(draft);
+  }
+  return drafts;
+}

@@ -80,5 +80,9 @@ export function createPostgresDraftStore(pool: Pool): DraftStore {
       );
       return result.rows[0] ? map(result.rows[0]) : null;
     },
+    async listForUser(userId) {
+      const result = await pool.query<Row>(`SELECT ${COLUMNS} FROM form_draft WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 50`, [userId]);
+      return result.rows.map(map);
+    },
   };
 }

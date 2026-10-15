@@ -29,6 +29,8 @@ export interface DraftStore {
   revise(userId: string, id: string, version: number, changes: Pick<NewDraft, 'specification' | 'assumptions' | 'warnings'>, now: Date): Promise<DraftRecord | null>;
   /** Direct update for manual edits. Only allowed on ready drafts, increments version. */
   update(userId: string, id: string, version: number, changes: Pick<NewDraft, 'specification' | 'assumptions' | 'warnings'>, now: Date): Promise<DraftRecord | null>;
+  /** List all drafts for a user, most recent first. */
+  listForUser(userId: string): Promise<DraftRecord[]>;
   /** Atomic claim: only one request (including across API processes) may reach the provider per draft. */
   claim(userId: string, id: string, version: number, now: Date): Promise<DraftRecord | null>;
   /** The claim stays locked if this write fails. An ambiguous operation is never retried automatically. */

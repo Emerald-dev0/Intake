@@ -243,6 +243,11 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
     sendJson(res, 200, withCredits(res, { requestId: requestId(res), status: 'ready', draft: publicDraft(updated) }));
   }));
 
+  router.get('/drafts', auth, asyncRoute(async (_req, res) => {
+    const drafts = await deps.store.listForUser(user(res).id);
+    sendJson(res, 200, { requestId: requestId(res), drafts: drafts.map(publicDraft) });
+  }));
+
   router.get('/draft/:id', auth, asyncRoute(async (req, res) => {
     if (!DRAFT_ID.test(req.params.id)) return send(res, missingDraft);
     const draft = await deps.store.get(user(res).id, req.params.id);
