@@ -54,6 +54,12 @@ export function VerifyEmailPage() {
     return () => clearTimeout(timer);
   }, [cooldown]);
 
+  useEffect(() => {
+    if (phase !== 'verified') return;
+    const timer = setTimeout(() => window.location.replace('/app'), 1400);
+    return () => clearTimeout(timer);
+  }, [phase]);
+
   async function sendCode(): Promise<void> {
     setError('');
     setBusy(true);
