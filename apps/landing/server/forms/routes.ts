@@ -1,5 +1,6 @@
 import express, { Router, type NextFunction, type Request, type Response } from 'express';
 import type { ValidationIssue } from '../../src/lib/forms';
+import { isProviderId } from '../../src/lib/connections';
 import { logSafe } from '../providers/oauth';
 import { assertPublic, trustedMutation } from '../providers/routes';
 import type { SessionUser } from '../providers/service';
@@ -46,7 +47,7 @@ function parseLibraryFilter(query: Request['query']): FilterParse {
     if (value) filter.query = value;
   }
   if (query.provider !== undefined) {
-    if (query.provider !== 'google' && query.provider !== 'microsoft' && query.provider !== 'all') return { ok: false, message: 'Provider must be google, microsoft, or all.' };
+    if (query.provider !== 'all' && (typeof query.provider !== 'string' || !isProviderId(query.provider))) return { ok: false, message: 'Provider must be a known provider or all.' };
     filter.provider = query.provider;
   }
   if (query.source !== undefined) {

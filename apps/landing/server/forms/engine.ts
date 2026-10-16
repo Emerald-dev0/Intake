@@ -255,13 +255,9 @@ export function createFormEngine(deps: FormEngineDeps): FormEngine {
         return { ok: false, status: 'missing', error: 'Form not found in your Intake account.' };
       }
 
-      if (existing.provider !== 'google') {
-        return { ok: false, status: 'unknown', error: 'Live status verification is only available for Google Forms.', form: publicLibrary(existing) };
-      }
-
-      const adapter = deps.providers.google;
+      const adapter = deps.providers[existing.provider];
       if (!adapter?.retrieveForm) {
-        return { ok: false, status: 'unavailable', error: 'Google Forms provider cannot retrieve form state.', form: publicLibrary(existing) };
+        return { ok: false, status: 'unknown', error: `Live status verification is not available for ${existing.provider} forms yet.`, form: publicLibrary(existing) };
       }
 
       try {
