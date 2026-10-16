@@ -280,7 +280,7 @@ export function createTypeformClient(options: { fetchImpl?: FetchLike; timeoutMs
         ...(input.welcomeScreens !== undefined ? { welcome_screens: input.welcomeScreens } : {}),
         ...(input.thankYouScreens !== undefined ? { thankyou_screens: input.thankYouScreens } : {}),
         ...(input.logic !== undefined ? { logic: input.logic } : {}),
-      });
+      }, undefined, 'POST');
       if (typeof json.id !== 'string' || !json.id) throw new TypeformApiError({ operation: 'forms.create', kind: 'malformed_response' });
       const links = json._links as Record<string, unknown> | undefined;
       return { id: json.id, title: String(json.title ?? ''), _links: { display: String(links?.display ?? ''), edit: String(links?.edit ?? '') } };
@@ -302,7 +302,7 @@ export function createTypeformClient(options: { fetchImpl?: FetchLike; timeoutMs
         ...(input.welcomeScreens !== undefined ? { welcome_screens: input.welcomeScreens } : {}),
         ...(input.thankYouScreens !== undefined ? { thankyou_screens: input.thankYouScreens } : {}),
         ...(input.override !== undefined ? { override: input.override } : {}),
-      });
+      }, undefined, 'POST');
       return parseFormResource(json, formId);
     },
 

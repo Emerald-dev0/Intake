@@ -146,17 +146,23 @@ function text(value: unknown, max: number): string | null {
 }
 
 /**
- * Only Google Forms links are ever rendered as links. The server already restricts what it returns;
- * this keeps a malformed or tampered response from becoming a javascript: or off-site link.
+ * Only known provider form links are ever rendered as links. The server already restricts what it
+ * returns; this keeps a malformed or tampered response from becoming a javascript: or off-site link.
+ * Each entry is the hostname and the path prefix that host may use.
  */
-const FORM_HOSTS = new Set(['docs.google.com']);
+const FORM_HOSTS: Record<string, string> = {
+  'docs.google.com': '/forms/',
+  'form.typeform.com': '/to/',
+  'admin.typeform.com': '/form/',
+};
 
 export function safeFormUrl(value: unknown): string | null {
   if (typeof value !== 'string' || value.length > 2048) return null;
   try {
     const url = new URL(value);
-    if (url.protocol !== 'https:' || !FORM_HOSTS.has(url.hostname) || url.port || url.username || url.password) return null;
-    if (!url.pathname.startsWith('/forms/')) return null;
+    if (url.protocol !== 'https:' || url.port || url.username || url.password) return null;
+    const prefix = FORM_HOSTS[url.hostname];
+    if (!prefix || !url.pathname.startsWith(prefix)) return null;
     return url.toString();
   } catch {
     return null;

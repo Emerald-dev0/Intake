@@ -143,7 +143,7 @@ export function createProviderService(deps: ProviderDeps): ProviderService {
       return pending;
     },
     async reportAuthorizationRejected(userId, provider) {
-      if (provider !== 'google' && provider !== 'microsoft') return;
+      if (provider !== 'google' && provider !== 'microsoft' && provider !== 'typeform') return;
       await deps.store.markNeedsReauthorization(userId, provider, 'reauthorization_required', now());
     },
   };
@@ -489,7 +489,7 @@ function decryptField(deps: ProviderDeps, payload: string | null, userId: string
 }
 
 async function readAuthorizedConnection(deps: ProviderDeps, userId: string, providerId: string, at: Date): Promise<AuthorizedConnection> {
-  if (providerId !== 'google' && providerId !== 'microsoft') return { ok: false, provider: null, reason: 'unsupported' };
+  if (providerId !== 'google' && providerId !== 'microsoft' && providerId !== 'typeform') return { ok: false, provider: null, reason: 'unsupported' };
   const definition = providerDefinition(providerId, deps.env);
   if (definition.configurationError) return { ok: false, provider: providerId, reason: 'not_configured' };
   const record = await deps.store.getConnection(userId, providerId);
