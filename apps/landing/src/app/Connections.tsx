@@ -145,7 +145,7 @@ function ProviderRow({ provider, onChange }: { provider: PublicProvider; onChang
         {confirming && (
           <form className="confirm-panel" method="POST" action={`/api/providers/${provider.id}/disconnect`} onSubmit={event => void disconnect(event)}>
             <p>Disconnect {provider.accountName}? Intake will stop using this account. Forms already there are not deleted.</p>
-            {provider.revocation === 'unsupported' && <p>Microsoft does not let Intake revoke the consent grant. You can also remove Intake from your Microsoft account permissions.</p>}
+            {provider.revocation === 'unsupported' && <p>{provider.accountName} does not let Intake revoke the consent grant. You can also remove Intake from your {provider.accountName} account permissions.</p>}
             {error && <p role="alert">{error}</p>}
             <div className="confirm-actions">
               <button className="btn btn-accent btn-sm" type="submit" disabled={disconnecting}>{disconnecting ? 'Disconnecting…' : 'Disconnect'}</button>

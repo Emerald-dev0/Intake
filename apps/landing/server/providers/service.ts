@@ -353,6 +353,17 @@ async function identifyAccount(deps: ProviderDeps, definition: ProviderDefinitio
       return { result: 'provider_unavailable' };
     }
   }
+  if (definition.identity.type === 'typeform-userinfo') {
+    try {
+      const response = await deps.http.getJson(definition.identity.url, { authorization: `Bearer ${token.accessToken}` });
+      if (response.status < 200 || response.status >= 300) return { result: 'exchange_failed' };
+      const identity = typeformIdentity(response.json);
+      return identity ?? { result: 'exchange_failed' };
+    } catch (error) {
+      logSafe('Typeform account lookup failed', error);
+      return { result: 'provider_unavailable' };
+    }
+  }
   if (!token.idToken) return { result: 'exchange_failed' };
   try {
     const jwks = await deps.http.getJson(definition.identity.jwksUrl);
@@ -394,6 +405,17 @@ function googleIdentity(json: unknown): { accountId: string; email: string | nul
     accountId: row.sub,
     email: row.email_verified === true ? cleanEmail(typeof row.email === 'string' ? row.email : null) : null,
     label: cleanLabel(typeof row.name === 'string' ? row.name : null),
+  };
+}
+
+function typeformIdentity(json: unknown): { accountId: string; email: string | null; label: string | null } | null {
+  if (!json || typeof json !== 'object') return null;
+  const row = json as { id?: unknown; email?: unknown; name?: unknown; alias?: unknown };
+  if (typeof row.id !== 'string' || !row.id || row.id.length > 255) return null;
+  return {
+    accountId: row.id,
+    email: cleanEmail(typeof row.email === 'string' ? row.email : null),
+    label: cleanLabel(typeof row.name === 'string' ? row.name : typeof row.alias === 'string' ? row.alias : null),
   };
 }
 

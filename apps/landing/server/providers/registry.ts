@@ -15,7 +15,7 @@ export interface ProviderDefinition {
   extraAuthParams: Record<string, string>;
   clientIdEnv: string;
   clientSecretEnv: string;
-  identity: { type: 'google-userinfo'; url: string } | { type: 'microsoft-id-token'; jwksUrl: string; tenant: string };
+  identity: { type: 'google-userinfo'; url: string } | { type: 'microsoft-id-token'; jwksUrl: string; tenant: string } | { type: 'typeform-userinfo'; url: string };
   revocation: { type: 'google'; url: string } | { type: 'unsupported' };
   formsApi: 'supported' | 'unsupported';
   formsNote: string;
@@ -47,6 +47,7 @@ export function microsoftTenant(env: NodeJS.ProcessEnv): { tenant: string; valid
 
 export function providerDefinition(id: ProviderId, env: NodeJS.ProcessEnv): ProviderDefinition {
   if (id === 'google') return googleDefinition();
+  if (id === 'typeform') return typeformDefinition();
   const tenant = microsoftTenant(env);
   const definition = microsoftDefinition(tenant.tenant);
   if (!tenant.valid) definition.configurationError = 'MICROSOFT_OAUTH_TENANT is not common, organizations, consumers, or a tenant GUID.';
@@ -54,7 +55,7 @@ export function providerDefinition(id: ProviderId, env: NodeJS.ProcessEnv): Prov
 }
 
 export function supportedProviders(env: NodeJS.ProcessEnv): ProviderDefinition[] {
-  return (['google', 'microsoft'] as const).map(id => providerDefinition(id, env));
+  return (['google', 'microsoft', 'typeform'] as const).map(id => providerDefinition(id, env));
 }
 
 export function isProviderConfigured(definition: ProviderDefinition, env: NodeJS.ProcessEnv): boolean {
@@ -99,6 +100,32 @@ function googleDefinition(): ProviderDefinition {
     },
     permissionLinks: [{ label: 'Google account permissions', href: 'https://myaccount.google.com/permissions' }],
     sendScopesOnRefresh: false,
+  };
+}
+
+function typeformDefinition(): ProviderDefinition {
+  return {
+    id: 'typeform',
+    name: 'Typeform',
+    accountName: 'Typeform',
+    description: 'Connect your Typeform account so Intake can create and manage Typeforms there. Signing in to Intake does not do this.',
+    scopes: ['forms:read', 'forms:write'],
+    requiredScopes: ['forms:write'],
+    authorizationEndpoint: 'https://api.typeform.com/oauth/authorize',
+    tokenEndpoint: 'https://api.typeform.com/oauth/token',
+    extraAuthParams: {},
+    clientIdEnv: 'TYPEFORM_OAUTH_CLIENT_ID',
+    clientSecretEnv: 'TYPEFORM_OAUTH_CLIENT_SECRET',
+    identity: { type: 'typeform-userinfo', url: 'https://api.typeform.com/me' },
+    revocation: { type: 'unsupported' },
+    formsApi: 'supported',
+    formsNote: 'Intake uses the Typeform Create API to create and edit Typeforms. Response summaries are available via the Responses API.',
+    scopeLabels: {
+      'forms:read': 'Read your Typeforms and responses',
+      'forms:write': 'Create and edit your Typeforms',
+    },
+    permissionLinks: [{ label: 'Typeform applications', href: 'https://admin.typeform.com/tool/app' }],
+    sendScopesOnRefresh: true,
   };
 }
 

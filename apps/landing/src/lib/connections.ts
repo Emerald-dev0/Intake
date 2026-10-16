@@ -1,6 +1,6 @@
 /** Public provider-connection contract. Safe to import from the browser. No tokens. */
 
-export const PROVIDER_IDS = ['google', 'microsoft'] as const;
+export const PROVIDER_IDS = ['google', 'microsoft', 'typeform'] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 
 export const RESULT_CODES = [
@@ -57,7 +57,7 @@ export interface PublicProvider {
 }
 
 export function isProviderId(value: string | null | undefined): value is ProviderId {
-  return value === 'google' || value === 'microsoft';
+  return value === 'google' || value === 'microsoft' || value === 'typeform';
 }
 
 export function isResultCode(value: string | null | undefined): value is ResultCode {
@@ -73,6 +73,7 @@ const PERMISSION_HOSTS = new Set([
   'account.live.com',
   'myaccount.microsoft.com',
   'myapplications.microsoft.com',
+  'admin.typeform.com',
 ]);
 
 export function safePermissionLinks(links: unknown): PermissionLink[] {
@@ -144,6 +145,7 @@ export function parseProviderList(data: unknown): PublicProvider[] | null {
 export function providerAccountName(id: ProviderId | null): string {
   if (id === 'google') return 'Google';
   if (id === 'microsoft') return 'Microsoft';
+  if (id === 'typeform') return 'Typeform';
   return 'Provider';
 }
 
