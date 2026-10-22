@@ -190,7 +190,7 @@ export function createFormEditEngine(deps: FormEditEngineDeps) {
       return inspect(userId, target, requestId);
     },
 
-    async interpret(userId: string, input: { target: FormEditTarget; request: string; clarification?: string; operationId?: string }, requestId = newRequestId()): Promise<EditInterpretationOutcome> {
+    async interpret(userId: string, input: { target: FormEditTarget; request: string; clarification?: string; operationId?: string; conversationHistory?: string[] }, requestId = newRequestId()): Promise<EditInterpretationOutcome> {
       const started = performance.now();
       const { loaded, formRecordId } = await inspect(userId, input.target, requestId);
       log('form.edit.interpret.started', { requestId, userId, provider: 'google', formId: loaded.current.providerFormId, mode: 'new' });
@@ -200,6 +200,7 @@ export function createFormEditEngine(deps: FormEditEngineDeps) {
           userId, operationType: 'form_edit', current: loaded.current, request: input.request,
           ...(input.operationId ? { operationId: input.operationId } : {}),
           ...(input.clarification ? { clarification: input.clarification } : {}),
+          ...(input.conversationHistory && { conversationHistory: input.conversationHistory }),
         });
       } catch (error) {
         const failure = error instanceof FormEditError ? error : interpretFailure(error);

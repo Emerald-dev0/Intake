@@ -68,6 +68,12 @@ export function WorkspaceLayout() {
           <a className={page === 'connections' ? 'active' : ''} href="/app/connections"><span aria-hidden>◇</span> Connections</a>
           <a className={page === 'billing' ? 'active' : ''} href="/app/billing"><span aria-hidden>$</span> Billing</a>
         </nav>
+        <div className="sidebar-chats">
+          <span className="chats-label">Conversations</span>
+          <button className="btn btn-ghost btn-sm" onClick={() => setWorkspaceMode('create')}>
+            New chat
+          </button>
+        </div>
         {isOperator && <>
           <div className="sidebar-label">OPERATOR</div>
           <nav aria-label="Operator navigation" className="side-nav">
