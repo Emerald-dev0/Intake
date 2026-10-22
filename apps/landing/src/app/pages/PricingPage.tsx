@@ -46,7 +46,7 @@ export function PricingPage() {
     <a className="skip-link" href="#pricing-main">Skip to pricing details</a>
     <header className="pricing-header">
       <a href="/" className="app-logo" aria-label="Intake home"><LogoMark size={28} /><span>intake</span></a>
-      <nav aria-label="Pricing navigation"><a href="/#how-it-works">How it works</a>{!authenticated && <a href="/auth/sign-in">Sign in</a>}<ThemeToggle className="pricing-theme-toggle" /><a className="btn btn-accent btn-sm" href={authenticated ? '/app' : '/waitlist'}>{authenticated ? 'Open Intake' : 'Join the wait-list'}</a></nav>
+      <nav aria-label="Pricing navigation"><a href="/#how-it-works">How it works</a>{!authenticated && <a href="/auth/sign-in">Sign in</a>}<ThemeToggle className="pricing-theme-toggle" /><a className="btn btn-accent btn-sm" href={authenticated ? '/app' : '/auth/sign-up'}>{authenticated ? 'Open Intake' : 'Sign up'}</a></nav>
     </header>
 
     <main id="pricing-main" tabIndex={-1}>
@@ -69,7 +69,7 @@ export function PricingPage() {
           <h2 id="free-plan-title">{PLAN_CATALOG.free.label}</h2>
           <p className="pricing-plan-description">Everything you need to build forms from a sentence.</p>
           <p className="pricing-amount"><strong>$0</strong><span>forever</span></p>
-          <a className="btn btn-ghost pricing-plan-action" href={authenticated ? '/app' : '/waitlist'}>{authenticated ? 'Open Intake' : 'Join the wait-list'} <span aria-hidden>→</span></a>
+          <a className="btn btn-ghost pricing-plan-action" href={authenticated ? '/app' : '/auth/sign-up'}>{authenticated ? 'Open Intake' : 'Sign up'} <span aria-hidden>→</span></a>
           <p className="pricing-no-card">No card needed · Free forever</p>
           <ul>{freeFeatures.map(feature => <li key={feature}>{feature}</li>)}</ul>
         </article>

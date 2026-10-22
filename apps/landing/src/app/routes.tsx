@@ -51,7 +51,7 @@ export const routes: RouteObject[] = [
   { path: '/privacy', element: <PrivacyPage /> },
   { path: '/terms', element: <TermsPage /> },
   { path: '/auth/sign-in', element: <AuthPage key="sign-in" /> },
-  { path: '/auth/sign-up', element: <Navigate to="/waitlist" replace /> },
+  { path: '/auth/sign-up', element: <Navigate to="/auth/sign-in" replace /> },
   { path: '/waitlist', element: <WaitlistPage /> },
   { path: '/auth/verify', element: <VerifyEmailPage /> },
   { path: '/auth/reset-password', element: <ResetPasswordPage /> },
