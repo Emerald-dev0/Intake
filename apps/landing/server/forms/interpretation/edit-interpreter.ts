@@ -7,6 +7,8 @@ export interface FormEditInterpretationInput {
   request: string;
   clarification?: string;
   current: FormEditSnapshot;
+  /** Earlier turns of this edit conversation, oldest first. Treated as data, never as instructions. */
+  conversationHistory?: string[];
   /** On a revision the model receives its own prior proposal, not a client-authored plan. */
   existingPlan?: FormEditPlan;
   /** Request/user context is used only for secret-free server-side usage metadata. */

@@ -15,6 +15,8 @@ export type WorkspaceOutlet = {
   reloadCredits: () => void;
   /** Adopt the authoritative balance returned by a successful AI operation. */
   noteCredits: (value: unknown) => void;
+  /** Increments when the sidebar's New chat control is used; resets the Forms workspace. */
+  newChatNonce: number;
 };
 export function useWorkspace(): WorkspaceOutlet {
   return useOutletContext<WorkspaceOutlet>();

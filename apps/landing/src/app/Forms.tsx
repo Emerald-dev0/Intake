@@ -155,7 +155,7 @@ async function post(
   throw new Error('Intake could not be reached after two attempts.');
 }
 
-export function Forms({ providers, reloadProviders }: { providers: ProviderLoad; reloadProviders: () => void }) {
+export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { providers: ProviderLoad; reloadProviders: () => void; newChatNonce?: number }) {
   const location = useLocation();
   const locationState = location.state as { initialPrompt?: unknown; mode?: unknown; initialRecordId?: unknown } | null;
   const initialPrompt = locationState?.initialPrompt;
@@ -192,6 +192,14 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
   useEffect(() => {
     try { threadEndRef.current?.scrollIntoView?.({ block: 'end' }); } catch { /* headless or older engines */ }
   }, [thread, busy]);
+  const seenNewChat = useRef(newChatNonce);
+  useEffect(() => {
+    if (seenNewChat.current === newChatNonce) return;
+    seenNewChat.current = newChatNonce;
+    reset();
+    setSelectedEditRecordId(undefined);
+    setWorkspaceMode('create');
+  }, [newChatNonce]);
   // Stable idempotency keys for AI operations: one key per distinct submission.
   const operations = useRef(createOperationTracker()).current;
   const google = providers.providers?.find(provider => provider.id === 'google');
@@ -467,7 +475,7 @@ export function Forms({ providers, reloadProviders }: { providers: ProviderLoad;
       return <div key={entry.id} className="msg msg-intake msg-wide"><FailureNotice failure={entry.failure} onReload={entry.draftId ? () => void loadDraft(entry.draftId as string) : undefined} /></div>;
     }
     if (entry.kind === 'result') {
-      return <div key={entry.id} className="msg msg-intake msg-wide"><Outcome result={entry.result} /></div>;
+      return <div key={entry.id} className="msg msg-intake msg-wide"><Outcome result={entry.result} onContinueEditing={(providerFormId) => { setSelectedEditRecordId(providerFormId); setWorkspaceMode('edit'); }} /></div>;
     }
     const live = draft?.id === entry.draftId && draft?.version === entry.version && draft?.status === 'ready';
     if (!live || !draft) {
@@ -642,13 +650,13 @@ function FailureNotice({ failure, onReload }: { failure: FormFailure; onReload?:
   return <div className={`form-banner ${view.tone === 'bad' ? 'bad' : 'warn'} draft-feedback`} role="alert"><strong>{view.heading}</strong><p>{failure.error}</p>{failure.issues && <ul className="forms-issues">{failure.issues.map((issue, index) => <li key={`${issue.code}:${index}`}>{issue.message}{issue.hint && <em>{issue.hint}</em>}</li>)}</ul>}{view.action && <a className="btn btn-ghost btn-sm" href="/app/connections">View connections →</a>}{onReload && <button type="button" className="btn btn-ghost btn-sm" onClick={onReload}>Check draft status</button>}{failure.requestId && <p className="forms-trace">Request {failure.requestId}</p>}</div>;
 }
 
-function Outcome({ result }: { result: CreateFormResult }) {
+function Outcome({ result, onContinueEditing }: { result: CreateFormResult; onContinueEditing?: (providerFormId: string) => void }) {
   if (result.ok) {
     const { form, warnings, requestId } = result;
     return <div className="form-banner ok forms-result draft-result" role="status"><span className="forms-legend">03 / READY TO SHARE</span><strong>Form created.</strong><p>{form.title} {form.published ? 'is published in your Google account and accepting responses.' : 'was created in your Google account but is not accepting responses.'}</p><div className="forms-links">{form.responderUrl && <FormLink href={form.responderUrl} primary>Open form</FormLink>}{form.editUrl && <FormLink href={form.editUrl}>Edit form</FormLink>}</div>{!form.responderUrl && <p className="provider-note">Google did not return a respondent link that Intake could verify. Use Edit form to find it in Google Forms.</p>}{form.id === null && <p className="provider-note">Intake could not save a record of this form, so it will not appear under Recent forms. The links above still work.</p>}{warnings.length > 0 && <ul className="forms-issues" aria-label="Things to know">{warnings.map(warning => <li key={`${warning.code}:${warning.questionId ?? ''}`}>{warning.message}</li>)}</ul>}{requestId ? (
       <>
         <p className="forms-trace">Request {requestId}</p>
-        <button className="btn btn-accent btn-sm mt-2" onClick={() => { setWorkspaceMode('edit'); setSelectedEditRecordId(form.providerFormId); }}>Continue editing in Intake →</button>
+        <button className="btn btn-accent btn-sm mt-2" onClick={() => onContinueEditing?.(form.providerFormId)}>Continue editing in Intake →</button>
       </>
     ) : null}</div>;
   }

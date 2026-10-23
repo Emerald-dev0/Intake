@@ -273,6 +273,7 @@ export function createGroqFormEditInterpreter(options: GroqInterpreterOptions): 
       return requestStructuredOutput(options, 'intake_form_edit_interpretation', FORM_EDIT_INTERPRETATION_SCHEMA, EDIT_SYSTEM, {
         request: input.request,
         ...(input.clarification ? { clarification: input.clarification } : {}),
+        ...(input.conversationHistory && input.conversationHistory.length > 0 ? { conversationHistory: input.conversationHistory } : {}),
         currentForm: {
           formId: input.current.providerFormId,
           title: input.current.title,

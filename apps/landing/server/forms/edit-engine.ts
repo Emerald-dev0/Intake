@@ -149,6 +149,7 @@ export function createFormEditEngine(deps: FormEditEngineDeps) {
     current: FormEditSnapshot;
     request: string;
     clarification?: string;
+    conversationHistory?: string[];
     existingPlan?: { summary: string; operations: unknown };
   }): Promise<{ result: FormEditInterpretationResult; credits: unknown; operationCost?: PublicOperationCost }> {
     const execute = async (): Promise<{ kind: 'usable'; value: FormEditInterpretationResult; cost: number } | { kind: 'no_result'; value: FormEditInterpretationResult }> => {
@@ -156,6 +157,7 @@ export function createFormEditEngine(deps: FormEditEngineDeps) {
         current: input.current,
         request: input.request,
         ...(input.clarification ? { clarification: input.clarification } : {}),
+        ...(input.conversationHistory && input.conversationHistory.length > 0 ? { conversationHistory: input.conversationHistory } : {}),
         ...(input.existingPlan ? { existingPlan: input.existingPlan as never } : {}),
       }), input.current);
       return assessed.status === 'ready'

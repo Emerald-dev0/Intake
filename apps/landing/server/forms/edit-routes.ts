@@ -29,6 +29,11 @@ function bodyWithKeys(body: unknown, keys: readonly string[]): Record<string, un
   return isRecord(body) && Object.keys(body).every(key => keys.includes(key)) ? body : null;
 }
 function phrase(value: unknown, limit: number): value is string { return typeof value === 'string' && value.trim().length > 0 && value.trim().length <= limit; }
+function conversationHistory(value: unknown): string[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 20 || !value.every(line => typeof line === 'string' && line.length > 0 && line.length <= 2000)) return null;
+  return value;
+}
 function version(value: unknown): value is number { return typeof value === 'number' && Number.isSafeInteger(value) && value > 0; }
 function requestId(res: Response): string { return res.locals.requestId as string; }
 function user(res: Response): SessionUser { return res.locals.user as SessionUser; }
@@ -121,7 +126,8 @@ export function createFormEditRouter(deps: FormEditRouterDeps): Router {
   router.post('/edit/interpret', ...jsonMutation, asyncRoute(async (req, res) => {
     const body = bodyWithKeys(req.body, ['target', 'request', 'clarification', 'operationId', 'conversationHistory']);
     const selection = body && target(body.target);
-    if (!body || !selection || !phrase(body.request, MAX_REQUEST) || (body.clarification !== undefined && !phrase(body.clarification, MAX_CLARIFICATION))) {
+    const history = body ? conversationHistory(body.conversationHistory) : null;
+    if (!body || !selection || history === null || !phrase(body.request, MAX_REQUEST) || (body.clarification !== undefined && !phrase(body.clarification, MAX_CLARIFICATION))) {
       return send(res, new FormEditError({ code: 'invalid_request', message: `Describe the form changes in up to ${MAX_REQUEST} characters and select a current form. No changes were made.`, outcome: 'not_applied', retryable: false }));
     }
     if (!await allowExpensive(req, res, 'ai.interpret', 'edit interpretation')) return;
@@ -131,7 +137,7 @@ export function createFormEditRouter(deps: FormEditRouterDeps): Router {
       const result = await engine.interpret(user(res).id, { target: selection, request: body.request.trim(),
         ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}),
         ...(typeof body.operationId === 'string' ? { operationId: body.operationId } : {}),
-        conversationHistory: body.conversationHistory }, requestId(res));
+        ...(history.length > 0 ? { conversationHistory: history } : {}) }, requestId(res));
       return sendJson(res, result.status === 'ready' ? 201 : 200, { requestId: requestId(res), ...result });
     } finally { slot.release(); }
   }));
