@@ -10,6 +10,8 @@ import {
 import { Insights } from './components/Insights';
 import { ProviderMark } from './components/ProviderBadge';
 import { formProviderLabel } from '../lib/connections';
+import { PageHeader, EmptyState, ErrorState, Skeleton } from './components/PagePrimitives';
+import { useLocation } from 'react-router-dom';
 
 export interface FormLibraryProps {
   providers: ProviderLoad;
@@ -67,6 +69,27 @@ export function FormLibrary({
   const [providerFilter, setProviderFilter] = useState<'all' | 'google' | 'typeform'>('all');
   const [archiveFilter, setArchiveFilter] = useState<ActiveFilter>('active');
   const [sortOption, setSortOption] = useState<SortOption>('newest');
+  // Arriving from the command palette: focus the form that was chosen, rather than dropping the
+  // person at the top of a filtered list and letting them hunt for the row they just clicked.
+  const location = useLocation();
+  const focusFormId = (location.state as { focusFormId?: string } | null)?.focusFormId ?? null;
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!focusFormId) return;
+    setHighlightedId(focusFormId);
+    // Same guard as the palette: focus must move even where rAF does not exist.
+    const run = () => {
+      const node = document.getElementById(`library-form-${focusFormId}`);
+      node?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+      node?.focus?.({ preventScroll: true });
+    };
+    if (typeof requestAnimationFrame === 'function') {
+      const frame = requestAnimationFrame(run);
+      return () => cancelAnimationFrame(frame);
+    }
+    const timer = setTimeout(run, 0);
+    return () => clearTimeout(timer);
+  }, [focusFormId]);
 
   // Modals state
   const [inspectingForm, setInspectingForm] = useState<PublicLibraryForm | null>(null);
@@ -399,12 +422,12 @@ export function FormLibrary({
 
   return (
     <div className="library-container" aria-label="Form library workspace">
-      <div className="page-heading library-head page-heading--quiet">
-        <h1>Your forms</h1>
-        <div className="heading-description">
-          Everything Intake made for you or imported from a connected account.
-        </div>
-      </div>
+      <PageHeader
+        kicker="LIBRARY"
+        title="Your forms"
+        description="Everything Intake made for you, or imported from an account you connected."
+        actions={<a className="btn btn-accent btn-sm" href="/app/forms">New form →</a>}
+      />
 
       {!canImport && (
         <div className="form-banner warn" role="status" style={{ marginBottom: 24 }}>
@@ -521,29 +544,18 @@ export function FormLibrary({
       )}
 
       {/* Main Content States */}
-      {loading && (
-        <div className="forms-panel draft-loading" role="status">
-          <span className="spin" /> Loading your form library…
-        </div>
-      )}
+      {loading && <Skeleton variant="card" lines={6} label="Loading your form library" />}
 
       {error && !loading && (
-        <div className="form-banner bad" role="alert">
-          <p>{error}</p>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => void loadLibrary()}>
-            Try again
-          </button>
-        </div>
+        <ErrorState title="Your library could not be loaded" detail={error} onRetry={() => void loadLibrary()} />
       )}
 
       {!loading && !error && forms.length === 0 && !hasActiveFilters && (
-        <div className="library-empty">
-          <div className="library-empty-icon" aria-hidden>▤</div>
-          <h2>Your form library is empty</h2>
-          <p>
-            Forms you create with Intake or import from Google or Typeform will appear here. You can reopen them, inspect live provider status, and continue editing anytime.
-          </p>
-          <div className="library-empty-actions">
+        <EmptyState
+          icon="▤"
+          title="Your form library is empty"
+          detail="Forms you create with Intake or import from Google or Typeform will appear here. You can reopen them, inspect live provider status, and continue editing anytime."
+          action={<div className="library-empty-actions">
             <button
               type="button"
               className="btn btn-accent"
@@ -558,20 +570,16 @@ export function FormLibrary({
             >
               Import an existing form
             </button>
-          </div>
-        </div>
+          </div>}
+        />
       )}
 
       {!loading && !error && forms.length === 0 && hasActiveFilters && (
-        <div className="library-empty">
-          <h2>No matching forms found</h2>
-          <p>
-            No forms match your current search query or filter selection.
-          </p>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={clearFilters}>
-            Clear all filters
-          </button>
-        </div>
+        <EmptyState
+          title="No matching forms found"
+          detail="No forms match your current search query or filter selection."
+          action={<button type="button" className="btn btn-ghost btn-sm" onClick={clearFilters}>Clear all filters</button>}
+        />
       )}
 
       {!loading && !error && forms.length > 0 && (
@@ -582,7 +590,13 @@ export function FormLibrary({
             const externalUrl = form.responderUrl || form.editUrl;
 
             return (
-              <li key={form.id} className={`library-card ${isArchived ? 'archived' : ''}`}>
+              <li
+                key={form.id}
+                id={`library-form-${form.id}`}
+                tabIndex={-1}
+                className={`library-card ${isArchived ? 'archived' : ''}${highlightedId === form.id ? ' is-highlighted' : ''}`}
+                onBlur={() => setHighlightedId(null)}
+              >
                 <div className="library-card-top">
                   <div className="library-card-badges">
                     <span className={`library-badge provider provider-${form.provider}`}>

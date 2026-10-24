@@ -76,7 +76,7 @@ test('public auth pages and protected pages render with shared authentication en
       ['/app/connections', 200, 'Connections'],
       ['/app/forms', 200, 'Describe it'],
       ['/app/library', 200, 'Your forms'],
-      ['/app/account', 200, 'Your account.'],
+      ['/app/account', 200, 'Your account'],
       ['/app', 401, 'Welcome back'],
       ['/app/connections', 401, 'Welcome back'],
       ['/app/forms', 401, 'Welcome back'],

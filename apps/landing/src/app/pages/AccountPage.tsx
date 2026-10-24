@@ -9,6 +9,7 @@ import { useCredits } from '../hooks/useCredits';
 import { useSession } from '../hooks/useSession';
 import { useSignInConfig } from '../hooks/useSignInConfig';
 import { useWorkspace } from '../hooks/useWorkspace';
+import { PageHeader } from '../components/PagePrimitives';
 
 function nearDailyLimit(remaining: number, limit: number): boolean {
   return limit > 0 && remaining > 0 && remaining <= Math.max(1, Math.ceil(limit * 0.2));
@@ -43,7 +44,11 @@ export function AccountPage() {
   }
 
   return <>
-    <div className="page-heading"><div className="eyebrow">06 / PROFILE</div><h1>Your <em>account.</em></h1><div className="heading-description">Manage your Intake identity, see your current server-reported plan and understand the credits available to you.</div></div>
+    <PageHeader
+      kicker="ACCOUNT"
+      title="Your account"
+      description="Manage your Intake identity, see your current server-reported plan, and understand the credits available to you."
+    />
 
     <div className="account-overview-grid">
       <section className="profile-card account-profile" aria-label="Intake account identity">

@@ -3,6 +3,7 @@ import { creditSummary, resetInterval } from '../../lib/credits';
 import { CREDIT_PACK_CATALOG, PAID_BILLING_ENABLED, PLAN_CATALOG, formatUsd } from '../../lib/plans';
 import { useCredits } from '../hooks/useCredits';
 import { useWorkspace } from '../hooks/useWorkspace';
+import { PageHeader } from '../components/PagePrimitives';
 
 interface BillingSummary {
   plan: string;
@@ -122,13 +123,13 @@ export function BillingPage() {
   const isCanceled = summary?.cancelAtPeriodEnd ?? false;
 
   return <>
-    <div className="page-heading">
-      <div className="eyebrow">07 / BILLING</div>
-      <h1>Your <em>billing.</em></h1>
-      <div className="heading-description">{PAID_BILLING_ENABLED
+    <PageHeader
+      kicker="BILLING"
+      title="Your billing"
+      description={PAID_BILLING_ENABLED
         ? 'Manage your subscription, view credits and billing history, and purchase credit packs.'
-        : 'Your plan, credits and billing history. Paid plans open later — everyone builds on Free for now.'}</div>
-    </div>
+        : 'Your plan, credits and billing history. Paid plans open later — everyone builds on Free for now.'}
+    />
 
     {message && <div className="form-banner ok" role="status"><p>{message}</p><button className="btn-dismiss" onClick={() => setMessage('')} aria-label="Dismiss">×</button></div>}
     {error && <div className="form-banner warn" role="alert"><p>{error}</p><button className="btn-dismiss" onClick={() => setError('')} aria-label="Dismiss">×</button></div>}

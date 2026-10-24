@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ProviderMark } from './components/ProviderBadge';
+import { PageHeader, ErrorState, Skeleton, Note } from './components/PagePrimitives';
 import {
   isProviderId,
   isResultCode,
@@ -55,24 +56,26 @@ export function Connections({ load, reload }: { load: ProviderLoad; reload: () =
   const message = notice ? resultMessage(notice.result, notice.provider, notice.revocation) : null;
   return (
     <>
-      <div className="page-heading page-heading--quiet">
-        <h1>Connections</h1>
-        <div className="heading-description">Intake creates forms in an account you control. Connecting is separate from signing in — Intake only gets access when you connect a provider here.</div>
-      </div>
+      <PageHeader
+        kicker="ACCOUNTS"
+        title="Connections"
+        description="Intake creates forms in an account you control. Connecting is separate from signing in — Intake only gets access when you connect a provider here."
+      />
       {message && <div className={`form-banner ${message.tone}`} role="status">{message.text}</div>}
-      {load.status === 'loading' && <p className="fine-print" role="status">Checking connections…</p>}
+      {load.status === 'loading' && <Skeleton variant="rows" lines={2} label="Checking your connections" />}
       {load.status === 'error' && (
-        <div className="form-banner bad" role="alert">
-          <p>Intake couldn’t load provider connections. This does not mean they are disconnected.</p>
-          <button className="btn btn-ghost btn-sm" type="button" onClick={() => void reload()}>Try again</button>
-        </div>
+        <ErrorState
+          title="Connections could not be loaded"
+          detail="Intake couldn’t reach its own records. This does not mean your accounts are disconnected."
+          onRetry={() => void reload()}
+        />
       )}
       {load.status === 'ready' && load.providers && (
         <div className="provider-list">
           {load.providers.map(provider => <ProviderRow key={provider.id} provider={provider} onChange={result => { setNotice(result); void reload(); }} />)}
         </div>
       )}
-      <p className="fine-print">Disconnecting stops Intake from using that account. It does not delete forms that already exist. One account per provider — disconnect before switching.</p>
+      <Note>Disconnecting stops Intake from using that account. It does not delete forms that already exist. One account per provider — disconnect before switching.</Note>
     </>
   );
 }

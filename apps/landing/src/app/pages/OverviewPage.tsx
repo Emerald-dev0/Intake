@@ -15,8 +15,10 @@ const STARTERS: { label: string; prompt: string }[] = [
 ];
 
 /**
- * The home surface. It is a composer, not a dashboard: the thing a person came to do is type one
- * sentence. Recent forms and plan details sit underneath, at the weight of footnotes.
+ * The home surface. It is still a composer first: the thing a person came to do is type one
+ * sentence, and nothing is allowed to push that below the fold. What sits above it now is a single
+ * status strip — plan, credits with the reset in plain words, provider state, and the one action
+ * that actually unblocks them — and what sits below is what they made.
  */
 export function OverviewPage() {
   const { user, providers, credits, reloadCredits } = useWorkspace();
@@ -35,6 +37,15 @@ export function OverviewPage() {
   const outOfCredits = ready !== null && ready.availableCredits === 0;
   const connected = providers.providers?.filter(entry => entry.status === 'connected').length ?? 0;
   const suggested = recent.state.forms.slice(0, 4);
+  const providerState = providers.status === 'ready' ? (connected > 0 ? 'ready' : 'none') : providers.status;
+  // Exactly one next action, chosen from server state. Absent every problem, absent every nudge.
+  const nextAction = outOfCredits
+    ? { label: 'See plans', href: '/pricing' }
+    : providers.status === 'ready' && connected === 0
+      ? { label: 'Connect a provider', href: '/app/connections' }
+      : ready && ready.plan === 'free' && PAID_BILLING_ENABLED
+        ? { label: 'Compare plans', href: '/pricing' }
+        : null;
 
   return (
     <div className="home">
@@ -85,6 +96,33 @@ export function OverviewPage() {
           <button className="btn btn-accent" type="submit" disabled={!idea.trim() || outOfCredits}>Start →</button>
         </div>
       </form>
+
+      <div className="home__status" aria-label="Your account at a glance">
+        <a className="home__status-item" href="/app/billing">
+          <span>Plan</span>
+          <strong>{ready ? PLAN_CATALOG[ready.plan].label : credits.status === 'error' ? 'Unavailable' : '—'}</strong>
+        </a>
+        <div className="home__status-item">
+          <span>Credits</span>
+          {ready
+            ? <><strong>{creditSummary(ready)}</strong><small>daily credits reset {resetInterval(ready.nextDailyReset)}</small></>
+            : credits.status === 'error'
+              ? <button type="button" className="link-button is-warn" onClick={reloadCredits}>Could not check — retry</button>
+              : <strong>—</strong>}
+        </div>
+        <a className="home__status-item" href="/app/connections">
+          <span>Providers</span>
+          {providers.status === 'ready'
+            ? <strong className={providerState === 'none' ? 'is-warn' : ''}>{providerState === 'none' ? 'None connected' : `${connected} connected`}</strong>
+            : providers.status === 'error'
+              ? <strong className="is-warn">Could not check</strong>
+              : <strong>—</strong>}
+        </a>
+        <a className="home__status-item home__status-item--action" href={nextAction ? nextAction.href : '/app/library'}>
+          <span>Next</span>
+          <strong>{nextAction ? nextAction.label : 'Open your library'} →</strong>
+        </a>
+      </div>
 
       <div className="home__starters" aria-label="Example forms">
         <span>Try</span>

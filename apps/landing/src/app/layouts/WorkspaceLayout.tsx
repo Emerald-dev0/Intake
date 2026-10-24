@@ -7,6 +7,7 @@ import { useSession } from '../hooks/useSession';
 import { useProviders } from '../Connections';
 import { CreditsProvider, useCreditsSource } from '../hooks/useCredits';
 import { creditSummary, resetLabel } from '../../lib/credits';
+import { CommandPalette, useCommandPalette, type PaletteDestination } from '../components/CommandPalette';
 
 /**
  * Operator navigation. The server decides: `/api/admin/access` returns 200
@@ -39,8 +40,20 @@ const NAV = [
 ] as const;
 
 /**
+ * Where ⌘K can take you. Built from NAV so a new destination cannot appear in one place and be
+ * missing from the other.
+ */
+const DESTINATIONS: PaletteDestination[] = [
+  { label: 'New chat', hint: 'Start a form from a sentence', to: '/app/forms', shortcut: '＋' },
+  ...NAV.filter(item => item.key !== 'home').map(item => ({ label: item.label, hint: item.href, to: item.href })),
+  { label: 'Account', hint: 'Identity, security, plan', to: '/app/account' },
+  { label: 'Pricing', hint: 'Plans and credits', to: '/pricing' },
+];
+
+/**
  * The workspace shell. One narrow rail, one composer-first stage: a person should always be one
- * sentence — not one menu — away from the thing they came to do.
+ * sentence — not one menu — away from the thing they came to do. The palette is the second way in:
+ * any form, any destination, one keystroke, no mouse.
  */
 export function WorkspaceLayout() {
   const { user, clearSession } = useSession();
@@ -52,6 +65,12 @@ export function WorkspaceLayout() {
   const [signOutError, setSignOutError] = useState('');
   const [newFormNonce, setNewFormNonce] = useState(0);
   const isOperator = useOperatorAccess();
+  const palette = useCommandPalette();
+  // Operator console is a destination only for an allowlisted session — the server decided that, so
+  // the palette inherits the answer instead of guessing from client state.
+  const destinations: PaletteDestination[] = isOperator
+    ? [...DESTINATIONS, { label: 'Operator console', hint: 'Internal operations', to: '/admin' }]
+    : DESTINATIONS;
   const navigate = useNavigate();
 
   async function signOut() {
@@ -126,6 +145,16 @@ export function WorkspaceLayout() {
         <header className="app-topbar">
           <button className="mobile-trigger" onClick={() => setMobileOpen(true)} aria-label="Open navigation">☰</button>
           <div className="topbar-path">{current.label}</div>
+          <button
+            type="button"
+            className="topbar-search"
+            onClick={event => palette.openWith(event.currentTarget)}
+            aria-keyshortcuts="Meta+K Control+K"
+          >
+            <span aria-hidden>⌕</span>
+            <span className="topbar-search__label">Search forms</span>
+            <kbd>⌘K</kbd>
+          </button>
           <div className="account-wrap">
             <button className="account-trigger" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
               <span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span>
@@ -146,6 +175,12 @@ export function WorkspaceLayout() {
           <Outlet context={{ user, providers: providers.state, reloadProviders: providers.load, credits: credits.state, reloadCredits: credits.reload, noteCredits: credits.note, newChatNonce: newFormNonce }} />
         </main>
       </div>
+      <CommandPalette
+        open={palette.open}
+        onClose={() => palette.setOpen(false)}
+        destinations={destinations}
+        returnFocusTo={palette.opener}
+      />
     </div>
     </CreditsProvider>
   );
