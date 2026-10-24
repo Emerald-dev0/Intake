@@ -1713,7 +1713,7 @@ Vercel root: `apps/landing`; framework: Vite; build: `npm run build`; output: `d
 
 Render root: `apps/landing`; build: `npm ci`; start: `npm start`; see `render.yaml`. Set `BETTER_AUTH_URL` to the exact Vercel origin, not Render. Keep all server secrets on Render.
 
-See the [first-deployment runbook](apps/landing/LAUNCH.md) for the ordered setup, environment-variable tables, migration order, callback URLs, automated and manual verification, rollback and free-tier reality; see [deployment instructions and acceptance checklist](apps/landing/DEPLOYMENT.md) for how the routing/deployment contracts are built, and [production security and recovery](apps/landing/PRODUCTION.md) for the control catalogue.
+See the [Typeform setup and deployment runbook](apps/landing/docs/TYPEFORM.md) for the provider app registration, scopes, environment, deploy order, troubleshooting and rollback; the [first-deployment runbook](apps/landing/LAUNCH.md) for the ordered setup, environment-variable tables, migration order, callback URLs, automated and manual verification, rollback and free-tier reality; see [deployment instructions and acceptance checklist](apps/landing/DEPLOYMENT.md) for how the routing/deployment contracts are built, and [production security and recovery](apps/landing/PRODUCTION.md) for the control catalogue.
 
 Launch tooling: `npm run preflight [-- --db] [--json]` (server environment and schema), `npm run verify:production -- --base-url <origin> [--json]` (non-destructive live checks; authenticated, cross-account, AI and rate-limit checks are opt-in), and `GET /api/health?deep=1` for a database-aware readiness probe alongside the always-200 liveness endpoint.
 ---

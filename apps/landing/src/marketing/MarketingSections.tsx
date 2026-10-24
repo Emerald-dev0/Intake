@@ -5,6 +5,7 @@ import { NotifyForm } from './NotifyForm';
 import { formatUsd } from '../lib/plans';
 import { useBillingPlans, comparePlanPrices } from '../lib/useBillingPlans';
 import { LogoMark } from '../components/LogoMark';
+import { GoogleFormsLogo, ProviderLogoStrip, TypeformLogo } from '../components/ProviderLogos';
 import { StartLink } from './MarketingChrome';
 import { useViewState } from './motion';
 
@@ -421,19 +422,20 @@ export function Hero({ authenticated }: { authenticated: boolean }) {
             <span className="mk-hero__accent mk-anim-in" style={{ '--d': '240ms' } as CSSProperties}>It builds the form for you.</span>
           </h1>
           <p className="mk-hero__lede mk-anim-in" style={{ '--d': '340ms' } as CSSProperties}>
-            Intake is an AI tool that creates and edits Google Forms from a plain-English description. The Free plan includes 20 daily credits. Say what you want to collect, in a sentence: you get the questions first, change whatever you like, and only then does the form appear in your Google account.
+            Intake turns one plain-English description into a real form — in Google Forms or Typeform. You get the questions first, change whatever you like, and only then does the form appear in the account you chose. The Free plan includes 20 daily credits.
           </p>
           <div className="mk-hero__actions mk-anim-in" style={{ '--d': '440ms' } as CSSProperties}>
             <StartLink authenticated={authenticated} />
             <a className="mk-button mk-button--secondary" href="#creation">See it work <Arrow /></a>
           </div>
+          <ProviderLogoStrip className="mk-anim-in" />
           <HeroPromptBox authenticated={authenticated} />
           <p className="mk-hero__trust mk-anim-in" style={{ '--d': '490ms' } as CSSProperties}>
-            Free during launch · {plans.freeDailyCredits} credits daily · Lives in your Google account
+            Free during launch · {plans.freeDailyCredits} credits daily · Your account, your forms
           </p>
           <div className="mk-hero__facts mk-anim-in" style={{ '--d': '540ms' } as CSSProperties} role="group" aria-label="What Intake does">
-            <span>Real Google Forms</span>
-            <span>Edit the ones you have</span>
+            <span>Real Google Forms or Typeforms</span>
+            <span>Edit the Google Forms you have</span>
             <span>Nothing changes until you say so</span>
           </div>
         </div>
@@ -469,8 +471,8 @@ const DIFFERENCES = [
     text: 'Point Intake at a form you already have and describe the change. It proposes the edit and applies it to that same form. No duplicates, no migration.',
   },
   {
-    title: 'The form lives in your own Google account',
-    text: 'What gets created is a normal Google Form: same links, same responses tab, same Sheets integration. Your data never moves to another platform.',
+    title: 'The form lives in your own account',
+    text: 'Google Forms or Typeform, whichever you picked: a normal form in your own workspace, with the same links, the same responses tab, the same sharing you already have. Your data never moves to another platform.',
   },
 ] as const;
 
@@ -550,7 +552,7 @@ export function DifferenceSection() {
       <div className="mk-container">
         <div className="mk-difference__intro">
           <SectionIntro eyebrow="WHY INTAKE" titleId="mk-difference-title" title={<>Three things the others do not do.</>}>
-            Intake does not move your forms somewhere new. It gives you a faster way to make and change the Google Forms you were always going to use.
+            Intake does not move your forms somewhere new. It gives you a faster way to make the Google Forms and Typeforms you were always going to make — and to change the Google Forms you already own.
           </SectionIntro>
           <Reveal className="mk-difference__aside" as="p" delay={120} variant="fade" fadeOut>
             Build the form you already had in your head, then decide when it is ready.
@@ -646,10 +648,10 @@ export function CompareSection() {
  */
 export function ComingSoonSection() {
   return (
-    <section className="mk-section mk-coming" id="coming-soon" aria-labelledby="mk-coming-title">
+    <section className="mk-section mk-coming" id="whats-next" aria-labelledby="mk-coming-title">
       <div className="mk-container mk-coming__grid">
         <Reveal variant="fade">
-          <SectionIntro eyebrow="COMING SOON" titleId="mk-coming-title" title={<>What Intake learns next.</>}>
+          <SectionIntro eyebrow="WHAT'S NEXT" titleId="mk-coming-title" title={<>What Intake does next.</>}>
             Three things on the workbench. Leave your email and you will hear about each one exactly once — when it ships.
           </SectionIntro>
           <NotifyForm interest="updates" buttonLabel="Email me" id="mk-coming-notify" />
@@ -861,8 +863,8 @@ const TRUST_ASK = [
     text: 'Name, email address, and profile info (the openid, email, and profile scopes). This never touches your forms.',
   },
   {
-    title: 'forms.body, only when you connect',
-    text: 'One extra scope, requested in a separate step you start yourself: permission to create and edit the Google Forms you own. Nothing else.',
+    title: 'Forms access, only when you connect',
+    text: 'One extra permission, requested in a separate step you start yourself: Google Forms asks for forms.body (create and edit the forms you own); Typeform asks for forms:write and forms:read (create and list), plus accounts:read to name the account and offline so the connection survives the week. Intake never asks either for responses, Drive, Gmail or webhooks.',
   },
 ] as const;
 
@@ -879,7 +881,7 @@ export function TrustSection() {
     <section className="mk-section mk-trust" id="trust" aria-labelledby="mk-trust-title">
       <div className="mk-container">
         <SectionIntro eyebrow="PERMISSIONS, IN PLAIN LANGUAGE" titleId="mk-trust-title" title={<>What Intake asks for, and what it never does.</>}>
-          Two permissions, each with a reason. Everything else on this list is something Intake cannot do — by design, not by promise.
+          Each provider gets two permissions and a reason. Everything else on this list is something Intake cannot do — by design, not by promise.
         </SectionIntro>
         <div className="mk-trust__grid">
           <Reveal variant="fade">
@@ -895,7 +897,7 @@ export function TrustSection() {
             <ul className="mk-feature-list mk-trust__never">
               {TRUST_NEVER.map(item => <li key={item}><span className="mk-cross" aria-hidden="true">✕</span>{item}</li>)}
             </ul>
-            <p className="mk-trust__policy">The full version lives in the <a href="/privacy">privacy policy</a>, written for Google&rsquo;s API data policy.</p>
+            <p className="mk-trust__policy">The full version lives in the <a href="/privacy">privacy policy</a>, written for Google&rsquo;s API data policy and Typeform&rsquo;s developer terms.</p>
           </Reveal>
         </div>
       </div>
@@ -920,7 +922,7 @@ export function ControlSection() {
             </div>
             <div className="mk-approval-flow__connector" aria-hidden="true"><i /></div>
             <div className="mk-approval-flow__step mk-approval-flow__step--review">
-              <span>02</span><div><strong>You read it</strong><small>Still nothing in Google</small></div>
+              <span>02</span><div><strong>You read it</strong><small>Still nothing in your account</small></div>
             </div>
             <div className="mk-approval-flow__connector" aria-hidden="true"><i /></div>
             <div className="mk-approval-flow__step mk-approval-flow__step--apply">
@@ -933,21 +935,24 @@ export function ControlSection() {
   );
 }
 
-export function GoogleConnection({ authenticated }: { authenticated: boolean }) {
+export function ProviderConnection({ authenticated }: { authenticated: boolean }) {
   return (
-    <section className="mk-google" aria-labelledby="mk-google-title">
+    <section className="mk-google" id="providers" aria-labelledby="mk-google-title">
       <div className="mk-container mk-google__inner">
         <Reveal className="mk-google__mark">
           <div aria-hidden="true">
             <span className="mk-google__logo"><LogoMark size={22} /> Intake</span>
             <span className="mk-google__link"><i /><i /><i /></span>
-            <span className="mk-google__logo mk-google__logo--google">Google Forms</span>
+            <span className="mk-google__targets">
+              <span className="mk-google__logo"><GoogleFormsLogo size={18} /> Google Forms</span>
+              <span className="mk-google__logo"><TypeformLogo height={12} tone="mono" /> Typeform</span>
+            </span>
           </div>
         </Reveal>
         <Reveal className="mk-google__copy" delay={110}>
           <span className="mk-eyebrow">A CONNECTION, NOT A MOVE</span>
-          <h2 id="mk-google-title">Your forms stay in your Google account.</h2>
-          <p>Sign in to Intake, then connect the Google account that holds the form. Google hosts the page people fill in, and the answers go to you.</p>
+          <h2 id="mk-google-title">Your forms stay in your account.</h2>
+          <p>Sign in to Intake, then connect the account you want the form to live in — Google or Typeform. That provider hosts the page people fill in, the answers go to you, and Intake keeps only the form definitions it needs. Google Forms can also be edited in place; Typeform creation and import work today, editing is next.</p>
         </Reveal>
         <Reveal className="mk-google__action" delay={200}><StartLink authenticated={authenticated} className="mk-text-link">Get started</StartLink></Reveal>
       </div>

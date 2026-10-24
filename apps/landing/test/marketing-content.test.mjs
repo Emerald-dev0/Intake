@@ -85,3 +85,43 @@ test('the reveal system has named entrances, an exit, and is neutralised for red
   // The observer decides the exit from which side of the viewport the element left.
   assert.match(motion, /leavingUpwards/);
 });
+
+test('the public documents name both creation targets and carry their marks', async () => {
+  const [html, llms] = await Promise.all([
+    readFile('dist/index.html', 'utf8'),
+    readFile('dist/llms.txt', 'utf8'),
+  ]);
+  const fallback = html.match(/<noscript>([\s\S]*?)<\/noscript>/)?.[1] ?? '';
+
+  // Metadata: a crawler that never runs JavaScript still learns there are two targets.
+  assert.match(html, /<title>[^<]*Google Forms and Typeform[^<]*<\/title>/);
+  assert.match(html, /<meta property="og:title" content="[^"]*Google Forms and Typeform[^"]*"/);
+  assert.match(html, /<meta name="description" content="[^"]*Google Forms or Typeform[^"]*"/);
+  const structured = JSON.parse(html.match(/<script id="intake-structured-data" type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
+  const app = structured['@graph'].find(node => node['@type'] === 'SoftwareApplication');
+  assert.match(app.name, /Google Forms and Typeform/);
+  assert.ok(app.featureList.some(item => /Typeform/.test(item)), 'the feature list mentions Typeform');
+
+  // The no-script document shows the two marks with their real colours, not a text-only claim.
+  assert.match(fallback, /<svg role="img" aria-label="Google Forms"[^>]*fill="#7248B9"/);
+  assert.match(fallback, /<svg role="img" aria-label="Typeform"[^>]*fill="#262627"/);
+  assert.match(fallback, /Google Forms · create and edit/);
+  assert.match(fallback, /Typeform · create and import/);
+
+  // llms.txt states the split honestly: creation in both, in-place editing in Google only.
+  assert.match(llms, /Google Forms and Typeform/);
+  assert.match(llms, /Typeform creation and import are supported, Typeform editing is not yet/);
+  assert.match(llms, /accounts:read, forms:read, forms:write, offline/);
+});
+
+test('the provider marks are the providers’ own geometry, in their own colours', async () => {
+  const [logos, css] = await Promise.all([
+    readFile('src/components/ProviderLogos.tsx', 'utf8'),
+    readFile('src/styles/marketing.css', 'utf8'),
+  ]);
+  assert.match(logos, /GOOGLE_FORMS_BRAND = '#7248B9'/, 'Google Forms brand purple, not an arbitrary colour');
+  assert.match(logos, /TYPEFORM_BRAND = '#262627'/, 'Typeform brand black');
+  assert.match(logos, /Simple Icons/, 'the source and its licence are recorded next to the geometry');
+  // The strip sits on paper so the brand colours keep their contrast on the dark page.
+  assert.match(css, /\.mk-provider \{[\s\S]{0,200}background: var\(--mk-paper\)/);
+});

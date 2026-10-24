@@ -23,7 +23,7 @@ export function PricingPage() {
   const amount = cadence === 'month' ? comparison.monthlyCents : comparison.annualCents;
   const freeFeatures = [
     `${plans.freeDailyCredits} credits refreshed each day at 00:00 UTC`,
-    'Create Google Forms from a description',
+    'Create Google Forms or Typeforms from a description',
     'Check and change every question before it is created',
     'Make changes to forms you already have',
     'A private library of everything you make',
@@ -69,7 +69,7 @@ export function PricingPage() {
           <h2 id="free-plan-title">{PLAN_CATALOG.free.label}</h2>
           <p className="pricing-plan-description">Everything you need to build forms from a sentence.</p>
           <p className="pricing-amount"><strong>$0</strong><span>forever</span></p>
-          <a className="btn btn-ghost pricing-plan-action" href={authenticated ? '/app' : '/auth/sign-up'}>{authenticated ? 'Open Intake' : 'Sign up'} <span aria-hidden>→</span></a>
+          <a className="btn btn-ghost pricing-plan-action" href={authenticated ? '/app' : '/waitlist'}>{authenticated ? 'Open Intake' : 'Join the wait-list'} <span aria-hidden>→</span></a>
           <p className="pricing-no-card">No card needed · Free forever</p>
           <ul>{freeFeatures.map(feature => <li key={feature}>{feature}</li>)}</ul>
         </article>
@@ -122,8 +122,8 @@ export function PricingPage() {
           <li><strong>You see the cost first.</strong> Intake works out what a request costs before anything is applied, and your balance and reset times are always visible in the workspace.</li>
           <li><strong>Unused credits do not roll over.</strong> Daily credits refresh at 00:00 UTC. When Pro opens, its monthly credits refresh at the reset shown in your account.</li>
           <li><strong>Credit packs are coming soon.</strong> When they open, purchased credits never expire and are used after daily and subscription credits.</li>
-          <li><strong>Same limits on both plans.</strong> Google's own limits apply the same way on Free and Pro.</li>
-          <li><strong>Review before apply.</strong> Intake can propose a draft; creating or editing a Google Form still waits for your explicit confirmation.</li>
+          <li><strong>Same limits on both plans.</strong> Google's and Typeform's own limits apply the same way on Free and Pro.</li>
+          <li><strong>Review before apply.</strong> Intake can propose a draft; creating a form in Google Forms or Typeform — or editing a Google Form — still waits for your explicit confirmation.</li>
         </ul>
       </section>
 

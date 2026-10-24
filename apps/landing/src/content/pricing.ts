@@ -34,7 +34,7 @@ export function pricingFaqEntries(numbers: PricingFaqNumbers) {
     },
     {
       question: 'How are credit charges decided?',
-      answer: 'Intake works out the exact cost on the server from the proposal you reviewed. Requests it cannot carry out, and questions it has to ask you first, cost nothing. A Google Forms change still waits for your confirmation.',
+      answer: 'Intake works out the exact cost on the server from the proposal you reviewed. Requests it cannot carry out, and questions it has to ask you first, cost nothing. Creating the form, or changing a Google Form, still waits for your confirmation.',
     },
   ] as const;
 }

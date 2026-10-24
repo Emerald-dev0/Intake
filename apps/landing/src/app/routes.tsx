@@ -51,7 +51,9 @@ export const routes: RouteObject[] = [
   { path: '/privacy', element: <PrivacyPage /> },
   { path: '/terms', element: <TermsPage /> },
   { path: '/auth/sign-in', element: <AuthPage key="sign-in" /> },
-  { path: '/auth/sign-up', element: <Navigate to="/auth/sign-in" replace /> },
+  // New accounts open through the wait-list, so the sign-up entry never shows a sign-in form to
+  // somebody who has no account yet.
+  { path: '/auth/sign-up', element: <Navigate to="/waitlist" replace /> },
   { path: '/waitlist', element: <WaitlistPage /> },
   { path: '/auth/verify', element: <VerifyEmailPage /> },
   { path: '/auth/reset-password', element: <ResetPasswordPage /> },

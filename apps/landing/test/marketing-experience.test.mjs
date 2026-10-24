@@ -86,11 +86,19 @@ test('the homepage footer credits Emerald without a personal name, and keeps the
   const footer = document.querySelector('.mk-footer');
   assert.ok(footer, 'the public footer renders');
   const columns = [...footer.querySelectorAll('.mk-footer__column h2')].map(heading => heading.textContent);
-  assert.deepEqual(columns, ['Product', 'Project', 'Google Forms'], 'footer keeps its three link columns');
+  assert.deepEqual(columns, ['Product', 'Resources', 'Legal', 'Providers'], 'footer keeps its link columns and the provider block');
+
+  // Both providers are named, with their own marks, in the footer block.
+  const providers = footer.querySelector('.mk-footer__column--providers');
+  assert.match(providers.textContent, /Google Forms/, 'Google Forms is named');
+  assert.match(providers.textContent, /Create and import/, 'the Typeform row explains what it is for');
+  assert.equal(providers.querySelectorAll('svg').length, 2, 'both provider marks render');
+  assert.equal(providers.querySelector('svg[aria-label="Google Forms"]'), null, 'the mark is decorative next to its name');
 
   const credit = footer.querySelector('.mk-footer__credit');
   assert.ok(credit, 'the footer has a credit line');
-  assert.match(credit.textContent ?? '', /^Designed by Emerald$/);
+  // The credit names the designer and the email provider; it still never names a person.
+  assert.match(credit.textContent ?? '', /^Designed by Emerald · Email by Calder$/);
   assert.equal(credit.querySelector('a')?.getAttribute('href'), 'https://emerald.pxxl.click');
   assert.doesNotMatch(footer.textContent ?? '', /Oluwadare/, 'no personal name in the footer');
   assert.match(footer.textContent ?? '', /© \d{4} Intake/);
@@ -133,16 +141,18 @@ test('the pricing page sends Pro to a real next step instead of an unfinished ch
   const page = await renderRoute(t, '/pricing', '.pricing-plan-action');
   const text = page.text();
 
+  // Free has one real action. Pro is not on sale yet, so its next step is a working waitlist form
+  // rather than a checkout that cannot finish.
   const actions = [...document.querySelectorAll('.pricing-plan-action')];
-  assert.equal(actions.length, 2, 'both plans offer one clear action');
+  assert.equal(actions.length, 1, 'the free plan has exactly one action');
   assert.equal(actions[0].tagName, 'A');
   assert.equal(document.getElementById('payment-status'), null, 'the old payment notice is gone');
+  assert.equal(actions[0].getAttribute('href'), '/waitlist', 'the free plan follows the same wait-list gate as every other CTA');
 
-  // Pro is not on sale, so the card asks for interest and points at a working sign-up.
-  assert.equal(actions[1].tagName, 'A');
-  assert.match(actions[1].textContent, /Notify me when Pro opens/);
-  assert.equal(actions[1].getAttribute('href'), '/auth/sign-up?plan=pro');
-  assert.match(actions[0].getAttribute('href'), /^\/auth\/sign-up/);
+  const proCard = document.querySelector('.pricing-plan-card.is-pro');
+  assert.ok(proCard.querySelector('.pricing-waitlist form'), 'Pro offers a waitlist form, not a dead button');
+  assert.match(proCard.textContent, /Pro is not on sale yet\./);
+  assert.equal(proCard.querySelector('a.button, a.btn'), null, 'Pro never links to a checkout that does not exist');
 
   // During free launch the pricing page is allowed to say Pro and packs are coming soon,
   // but no other unfinished-work, billing-status, or AI-marker wording survives on the page.
@@ -156,4 +166,34 @@ test('the pricing page sends Pro to a real next step instead of an unfinished ch
   assert.ok(annual, 'the cadence switch is present');
   await act(async () => { annual.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); });
   assert.match(document.querySelector('.pricing-plan-card.is-pro .pricing-amount').textContent, /\$69\.00/);
+});
+
+test('the homepage shows both provider marks where the promise is made', async (t) => {
+  await renderHome(t);
+
+  // Hero: the two targets are named and drawn before the visitor reads a single feature.
+  const strip = document.querySelector('.mk-hero .mk-providers');
+  assert.ok(strip, 'the hero carries the provider strip');
+  const items = [...strip.querySelectorAll('.mk-provider')];
+  assert.equal(items.length, 2);
+  assert.match(items[0].textContent, /Google Forms/);
+  assert.match(items[0].textContent, /Create and edit in place/);
+  assert.match(items[1].textContent, /Typeform/);
+  assert.match(items[1].textContent, /Create and import/);
+  assert.equal(strip.querySelectorAll('svg').length, 2, 'both marks are drawn, not just named');
+  // The marks are decorative next to their names, so screen readers hear the label once.
+  for (const svg of strip.querySelectorAll('svg')) assert.equal(svg.getAttribute('aria-hidden'), 'true');
+
+  const heroText = document.querySelector('.mk-hero').textContent;
+  assert.match(heroText, /Google Forms or Typeform/, 'the hero lede names both targets');
+  assert.doesNotMatch(heroText, /creates and edits Google Forms from a plain-English description/, 'the old Google-only promise is gone');
+
+  // Connection section: Intake connects to either account, and says which one can be edited.
+  const connection = document.querySelector('#providers');
+  assert.ok(connection, 'the connection section exists');
+  assert.match(connection.textContent, /Your forms stay in your account/);
+  assert.match(connection.textContent, /Google/);
+  assert.match(connection.textContent, /Typeform/);
+  assert.match(connection.textContent, /editing is next/);
+  assert.equal(connection.querySelectorAll('svg[role="img"], svg[aria-hidden="true"]').length >= 2, true);
 });

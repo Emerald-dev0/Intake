@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const SITE_ORIGIN = 'https://intake-six-blue.vercel.app';
 const CREATOR_NAME = 'Oluwadare Daniel — Emerald';
-const SOCIAL_IMAGE_ALT = 'An example Google Forms proposal in Intake, labeled “EXAMPLE - NOT APPLIED.”';
+const SOCIAL_IMAGE_ALT = 'An example form proposal in Intake, labeled “EXAMPLE - NOT APPLIED.”';
 
 function metadata(html) {
   const entries = new Map();
@@ -32,7 +32,7 @@ test('production homepage metadata uses the verified production origin and an ac
   const canonical = html.match(/<link rel="canonical" href="([^"]+)"\s*\/>/)?.[1];
 
   assert.equal(canonical, `${SITE_ORIGIN}/`);
-  assert.match(html, /<title>Intake, AI Google Forms builder — describe it, review it, done<\/title>/);
+  assert.match(html, /<title>Intake, AI form builder for Google Forms and Typeform — describe it, review it, done<\/title>/);
   assert.equal(meta.get('robots'), 'index,follow,max-image-preview:large');
   assert.equal(meta.get('author'), CREATOR_NAME);
   assert.equal(meta.get('og:type'), 'website');
@@ -75,7 +75,7 @@ test('JSON-LD connects Intake to its creator and matches the visible FAQ', async
   assert.ok(website);
   assert.ok(faq);
 
-  assert.equal(software.name, 'Intake, AI Google Forms builder');
+  assert.equal(software.name, 'Intake, AI form builder for Google Forms and Typeform');
   assert.equal(software.offers.price, '0', 'the genuine free plan is the only offer ever marked up');
   assert.equal(software.url, `${SITE_ORIGIN}/`);
   assert.equal(software.creator['@id'], creator['@id']);

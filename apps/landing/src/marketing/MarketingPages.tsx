@@ -85,11 +85,11 @@ export function VsPage() {
   return (
     <HubShell
       path="/vs"
-      title="Intake vs Typeform AI, Google AI & ChatGPT — AI Google Forms builder comparison"
-      description="How Intake compares with Google's built-in AI, Typeform AI, and ChatGPT for building Google Forms: approval-first, edits in place, forms live in your account."
+      title="Intake vs Typeform AI, Google AI & ChatGPT — AI form builder comparison"
+      description="How Intake compares with Google's built-in AI, Typeform AI, and ChatGPT: one description becomes a real Google Form or Typeform, approval-first, with in-place Google Forms editing."
       eyebrow="INTAKE VS THE ALTERNATIVES"
       heading={<>Intake vs Typeform AI, Google AI, and ChatGPT.</>}
-      lede="The alternatives draft text or lock you into their platform. Intake builds the actual Google Form, shows you every question first, and edits your existing forms without making copies."
+      lede="The alternatives draft text or lock you into one platform. Intake builds the actual form — in Google Forms or Typeform, whichever you choose — shows you every question first, and edits your existing Google Forms without making copies."
     >
       <section className="mk-section" aria-label="Comparison table">
         <div className="mk-container"><CompareTable /></div>
@@ -98,7 +98,7 @@ export function VsPage() {
         <div className="mk-container mk-vs-notes">
           <Reveal variant="fade">
             <h2>Intake vs Typeform AI</h2>
-            <p>Typeform AI drafts a form that lives on Typeform, with Typeform branding, Typeform response storage, and a paid plan to remove limits. Intake builds a native Google Form in your own account: the same links, responses tab, and Sheets integration your respondents already know. If your workflow is Google Forms, Typeform AI means migrating away; Intake means staying.</p>
+            <p>Both can end up as a Typeform — the difference is where the decision happens. Typeform AI drafts inside Typeform, in Typeform's editor, with Typeform's limits. Intake gives you the question list first, in one conversation, and then creates the form in <em>either</em> Google Forms or Typeform. If your team lives in Google Forms, Typeform AI means migrating; Intake means staying. If you want Typeform, you get the same Typeform — with a review step in front of it.</p>
           </Reveal>
           <Reveal variant="fade">
             <h2>Intake vs Google&rsquo;s built-in AI</h2>
@@ -106,7 +106,7 @@ export function VsPage() {
           </Reveal>
           <Reveal variant="fade">
             <h2>Intake vs just asking ChatGPT</h2>
-            <p>A chatbot writes question text you then retype into Google Forms field by field — including every choice, section, and required toggle. Intake skips the transcription: the proposal becomes the form with one confirmation, and follow-up changes (“make email optional”) apply to the live form instead of starting over.</p>
+            <p>A chatbot writes question text you then retype into Google Forms or Typeform field by field — including every choice, section, and required toggle. Intake skips the transcription: the proposal becomes the form with one confirmation, and follow-up changes (“make email optional”) apply to the live Google Form instead of starting over.</p>
           </Reveal>
           <p className="mk-hub-updated">Updated October 2026. Capabilities change; the approval-first workflow does not.</p>
         </div>
@@ -174,18 +174,18 @@ const GUIDE_STEPS = [
   'Write one description of what the form should collect — who answers, what you need to know, anything required.',
   'Read Intake’s proposed question list. Check types, choices, and required flags the way you would proofread.',
   'Ask for changes in plain words until the proposal matches what you had in mind.',
-  'Confirm once. Intake creates the Google Form in your connected account — a normal form, same links and responses tab.',
-  'Share the link. Answers land in your Google account; Intake never sees them.',
+  'Confirm once. Intake creates the form in the account you connected — Google Forms or Typeform — with the same links and responses tab you already use.',
+  'Share the link. Answers land in that provider; Intake never sees them.',
 ] as const;
 
 export function GuidesPage() {
   return (
     <HubShell
       path="/guides"
-      title="How to create a Google Form with AI — Intake guides"
-      description="Create a Google Form with AI in five steps: describe what to collect, review the proposed questions, adjust in plain words, confirm, and share. Free plan, 20 daily credits."
+      title="How to create a Google Form or Typeform with AI — Intake guides"
+      description="Create a Google Form or Typeform with AI in five steps: describe what to collect, review the proposed questions, adjust in plain words, confirm, and share. Free plan, 20 daily credits."
       eyebrow="GUIDES"
-      heading={<>How to create a Google Form with AI.</>}
+      heading={<>How to create a form with AI.</>}
       lede="The whole workflow in five steps. Answer first, detail after — the way you would explain it to a colleague."
     >
       <section className="mk-section" aria-label="The guide">
@@ -239,13 +239,14 @@ export function TrustPage() {
             <h2>What Intake asks for</h2>
             <ul className="mk-trust__ask">
               <li><strong>Your basic identity, to sign you in</strong><p>Name, email address, and profile info (the openid, email, and profile scopes). This never touches your forms.</p></li>
-              <li><strong>forms.body, only when you connect</strong><p>One extra scope, requested in a separate step you start yourself: permission to create and edit the Google Forms you own. Nothing else.</p></li>
+              <li><strong>Google: forms.body, only when you connect</strong><p>One extra scope, requested in a separate step you start yourself: permission to create and edit the Google Forms you own. Nothing else.</p></li>
+              <li><strong>Typeform: forms:write, forms:read, accounts:read, offline</strong><p>Create and list your Typeforms, read which account you connected, and stay connected past the one-week token. No responses, webhooks, workspaces, themes or images.</p></li>
             </ul>
           </Reveal>
           <Reveal variant="fade">
             <h2>What happens to your data</h2>
-            <p>Your description goes to the AI provider to produce the proposal; the proposal comes back to you for approval. Form responses go straight to Google and Intake never sees them. Intake shows no ads, sells no data, and sends only the emails your account activity requires — plus the welcome mail and the update list you explicitly join.</p>
-            <p>The binding version is the <a href="/privacy">privacy policy</a>, written against Google&rsquo;s API Services User Data Policy, and the <a href="/terms">terms of service</a>.</p>
+            <p>Your description goes to the AI provider to produce the proposal; the proposal comes back to you for approval. Form responses go straight to Google or Typeform and Intake never sees them. Intake shows no ads, sells no data, and sends only the emails your account activity requires — plus the welcome mail and the update list you explicitly join.</p>
+            <p>The binding version is the <a href="/privacy">privacy policy</a>, written against Google&rsquo;s API Services User Data Policy and Typeform&rsquo;s developer terms, and the <a href="/terms">terms of service</a>.</p>
             <p className="mk-hub-updated">Updated October 2026.</p>
           </Reveal>
         </div>

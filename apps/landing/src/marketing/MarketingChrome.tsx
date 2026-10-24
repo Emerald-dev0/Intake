@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { CREATOR } from '../content/site';
 import { LogoMark } from '../components/LogoMark';
+import { GoogleFormsLogo, TypeformLogo } from '../components/ProviderLogos';
 import { useScrolled, useScrollProgress } from './motion';
 
 export function StartLink({
@@ -164,7 +165,7 @@ export function MarketingFooter({ authenticated }: { authenticated: boolean }) {
               <span className="mk-brand__mark"><LogoMark size={26} /></span>
               <span>intake</span>
             </a>
-            <p>Describe a form, look it over, and it lands in your Google Forms account. Editing the ones you already have works the same way.</p>
+            <p>Describe a form, look it over, and it lands in your Google Forms or Typeform account. Editing the Google Forms you already have works the same way.</p>
             {!authenticated && <StartLink authenticated={false} className="mk-button mk-button--secondary mk-footer__cta" />}
           </div>
 
@@ -177,10 +178,25 @@ export function MarketingFooter({ authenticated }: { authenticated: boolean }) {
             </nav>
           ))}
 
-          <div className="mk-footer__column mk-footer__column--google">
-            <h2>Google Forms</h2>
-            <p>Your forms, your account, your responses. Intake sets up the questions and hands Google a form that behaves like any other.</p>
-            <a href="https://forms.google.com" target="_blank" rel="noreferrer">Open Google Forms <span aria-hidden="true">↗</span></a>
+          <div className="mk-footer__column mk-footer__column--providers">
+            <h2>Providers</h2>
+            <p>Your forms, your account, your responses. Intake writes the questions and hands your provider a form that behaves like any other.</p>
+            <ul className="mk-footer__providers">
+              <li>
+                <a href="https://forms.google.com" target="_blank" rel="noreferrer">
+                  <GoogleFormsLogo size={16} tone="mono" label={null} />
+                  Google Forms <span aria-hidden="true">↗</span>
+                </a>
+                <small>Create and edit in place</small>
+              </li>
+              <li>
+                <a href="https://www.typeform.com" target="_blank" rel="noreferrer">
+                  <TypeformLogo height={11} tone="mono" />
+                  <span aria-hidden="true">↗</span>
+                </a>
+                <small>Create and import</small>
+              </li>
+            </ul>
           </div>
         </div>
 

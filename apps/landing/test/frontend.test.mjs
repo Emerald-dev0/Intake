@@ -68,7 +68,7 @@ test('public auth pages and protected pages render with shared authentication en
     for (const [path, status, expected] of [
       ['/', 200, 'Tell Intake what you need.'],
       ['/auth/sign-in', 503, 'Welcome back'],
-      ['/auth/sign-up', 503, 'Make the form.'],
+      ['/auth/sign-up', 503, 'Less busywork.'],
       ['/app', 200, 'What do you need'],
       ['/app/connections', 200, 'Connections'],
       ['/app/forms', 200, 'Describe it'],
