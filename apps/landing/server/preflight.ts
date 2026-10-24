@@ -207,6 +207,14 @@ export async function checkDatabase(env: NodeJS.ProcessEnv = process.env): Promi
       ? { name: 'schema', status: 'fail', detail: `Missing tables: ${missing.join(', ')}. Run npm run db:migrate (Better Auth) and then npm run db:migrate:intake.` }
       : { name: 'schema', status: 'pass', detail: `All ${EXPECTED_TABLES.length} expected tables exist.` });
 
+    // Composed mail is optional, so its send log is a warning rather than a failure: without it the
+    // composer refuses to send (unrecorded mail is worse than a closed composer) and everything else
+    // in the product still works. Say which it is before someone writes their first message.
+    const mailLog = await pool.query<{ present: string | null }>(`SELECT to_regclass('public.admin_mail_send')::text AS present`);
+    checks.push(mailLog.rows[0]?.present
+      ? { name: 'composed mail', status: 'pass', detail: 'admin_mail_send exists, so /admin/mail can send and keep a record.' }
+      : { name: 'composed mail', status: 'warn', detail: 'admin_mail_send is missing (020_admin_mail.sql). /admin/mail will refuse to send until it is applied; nothing else is affected.' });
+
     if (!missing.includes('waitlist')) {
       const columns = await pool.query<{ column_name: string }>(
         `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'waitlist'`,
