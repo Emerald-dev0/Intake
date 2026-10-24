@@ -232,9 +232,9 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
     const key = deps.operations ? deps.operations.operationKey(body.operationId) : 'unmetered';
     const result = await infer({ mode: 'new', provider, request: body.request.trim(), ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}) }, req, res, { type: 'form_create', key });
     if (!result) return;
-    if (result.status !== 'ready') return sendJson(res, 200, withCredits(res, { requestId: requestId(res), status: result.status, ...(result.status === 'needs_clarification' ? { question: result.question } : { explanation: result.explanation }) }));
+    if (result.status !== 'ready') return sendJson(res, 200, withCredits(res, { requestId: requestId(res), status: result.status, ...(result.reply ? { reply: result.reply } : {}), ...(result.status === 'needs_clarification' ? { question: result.question } : { explanation: result.explanation }) }));
     const draft = await deps.store.create({ id: newId(), userId: user(res).id, provider, specification: result.specification, assumptions: result.assumptions, warnings: result.warnings }, now());
-    sendJson(res, 201, withCredits(res, { requestId: requestId(res), status: 'ready', draft: publicDraft(draft) }));
+    sendJson(res, 201, withCredits(res, { requestId: requestId(res), status: 'ready', ...(result.reply ? { reply: result.reply } : {}), draft: publicDraft(draft) }));
   }));
 
   router.post('/revise', auth, mutation, express.json({ limit: MAX_BODY, strict: true }), asyncRoute(async (req, res) => {
@@ -251,12 +251,12 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
     const result = await infer({ mode: 'revise', provider: draft.provider, request: body.request.trim(),
       ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}), specification: draft.specification }, req, res, { type: 'form_revise', key });
     if (!result) return;
-    if (result.status !== 'ready') return sendJson(res, 200, withCredits(res, { requestId: requestId(res), status: result.status, ...(result.status === 'needs_clarification' ? { question: result.question } : { explanation: result.explanation }) }));
+    if (result.status !== 'ready') return sendJson(res, 200, withCredits(res, { requestId: requestId(res), status: result.status, ...(result.reply ? { reply: result.reply } : {}), ...(result.status === 'needs_clarification' ? { question: result.question } : { explanation: result.explanation }) }));
     const updated = await deps.store.revise(user(res).id, draft.id, draft.version,
       { specification: result.specification, assumptions: result.assumptions, warnings: result.warnings }, now());
     if (!updated) return send(res, conflict);
     log('form.draft.revised', { requestId: requestId(res), userId: user(res).id, draftId: draft.id, version: updated.version, questionCount: updated.specification.questions.length });
-    sendJson(res, 200, withCredits(res, { requestId: requestId(res), status: 'ready', draft: publicDraft(updated) }));
+    sendJson(res, 200, withCredits(res, { requestId: requestId(res), status: 'ready', ...(result.reply ? { reply: result.reply } : {}), draft: publicDraft(updated) }));
   }));
 
   router.get('/drafts', auth, asyncRoute(async (_req, res) => {

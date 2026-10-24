@@ -47,6 +47,29 @@ test('a representative registration result maps text, email, optional, choices a
   assert.match(result.assumptions[0], /Department is open text/);
 });
 
+test('the assistant sentence is carried through, cleaned, and rejected when it is not a sentence', () => {
+  // reply is what the person reads in the chat; it travels with the structured result.
+  assert.deepEqual(
+    assessInterpretation({ ...clarification('Which departments should be listed?'), reply: '  Need one detail\n before I build this.  ' }),
+    { status: 'needs_clarification', question: 'Which departments should be listed?', reply: 'Need one detail before I build this.' },
+  );
+  assert.deepEqual(
+    assessInterpretation({ ...unsupported('Google Forms cannot do file uploads.'), reply: 'I can do everything else, just not file uploads.' }),
+    { status: 'unsupported', explanation: 'Google Forms cannot do file uploads.', reply: 'I can do everything else, just not file uploads.' },
+  );
+  const withReply = assessInterpretation({ ...ready(), reply: 'Five questions, with accommodation behind a yes/no gate.' });
+  assert.equal(withReply.status, 'ready');
+  assert.equal(withReply.reply, 'Five questions, with accommodation behind a yes/no gate.');
+
+  // Absent or empty is allowed (older outputs degrade to silence); the wrong type or an essay is not.
+  assert.equal('reply' in assessInterpretation(ready()), false);
+  assert.equal('reply' in assessInterpretation({ ...ready(), reply: null }), false);
+  assert.equal('reply' in assessInterpretation({ ...ready(), reply: '   ' }), false);
+  invalid({ ...ready(), reply: 42 });
+  invalid({ ...ready(), reply: 'x'.repeat(401) });
+  invalid({ ...ready(), reply: { text: 'hello' } });
+});
+
 test('dropdown, checkboxes, paragraph and multiple choice preserve their actual choices', () => {
   const spec = registration();
   spec.questions.splice(3, 1,
@@ -166,7 +189,7 @@ test('the OpenAI boundary requests strict structured output, never exposes its k
   const body = JSON.parse(init.body);
   assert.equal(body.response_format.type, 'json_schema');
   assert.equal(body.response_format.json_schema.strict, true);
-  assert.deepEqual(INTERPRETATION_SCHEMA.required, ['status', 'specification', 'assumptions', 'question', 'explanation']);
+  assert.deepEqual(INTERPRETATION_SCHEMA.required, ['status', 'reply', 'specification', 'assumptions', 'question', 'explanation']);
   assert.equal(INTERPRETATION_SCHEMA.additionalProperties, false);
   assert.equal(body.messages[1].role, 'user');
   assert.match(body.messages[1].content, /currentSpecification/);

@@ -19,6 +19,7 @@ import { createOperationTracker } from '../lib/operation-id';
 import { insufficientCreditsMessage, isInsufficientCredits, type PublicOperationCost } from '../lib/credits';
 import { CreditCostPreview, OperationCostReceipt } from './components/CreditCostPreview';
 import { DraftEditor } from './components/DraftEditor';
+import { LogoMark } from '../components/LogoMark';
 import { Preview } from './components/Preview';
 import type { FormSpecification } from '../lib/specification';
 
@@ -28,19 +29,26 @@ type Pending = { mode: 'new' | 'revise'; request: string; question: string; answ
     history entries carry just enough snapshot to read as a transcript. */
 type ThreadEntry =
   | { id: number; role: 'user'; text: string }
-  | { id: number; role: 'intake'; kind: 'text'; text: string }
+  | { id: number; role: 'intake'; kind: 'text'; text: string; aside?: string }
+  | { id: number; role: 'intake'; kind: 'ask'; text: string; question?: string }
   | { id: number; role: 'intake'; kind: 'proposal'; draftId: string; version: number; title: string; questions: number }
   | { id: number; role: 'intake'; kind: 'result'; result: CreateFormResult }
   | { id: number; role: 'intake'; kind: 'failure'; failure: FormFailure; draftId: string | null };
-const greetingEntry = (): ThreadEntry => ({ id: 0, role: 'intake', kind: 'text', text: 'Hi, I’m Intake. Describe the form you need — I’ll plan the questions, you review, and nothing is created until you say so.' });
+const greetingEntry = (): ThreadEntry => ({ id: 0, role: 'intake', kind: 'text', text: 'Hi — I’m Intake. Tell me what you need to collect and who’s filling it in. I’ll draft the questions, you change anything that reads wrong, and nothing is created until you say so.' });
 /** pushEntry takes the same shapes minus the auto-assigned id. Omit does not distribute over the
     union, so the input union is spelled out. */
 type ThreadEntryInput =
   | { role: 'user'; text: string }
-  | { role: 'intake'; kind: 'text'; text: string }
+  | { role: 'intake'; kind: 'text'; text: string; aside?: string }
+  | { role: 'intake'; kind: 'ask'; text: string; question?: string }
   | { role: 'intake'; kind: 'proposal'; draftId: string; version: number; title: string; questions: number }
   | { role: 'intake'; kind: 'result'; result: CreateFormResult }
   | { role: 'intake'; kind: 'failure'; failure: FormFailure; draftId: string | null };
+const STARTERS = [
+  'RSVP for our end-of-year dinner: name, headcount, dietary needs and a song request',
+  'Customer feedback survey with a rating and a few open comments',
+  'Student club sign-up with name, email, department and which teams they want',
+] as const;
 const STORAGE_KEY = 'intake:current-form-draft'; // only an opaque id, never the specification or chat text
 const EXAMPLE = 'Create a registration form for my final-year project. Ask for full name, email, phone number, department, and whether they need accommodation. If they do, ask what type of accommodation they need.';
 const MICROSOFT_REASON = 'Microsoft Forms creation is not available yet; Microsoft does not publish a supported creation API.';
@@ -165,6 +173,7 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
   const [thread, setThread] = useState<ThreadEntry[]>([greetingEntry()]);
   const threadSeq = useRef(1);
   const threadEndRef = useRef<HTMLDivElement | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const seededDraftRef = useRef<string | null>(null);
   const [draft, setDraft] = useState<PublicDraft | null>(null);
   const [draftId, setDraftId] = useState(savedId);
@@ -193,6 +202,14 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
   useEffect(() => {
     try { threadEndRef.current?.scrollIntoView?.({ block: 'end' }); } catch { /* headless or older engines */ }
   }, [thread, busy]);
+  // The composer grows with the thought, like a message box, then stops at six or so lines so the
+  // conversation stays on screen instead of being pushed away by a pasted paragraph.
+  useEffect(() => {
+    const element = composerRef.current;
+    if (!element) return;
+    element.style.height = 'auto';
+    element.style.height = `${Math.min(element.scrollHeight, 216)}px`;
+  }, [prompt]);
   const seenNewChat = useRef(newChatNonce);
   useEffect(() => {
     if (seenNewChat.current === newChatNonce) return;
@@ -272,14 +289,21 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
         remember(parsed.draft.id);
         setResult(null);
         setPending(null);
+        // Intake says what it did in its own words, then the proposal appears underneath — the
+        // message is the conversation, the card is the artifact.
+        if (parsed.reply) pushEntry({ role: 'intake', kind: 'text', text: parsed.reply });
         pushEntry({ role: 'intake', kind: 'proposal', draftId: parsed.draft.id, version: parsed.draft.version, title: parsed.draft.specification.title, questions: parsed.draft.specification.questions.length });
       } else if (parsed.status === 'needs_clarification') {
         setPending({ mode, request, question: parsed.question, answers: clarification ?? '' });
-        pushEntry({ role: 'intake', kind: 'text', text: parsed.question });
+        pushEntry(parsed.reply
+          ? { role: 'intake', kind: 'ask', text: parsed.reply, question: parsed.question }
+          : { role: 'intake', kind: 'ask', text: parsed.question });
       } else if (parsed.status === 'unsupported') {
         setPending(null);
         setUnsupported(parsed.explanation);
-        pushEntry({ role: 'intake', kind: 'text', text: parsed.explanation });
+        pushEntry(parsed.reply
+          ? { role: 'intake', kind: 'text', text: parsed.reply, aside: parsed.explanation }
+          : { role: 'intake', kind: 'text', text: parsed.explanation });
       } else {
         const outOfCredits = isInsufficientCredits(parsed.failure.code);
         const failure = outOfCredits ? { ...parsed.failure, error: insufficientCreditsMessage(credits.state.credits) } : parsed.failure;
@@ -469,7 +493,7 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
   const typingText = waking
     ? 'Waking up the server — the free tier sleeps when idle and can take up to a minute. Holding on…'
     : busy === 'interpreting'
-    ? 'Intake is planning the questions. No form is being created yet.'
+    ? 'Thinking through the questions — nothing is being created yet.'
     : busy === 'revising'
       ? `Updating the draft only. Nothing has been sent to ${providerName}.`
       : busy === 'creating'
@@ -487,43 +511,64 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
     : draft && draft.status === 'ready'
       ? `Anything you send now revises this draft. Nothing reaches ${providerName} until you create.`
       : 'A clear first draft is enough. You can make changes before anything is created.';
+  /** A person's turn: right-aligned, no chrome, the words are the whole message. */
+  function fromPerson(entry: { id: number }, body: React.ReactNode, wide = false) {
+    return <div key={entry.id} className={`msg-row msg-row--user${wide ? ' msg-row--wide' : ''}`}>
+      <div className={`msg msg-user${wide ? ' msg-wide' : ''}`}>{body}</div>
+      <span className="msg-avatar msg-avatar--you" aria-hidden="true">You</span>
+    </div>;
+  }
+  /** Intake's turn: the mark, then the sentence. Interactive artifacts sit under the same row. */
+  function fromIntake(entry: { id: number }, body: React.ReactNode, wide = false) {
+    return <div key={entry.id} className={`msg-row msg-row--intake${wide ? ' msg-row--wide' : ''}`}>
+      <span className="msg-avatar msg-avatar--intake" aria-hidden="true"><LogoMark size={15} /></span>
+      <div className={`msg msg-intake${wide ? ' msg-wide' : ''}`}>{body}</div>
+    </div>;
+  }
   function renderEntry(entry: ThreadEntry) {
-    if (entry.role === 'user') return <div key={entry.id} className="msg msg-user">{entry.text}</div>;
-    if (entry.kind === 'text') return <div key={entry.id} className="msg msg-intake">{entry.text}</div>;
+    if (entry.role === 'user') return fromPerson(entry, entry.text);
+    if (entry.kind === 'text') return fromIntake(entry, <>
+      {entry.text}
+      {entry.aside && <span className="msg-aside">{entry.aside}</span>}
+    </>);
+    if (entry.kind === 'ask') return fromIntake(entry, <>
+      {entry.text}
+      {entry.question && <span className="msg-question">{entry.question}</span>}
+    </>);
     if (entry.kind === 'failure') {
-      return <div key={entry.id} className="msg msg-intake msg-wide"><FailureNotice failure={entry.failure} provider={activeProvider} onReload={entry.draftId ? () => void loadDraft(entry.draftId as string) : undefined} /></div>;
+      return fromIntake(entry, <FailureNotice failure={entry.failure} provider={activeProvider} onReload={entry.draftId ? () => void loadDraft(entry.draftId as string) : undefined} />, true);
     }
     if (entry.kind === 'result') {
-      return <div key={entry.id} className="msg msg-intake msg-wide"><Outcome result={entry.result} provider={activeProvider} onContinueEditing={(providerFormId) => { setSelectedEditRecordId(providerFormId); setWorkspaceMode('edit'); }} /></div>;
+      return fromIntake(entry, <Outcome result={entry.result} provider={activeProvider} onContinueEditing={(providerFormId) => { setSelectedEditRecordId(providerFormId); setWorkspaceMode('edit'); }} />, true);
     }
     const live = draft?.id === entry.draftId && draft?.version === entry.version && draft?.status === 'ready';
     if (!live || !draft) {
-      return <div key={entry.id} className="msg msg-intake">Proposed “{entry.title}” — {entry.questions} {entry.questions === 1 ? 'question' : 'questions'} (superseded).</div>;
+      return fromIntake(entry, <>Proposed “{entry.title}” — {entry.questions} {entry.questions === 1 ? 'question' : 'questions'} (superseded).</>);
     }
 
     if (editMode === 'edit') {
-      return <div key={entry.id} className="msg msg-intake msg-wide">
+      return fromIntake(entry, <>
         <DraftEditor draft={draft.specification} onUpdate={updateDraft} onCancel={() => setEditMode('review')} disabled={busy !== null} />
         <div className="draft-review-actions">
           <button type="button" className="btn btn-accent" onClick={() => void confirm()} disabled={busy !== null}>{busy === 'creating' ? 'Creating your form…' : 'Create form →'}</button>
           <button type="button" className="draft-cancel" onClick={() => void cancel()} disabled={busy !== null}>{busy === 'cancelling' ? 'Discarding…' : 'Cancel'}</button>
         </div>
         <p className="forms-help">Nothing has been sent to {providerName} yet. Creating requires your confirmation.</p>
-      </div>;
+      </>, true);
     }
 
     if (editMode === 'preview') {
-      return <div key={entry.id} className="msg msg-intake msg-wide">
+      return fromIntake(entry, <>
         <Preview spec={draft.specification} onClose={() => setEditMode('review')} onEdit={() => setEditMode('edit')} />
         <div className="draft-review-actions">
           <button type="button" className="btn btn-accent" onClick={() => void confirm()} disabled={busy !== null}>{busy === 'creating' ? 'Creating your form…' : 'Create form →'}</button>
           <button type="button" className="draft-cancel" onClick={() => void cancel()} disabled={busy !== null}>{busy === 'cancelling' ? 'Discarding…' : 'Cancel'}</button>
         </div>
         <p className="forms-help">Nothing has been sent to {providerName} yet. Creating requires your confirmation.</p>
-      </div>;
+      </>, true);
     }
 
-    return <div key={entry.id} className="msg msg-intake msg-wide">
+    return fromIntake(entry, <>
       <Review draft={draft} operationCost={operationCost} />
       <div className="draft-review-actions">
         <button type="button" className="btn btn-accent" onClick={() => void confirm()} disabled={busy !== null}>{busy === 'creating' ? 'Creating your form…' : 'Create form →'}</button>
@@ -532,7 +577,7 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
         <button type="button" className="draft-cancel" onClick={() => void cancel()} disabled={busy !== null}>{busy === 'cancelling' ? 'Discarding…' : 'Cancel'}</button>
       </div>
       <p className="forms-help">Nothing has been sent to {providerName} yet. Creating requires your confirmation, and this draft can only be submitted once.</p>
-    </div>;
+    </>, true);
   }
   /** Once a sentence has been sent, chrome gets out of the way: the conversation is the page. */
   const conversationStarted = thread.length > 1 || draft !== null || draftId !== null || pending !== null;
@@ -586,10 +631,20 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
 
     <section className="thread" aria-label="Conversation with Intake">
       {thread.map(entry => renderEntry(entry))}
-      {typingText && <div className="msg msg-intake msg-typing" role="status"><span className="spin sm" aria-hidden /> {typingText}</div>}
+      {typingText && <div className="msg-row msg-row--intake">
+        <span className="msg-avatar msg-avatar--intake" aria-hidden="true"><LogoMark size={15} /></span>
+        <div className="msg msg-intake msg-typing" role="status">
+          <span className="typing-dots" aria-hidden="true"><i /><i /><i /></span>
+          <span>{typingText}</span>
+        </div>
+      </div>}
       <div ref={threadEndRef} />
     </section>
     <OperationCostReceipt receipt={operationCost} />
+    {!conversationStarted && <div className="composer-starters" role="group" aria-label="Example requests">
+      {STARTERS.map(text => <button key={text} type="button" className="composer-starter" disabled={busy !== null}
+        onClick={() => { setPrompt(text); composerRef.current?.focus(); }}>{text}</button>)}
+    </div>}
     <form className="thread-composer" onSubmit={submitComposer} aria-busy={busy !== null}>
       {!draft && !pending && <div className="composer-target" role="group" aria-label="Create the form in">
         <span className="composer-target__label">Create in</span>
@@ -612,13 +667,16 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
         })}
       </div>}
       <label className="sr-only" htmlFor="form-request">{composerLabel}</label>
-      <textarea id="form-request" className="draft-input" placeholder={composerPlaceholder} value={prompt} onChange={event => setPrompt(event.target.value)} maxLength={3000} required disabled={busy !== null} onKeyDown={event => {
+      <textarea ref={composerRef} id="form-request" className="draft-input" rows={1} placeholder={composerPlaceholder} value={prompt} onChange={event => setPrompt(event.target.value)} maxLength={3000} required disabled={busy !== null} onKeyDown={event => {
         if (event.key === 'Enter' && !event.shiftKey) {
           event.preventDefault();
           (event.currentTarget.form as HTMLFormElement | null)?.requestSubmit();
         }
       }} />
-      <div className="draft-input-foot"><span>{composerHint}</span><span>{prompt.length} / 3000</span></div>
+      <div className="draft-input-foot">
+        <span>{composerHint}</span>
+        <span className="composer-shortcut">Enter to send · Shift + Enter for a new line · {prompt.length} / 3000</span>
+      </div>
       <div className="forms-actions">
         <button className="btn btn-accent" type="submit" disabled={busy !== null || !prompt.trim()}>{busy !== null ? 'Working…' : composerAction}</button>
         {pending && <button className="btn btn-ghost btn-sm" type="button" disabled={busy !== null} onClick={() => setPending(null)}>Dismiss question</button>}

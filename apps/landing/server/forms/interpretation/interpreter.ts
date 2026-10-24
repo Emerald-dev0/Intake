@@ -76,10 +76,17 @@ export interface FormInterpreter {
   interpret(input: InterpretationInput): Promise<unknown>;
 }
 
-export type InterpretationResult =
+/**
+ * `reply` is the assistant's own sentence, shown as the chat bubble. It is optional in the type so a
+ * provider that omits it degrades to the structured result rather than failing the request — but the
+ * schema and the prompt both require it, because a specification with no words reads as a form
+ * generator, not as the conversation people came for.
+ */
+export type InterpretationResult = (
   | { status: 'ready'; specification: FormSpecification; assumptions: string[]; warnings: FormWarning[] }
   | { status: 'needs_clarification'; question: string }
-  | { status: 'unsupported'; explanation: string };
+  | { status: 'unsupported'; explanation: string }
+) & { reply?: string };
 
 /** One taxonomy for provider and application failures. See server/ai/provider.ts. */
 export type InterpretationErrorCode = AiFailureCode;
@@ -93,13 +100,30 @@ export class InterpretationError extends Error {
 
 const invalid = () => new InterpretationError('model_invalid_output', 'Intake could not validate the interpretation. Your draft was not changed. Try again or rephrase your request.');
 const keys = ['status', 'specification', 'assumptions', 'question', 'explanation'];
+/** Present in the model schema, optional in the contract: older or degraded outputs may omit it. */
+const replyKey = 'reply';
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function exactly(value: Record<string, unknown>, allowed: readonly string[]): boolean {
-  return Object.keys(value).length === allowed.length && allowed.every(key => Object.prototype.hasOwnProperty.call(value, key));
+  const present = Object.keys(value).filter(key => key !== replyKey);
+  return present.length === allowed.length && allowed.every(key => Object.prototype.hasOwnProperty.call(value, key));
+}
+
+/**
+ * The chat bubble, when the model wrote one. It is deliberately lenient about the edges of the
+ * contract: null, absent, or whitespace-only all mean "no words", while a non-string or an
+ * over-long essay is a schema violation and fails closed like any other malformed output.
+ */
+function readReply(value: unknown): { valid: boolean; reply?: string } {
+  if (value === undefined || value === null) return { valid: true };
+  if (typeof value !== 'string') return { valid: false };
+  const reply = value.replace(/\s+/g, ' ').trim();
+  if (!reply) return { valid: true };
+  if (reply.length > 400) return { valid: false };
+  return { valid: true, reply };
 }
 
 function text(value: unknown, max: number): value is string {
@@ -114,14 +138,17 @@ function text(value: unknown, max: number): value is string {
 export function assessInterpretation(value: unknown, provider: FormProvider = 'google'): InterpretationResult {
   if (!record(value) || !exactly(value, keys) || !Array.isArray(value.assumptions) || value.assumptions.length > 6 ||
       !value.assumptions.every(item => text(item, 240))) throw invalid();
+  const spoken = readReply(value.reply);
+  if (!spoken.valid) throw invalid();
+  const reply = spoken.reply ? { reply: spoken.reply } : {};
 
   if (value.status === 'needs_clarification') {
     if (value.specification !== null || value.explanation !== null || value.assumptions.length !== 0 || !text(value.question, 400)) throw invalid();
-    return { status: 'needs_clarification', question: value.question.trim() };
+    return { status: 'needs_clarification', question: value.question.trim(), ...reply };
   }
   if (value.status === 'unsupported') {
     if (value.specification !== null || value.question !== null || value.assumptions.length !== 0 || !text(value.explanation, 500)) throw invalid();
-    return { status: 'unsupported', explanation: value.explanation.trim() };
+    return { status: 'unsupported', explanation: value.explanation.trim(), ...reply };
   }
   if (value.status !== 'ready' || value.question !== null || value.explanation !== null) throw invalid();
 
@@ -133,10 +160,10 @@ export function assessInterpretation(value: unknown, provider: FormProvider = 'g
     // usually resolves them before this is ever shown); anything else keeps the planner's specific
     // explanation, which contains no provider payload.
     if (planned.issues.length > 0 && planned.issues.every(issue => FRIENDLY_CODES.includes(issue.code))) {
-      return { status: 'unsupported', explanation: friendlyPlacementExplanation() };
+      return { status: 'unsupported', explanation: friendlyPlacementExplanation(), ...reply };
     }
     const explanation = planned.issues.slice(0, 2).map(issue => issue.message).join(' ');
-    return { status: 'unsupported', explanation: explanation.length > 500 ? `${explanation.slice(0, 497)}…` : explanation };
+    return { status: 'unsupported', explanation: explanation.length > 500 ? `${explanation.slice(0, 497)}…` : explanation, ...reply };
   }
-  return { status: 'ready', specification: parsed.specification, assumptions: value.assumptions.map(item => (item as string).trim()), warnings: planned.warnings };
+  return { status: 'ready', specification: parsed.specification, assumptions: value.assumptions.map(item => (item as string).trim()), warnings: planned.warnings, ...reply };
 }

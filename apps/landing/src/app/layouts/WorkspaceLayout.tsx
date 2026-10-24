@@ -32,7 +32,7 @@ function useOperatorAccess() {
 
 const NAV = [
   { key: 'home', href: '/app', label: 'Home', icon: '⌂' },
-  { key: 'forms', href: '/app/forms', label: 'Create', icon: '✳' },
+  { key: 'forms', href: '/app/forms', label: 'Chat', icon: '✳' },
   { key: 'library', href: '/app/library', label: 'Library', icon: '▤' },
   { key: 'connections', href: '/app/connections', label: 'Connections', icon: '◇' },
   { key: 'billing', href: '/app/billing', label: 'Billing', icon: '◎' },
@@ -82,8 +82,8 @@ export function WorkspaceLayout() {
     <div className="workspace">
       <aside className={`app-sidebar ${mobileOpen ? 'open' : ''}`}>
         <a href="/app" className="app-logo"><LogoMark size={26} /><span>intake</span></a>
-        <button type="button" className="sidebar-new" onClick={startNewForm}>
-          <span aria-hidden>＋</span> New form
+        <button type="button" className="sidebar-new" onClick={startNewForm} title="Start a new conversation">
+          <span aria-hidden>＋</span> New chat
         </button>
 
         <nav aria-label="Application navigation" className="side-nav">

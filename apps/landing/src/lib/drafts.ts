@@ -17,10 +17,15 @@ export interface PublicDraft {
   updatedAt: string;
 }
 
+/**
+ * `reply` is Intake's own sentence, shown as a chat bubble. It is read from the server as optional:
+ * a response without one still renders the structured result, so an older server or a provider
+ * that skipped the field degrades to the previous behaviour instead of breaking the thread.
+ */
 export type InterpretResponse =
-  | { status: 'ready'; draft: PublicDraft; operationCost?: PublicOperationCost }
-  | { status: 'needs_clarification'; question: string; operationCost?: PublicOperationCost }
-  | { status: 'unsupported'; explanation: string; operationCost?: PublicOperationCost }
+  | { status: 'ready'; draft: PublicDraft; reply?: string; operationCost?: PublicOperationCost }
+  | { status: 'needs_clarification'; question: string; reply?: string; operationCost?: PublicOperationCost }
+  | { status: 'unsupported'; explanation: string; reply?: string; operationCost?: PublicOperationCost }
   | { status: 'error'; failure: FormFailure };
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -112,12 +117,13 @@ export function parseInterpretResponse(status: number, value: unknown): Interpre
   const row = record(value);
   const operationCost = parseOperationCost(row);
   const receipt = operationCost ? { operationCost } : {};
+  const said = text(row?.reply, 400) ? { reply: row.reply } : {};
   if (row?.status === 'ready') {
     const draft = parsePublicDraft(row.draft);
-    if (draft?.status === 'ready') return { status: 'ready', draft, ...receipt };
+    if (draft?.status === 'ready') return { status: 'ready', draft, ...said, ...receipt };
   }
-  if (row?.status === 'needs_clarification' && text(row.question, 400)) return { status: 'needs_clarification', question: row.question, ...receipt };
-  if (row?.status === 'unsupported' && text(row.explanation, 500)) return { status: 'unsupported', explanation: row.explanation, ...receipt };
+  if (row?.status === 'needs_clarification' && text(row.question, 400)) return { status: 'needs_clarification', question: row.question, ...said, ...receipt };
+  if (row?.status === 'unsupported' && text(row.explanation, 500)) return { status: 'unsupported', explanation: row.explanation, ...said, ...receipt };
   return { status: 'error', failure: unreadable };
 }
 

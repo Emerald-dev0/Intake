@@ -23,6 +23,18 @@ test('the browser accepts only a readable server-owned specification and does no
   assert.equal(parsePublicDraft(row({ warnings: [{ code: 'email_validation_unavailable', questionId: 'email', message: longestValidEmailWarning }] }))?.warnings[0].message, longestValidEmailWarning);
 });
 
+test('the chat bubble the server sent survives parsing, and a non-sentence does not', () => {
+  const readyReply = parseInterpretResponse(201, { status: 'ready', reply: '  Built it as a seven-question form.  ', draft: row() });
+  assert.equal(readyReply.status, 'ready');
+  assert.equal(readyReply.reply, '  Built it as a seven-question form.  ');
+  assert.equal(parseInterpretResponse(200, { status: 'needs_clarification', reply: 'One detail first.', question: 'Which options?' }).reply, 'One detail first.');
+  assert.equal(parseInterpretResponse(200, { status: 'unsupported', reply: 'Not that one.', explanation: 'File uploads are unsupported.' }).reply, 'Not that one.');
+  // Whitespace-only, oversized, or non-string replies are dropped rather than rendered.
+  assert.equal(parseInterpretResponse(200, { status: 'needs_clarification', reply: '   ', question: 'Which options?' }).reply, undefined);
+  assert.equal(parseInterpretResponse(200, { status: 'needs_clarification', reply: 'x'.repeat(401), question: 'Which options?' }).reply, undefined);
+  assert.equal(parseInterpretResponse(200, { status: 'needs_clarification', reply: 7, question: 'Which options?' }).reply, undefined);
+});
+
 test('unreadable specifications, unknown owners/ids and malformed union replies fail closed', () => {
   for (const broken of [
     row({ id: 'javascript:alert(1)' }), row({ provider: 'microsoft' }), row({ version: 0 }), row({ status: 'pending' }),
