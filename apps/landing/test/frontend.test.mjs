@@ -36,13 +36,16 @@ globalThis.location = dom.window.location;
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 test('all public and protected paths have explicit ownership', () => {
-  for (const path of ['/', '/auth/sign-in', '/auth/sign-up', '/waitlist', '/app', '/app/connections', '/app/forms', '/app/library', '/app/account']) {
+  for (const path of ['/', '/auth/sign-in', '/auth/sign-up', '/app', '/app/connections', '/app/forms', '/app/library', '/app/account']) {
     const matches = matchRoutes(routes, path);
     assert.ok(matches);
     assert.notEqual(matches.at(-1).route.path, '*');
     assert.equal(matches.some(m => m.route.path === '/app'), path.startsWith('/app'));
   }
   assert.equal(matchRoutes(routes, '/application').at(-1).route.path, '*');
+  // Signup is the public action; the wait-list gate was removed and must not creep back in.
+  assert.equal(matchRoutes(routes, '/waitlist').at(-1).route.path, '*', 'no public wait-list route');
+  assert.equal(matchRoutes(routes, '/wait-list').at(-1).route.path, '*');
   assert.equal(matchRoutes(routes, '/app/forms').at(-1).route.path, 'forms', 'the forms page has its own protected route');
   assert.equal(matchRoutes(routes, '/app/forms')[0].route.path, '/app');
   assert.equal(matchRoutes(routes, '/admin')[0].route.path, '/admin');

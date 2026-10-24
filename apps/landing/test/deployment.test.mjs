@@ -60,7 +60,7 @@ test('deployment routes reserve API before the generic SPA fallback', async () =
   for (const route of ['/auth/sign-in', '/auth/sign-up', '/app', '/app/connections', '/app/forms', '/admin']) {
     assert.ok(privatePage.test(route), `${route} must use the private document`);
   }
-  for (const route of ['/', '/about', '/faq', '/pricing', '/waitlist']) assert.ok(publicPage.test(route), `${route} must use the public document`);
+  for (const route of ['/', '/about', '/faq', '/pricing']) assert.ok(publicPage.test(route), `${route} must use the public document`);
 });
 
 test('production Vite output serves direct and repeated document requests; API proxy preserves methods, queries and cookies', async () => {
@@ -73,7 +73,7 @@ test('production Vite output serves direct and repeated document requests; API p
   const server = await preview({ preview: { port: 0, proxy: { '^/api(?:/|$)': { target: `http://127.0.0.1:${backend.address().port}` } } } });
   const base = `http://127.0.0.1:${server.httpServer.address().port}`;
   try {
-    for (const path of ['/', '/pricing', '/waitlist', '/auth/sign-in', '/auth/sign-up', '/app', '/app/connections', '/app/account', '/admin', '/admin/users/owner-id']) {
+    for (const path of ['/', '/pricing', '/auth/sign-in', '/auth/sign-up', '/app', '/app/connections', '/app/account', '/admin', '/admin/users/owner-id']) {
       for (let attempt = 0; attempt < 2; attempt++) {
         const res = await fetch(base + path);
         assert.equal(res.status, 200);
@@ -82,10 +82,6 @@ test('production Vite output serves direct and repeated document requests; API p
         if (path === '/pricing') {
           assert.ok(html.includes('<link rel="canonical" href="https://intake-six-blue.vercel.app/pricing" />'));
           assert.ok(html.includes('<title>Intake Pricing — Free during launch, Pro coming soon</title>'));
-        }
-        if (path === '/waitlist') {
-          assert.ok(html.includes('<link rel="canonical" href="https://intake-six-blue.vercel.app/waitlist" />'));
-          assert.ok(html.includes('<title>Join the Intake wait-list'));
         }
         if (path.startsWith('/admin')) {
           // Vite preview serves the SPA fallback directly; production's Vercel route sends every
@@ -105,6 +101,25 @@ test('production Vite output serves direct and repeated document requests; API p
     await new Promise(resolve => server.httpServer.close(resolve));
     await new Promise(resolve => backend.close(resolve));
   }
+});
+
+test('no shipped document offers a wait-list, and signup stays the public action', async () => {
+  const files = await readdir('dist');
+  assert.equal(files.includes('waitlist.html'), false, 'the wait-list page is retired, not merely unlinked');
+  for (const document of ['index.html', 'pricing.html', 'private.html', 'admin.html'].filter(file => files.includes(file))) {
+    const html = await readFile(`dist/${document}`, 'utf8');
+    assert.doesNotMatch(html, /wait[- ]?list/i, `${document} still mentions a wait-list`);
+  }
+  // The shell is prerendered metadata only; the call to action lives in the marketing app, so check
+  // the source that builds it rather than the static shell.
+  const hero = await readFile('src/marketing/MarketingSections.tsx', 'utf8');
+  assert.match(hero, /href="\/auth\/sign-up"/, 'signup is the primary public action');
+  const chrome = await readFile('src/marketing/MarketingChrome.tsx', 'utf8');
+  assert.match(chrome, /authenticated \? '\/app' : '\/auth\/sign-up'/, 'header CTA is signup when signed out');
+  // The backend and the admin view stay: Pro interest emails are still collected by a form, just not
+  // as a gate in front of the product.
+  const config = JSON.parse(await readFile('vercel.json', 'utf8'));
+  assert.equal(config.routes.some(route => /waitlist/.test(route.src)), false);
 });
 
 test('browser module imports cannot cross the server boundary', async () => {

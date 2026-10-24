@@ -12,7 +12,6 @@ import {
 import { DEFAULT_SITE_URL, isNonPublicHost, normalizeSiteUrl } from './src/lib/site-url.ts';
 import { PLAN_CATALOG, formatUsd, proPriceComparison } from './src/lib/plans.ts';
 import { PRICING_DESCRIPTION, PRICING_FAQS, PRICING_TITLE } from './src/content/pricing.ts';
-import { WAITLIST_DESCRIPTION, WAITLIST_TITLE } from './src/content/waitlist.ts';
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, character => ({
@@ -168,12 +167,6 @@ function siteMeta(siteUrl: string): Plugin {
     transformIndexHtml(html) {
       return html
         .replace('%HOMEPAGE_TITLE%', escapeHtml(HOMEPAGE_TITLE))
-        .replaceAll('%WAITLIST_TITLE%', escapeHtml(WAITLIST_TITLE))
-        .replaceAll('%WAITLIST_DESCRIPTION%', escapeHtml(WAITLIST_DESCRIPTION))
-        .replace('%WAITLIST_SCHEMA%', JSON.stringify({
-          '@context': 'https://schema.org', '@type': 'WebPage',
-          name: WAITLIST_TITLE, description: WAITLIST_DESCRIPTION, url: `${siteUrl}/waitlist`,
-        }).replace(/</g, '\\u003c'))
         .replace('%META_DESCRIPTION%', escapeHtml(META_DESCRIPTION))
         .replace('%CREATOR_DISPLAY_NAME%', escapeHtml(CREATOR.displayName))
         .replaceAll('%SITE_URL%', siteUrl)
@@ -366,7 +359,6 @@ export default defineConfig(({ mode }) => {
     main: 'index.html',
     private: 'private.html',
     pricing: 'pricing.html',
-    waitlist: 'waitlist.html',
   };
   // CAPTURE=1 also builds the dev-only pages used to record demos / render the social card.
   if (env.CAPTURE) {

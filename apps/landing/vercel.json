@@ -38,10 +38,6 @@
       "dest": "/pricing.html"
     },
     {
-      "src": "/waitlist/?$",
-      "dest": "/waitlist.html"
-    },
-    {
       "handle": "filesystem"
     },
     {

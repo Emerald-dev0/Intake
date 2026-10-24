@@ -1,8 +1,10 @@
 # Launch runbook — first production deployment
 
-> **Early-access wait-list:** apply migrations through `018_waitlist_welcome.sql` and follow
-> [WAITLIST.md](WAITLIST.md). The welcome sender is `daniel@intake.calder.click`; real delivery
-> still requires a live Calder key, verified sender domain, and a receiving reply mailbox.
+> **Pro notification emails:** there is no public wait-list page — signup is the public action — but
+> the `/pricing` "Notify me" forms still store addresses, so apply migrations through
+> `018_waitlist_welcome.sql` and follow [WAITLIST.md](WAITLIST.md). The sender is
+> `daniel@intake.calder.click`; real delivery still requires a live Calder key, a verified sender
+> domain, and a receiving reply mailbox.
 
 This is the ordered procedure for taking Intake from this repository to a real, reachable deployment,
 plus the verification, rollback and operational facts that go with it.

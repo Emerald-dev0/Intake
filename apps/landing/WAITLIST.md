@@ -1,8 +1,21 @@
 # Intake early-access wait-list
 
-The public page is `/waitlist`. Anonymous product CTAs lead there, and `/auth/sign-up` temporarily redirects there (307 on Vercel, `Navigate` for client-side navigation). Existing users and operators can still sign in. This is a marketing wait-list, **not** a new backend authorization system: existing auth APIs and account permissions are unchanged.
+**There is no public wait-list page, and there must not be one.** `/auth/sign-up` is the public
+action: the product is usable on the free plan today, so nobody queues to get in. The route, the
+prerendered `waitlist.html` document, its stylesheet and its page component were removed; a test in
+`test/deployment.test.mjs` fails if a shipped document mentions a wait-list again.
 
-## What happens on a join
+What remains is the machinery this document describes:
+
+- `POST /api/waitlist` and the `waitlist` table, used by the **Pro "Notify me"** forms on `/pricing`
+  and the marketing pricing card. Those collect interest in a plan that is not on sale yet; they do
+  not gate the product.
+- The `waitlist_welcome` email, the worker, and the operator view at `/admin/waitlist`.
+
+It is storage and mail, **not** an authorization system: existing auth APIs and account permissions
+are unchanged.
+
+## What happens when someone asks to be notified
 
 1. The browser posts **same-origin** JSON `{ email, website }` to `/api/waitlist`. No database module, provider client, sender, template, or credential is imported into the browser.
 2. The API validates and normalizes the email, bounds the JSON body to 4 KiB, rejects cross-site browser submissions, and checks distributed rate limits. A filled `website` honeypot is silently dropped. Network buckets allow 200 attempts/10 minutes (shared NAT/proxy egress); recipient buckets allow 5/hour. Subjects are keyed-HMACed by the existing limiter, never stored as raw network/email values.
@@ -11,7 +24,7 @@ The public page is `/waitlist`. Anonymous product CTAs lead there, and `/auth/si
 5. A server-side worker wakes after a join and polls every 30 seconds. It atomically claims due rows, sends at most three emails concurrently, and recovers expired five-minute leases after a process restart. The attempt number fences stale completions.
 6. All sends use the normal `EmailService` → Calder adapter. The deterministic key is `intake:waitlist-welcome:waitlist:<entry UUID>`. Local acceptance records also prevent resend after the provider’s replay window expires. Retry attempts update the **original** delivery record, so webhooks can still correlate the message.
 
-The welcome is sent immediately after signup processing, **not held until launch**. The page says to look out for a note; it never claims that saving an address proves mail was delivered.
+The welcome is sent immediately after the address is saved, **not held until launch**. The notification form says to look out for a note; nothing claims that saving an address proves mail was delivered.
 
 ## The email
 
