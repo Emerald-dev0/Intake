@@ -13,6 +13,8 @@ const API_ORIGIN = 'https://api.typeform.com';
 
 const SIMPLE = form([shortText('name', { title: 'Full name', required: true }), { id: 'level', type: 'multiple_choice', title: 'Level', options: ['100', '200'] }], { title: 'Intake Typeform', description: 'A short form.' });
 const VISIBLE = form([{ id: 'need', type: 'multiple_choice', title: 'Need accommodation?', options: ['Yes', 'No'], required: true }, shortText('nights', { title: 'Nights', ...when('need', 'Yes') })], { title: 'Routed' });
+const MISPLACED = form([{ id: 'need', type: 'multiple_choice', title: 'Need accommodation?', options: ['Yes', 'No'], required: true }, shortText('middle', { title: 'Something else' }), shortText('nights', { title: 'Nights', ...when('need', 'Yes') })], { title: 'Misplaced' });
+const CHOICES = form([{ id: 'dept', type: 'dropdown', title: 'Department', options: ['Science', 'Arts'], required: true }, { id: 'skills', type: 'checkboxes', title: 'Skills', options: ['Design', 'Code'], required: false }], { title: 'Choices' });
 
 /** A stateful stand-in for the Typeform Create/Responses API at the HTTP boundary. */
 export function createFakeTypeform(options = {}) {
@@ -217,6 +219,17 @@ test('creates the whole Typeform in one request, then reports the created form',
   assert.equal(create.body.fields.length, 2);
   assert.deepEqual(create.body.fields.map(field => field.type), ['short_text', 'multiple_choice']);
   assert.equal(create.body.settings.language, 'en');
+  assert.equal(create.body.settings.is_public, true, 'settings use the API wire names');
+  assert.equal('isPublic' in create.body.settings, false);
+  assert.equal('showTypeformBranding' in create.body.settings, false);
+  assert.equal('theme' in create.body, false, 'omitting the theme lets Typeform apply its default');
+  assert.equal(create.body.welcome_screens[0].properties.show_button, true);
+  assert.equal('showButton' in create.body.welcome_screens[0].properties, false);
+  assert.equal(create.body.thankyou_screens[0].properties.show_button, false);
+  assert.equal('buttonMode' in create.body.thankyou_screens[0].properties, false);
+  assert.equal(create.body.fields[1].properties.allow_multiple_selection, false);
+  assert.equal('allowMultiple' in create.body.fields[1].properties, false);
+  assert.equal('email' in (create.body.fields[0].validations ?? {}), false);
   assert.equal(create.body.welcome_screens.length, 1);
   assert.equal(create.body.thankyou_screens.length, 1);
 
@@ -238,6 +251,35 @@ test('visibility rules ride along as Typeform logic in the same create request',
   const [create] = world.fake.calls;
   assert.equal(create.body.logic.length, 1);
   assert.equal(create.body.logic[0].type, 'field');
+  assert.equal(create.body.logic[0].ref, 'q_need');
+  const [action] = create.body.logic[0].actions;
+  assert.equal(action.action, 'jump');
+  assert.equal(action.condition.op, 'is_not', 'every answer except the visible one skips the group');
+  assert.deepEqual(action.condition.vars, [
+    { type: 'field', value: 'q_need' },
+    { type: 'choice', value: 'q_need_choice_0' },
+  ]);
+  assert.deepEqual(action.details.to, { type: 'thankyou', value: 'thankyou' }, 'the group is last, so the jump ends the form');
+});
+
+test('choice fields use the property names Typeform accepts', async () => {
+  const world = createTypeformWorld();
+  await world.connect('user-a');
+  await createTypeform(world, CHOICES);
+  const [create] = world.fake.calls;
+  assert.equal('allow_multiple_selection' in create.body.fields[0].properties, false, 'dropdowns do not take a multi-select flag');
+  assert.equal('ref' in create.body.fields[0].properties.choices[0], false, 'dropdown choices have no refs');
+  assert.equal(create.body.fields[1].properties.allow_multiple_selection, true, 'checkboxes are a multi-select multiple choice');
+  assert.equal(create.body.fields[1].properties.choices[0].ref, 'q_skills_choice_0');
+});
+
+test('visibility Typeform cannot express is refused before any request', async () => {
+  const world = createTypeformWorld();
+  await world.connect('user-a');
+  const error = await failureOf(createTypeform(world, MISPLACED));
+  assert.equal(error.info.code, 'unsupported_by_provider');
+  assert.match(error.info.message, /Typeform/i);
+  assert.equal(world.fake.calls.length, 0, 'nothing is sent when the layout cannot be represented');
 });
 
 test('an invalid specification fails validation before any request or connection read', async () => {

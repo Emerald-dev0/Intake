@@ -41,6 +41,8 @@ export interface TypeformApiErrorInfo {
   kind: 'http' | 'network' | 'timeout' | 'malformed_response';
   httpStatus?: number;
   typeformCode?: string;
+  typeformDescription?: string;
+  typeformField?: string;
   retryAfterSeconds?: number;
 }
 
@@ -88,20 +90,23 @@ export interface TypeformFormResource {
 
 export interface TypeformSettings {
   language: string;
-  isPublic: boolean;
-  autosaveProgress: boolean;
-  progressBar: 'percentage' | 'proportion' | 'none';
-  showTypeformBranding: boolean;
+  is_public: boolean;
+  autosave_progress: boolean;
+  progress_bar: 'percentage' | 'proportion';
+  show_typeform_branding: boolean;
   meta: {
-    allowIndexing: boolean;
-    googleAnalytics?: string;
-    facebookPixel?: string;
-    googleTagManager?: string;
+    allow_indexing: boolean;
+    title?: string;
+    description?: string;
+    redirect_after_submit_url?: string;
+    google_analytics?: string;
+    facebook_pixel?: string;
+    google_tag_manager?: string;
   };
-  redirectAfterSubmitUrl?: string;
 }
 
 export interface TypeformTheme {
+  href?: string;
   id: string;
   name: string;
   background: { hue: number; brightness: number; type: string };
@@ -147,29 +152,34 @@ export type TypeformFieldType =
   | 'matrix';
 
 export interface TypeformLogic {
-  ref: string;
+  ref?: string;
   type: 'field' | 'hidden';
   actions: TypeformLogicAction[];
 }
 
 export interface TypeformLogicAction {
-  action: 'jump' | 'end' | 'hide';
+  action: 'jump' | 'add' | 'subtract' | 'multiply' | 'divide' | 'set';
   details: {
-    to?: { type: 'field' | 'thankyou_screen'; value: string };
-    condition?: { op: string; value: unknown };
+    to?: { type: 'field' | 'thankyou' | 'outcome'; value: string };
   };
+  condition: TypeformLogicCondition;
 }
+
+export type TypeformLogicCondition =
+  | { op: 'and' | 'or'; vars: TypeformLogicCondition[] }
+  | { op: string; vars: Array<{ type: 'field' | 'hidden' | 'variable' | 'constant' | 'choice' | 'end'; value: unknown }> };
 
 export interface TypeformWelcomeScreen {
   ref: string;
   title: string;
-  properties: { showButton: boolean; buttonText: string; description?: string };
+  properties: { show_button: boolean; button_text: string; description?: string };
 }
 
 export interface TypeformThankYouScreen {
   ref: string;
   title: string;
-  properties: { showButton: boolean; buttonText: string; buttonMode: 'redirect' | 'close'; buttonLink?: string; redirectUrl?: string };
+  type?: 'thankyou_screen' | 'url_redirect';
+  properties: { show_button: boolean; button_text?: string; button_mode?: 'reload' | 'default_redirect' | 'redirect'; redirect_url?: string; share_icons?: boolean };
 }
 
 export interface TypeformFormsListResponse {
@@ -228,7 +238,7 @@ export function createTypeformClient(options: { fetchImpl?: FetchLike; timeoutMs
   const fetchImpl: FetchLike = options.fetchImpl ?? ((input, init) => fetch(input, init));
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
-  async function call(operation: TypeformOperation, accessToken: string, path: string, body?: unknown, query?: Record<string, string>, method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET'): Promise<Record<string, unknown>> {
+  async function call(operation: TypeformOperation, accessToken: string, path: string, body?: unknown, query?: Record<string, string>, method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET', allowEmpty = false): Promise<Record<string, unknown>> {
     const origin = getApiOrigin(accessToken);
     const url = new URL(path, origin);
     for (const [key, value] of Object.entries(query ?? {})) url.searchParams.set(key, value);
@@ -266,6 +276,7 @@ export function createTypeformClient(options: { fetchImpl?: FetchLike; timeoutMs
       }
     }
     if (!response.ok) throw new TypeformApiError({ operation, kind: 'http', httpStatus: response.status, ...readTypeformError(json), ...retryAfter(response) });
+    if (allowEmpty && response.status === 204) return {};
     if (!json || typeof json !== 'object' || Array.isArray(json)) throw new TypeformApiError({ operation, kind: 'malformed_response', httpStatus: response.status });
     return json as Record<string, unknown>;
   }
@@ -316,7 +327,7 @@ export function createTypeformClient(options: { fetchImpl?: FetchLike; timeoutMs
 
     async deleteForm(accessToken, formId) {
       if (!isFormId(formId)) throw new TypeformApiError({ operation: 'forms.delete', kind: 'malformed_response' });
-      await call('forms.delete', accessToken, `/forms/${encodeURIComponent(formId)}`, undefined, undefined, 'DELETE');
+      await call('forms.delete', accessToken, `/forms/${encodeURIComponent(formId)}`, undefined, undefined, 'DELETE', true);
     },
 
     async listResponses(accessToken, formId, page = 1, pageSize = 200) {
@@ -404,13 +415,20 @@ function isFormId(value: unknown): value is string {
   return typeof value === 'string' && FORM_ID.test(value);
 }
 
-function readTypeformError(json: unknown): Pick<TypeformApiErrorInfo, 'typeformCode'> {
-  const error = json && typeof json === 'object' ? (json as { error?: unknown }).error : null;
-  if (!error || typeof error !== 'object') return {};
-  const row = error as { code?: unknown };
-  const out: Pick<TypeformApiErrorInfo, 'typeformCode'> = {};
-  if (typeof row.code === 'string' && /^[A-Z_]{3,60}$/.test(row.code)) out.typeformCode = row.code;
-  return out;
+function readTypeformError(json: unknown): Pick<TypeformApiErrorInfo, 'typeformCode' | 'typeformDescription' | 'typeformField'> {
+  if (!json || typeof json !== 'object' || Array.isArray(json)) return {};
+  const body = json as Record<string, unknown>;
+  const nested = body.error && typeof body.error === 'object' ? (body.error as Record<string, unknown>) : null;
+  const code = typeof body.code === 'string' ? body.code : typeof nested?.code === 'string' ? nested.code : '';
+  const description = typeof body.description === 'string' ? body.description : typeof nested?.description === 'string' ? nested.description : '';
+  const details = Array.isArray(body.details) ? body.details : [];
+  const first = details[0] && typeof details[0] === 'object' ? (details[0] as Record<string, unknown>) : null;
+  const field = typeof first?.field === 'string' ? first.field : '';
+  return {
+    ...(/^[A-Z_]{3,60}$/.test(code) ? { typeformCode: code } : {}),
+    ...(description ? { typeformDescription: description.slice(0, 200) } : {}),
+    ...(field ? { typeformField: field.slice(0, 120) } : {}),
+  };
 }
 
 function retryAfter(response: Response): { retryAfterSeconds?: number } {

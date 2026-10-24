@@ -1,11 +1,10 @@
 import type { FormWarning, ValidationIssue } from '../../../../src/lib/forms';
 import type { FormSpecification, QuestionType } from '../../specification';
-import { TypeformField, TypeformFieldType, TypeformLogic, TypeformSettings, TypeformTheme, TypeformWelcomeScreen, TypeformThankYouScreen } from './client';
+import { TypeformField, TypeformFieldType, TypeformLogic, TypeformLogicAction, TypeformLogicCondition, TypeformSettings, TypeformWelcomeScreen, TypeformThankYouScreen } from './client';
 
 export interface TypeformPlan {
   title: string;
   settings: TypeformSettings;
-  theme: TypeformTheme;
   fields: TypeformField[];
   logic: TypeformLogic[];
   welcomeScreens: TypeformWelcomeScreen[];
@@ -18,6 +17,18 @@ export type PlanResult = { ok: true; plan: TypeformPlan } | { ok: false; issues:
 /** A stable, spec-derived ref. Question ids are already unique and validated. */
 function fieldRef(questionId: string): string {
   return `q_${questionId}`;
+}
+
+/** Typeform choice refs exist only on choice types that support them (not dropdowns). */
+function choiceRef(questionId: string, index: number): string {
+  return `${fieldRef(questionId)}_choice_${index}`;
+}
+
+interface VisibilityRun {
+  start: number;
+  end: number;
+  key: string | null;
+  condition: { question: string; equals: string } | null;
 }
 
 const TYPEFORM_FIELD_MAP: Record<QuestionType, TypeformFieldType> = {
@@ -71,88 +82,144 @@ export function planTypeform(specification: FormSpecification): PlanResult {
     }
 
     if (question.type === 'multiple_choice' || question.type === 'dropdown' || question.type === 'checkboxes') {
-      const choices = (question.options ?? []).map((value) => ({ label: value }));
-      field.properties = { ...field.properties, choices, allowMultiple: question.type === 'checkboxes', randomize: false };
-    }
-
-    if (question.type === 'dropdown') {
-      field.properties = { ...field.properties, dropdown: true };
-    }
-
-    if (question.type === 'long_text') {
-      field.properties = { ...field.properties, placeholder: '' };
-    }
-
-    if (question.type === 'email') {
-      field.validations = { ...field.validations, email: true };
+      const choices = (question.options ?? []).map((value, index) => (
+        question.type === 'dropdown'
+          ? { label: value }
+          : { ref: choiceRef(question.id, index), label: value }
+      ));
+      field.properties = {
+        ...field.properties,
+        choices,
+        ...(question.type === 'dropdown' ? {} : { allow_multiple_selection: question.type === 'checkboxes' }),
+        randomize: false,
+      };
     }
 
     fields.push(field);
   });
 
-  // Build logic for visibility rules (Typeform Logic Jumps)
-  const logic: TypeformLogic[] = [];
-  questions.forEach((question) => {
-    const visibility = question.visibility;
-    if (!visibility) return;
-
-    const sourceIndex = indexById.get(visibility.when.question);
-    if (sourceIndex === undefined) return;
-
-    // Typeform logic: `ref` is the controller field, `to` is the field that follows the jump.
-    logic.push({
-      ref: fieldRef(visibility.when.question),
-      type: 'field',
-      actions: [{
-        action: 'jump',
-        details: {
-          to: { type: 'field', value: fieldRef(question.id) },
-          condition: { op: 'is', value: visibility.when.equals },
-        },
-      }],
-    });
+  // Typeform has no sections. A visibility rule is expressed as a jump on the controlling
+  // question: every answer other than the visible one skips the conditional questions. That only
+  // works when the conditional group starts immediately after its controller and the question
+  // after the group is always shown, so anything else is refused instead of built differently.
+  const runs: VisibilityRun[] = [];
+  questions.forEach((question, index) => {
+    const condition = question.visibility?.when ?? null;
+    const key = condition ? `${condition.question}\u0000${condition.equals}` : null;
+    const last = runs[runs.length - 1];
+    if (last && last.key === key) last.end = index + 1;
+    else runs.push({ start: index, end: index + 1, key, condition });
   });
+
+  const actionsByController = new Map<string, TypeformLogicAction[]>();
+  for (const run of runs) {
+    if (!run.condition) continue;
+    const sourceIndex = indexById.get(run.condition.question);
+    if (sourceIndex === undefined) continue;
+    const first = questions[run.start];
+    const source = questions[sourceIndex];
+
+    if (sourceIndex !== run.start - 1) {
+      issues.push({
+        code: 'typeform_condition_placement',
+        path: `questions[${run.start}].visibility`,
+        message: `"${first.id}" is shown only when "${source.id}" is answered, but Typeform can only skip ahead from the question immediately before a conditional group.`,
+        hint: `Move "${first.id}" (and any questions with the same condition) directly after "${source.id}", or remove the visibility rule.`,
+      });
+      continue;
+    }
+
+    if (source.visibility) {
+      issues.push({
+        code: 'typeform_nested_condition',
+        path: `questions[${run.start}].visibility`,
+        message: `"${source.id}" controls other questions but is itself conditional. Typeform cannot chain conditions this way.`,
+        hint: `Remove the visibility rule from "${source.id}", or make "${first.id}" depend on a question that is always shown.`,
+      });
+      continue;
+    }
+
+    if (source.type !== 'multiple_choice' && source.type !== 'dropdown' && source.type !== 'checkboxes') {
+      issues.push({
+        code: 'typeform_condition_source',
+        path: `questions[${run.start}].visibility`,
+        message: `Typeform can only branch on a multiple-choice, checkbox, or dropdown question, but "${source.id}" is ${source.type}.`,
+        hint: `Use one of those question types for "${source.id}", or remove the visibility rule.`,
+      });
+      continue;
+    }
+
+    const next = questions[run.end];
+    if (next?.visibility) {
+      issues.push({
+        code: 'typeform_condition_placement',
+        path: `questions[${run.start}].visibility`,
+        message: `"${first.id}" starts a conditional group directly before another conditional group. Typeform cannot skip both reliably.`,
+        hint: `Put an always-shown question between the groups, or give them the same condition.`,
+      });
+      continue;
+    }
+
+    let condition: TypeformLogicCondition;
+    if (source.type === 'dropdown') {
+      condition = {
+        op: 'not_equal',
+        vars: [
+          { type: 'field', value: fieldRef(source.id) },
+          { type: 'constant', value: run.condition.equals },
+        ],
+      };
+    } else {
+      const choiceIndex = (source.options ?? []).indexOf(run.condition.equals);
+      if (choiceIndex < 0) continue;
+      condition = {
+        op: 'is_not',
+        vars: [
+          { type: 'field', value: fieldRef(source.id) },
+          { type: 'choice', value: choiceRef(source.id, choiceIndex) },
+        ],
+      };
+    }
+
+    const to = next
+      ? { type: 'field' as const, value: fieldRef(next.id) }
+      : { type: 'thankyou' as const, value: 'thankyou' };
+    const action: TypeformLogicAction = { action: 'jump', condition, details: { to } };
+    const existing = actionsByController.get(fieldRef(source.id));
+    if (existing) existing.push(action);
+    else actionsByController.set(fieldRef(source.id), [action]);
+  }
+
+  if (issues.length > 0) return { ok: false, issues };
+
+  const logic: TypeformLogic[] = [...actionsByController].map(([ref, actions]) => ({ type: 'field', ref, actions }));
 
   const settings: TypeformSettings = {
     language: 'en',
-    isPublic: true,
-    autosaveProgress: true,
-    progressBar: 'percentage',
-    showTypeformBranding: true,
-    meta: { allowIndexing: false },
-  };
-
-  const theme: TypeformTheme = {
-    id: 'default',
-    name: 'Default',
-    background: { hue: 0, brightness: 0.98, type: 'solid' },
-    colors: {
-      question: '#252525',
-      answer: '#252525',
-      button: '#252525',
-      background: '#FFFFFF',
-    },
-    font: 'system_ui',
-    hasTransparentButton: false,
+    is_public: true,
+    autosave_progress: true,
+    progress_bar: 'percentage',
+    show_typeform_branding: true,
+    meta: { allow_indexing: false },
   };
 
   const welcomeScreens: TypeformWelcomeScreen[] = [{
     ref: 'welcome',
     title: specification.title,
-    properties: { showButton: true, buttonText: 'Start', description: specification.description },
+    properties: { show_button: true, button_text: 'Start', description: specification.description },
   }];
 
   const thankYouScreens: TypeformThankYouScreen[] = [{
     ref: 'thankyou',
     title: 'Thank you!',
-    properties: { showButton: false, buttonText: '', buttonMode: 'close' },
+    properties: { show_button: false },
   }];
 
   const warnings: FormWarning[] = [];
 
   return {
     ok: true,
-    plan: { title: specification.title, settings, theme, fields, logic, welcomeScreens, thankYouScreens, warnings },
+    plan: { title: specification.title, settings, fields, logic, welcomeScreens, thankYouScreens, warnings },
   };
 }
 

@@ -189,7 +189,7 @@ export function createTypeformProvider(deps: TypeformProviderDeps = {}): FormsPr
       let operation: TypeformOperation = 'forms.create';
       try {
         log('form.create.provider_request', { requestId, userId, provider: 'typeform', operation, stage, formId: null, questionCount: plan.fields.length });
-        const created = await client.createForm(token, { title: plan.title, fields: plan.fields, settings: plan.settings, theme: plan.theme, welcomeScreens: plan.welcomeScreens, thankYouScreens: plan.thankYouScreens, logic: plan.logic });
+        const created = await client.createForm(token, { title: plan.title, fields: plan.fields, settings: plan.settings, welcomeScreens: plan.welcomeScreens, thankYouScreens: plan.thankYouScreens, logic: plan.logic });
         formId = created.id;
         stage = 'publish';
 
@@ -296,6 +296,8 @@ async function failure(error: unknown, context: FailureContext): Promise<FormEng
     kind: api?.kind ?? 'internal',
     httpStatus: api?.httpStatus,
     typeformCode: api?.typeformCode,
+    typeformDescription: api?.typeformDescription,
+    typeformField: api?.typeformField,
     reason: info.reason,
     outcome,
     code: info.code,

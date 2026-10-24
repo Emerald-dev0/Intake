@@ -12,9 +12,9 @@ import { createTypeformProvider } from '../server/forms/providers/typeform/adapt
 
 const resource = () => ({
   id: 'JiLEvIgv', title: 'Workshop sign-up', type: 'form',
-  settings: { language: 'en', isPublic: true, autosaveProgress: true, progressBar: 'percentage',
-    showTypeformBranding: true, meta: { allowIndexing: false }, redirectAfterSubmitUrl: 'https://example.test/thanks' },
-  theme: { id: 'theme-1', name: 'Default' },
+  settings: { language: 'en', is_public: true, autosave_progress: true, progress_bar: 'percentage',
+    show_typeform_branding: true, meta: { allow_indexing: false, redirect_after_submit_url: 'https://example.test/thanks' } },
+  theme: { href: 'https://api.typeform.com/themes/theme-1' },
   fields: [
     { id: 'f1', ref: 'name', title: 'Full name', type: 'short_text', properties: {}, validations: { required: true } },
     { id: 'f2', ref: 'diet', title: 'Dietary needs', type: 'long_text', properties: { description: 'Anything we should know' }, validations: { required: false } },
@@ -22,8 +22,8 @@ const resource = () => ({
       properties: { choices: [{ label: 'Morning' }, { label: 'Afternoon' }] }, validations: { required: true } },
   ],
   logic: [],
-  welcomeScreens: [{ ref: 'welcome', title: 'Workshop sign-up', properties: { showButton: true, buttonText: 'Start', description: 'Sign up for the workshop.' } }],
-  thankYouScreens: [{ ref: 'ty', title: 'Thanks', properties: { showButton: false, buttonText: '', buttonMode: 'close' } }],
+  welcomeScreens: [{ ref: 'welcome', title: 'Workshop sign-up', properties: { show_button: true, button_text: 'Start', description: 'Sign up for the workshop.' } }],
+  thankYouScreens: [{ ref: 'ty', title: 'Thanks', properties: { show_button: false } }],
   _links: { display: 'https://form.typeform.com/to/JiLEvIgv', edit: 'https://admin.typeform.com/form/JiLEvIgv/edit' },
   createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-02T00:00:00Z',
   workspace: { id: 'ws-1', name: 'Personal' },

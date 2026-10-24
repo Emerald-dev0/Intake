@@ -44,7 +44,7 @@ const CREATABLE: Record<Exclude<QuestionType, 'email'>, TypeformFieldType> = {
   long_text: 'long_text',
   multiple_choice: 'multiple_choice',
   dropdown: 'dropdown',
-  // Typeform's multi-select is `multiple_choice` with `allowMultiple`, exactly as creation writes it.
+  // Typeform's multi-select is `multiple_choice` with `allow_multiple_selection`, exactly as creation writes it.
   checkboxes: 'multiple_choice',
 };
 
@@ -271,7 +271,7 @@ export function compileTypeformEdit(resource: TypeformFormResource, plan: FormEd
     };
   }
 
-  const themeHref = resource.theme?.id ? `https://api.typeform.com/themes/${resource.theme.id}` : undefined;
+  const themeHref = resource.theme?.href ?? (resource.theme?.id ? `https://api.typeform.com/themes/${resource.theme.id}` : undefined);
   const payload: TypeformEditPayload = {
     title,
     fields,
@@ -301,8 +301,7 @@ function newField(question: NewEditQuestion): TypeformField {
     field.properties = {
       ...field.properties,
       choices: (question.options ?? []).map(label => ({ label })),
-      ...(question.type === 'checkboxes' ? { allowMultiple: true } : {}),
-      ...(type === 'dropdown' ? { dropdown: true } : {}),
+      ...(question.type === 'checkboxes' ? { allow_multiple_selection: true } : {}),
     };
   }
   return field;
