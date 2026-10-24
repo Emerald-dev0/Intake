@@ -38,6 +38,18 @@ and which were not.
 
 ## Stage 1 — the redesign
 
+> **Status (2026-10-24): the first pass is done and pushed** in `f771d19` on this branch. Shipped:
+> the ⌘K command palette (server-scoped form search + every destination, full keyboard model,
+> focus restored), the shared page system (`PageHeader` / `Section` / `EmptyState` / `ErrorState` /
+> `Skeleton` / `Note`) adopted by Library, Connections, Billing and Account, the home status strip
+> with one server-derived next action, palette-to-form focus in the Library, and the deletion of
+> `src/styles/mobile.css` (917 unreferenced lines that were never imported).
+>
+> **What is still open** is listed in [§8](#8-what-is-actually-left). Treat it as the real brief;
+> the text below records the intent it came from.
+
+
+
 The signed-in product is currently **clean but thin**: a chat-first home composer, a five-item rail
 (Home · Chat · Library · Connections · Billing), a library with search and filters, and separate
 Connections / Billing / Account pages that each carry their own heading styles. It works. It is not
@@ -119,6 +131,24 @@ Library, Connections, Billing and Account currently look like four different pro
   file, run it under `--test-name-pattern` and say so.
 - Before every commit: `npx tsc -p . --noEmit && npx tsc -p tsconfig.server.json --noEmit && npx vite build`.
 - Do not commit generated `dist/` output.
+
+### 8. What is actually left
+
+Verified done: palette, page system, home strip, Library focus, dead-CSS removal, tests for each.
+
+Still open, in the order I would do them:
+
+1. **First-run steps on home** — three steps that tick from real server state. Designed, not built.
+2. **Connections and Billing content parity** — they share a heading now, but their inner sections
+   still use bespoke markup. Move them onto `Section` so spacing is identical, not merely similar.
+3. **A visual check in a real browser.** Everything so far was verified with jsdom and the build:
+   no human has *looked* at 360 px, dark mode, or the palette against a real form list.
+4. **Account page density.** It is the longest page in the product; three of its cards are
+   read-only facts that could collapse into one summary with disclosure.
+5. **The `forms-page.test.mjs` memory problem.** Eleven mounts in one process; it kills the sandbox
+   in the full suite. Splitting it would let CI trust the whole run instead of a filtered one.
+6. **A `/app/library` empty-filter affordance** from the palette when a search matches nothing:
+   offer "search all forms" rather than only the current filter state.
 
 ### 7. Definition of done
 
