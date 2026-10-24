@@ -83,7 +83,7 @@ async function boot(options = {}) {
       if (String(url).includes('login.microsoftonline.com')) {
         return { status: 200, json: { access_token: 'MS_ACCESS_SHOULD_NOT_LEAK', refresh_token: 'MS_REFRESH_SHOULD_NOT_LEAK', expires_in: 3600, token_type: 'Bearer', scope: 'openid profile email offline_access', id_token: users.pendingMicrosoftToken } };
       }
-      return { status: 200, json: { access_token: ACCESS, refresh_token: REFRESH, expires_in: 3600, token_type: 'Bearer', ...('scope' in options ? { scope: options.scope } : { scope: GOOGLE_SCOPE }) } };
+      return { status: 200, json: { access_token: ACCESS, refresh_token: REFRESH, expires_in: options.accessTokenExpiresIn ?? 3600, token_type: 'Bearer', ...('scope' in options ? { scope: options.scope } : { scope: GOOGLE_SCOPE }) } };
     },
     async getJson(url, headers = {}) {
       if (String(url).includes('/discovery/')) return { status: 200, json: { keys: [jwk] } };
@@ -463,6 +463,35 @@ test('Typeform uses the documented OAuth 2.0 flow: offline scope, no PKCE or non
     assert.deepEqual(connection.scopes, ['accounts:read', 'forms:read', 'forms:write', 'offline']);
     assert.equal(connection.accountEmail, 'ada@typeform.test');
     assert.equal(connection.canRefresh, true);
+  } finally { await world.close(); }
+});
+
+test('a week-long Typeform access token is used for the week instead of being re-refreshed every few minutes', async () => {
+  // Typeform documents expires_in as seconds and a default lifetime of one week. Stamping that as
+  // "expires in five minutes" is not a security win: it refreshes on nearly every request, spends the
+  // 2 req/s account budget on token exchanges, and rotates the refresh token constantly — and every
+  // rotation is a chance for two concurrent refreshes to invalidate each other and force a reconnect.
+  const world = await boot({ env: env(TYPEFORM_ENV), scope: TYPEFORM_SCOPE, accessTokenExpiresIn: 604_800 });
+  try {
+    assert.equal(await connect(world.app, 'typeform'), 'connected');
+    const stored = await world.users.store.getConnection('user-a', 'typeform');
+    const hours = (stored.accessTokenExpiresAt.getTime() - Date.now()) / 3_600_000;
+    assert.ok(hours > 167 && hours <= 168, `a seven-day token should be stored seven days out, got ${hours.toFixed(1)}h`);
+    const connection = await world.service.getAuthorizedConnection('user-a', 'typeform');
+    assert.equal(connection.ok, true);
+    assert.equal(world.calls.refresh, 0, 'a token with six days left must not be refreshed');
+  } finally { await world.close(); }
+});
+
+test('an absurd expires_in is not trusted as a near-permanent token', async () => {
+  const world = await boot({ env: env(TYPEFORM_ENV), scope: TYPEFORM_SCOPE, accessTokenExpiresIn: 10 * 365 * 24 * 60 * 60 });
+  try {
+    assert.equal(await connect(world.app, 'typeform'), 'connected');
+    const stored = await world.users.store.getConnection('user-a', 'typeform');
+    const minutes = (stored.accessTokenExpiresAt.getTime() - Date.now()) / 60_000;
+    assert.ok(minutes <= 5.1, `a decade-long lifetime should fall back to minutes, got ${minutes.toFixed(1)}m`);
+    const [connection] = (await world.service.list('user-a')).filter(entry => entry.id === 'typeform');
+    assert.equal(connection.status, 'connected');
   } finally { await world.close(); }
 });
 

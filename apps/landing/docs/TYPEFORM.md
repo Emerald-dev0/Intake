@@ -180,9 +180,25 @@ Deliberate differences from the Google flow:
 - **EU accounts need no configuration.** The API client routes `eu_` tokens to `api.typeform.eu` and
   `tfp_` tokens to `api.eu.typeform.com`; everything else uses `api.typeform.com`.
 
-Refresh happens automatically when the access token is within its refresh window. Typeform rotates
-the refresh token on every use; the new one is re-encrypted and saved, and concurrent reads for the
-same user/provider are coalesced so a rotated token is not submitted twice.
+**The seven-day token is not a deadline the user ever sees.** Intake stores the refresh token, so the
+connection stays alive for as long as the user leaves it authorized: the access token is spent for the
+week it is valid, and only when it is within a minute of expiry does the next request exchange the
+refresh token for a new one. That is one token exchange a week, not one a request — Typeform allows
+2 requests/second per account, so a tighter refresh window would spend real budget and rotate the
+refresh token far more often than necessary.
+
+Typeform rotates the refresh token on every use; the new one is re-encrypted and saved, and concurrent
+reads for the same user/provider are coalesced within an API process so a rotated token is not
+submitted twice. There is no cross-instance lease, so two API instances refreshing the same connection
+at the same instant can still race; the loser sees `invalid_grant` and that user is asked to reconnect.
+Widening the refresh window (seven days instead of five minutes) shrinks how often that window exists.
+
+Two things genuinely require the user to click Connect again, and neither can be worked around:
+revoking Intake from their Typeform account, and Typeform deciding a refresh token is no longer valid.
+Typeform does not document a refresh-token lifetime, so treat "connected until revoked" as the design
+goal rather than a guarantee. A personal access token (`tfp_…`) never expires, but it belongs to one
+account and cannot be issued on a user's behalf — it is a testing shortcut, not a product answer, and
+Intake's provider code is OAuth-only.
 
 ## 7. Deploy checklist
 
