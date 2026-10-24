@@ -144,7 +144,7 @@ test('interpretation shows a loading state, then a readable review with routing 
     await page.type(page.$('#form-request'), 'Register for my project');
     await page.click(page.button('Send →'));
     assert.ok(page.button('Working…').disabled);
-    assert.match(page.text(), /No form is being created yet/);
+    assert.match(page.text(), /nothing is being created yet/i);
     assert.equal(page.posts('/confirm').length, 0);
     resolve(ready());
     await page.until(() => page.$('#review-title'), 'a review appears');

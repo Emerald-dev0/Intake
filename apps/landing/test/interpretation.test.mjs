@@ -193,7 +193,7 @@ test('the OpenAI boundary requests strict structured output, never exposes its k
   assert.equal(INTERPRETATION_SCHEMA.additionalProperties, false);
   assert.equal(body.messages[1].role, 'user');
   assert.match(body.messages[1].content, /currentSpecification/);
-  assert.match(body.messages[0].content, /preserve all unaffected questions/);
+  assert.match(body.messages[0].content, /preserve all unaffected questions/i);
   assert.match(body.messages[0].content, /section routing/);
   assert.equal(init.body.includes('server-test-key'), false);
   assert.equal(init.body.includes('ACCESS_TOKEN'), false);

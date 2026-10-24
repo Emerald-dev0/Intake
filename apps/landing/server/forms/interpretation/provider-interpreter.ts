@@ -3,6 +3,7 @@ import { runWithModelCallCollector, type ModelCallCollector } from '../../ai/usa
 import type { FormEditInterpreter, FormEditInterpretationInput } from './edit-interpreter';
 import { InterpretationError, isRepairablePlacement, placementIssues, type FormInterpreter, type InterpretationInput } from './interpreter';
 import { EDIT_SYSTEM, FORM_EDIT_INTERPRETATION_SCHEMA, INTERPRETATION_SCHEMA, creationSystem } from './prompts';
+import { voiceFeedback, voiceIssues } from './voice';
 
 /**
  * The interpretation layer, built on the provider abstraction.
@@ -30,19 +31,31 @@ async function generate(options: InterpreterOptions, request: AiModelRequest): P
       ? (request.input as { target?: unknown }).target
       : undefined;
     const issues = placementIssues(raw, target === 'typeform' ? 'typeform' : 'google');
-    // The model arranged the questions in a way Google Forms cannot lay out. Adapt, don't refuse:
-    // give it one guided chance to produce a WORKING arrangement. The goal is an output, not an
-    // apology. Only fall back to needs_clarification when adaptation would distort the request's
-    // meaning, and to unsupported when nothing preserves it. The retry costs operator tokens only:
-    // users are charged per validated proposal, and a failed arrangement is never a proposal.
-    if (isRepairablePlacement(issues) && typeof request.input === 'object' && request.input !== null) {
+    const voice = voiceIssues(raw);
+    // The model arranged the questions in a way the target cannot lay out, or wrote in a voice the
+    // product does not use. Adapt, don't refuse: give it one guided chance to produce a WORKING
+    // arrangement in the right voice. The goal is an output, not an apology. Only fall back to
+    // needs_clarification when adaptation would distort the request's meaning, and to unsupported
+    // when nothing preserves it. The retry costs operator tokens only: users are charged per
+    // validated proposal, and a failed arrangement is never a proposal.
+    //
+    // A layout the planner will reject anyway is not worth a second call, so the retry is skipped
+    // when the placement problems are the unrepairable kind — the request becomes an honest
+    // unsupported answer and the voice issue never reaches a person.
+    const placementBlocks = issues.length > 0 && !isRepairablePlacement(issues);
+    const wantsRetry = !placementBlocks && (isRepairablePlacement(issues) || voice.length > 0);
+    if (wantsRetry && typeof request.input === 'object' && request.input !== null) {
       const feedback = (request.input as { request?: unknown }).request;
+      const parts: string[] = [];
+      if (isRepairablePlacement(issues)) {
+        parts.push(`[Intake planner feedback on your previous arrangement, which was rejected: ${issues.map(issue => issue.hint ?? issue.message).join(' ')} Produce a working arrangement that collects the same information. Preferred fixes, in order: (1) insert a bridging Yes/No question after the controller and hang ONE conditional group off it (e.g. "Would you like to tell us more?" then the follow-ups under Yes); (2) merge the follow-ups into a single group under one shared condition; (3) make at most one follow-up unconditional and note it in assumptions. Only return needs_clarification if every adaptation would distort what was asked, and unsupported as a last resort. Never drop a requested question, never emit the rejected layout again.]`);
+      }
+      if (voice.length > 0) {
+        parts.push(`[Intake voice feedback on the message you wrote. Rewrite the spoken field(s) — reply, question, explanation — in Intake's voice, keeping the status and the specification exactly as they are: ${voiceFeedback(voice)} Nothing else may change. Do not mention this feedback.]`);
+      }
       return invoke({
         ...call,
-        input: {
-          ...(request.input as Record<string, unknown>),
-          request: `${typeof feedback === 'string' ? feedback : ''}\n\n[Intake planner feedback on your previous arrangement, which was rejected: ${issues.map(issue => issue.hint ?? issue.message).join(' ')} Produce a working arrangement that collects the same information. Preferred fixes, in order: (1) insert a bridging Yes/No question after the controller and hang ONE conditional group off it (e.g. "Would you like to tell us more?" then the follow-ups under Yes); (2) merge the follow-ups into a single group under one shared condition; (3) make at most one follow-up unconditional and note it in assumptions. Only return needs_clarification if every adaptation would distort what was asked, and unsupported as a last resort. Never drop a requested question, never emit the rejected layout again.]`,
-        },
+        input: { ...(request.input as Record<string, unknown>), request: `${typeof feedback === 'string' ? feedback : ''}\n\n${parts.join('\n\n')}` },
       });
     }
     return raw;
