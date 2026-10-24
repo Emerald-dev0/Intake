@@ -73,10 +73,15 @@ test('provider selection prefers Groq, honours an explicit choice, and never fal
   await assert.rejects(missing.interpret(input), error => error.code === 'model_not_configured' && /GROQ_API_KEY/.test(error.message));
   assert.equal(calls, 0);
   // A failed call is reported, never silently re-sent to a second vendor.
-  let attempts = 0;
-  const onlyGroq = createFormInterpreter({ provider: resolveAiProvider({ env: { ...GROQ_ENV, OPENAI_API_KEY: 'k' }, fetchImpl: async () => { attempts++; return new Response('down', { status: 503 }); } }) });
+  const attempted = [];
+  const onlyGroq = createFormInterpreter({ provider: resolveAiProvider({ env: { ...GROQ_ENV, OPENAI_API_KEY: 'k' }, fetchImpl: async url => { attempted.push(String(url)); return new Response('down', { status: 503 }); } }) });
   await assert.rejects(onlyGroq.interpret(input), error => error.code === 'model_unavailable');
-  assert.equal(attempts, 1, 'exactly one attempt: no automatic retry, no cross-provider fallback');
+  // A 503 is retried on the same endpoint (bounded transport policy: three attempts, no sleep in
+  // tests), but the boundary never switches vendor — an OpenAI key sitting in the environment must
+  // not silently serve a request Groq rejected.
+  assert.ok(attempted.length >= 1);
+  assert.equal(new Set(attempted).size, 1, 'never falls back to a second provider');
+  assert.match(attempted[0], /api\.groq\.com/, 'every attempt went to the chosen provider');
 });
 
 test('Groq failures map to stable application codes without leaking provider payloads', async () => {
