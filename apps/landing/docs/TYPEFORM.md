@@ -19,13 +19,54 @@ actually sends.
 | Import an existing Typeform by link (`form.typeform.com/to/{id}`) | Supported |
 | List, inspect, archive, remove a Typeform record in the library | Supported |
 | Verify live status of a Typeform record | Supported via `GET /forms/{id}` |
-| Edit an existing Typeform from Intake | **Not supported.** The UI says so and keeps the record read-only |
+| Edit an existing Typeform from Intake | Supported, with limits. Titles, descriptions, required state, options, new questions and reordering (on forms without logic). See §1a |
 | Read or store Typeform responses | **Not supported.** No responses scope is requested |
 | Webhooks, workspaces, themes, images | **Not requested** |
 | Microsoft Forms creation | Not supported — Microsoft publishes no Forms create/edit API |
 
 There is **no mock mode**. If the two environment values are missing, the provider row renders
 "Setup required" and the connect route returns `not_configured`; nothing else changes.
+
+## 1a. Editing a Typeform: what Intake will and will not do
+
+Typeform has no operation API. `PATCH /forms/{id}` only reaches form-level properties (title,
+settings, theme, workspace); Typeform's own FAQ states there is no endpoint that changes a single
+question. Editing therefore means: retrieve the whole form, change it, `PUT` it back — and `PUT`
+**overwrites**. Any field left out of the payload is deleted, together with the answers already
+collected for it, and an omitted theme is replaced by a fresh copy of the default.
+
+Intake's rules follow from that:
+
+| Operation | Allowed | Why |
+| --- | --- | --- |
+| Rename the form | Yes | `title` on the same `PUT` |
+| Change the form description | Yes | It lives on the welcome screen; that one property is rewritten |
+| Change a question's title, description, required state | Yes | Field properties, echoed back with the field's id and ref |
+| Change a choice question's options | Yes | Labels rewritten in place; the existing choice objects are kept |
+| Add a question | Yes | Appended or inserted at the requested index |
+| Reorder questions | Only when the form has **no logic jumps** | Jumps address fields by ref; order is part of the flow |
+| Delete a question | **No** | Deleting a field discards its responses, and Intake does not request `responses:read` to warn you |
+| Change a question's type | **No** | Typeform cannot retype a field in place; answers would be orphaned |
+
+The safety model, in order:
+
+1. **Compile from a fresh read.** The `PUT` body is built from the form as it exists immediately
+   before the write — never from a stored snapshot and never from model output. Settings, logic,
+   welcome and thank-you screens, theme and every untouched field are deep-copied back verbatim.
+2. **Refuse staleness.** The snapshot the proposal was prepared against is compared field by field
+   with the fresh read (and its `updatedAt`). Any difference stops the edit with `edit_stale`;
+   nothing is written and no credit is spent twice.
+3. **Refuse unsafe operations by name**, with an explanation, before anything is built.
+4. **One `PUT`, never a retry.** If the response is lost, a single read decides whether it landed.
+5. **Verify what came back.** The returned form must contain every field it started with, in the
+   proposed order when a move was requested, with the proposed values present. A missing field
+   blocks the proposal (`provider_error`, outcome `partial`) rather than offering a retry.
+
+Known limits: the gap between the confirming read and the `PUT` cannot be made atomic, because
+Typeform offers no revision precondition (Google's `requiredRevisionId` has no equivalent). Intake
+narrows it to one round trip and says so; a person editing in Typeform's builder in that instant can
+still be overwritten. Typeform's own FAQ adds that pressing **Publish** in their builder later
+overwrites API changes, which no API can prevent.
 
 ## 2. Before you start
 
@@ -194,7 +235,7 @@ Order matters: the migration must be applied before the first connection can be 
 | Creating a form fails with `provider_permission_denied` | The (free) Typeform plan limit for created forms | Check the plan, or delete a test form and retry |
 | Draft says `provider_not_supported` | The request targeted Microsoft (or an unknown provider) | Creation targets are Google Forms and Typeform only |
 | Typeform import returns 400 | Link contained a query string, a hash, or was not `form.typeform.com/to/{id}` | Paste the canonical share link |
-| Library "verify" says editing is unavailable | Expected: Typeform editing is not implemented | Edit in Typeform; Intake keeps the record and the links |
+| A Typeform edit is refused as unsupported | Expected for deletes, type changes, or reordering a form with logic | Make that change in Typeform; Intake explains why and changes nothing |
 
 Server logs are redacted: `provider.token exchange rejected` records the provider error code only —
 never the code, verifier, tokens or secrets.

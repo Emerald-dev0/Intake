@@ -81,8 +81,17 @@ export function FormEditWorkspace({
   const [checkedOriginal, setCheckedOriginal] = useState(false);
   const busyRef = useRef(false);
   const alive = useRef(true);
-  const google = providers.providers?.find(provider => provider.id === 'google');
-  const googleForms = forms.filter(form => form.provider === 'google');
+  // Both providers can be edited in place now; the provider is a property of the chosen record, not
+  // of the workspace.
+  const editableForms = forms.filter(form => form.provider === 'google' || form.provider === 'typeform');
+  const activeProviderId: 'google' | 'typeform' = source === 'url' ? 'google'
+    : (editableForms.find(form => form.id === selectedRecordId)?.provider === 'typeform' ? 'typeform' : 'google');
+  const activeConnection = providers.providers?.find(provider => provider.id === activeProviderId);
+  const providerName = activeProviderId === 'typeform' ? 'Typeform' : 'Google Forms';
+  // A natural singular for sentences: "the original Google Form", not "the original Google Forms form".
+  const formName = activeProviderId === 'typeform' ? 'Typeform' : 'Google Form';
+  // "No Google change", not "No Google Form change": the provider's name is the adjective here.
+  const changeWord = activeProviderId === 'typeform' ? 'Typeform' : 'Google';
   const costCredits = credits.state.status === 'ready' ? credits.state.credits : null;
   const costGuide = credits.state.status === 'ready' ? credits.state.costGuide : null;
 
@@ -91,16 +100,16 @@ export function FormEditWorkspace({
     return () => { alive.current = false; };
   }, []);
   useEffect(() => {
-    if (initialRecordId && googleForms.some(form => form.id === initialRecordId)) {
+    if (initialRecordId && editableForms.some(form => form.id === initialRecordId)) {
       setSelectedRecordId(initialRecordId);
       setSource('recent');
-    } else if (!selectedRecordId && googleForms.length) {
-      setSelectedRecordId(googleForms[0].id);
+    } else if (!selectedRecordId && editableForms.length) {
+      setSelectedRecordId(editableForms[0].id);
     }
-  }, [googleForms, selectedRecordId, initialRecordId]);
+  }, [editableForms, selectedRecordId, initialRecordId]);
 
   function selectedTarget(): Target | null {
-    if (source === 'recent') return googleForms.some(form => form.id === selectedRecordId) ? { kind: 'record', formRecordId: selectedRecordId } : null;
+    if (source === 'recent') return editableForms.some(form => form.id === selectedRecordId) ? { kind: 'record', formRecordId: selectedRecordId } : null;
     return formUrl.trim() ? { kind: 'url', formUrl: formUrl.trim() } : null;
   }
   const target = selectedTarget();
@@ -317,15 +326,15 @@ export function FormEditWorkspace({
     setRevision('');
   }
 
-  const providerNotice = !google
-    ? 'Google connection details could not be loaded. Intake will verify the connection when you inspect the form.'
-    : google.status === 'connected'
-      ? `Connected${google.accountEmail ? ` as ${google.accountEmail}` : ''}. The selected form must be editable by this Google account.`
-      : !google.configured && google.status === 'not_connected'
-        ? `Google access is not configured on this Intake server yet. An operator needs ${google.setupEnv.join(' and ')}.`
-        : google.status === 'not_connected'
-          ? 'Connect Google before inspecting a form. Use the Google account that can edit the original form.'
-          : 'Google authorization needs renewing. Reconnect Google before inspecting a form.';
+  const providerNotice = !activeConnection
+    ? `${providerName} connection details could not be loaded. Intake will verify the connection when you inspect the form.`
+    : activeConnection.status === 'connected'
+      ? `Connected${activeConnection.accountEmail ? ` as ${activeConnection.accountEmail}` : ''}. The selected form must be editable by this ${providerName} account.`
+      : !activeConnection.configured && activeConnection.status === 'not_connected'
+        ? `${providerName} access is not configured on this Intake server yet. An operator needs ${activeConnection.setupEnv.join(' and ')}.`
+        : activeConnection.status === 'not_connected'
+          ? `Connect ${providerName} before inspecting a form. Use the account that can edit the original form.`
+          : `${providerName} authorization needs renewing. Reconnect before inspecting a form.`;
 
   const editTarget = !draft && !draftId;
   const canReviseNow = !!draft && draft.status === 'ready';
@@ -378,20 +387,20 @@ export function FormEditWorkspace({
   }
 
   const opening = draft
-    ? 'Here is the plan for the form you already have. Read the list — nothing has been sent to Google yet.'
+    ? `Here is the plan for the form you already have. Read the list — nothing has been sent to ${changeWord} yet.`
     : canUsePreview
       ? `This is ${preview!.title} as it stands. Tell me what should change, in your own words, and I will show you the exact difference first.`
       : draftId
         ? 'Picking up where we left off. I am checking the saved proposal before anything else happens.'
-        : 'First, the form itself. Pick one you created here, or paste its Google Forms edit URL — the connected account has to be able to edit it.';
+        : 'First, the form itself. Pick one you created here — Google Forms or Typeform — and Intake will read its current state. The connected account has to be able to edit it.';
 
   return <>
     {editTarget && <div className="chat-intro">
       <h1>Keep the form. <em>Change what matters.</em></h1>
-      <p>Intake reads the Google Form you already have, proposes the exact changes, and updates that same form only after you confirm. Nothing is replaced and nothing is applied on its own.</p>
+      <p>Intake reads the form you already have, proposes the exact changes, and updates that same form only after you confirm. Nothing is replaced and nothing is applied on its own.</p>
     </div>}
-    <section className="draft-provider edit-provider" aria-label="Edit provider"><span className="provider-symbol" aria-hidden>G</span><div><strong>Google Forms</strong><small>{providerNotice}</small></div><span className="draft-provider-note">ORIGINAL FORM ID IS PRESERVED</span></section>
-    {google && google.status !== 'connected' && <div className="form-banner warn draft-notice" role="status"><p>{providerNotice}</p><a href="/app/connections" className="btn btn-ghost btn-sm">View connections →</a></div>}
+    <section className="draft-provider edit-provider" aria-label="Edit provider"><span className="provider-symbol" aria-hidden>{activeProviderId === 'typeform' ? 'T' : 'G'}</span><div><strong>{providerName}</strong><small>{providerNotice}</small></div><span className="draft-provider-note">ORIGINAL FORM ID IS PRESERVED</span></section>
+    {activeConnection && activeConnection.status !== 'connected' && <div className="form-banner warn draft-notice" role="status"><p>{providerNotice}</p><a href="/app/connections" className="btn btn-ghost btn-sm">View connections →</a></div>}
     {((canUsePreview && !draft) || draft?.status === 'ready') && <CreditCostPreview mode="edit" guide={costGuide} credits={costCredits} />}
 
     {busy === 'loading' && <div className="forms-panel draft-loading" role="status"><span className="spin" /> Recovering your saved edit proposal…</div>}
@@ -401,8 +410,8 @@ export function FormEditWorkspace({
       {intakeRow(opening)}
       {editTarget && !canUsePreview && intakeRow(<section className="forms-panel edit-target-panel" aria-labelledby="edit-select-title">
       <div className="draft-panel-top"><span className="forms-legend">01 / SELECT THE ORIGINAL</span><span>KNOWN GOOGLE FORM · CURRENT PROVIDER STATE</span></div>
-      <h2 id="edit-select-title">Which Google Form should Intake edit?</h2>
-      <p>Choose a recent form created through Intake, or paste a standard Google Forms edit URL. Drive-wide search is not available under Intake’s current Google Forms permission.</p>
+      <h2 id="edit-select-title">Which form should Intake edit?</h2>
+      <p>Choose a form created through Intake, or paste a standard Google Forms edit URL. Drive-wide search is not available under Intake’s current Google Forms permission.</p>
       <div className="edit-source-switch" role="group" aria-label="Form selection method">
         <button type="button" className={source === 'recent' ? 'selected' : ''} aria-pressed={source === 'recent'} disabled={busy !== null} onClick={() => { setSource('recent'); setPreview(null); setPreviewKey(''); setFailure(null); }}>Recent Intake forms</button>
         <button type="button" className={source === 'url' ? 'selected' : ''} aria-pressed={source === 'url'} disabled={busy !== null} onClick={() => { setSource('url'); setPreview(null); setPreviewKey(''); setFailure(null); }}>Paste a Google Forms URL</button>
@@ -410,10 +419,10 @@ export function FormEditWorkspace({
       {source === 'recent' && <div className="edit-target-field">
         {formsStatus === 'loading' && <p className="fine-print" role="status">Loading your recent forms…</p>}
         {formsStatus === 'error' && <div className="form-banner warn"><p>Your recent forms could not be loaded. You can still paste an edit URL.</p><button type="button" className="btn btn-ghost btn-sm" onClick={reloadForms}>Reload recent forms</button></div>}
-        {formsStatus === 'ready' && googleForms.length > 0 && <><label htmlFor="edit-form-record">Select one of your recent Google Forms</label><select id="edit-form-record" value={selectedRecordId} disabled={busy !== null} onChange={event => { setSelectedRecordId(event.target.value); setPreview(null); setPreviewKey(''); setFailure(null); }}>
-          {googleForms.map(form => <option key={form.id} value={form.id}>{byCreated(form)}{form.status === 'incomplete' ? ' · incomplete' : ''}</option>)}
-        </select><p className="forms-help">Intake fetches the current form from Google before proposing changes. The Intake record is used only to identify a form you already own.</p></>}
-        {formsStatus === 'ready' && googleForms.length === 0 && <div className="form-banner warn"><p>No recent Google Forms are recorded in Intake. Paste a Google Forms edit URL instead.</p></div>}
+        {formsStatus === 'ready' && editableForms.length > 0 && <><label htmlFor="edit-form-record">Select one of your forms</label><select id="edit-form-record" value={selectedRecordId} disabled={busy !== null} onChange={event => { setSelectedRecordId(event.target.value); setPreview(null); setPreviewKey(''); setFailure(null); }}>
+          {editableForms.map(form => <option key={form.id} value={form.id}>{byCreated(form)} · {form.provider === 'typeform' ? 'Typeform' : 'Google Forms'}{form.status === 'incomplete' ? ' · incomplete' : ''}</option>)}
+        </select><p className="forms-help">Intake fetches the current form from {providerName} before proposing changes. The Intake record is used only to identify a form you already own.</p></>}
+        {formsStatus === 'ready' && editableForms.length === 0 && <div className="form-banner warn"><p>No editable forms are recorded in Intake yet. Create one here, or paste a Google Forms edit URL.</p></div>}
       </div>}
       {source === 'url' && <div className="edit-target-field"><label htmlFor="edit-form-url">Google Forms edit URL</label><input id="edit-form-url" type="url" autoComplete="url" inputMode="url" maxLength={2048} value={formUrl} disabled={busy !== null} onChange={event => { setFormUrl(event.target.value); setPreview(null); setPreviewKey(''); setFailure(null); }} placeholder="https://docs.google.com/forms/d/…/edit" aria-describedby="edit-url-help" /><p id="edit-url-help" className="forms-help">Use a URL from docs.google.com/forms ending in /edit or /viewform. Intake never fetches arbitrary links; the connected Google account still needs edit access.</p></div>}
       <div className="forms-actions"><button type="button" className="btn btn-accent" disabled={!target || busy !== null} onClick={() => void inspect()}>{busy === 'inspecting' ? 'Loading current Google Form…' : 'Inspect current form →'}</button><button type="button" className="btn btn-ghost btn-sm" disabled={busy !== null} onClick={reloadForms}>Refresh form list</button>{busy === 'inspecting' && <span className="forms-progress" role="status"><span className="spin sm" /> Read-only check. Intake has not changed the form.</span>}</div>
@@ -423,15 +432,15 @@ export function FormEditWorkspace({
         {intakeRow(<CurrentForm form={preview!} />, true)}
       </>}
       {pending && intakeRow(<>{'One thing I do not want to guess.'}<span className="msg-question" id="edit-clarification-title">{pending.question}</span></>)}
-      {unsupported && intakeRow(<><strong>That edit is not supported safely.</strong>{' '}{unsupported}{' '}Reword it with a supported change, or make this one directly in Google Forms — the previous proposal has not been applied.</>)}
+      {unsupported && intakeRow(<><strong>That edit is not supported safely.</strong>{' '}{unsupported}{' '}Reword it with a supported change, or make this one directly in {formName} — the previous proposal has not been applied.</>)}
       {failure && !(draftId && !draft) && intakeRow(<FailureNotice failure={failure} onReload={draftId ? () => void loadSavedDraft(draftId) : undefined} />, true)}
       {draft && <>
         {intakeRow(draft.status === 'ready'
-          ? 'Nothing has been sent to Google. Check the changes, then confirm if they are right.'
+          ? `Nothing has been sent to ${changeWord} yet. Check the changes, then confirm if they are right.`
           : draft.status === 'applied'
             ? 'Done. I re-read the form after updating it, and the changes are in place on the same form.'
             : 'This proposal needs your attention before it goes any further.')}
-        {intakeRow(<EditReview draft={draft} operationCost={operationCost} busy={busy} acknowledged={acknowledged} setAcknowledged={setAcknowledged}
+        {intakeRow(<EditReview formName={formName} changeWord={changeWord} draft={draft} operationCost={operationCost} busy={busy} acknowledged={acknowledged} setAcknowledged={setAcknowledged}
           onConfirm={() => void confirm()} onDiscard={() => void discard()} onReload={() => void loadSavedDraft(draft.id)} onStartFresh={clearProposal}
           checkedOriginal={checkedOriginal} setCheckedOriginal={setCheckedOriginal} />, true)}
       </>}
@@ -468,7 +477,7 @@ export function FormEditWorkspace({
         </button>
         {pending && <button className="btn btn-ghost btn-sm" type="button" disabled={busy !== null} onClick={() => { setPending(null); setClarificationAnswer(''); }}>Dismiss question</button>}
         {busy === 'interpreting' && <span className="forms-progress" role="status"><span className="spin sm" /> Rechecking the provider form before suggesting changes.</span>}
-        {busy === 'revising' && <span className="forms-progress" role="status"><span className="spin sm" /> No Google change is being made.</span>}
+        {busy === 'revising' && <span className="forms-progress" role="status"><span className="spin sm" /> No {changeWord} change is being made.</span>}
       </div>
     </form>}
   </>;
@@ -487,8 +496,10 @@ function CurrentForm({ form }: { form: FormEditView }) {
 }
 
 function EditReview({
-  draft, operationCost, busy, acknowledged, setAcknowledged, onConfirm, onDiscard, onReload, onStartFresh, checkedOriginal, setCheckedOriginal,
+  formName, changeWord, draft, operationCost, busy, acknowledged, setAcknowledged, onConfirm, onDiscard, onReload, onStartFresh, checkedOriginal, setCheckedOriginal,
 }: {
+  formName: string;
+  changeWord: string;
   draft: PublicFormEditDraft; operationCost: PublicOperationCost | null; busy: Busy; acknowledged: boolean; setAcknowledged: (value: boolean) => void; onConfirm: () => void; onDiscard: () => void;
   onReload: () => void; onStartFresh: () => void;
   checkedOriginal: boolean; setCheckedOriginal: (value: boolean) => void;
@@ -499,7 +510,7 @@ function EditReview({
   return <>
     <section className="edit-review" aria-labelledby="edit-review-title">
       <div className="edit-review-head"><div><span className="forms-legend">02 / REVIEW THE EXACT CHANGES</span><h2 id="edit-review-title">{draft.plan.summary}</h2></div><span className={`status-pill ${success ? 'ok' : locked ? 'warn' : 'ok'}`}>{success ? 'APPLIED TO ORIGINAL' : draft.status.toUpperCase()}</span></div>
-      <p className="edit-original-note">Original Google Form · {draft.current.providerFormId}<br />Intake preserves this form ID. Respondent answers and the responder URL are not replaced.</p>
+      <p className="edit-original-note">Original {formName} · {draft.current.providerFormId}<br />Intake preserves this form ID. Respondent answers and the responder URL are not replaced.</p>
       {draft.changes.length > 0 ? <ol className="edit-diff-list">{draft.changes.map((change, index) => <li key={`${change.type}:${index}`} className={change.destructive ? 'destructive' : ''}>
         <span className="edit-diff-index">{String(index + 1).padStart(2, '0')}</span><div><strong>{change.title}</strong><p>{change.detail}</p></div><span className={`edit-diff-tag ${change.destructive ? 'danger' : ''}`}>{change.destructive ? 'REMOVE' : change.type.replaceAll('_', ' ')}</span>
       </li>)}</ol> : <p className="fine-print">No supported changes were proposed.</p>}
@@ -508,15 +519,15 @@ function EditReview({
       {draft.result && !draft.result.ok && draft.status === 'ready' && <div className="form-banner warn edit-outcome" role="status"><strong>The last confirmed attempt was not applied.</strong><p>{draft.result.failure.error}</p><p>Intake refreshed the form and found the proposal unchanged. You can revise it, discard it, or explicitly confirm another attempt after reviewing the current proposal.</p></div>}
 
       {draft.status === 'ready' && <div className="edit-confirm-panel">
-        <p><strong>No Google change has been made yet.</strong> Confirming sends the reviewed updates to this existing form only. Intake rechecks the Google revision and connected account first.</p>
+        <p><strong>No {changeWord} change has been made yet.</strong> Confirming sends the reviewed updates to this existing form only. Intake re-reads the form and confirms it has not changed, and that the connected account is still the same, before writing.</p>
         <label className="edit-confirm-check"><input type="checkbox" checked={acknowledged} disabled={busy !== null} onChange={event => setAcknowledged(event.target.checked)} /> I reviewed these changes and want Intake to apply them to the original Google Form.</label>
         <div className="forms-actions"><button type="button" className="btn btn-accent" disabled={busy !== null || !acknowledged} onClick={onConfirm}>{busy === 'confirming' ? 'Applying to the original form…' : draft.result?.ok === false ? 'Confirm another apply attempt →' : 'Confirm and apply edit →'}</button><button type="button" className="btn btn-ghost" disabled={busy !== null} onClick={onDiscard}>{busy === 'cancelling' ? 'Discarding…' : 'Discard proposal'}</button></div>
-        {busy === 'confirming' && <p className="forms-progress" role="status"><span className="spin sm" /> Google may take several seconds. Keep this page open; Intake will verify the resulting form.</p>}
+        {busy === 'confirming' && <p className="forms-progress" role="status"><span className="spin sm" /> {changeWord} may take several seconds. Keep this page open; Intake will verify the resulting form.</p>}
         <p className="forms-help">Only clicking the button above confirms the mutation. Intake does not create a new form as a fallback.</p>
       </div>}
 
       {locked && <div className={`form-banner ${draft.status === 'stale' ? 'warn' : 'bad'} edit-outcome`} role="alert">
-        {draft.status === 'stale' && <><strong>The Google Form changed; this proposal is stale.</strong><p>{resultFailure?.error ?? 'No changes were applied. Inspect the latest form and prepare a new proposal.'}</p><button type="button" className="btn btn-ghost btn-sm" disabled={busy !== null} onClick={onStartFresh}>Select and inspect the current form →</button></>}
+        {draft.status === 'stale' && <><strong>The form changed after this proposal was prepared; it is stale.</strong><p>{resultFailure?.error ?? 'No changes were applied. Inspect the latest form and prepare a new proposal.'}</p><button type="button" className="btn btn-ghost btn-sm" disabled={busy !== null} onClick={onStartFresh}>Select and inspect the current form →</button></>}
         {draft.status === 'applying' && <><strong>The edit result is not confirmed. Do not resubmit.</strong><p>Intake has a one-shot apply claim but no final provider result. Refresh status; if it remains here, check the original Google Form before starting another edit.</p><div className="forms-actions"><button type="button" className="btn btn-ghost btn-sm" disabled={busy !== null} onClick={onReload}>Check saved proposal status</button><label className="edit-confirm-check"><input type="checkbox" checked={checkedOriginal} disabled={busy !== null} onChange={event => setCheckedOriginal(event.target.checked)} /> I checked the original form in Google Forms and understand this proposal will not be retried.</label><button type="button" className="btn btn-ghost btn-sm" disabled={!checkedOriginal || busy !== null} onClick={onStartFresh}>Start a separate proposal</button></div></>}
         {draft.status === 'blocked' && <><strong>{resultFailure?.outcome === 'partial' ? 'The final form contains only some requested changes.' : 'Intake could not confirm all requested changes.'} Do not retry this proposal.</strong><p>{resultFailure?.error ?? 'The result is partial or uncertain. Check the original Google Form before deciding what to do next.'}</p><div className="forms-links">{formLink(draft.current.editUrl, 'Check the original in Google Forms')}</div><label className="edit-confirm-check"><input type="checkbox" checked={checkedOriginal} disabled={busy !== null} onChange={event => setCheckedOriginal(event.target.checked)} /> I checked the original form and understand Intake will not retry this proposal.</label><button type="button" className="btn btn-ghost btn-sm" disabled={!checkedOriginal || busy !== null} onClick={onStartFresh}>Start a separate proposal</button></>}
       </div>}
@@ -529,5 +540,5 @@ function EditReview({
 
 function FailureNotice({ failure, onReload }: { failure: FormEditFailure; onReload?: () => void }) {
   const connection = shouldReconnect(failure);
-  return <div className="form-banner warn draft-feedback edit-failure" role="alert"><strong>{connection ? 'Google connection needs attention' : failure.code === 'edit_stale' ? 'Review the latest form' : 'The edit request was not completed'}</strong><p>{failure.error}</p>{failure.issues && <ul className="forms-issues">{failure.issues.map((issue, index) => <li key={`${issue.code}:${index}`}>{issue.message}{issue.hint && <em>{issue.hint}</em>}</li>)}</ul>}{connection && <a className="btn btn-ghost btn-sm" href="/app/connections">Reconnect Google →</a>}{onReload && <button type="button" className="btn btn-ghost btn-sm" onClick={onReload}>Check saved proposal</button>}{failure.requestId && <p className="forms-trace">Request {failure.requestId}</p>}</div>;
+  return <div className="form-banner warn draft-feedback edit-failure" role="alert"><strong>{connection ? 'Connection needs attention' : failure.code === 'edit_stale' ? 'Review the latest form' : 'The edit request was not completed'}</strong><p>{failure.error}</p>{failure.issues && <ul className="forms-issues">{failure.issues.map((issue, index) => <li key={`${issue.code}:${index}`}>{issue.message}{issue.hint && <em>{issue.hint}</em>}</li>)}</ul>}{connection && <a className="btn btn-ghost btn-sm" href="/app/connections">Reconnect Google →</a>}{onReload && <button type="button" className="btn btn-ghost btn-sm" onClick={onReload}>Check saved proposal</button>}{failure.requestId && <p className="forms-trace">Request {failure.requestId}</p>}</div>;
 }

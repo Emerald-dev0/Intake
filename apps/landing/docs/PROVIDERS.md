@@ -13,7 +13,7 @@ lifecycle, see [`../server/providers/README.md`](../server/providers/README.md).
 | Provider | Connection | Create | Edit in place | Import | Notes |
 | --- | --- | --- | --- | --- | --- |
 | Google Forms | Live | Yes | Yes | Yes | `forms.body` only; no Drive, no responses |
-| Typeform | Live | Yes | Not yet | Yes | `accounts:read`, `forms:read`, `forms:write`, `offline` |
+| Typeform | Live | Yes | Yes, with limits | Yes | `accounts:read`, `forms:read`, `forms:write`, `offline`. Edit is a verified read-modify-write; deletes, type changes and reordering a form with logic are refused (see [TYPEFORM.md](./TYPEFORM.md)) |
 | Microsoft | Live, identity only | No | No | No | No supported Forms API exists; the UI says so |
 | SurveyMonkey | Planned | — | — | — | Public roadmap |
 | Google Sheets | Planned | — | — | — | Public roadmap; would need its own narrow sheets scope |

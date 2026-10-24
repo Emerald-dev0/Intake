@@ -2,7 +2,7 @@ import { AiProviderError, type AiModelRequest, type AiProvider } from '../../ai/
 import { runWithModelCallCollector, type ModelCallCollector } from '../../ai/usage-scope';
 import type { FormEditInterpreter, FormEditInterpretationInput } from './edit-interpreter';
 import { InterpretationError, isRepairablePlacement, placementIssues, type FormInterpreter, type InterpretationInput } from './interpreter';
-import { EDIT_SYSTEM, FORM_EDIT_INTERPRETATION_SCHEMA, INTERPRETATION_SCHEMA, creationSystem } from './prompts';
+import { FORM_EDIT_INTERPRETATION_SCHEMA, INTERPRETATION_SCHEMA, creationSystem, editSystem } from './prompts';
 import { voiceFeedback, voiceIssues } from './voice';
 
 /**
@@ -91,9 +91,10 @@ export function createFormEditInterpreter(options: InterpreterOptions): FormEdit
       return generate(options, {
         schemaName: 'intake_form_edit_interpretation',
         schema: FORM_EDIT_INTERPRETATION_SCHEMA,
-        system: EDIT_SYSTEM,
+        system: editSystem(input.provider === 'typeform' ? 'typeform' : 'google'),
         input: {
           request: input.request,
+          target: input.provider === 'typeform' ? 'typeform' : 'google',
           ...(input.clarification ? { clarification: input.clarification } : {}),
           currentForm: {
             formId: input.current.providerFormId,
