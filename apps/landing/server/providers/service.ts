@@ -23,6 +23,10 @@ import type { ConnectionRecord, ConnectionStore } from './store';
 
 const TRANSACTION_TTL_MS = 10 * 60 * 1000;
 const ACCESS_SKEW_MS = 60_000;
+/** 90 days: comfortably above Typeform's 7-day access token, low enough to reject a forged or
+    misread `expires_in` that would otherwise pin a token as valid for years. */
+const MAX_ACCESS_LIFETIME_SECONDS = 90 * 24 * 60 * 60;
+const FALLBACK_ACCESS_LIFETIME_SECONDS = 300;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
 const RATE_LIMIT = 8;
 const MSA_TENANT = '9188040d-6c67-4c5b-b112-36a304b66dad';
@@ -199,9 +203,14 @@ function accessUsable(expiresAt: Date | null, at: Date): boolean {
 }
 
 function accessExpiresAt(at: Date, expiresIn: number | null): Date {
-  // OAuth access tokens are short-lived. Reject nonsensical provider lifetimes instead of creating
-  // an invalid Date or treating an unbounded token as valid indefinitely.
-  const seconds = expiresIn !== null && Number.isSafeInteger(expiresIn) && expiresIn > 0 && expiresIn <= 86_400 ? expiresIn : 300;
+  // Reject nonsensical provider lifetimes instead of creating an invalid Date or trusting an
+  // unbounded one forever. The ceiling has to clear the longest lifetime we actually meet: Typeform
+  // issues one-week access tokens (604800), so a 24-hour cap silently stamped every Typeform
+  // connection as expiring in five minutes and refreshed it on nearly every request — burning its
+  // 2 req/s budget and rotating the refresh token far more often than the week requires.
+  const seconds = expiresIn !== null && Number.isSafeInteger(expiresIn) && expiresIn > 0 && expiresIn <= MAX_ACCESS_LIFETIME_SECONDS
+    ? expiresIn
+    : FALLBACK_ACCESS_LIFETIME_SECONDS;
   return new Date(at.getTime() + seconds * 1000);
 }
 
@@ -244,8 +253,8 @@ async function startAuthorization(deps: ProviderDeps, userId: string, provider: 
     // the forms.body grant. Only allowlisted optional scopes are accepted.
     scopes: [...definition.scopes, ...extraScopes.filter(scope => OPTIONAL_SCOPES.includes(scope as OptionalScope))],
     state,
-    nonce,
-    codeChallenge: challenge,
+    nonce: definition.oidcNonce ? nonce : undefined,
+    codeChallenge: definition.pkce ? challenge : undefined,
     extraParams: definition.extraAuthParams,
   });
   if (url.includes('client_secret') || url.includes(verifier)) return { ok: false, result: 'exchange_failed' };
@@ -280,7 +289,7 @@ async function completeAuthorization(deps: ProviderDeps, userId: string, provide
       clientId: deps.env[definition.clientIdEnv]!.trim(),
       clientSecret: deps.env[definition.clientSecretEnv]!.trim(),
       redirectUri: expectedRedirect,
-      codeVerifier: verifier,
+      codeVerifier: definition.pkce ? verifier : undefined,
     }));
     tokenJson = response.json;
     if (response.status < 200 || response.status >= 300) {
@@ -306,7 +315,8 @@ async function completeAuthorization(deps: ProviderDeps, userId: string, provide
     await revokeTokens(deps, definition, token.accessToken, token.refreshToken);
     return { result: identity.result };
   }
-  const scopes = grantedScopes(token.scope);
+  const granted = grantedScopes(token.scope);
+  const scopes = granted.length ? granted : definition.scopes;
   if (definition.requiredScopes.some(scope => !hasScope(scopes, scope))) {
     await revokeTokens(deps, definition, token.accessToken, token.refreshToken);
     return { result: 'insufficient_permissions' };
@@ -321,7 +331,7 @@ async function completeAuthorization(deps: ProviderDeps, userId: string, provide
       externalAccountId: identity.accountId,
       externalAccountEmail: identity.email,
       externalAccountLabel: identity.label,
-      scopes: scopes.length ? scopes : definition.scopes,
+      scopes,
       accessTokenCiphertext: deps.cipher.encrypt(token.accessToken, credentialAad(userId, provider, 'access')),
       accessTokenExpiresAt: accessExpiresAt(at, token.expiresIn),
       refreshTokenCiphertext: token.refreshToken ? deps.cipher.encrypt(token.refreshToken, credentialAad(userId, provider, 'refresh')) : null,

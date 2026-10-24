@@ -15,6 +15,11 @@ export interface TypeformPlan {
 
 export type PlanResult = { ok: true; plan: TypeformPlan } | { ok: false; issues: ValidationIssue[] };
 
+/** A stable, spec-derived ref. Question ids are already unique and validated. */
+function fieldRef(questionId: string): string {
+  return `q_${questionId}`;
+}
+
 const TYPEFORM_FIELD_MAP: Record<QuestionType, TypeformFieldType> = {
   short_text: 'short_text',
   long_text: 'long_text',
@@ -53,6 +58,8 @@ export function planTypeform(specification: FormSpecification): PlanResult {
     if (!typeformType) return;
 
     const field: TypeformField = {
+      // Typeform logic jumps address fields by ref, so every field needs a stable one.
+      ref: fieldRef(question.id),
       title: question.title,
       type: typeformType,
       properties: {},
@@ -92,14 +99,14 @@ export function planTypeform(specification: FormSpecification): PlanResult {
     const sourceIndex = indexById.get(visibility.when.question);
     if (sourceIndex === undefined) return;
 
-    // Typeform logic: show this question when source equals value
+    // Typeform logic: `ref` is the controller field, `to` is the field that follows the jump.
     logic.push({
-      ref: `ref_${question.id}`,
+      ref: fieldRef(visibility.when.question),
       type: 'field',
       actions: [{
         action: 'jump',
         details: {
-          to: { type: 'field', value: `ref_${question.id}` },
+          to: { type: 'field', value: fieldRef(question.id) },
           condition: { op: 'is', value: visibility.when.equals },
         },
       }],

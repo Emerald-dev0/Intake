@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAdminQuery, type QueryState } from './useAdminQuery';
+import { FunnelSteps, GrowthComposedChart, HourBarChart, RankBarChart, SourceDonut, TrafficAreaChart } from './charts';
 import { formatUsd } from '../lib/plans';
 import type {
   ActivityItem, AdminRange, AiData, AiOperation, AnalyticsData, BillingSettingsData, EmailData, ErrorsData, ErrorItem, FormItem, FormsData,
@@ -708,14 +709,21 @@ export function AdminEmailPage() {
       <Heading
         kicker="OPERATIONS / EMAIL"
         title="Transactional email."
-        description="Delivery health for verification, reset, welcome and security email. Aggregate only: codes, tokens, message bodies and credentials are never stored or shown."
-        action={<RangeSelect value={range} onChange={setRange} />}
+        description="Delivery health for verification, reset, welcome, security and composed mail. Aggregate only: codes, tokens, message bodies and credentials are never stored or shown. Notes you send from Compose mail appear here as one delivery per recipient."
+        action={<div className="admin-heading-action-group"><Link className="admin-button" to="/admin/mail">Compose mail</Link><RangeSelect value={range} onChange={setRange} /></div>}
       />
       {state.status === 'loading' && <QueryLoading label="Reading delivery records…" />}
       {state.status === 'error' && <QueryError state={state} retry={refresh} />}
       {state.status === 'ready' && <EmailContent data={state.data} />}
     </>
   );
+}
+
+// The stored type is the honest one (`admin_message`); the dashboard says what it means to a person.
+const EMAIL_TYPE_LABEL: Record<string, string> = { admin_message: 'composed mail' };
+
+function emailTypeLabel(type: string): string {
+  return EMAIL_TYPE_LABEL[type] ?? type.replaceAll('_', ' ');
 }
 
 function EmailContent({ data }: { data: EmailData }) {
@@ -747,7 +755,7 @@ function EmailContent({ data }: { data: EmailData }) {
       <div className="admin-overview-columns">
         <Panel title="By email type" eyebrow={rangeName(data.range).toUpperCase()}>
           {data.byType.length
-            ? <div className="admin-inline-facts">{data.byType.map(row => <span key={row.type}>{row.type.replaceAll('_', ' ')} <b>{number(row.count)}</b></span>)}</div>
+            ? <div className="admin-inline-facts">{data.byType.map(row => <span key={row.type}>{emailTypeLabel(row.type)} <b>{number(row.count)}</b></span>)}</div>
             : <EmptyState title="No email recorded in this period" detail="Nothing was sent, or the delivery table predates this range." />}
         </Panel>
         <Panel title="Provider errors" eyebrow="FAILURE TAXONOMY">
@@ -763,7 +771,7 @@ function EmailContent({ data }: { data: EmailData }) {
           ? <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>When</th><th>Type</th><th>Status</th><th>Error</th><th>Provider id</th></tr></thead><tbody>
             {data.recent.map(row => <tr key={row.id}>
               <td>{dateTime(row.createdAt)}</td>
-              <td>{row.emailType.replaceAll('_', ' ')}</td>
+              <td>{emailTypeLabel(row.emailType)}</td>
               <td><StatusPill label={row.status.replaceAll('_', ' ')} tone={statusTone(row.status === 'accepted' ? 'connected' : row.status === 'failed' || row.status === 'failed_remote' ? 'failed' : row.status)} /></td>
               <td>{row.errorCode ? row.errorCode.replaceAll('_', ' ') : '—'}</td>
               <td><code>{row.providerMessageId ?? '—'}</code></td>
@@ -849,128 +857,85 @@ function AnalyticsContent({ data, range }: { data: AnalyticsData; range: AdminRa
   if (!data.available) {
     return <Panel title="Site analytics"><Unavailable>{data.reason ?? 'Analytics are unavailable.'}</Unavailable></Panel>;
   }
+  const delta = (current: number, previous: number): { text: string; tone: 'green' | 'red' | 'neutral' } => {
+    if (previous === 0) return { text: current === 0 ? 'no change' : 'first in range', tone: current === 0 ? 'neutral' : 'green' };
+    const change = Math.round(((current - previous) / previous) * 100);
+    if (change === 0) return { text: 'flat vs previous period', tone: 'neutral' };
+    return { text: `${change > 0 ? '+' : ''}${change}% vs previous period`, tone: change > 0 ? 'green' : 'red' };
+  };
+  const views = delta(data.pageviews, data.previous.pageviews);
+  const clicks = delta(data.clicks, data.previous.clicks);
+  const signups = delta(data.signups, data.previous.signups);
+  const forms = delta(data.formsCreated, data.previous.formsCreated);
+  const quiet = data.pageviews === 0 && data.signups === 0 && data.formsCreated === 0;
+
   return (
     <>
       <div className="admin-metric-grid four">
-        <Metric label="Page views" value={number(data.pageviews)} note="Public pages in range" tone="green" />
-        <Metric label="Button clicks" value={number(data.clicks)} note="Call-to-action presses" />
-        <Metric label="Signups" value={number(data.signups)} note="New accounts in range" tone={data.signups ? 'green' : 'neutral'} />
-        <Metric label="Forms created" value={number(data.formsCreated)} note="Google Forms confirmed" tone={data.formsCreated ? 'green' : 'neutral'} />
+        <Metric label="Page views" value={number(data.pageviews)} note={views.text} tone={views.tone} />
+        <Metric label="Button clicks" value={number(data.clicks)} note={clicks.text} tone={clicks.tone} />
+        <Metric label="Signups" value={number(data.signups)} note={signups.text} tone={signups.tone} />
+        <Metric label="Forms created" value={number(data.formsCreated)} note={forms.text} tone={forms.tone} />
       </div>
 
-      <Panel title="Daily volume" eyebrow={rangeName(range).toUpperCase()}>
-        {data.byDay.length
-          ? <TrafficChart days={data.byDay} />
-          : <EmptyState title="No traffic recorded in this period" detail="Events appear once the public pages load with migration 013 applied." />}
-      </Panel>
+      {quiet
+        ? <Panel title="Traffic and growth" eyebrow={rangeName(range).toUpperCase()}>
+          <EmptyState title="Nothing recorded in this period" detail="Events appear once the public pages load with migration 013 applied. The previous period is shown for comparison as soon as there is anything to compare." />
+        </Panel>
+        : <>
+          <Panel title="Traffic" eyebrow={`${rangeName(range).toUpperCase()} · DAILY`} description="Page views and button clicks on the public pages. Every point is an event count, never a count of people.">
+            <TrafficAreaChart data={data.byDay} />
+          </Panel>
 
-      <div className="admin-overview-columns">
-        <Panel title="Top pages" eyebrow="WHERE THEY LAND">
-          {data.topPages.length
-            ? <RankBars rows={data.topPages} />
-            : <EmptyState title="No page views yet" detail="Only / and /pricing are tracked." />}
-        </Panel>
-        <Panel title="Top referrers" eyebrow="WHERE THEY COME FROM">
-          {data.topReferrers.length
-            ? <RankBars rows={data.topReferrers} />
-            : <EmptyState title="No referrers yet" detail="Direct visits carry no referrer; the beacon only keeps hostnames." />}
-        </Panel>
-      </div>
+          <Panel title="Traffic becoming accounts" eyebrow="GROWTH, NOT FORECAST" description="Accounts and forms are read from their own tables, not inferred from traffic. A big traffic week with no signups is the useful signal.">
+            <GrowthComposedChart data={data.byDay} />
+          </Panel>
 
-      <Panel title="Countries" eyebrow={data.countryPrecise ? 'EDGE-CONFIRMED' : 'APPROXIMATE · TIMEZONE'}>
-        {data.topCountries.length
-          ? <>
-            <RankBars rows={data.topCountries} />
-            {!data.countryPrecise && <p className="admin-note">Approximate: no edge geo header survived the proxy chain, so countries come from browser timezones (full IANA coverage). Unknown stays empty rather than guessed.</p>}
-          </>
-          : <EmptyState title="No country data yet" detail="Codes arrive with the next page views — edge headers first, timezone second." />}
-      </Panel>
+          <div className="admin-overview-columns">
+            <Panel title="Funnel" eyebrow="VIEW → CLICK → ACCOUNT → FORM">
+              <FunnelSteps funnel={data.funnel} />
+            </Panel>
+            <Panel title="When people arrive" eyebrow="UTC HOUR, ALL DAYS COMBINED">
+              <HourBarChart data={data.byHour} />
+            </Panel>
+          </div>
 
-      <div className="admin-overview-columns">
-        <Panel title="Campaign sources" eyebrow="UTM_SOURCE, DIRECT INCLUDED">
-          {data.topSources.length
-            ? <RankBars rows={data.topSources} />
-            : <EmptyState title="No sources yet" detail="Share links with ?utm_source= to attribute campaigns." />}
-        </Panel>
-        <Panel title="Top button clicks" eyebrow="WHAT THEY PRESS">
-          {data.topClicks.length
-            ? <RankBars rows={data.topClicks} />
-            : <EmptyState title="No clicks yet" detail="Only call-to-action navigations are recorded." />}
-        </Panel>
-      </div>
+          <div className="admin-overview-columns">
+            <Panel title="Top pages" eyebrow="WHERE THEY LAND">
+              {data.topPages.length ? <RankBarChart rows={data.topPages} label="Page views" /> : <EmptyState title="No page views yet" detail="Only public marketing pages are tracked." />}
+            </Panel>
+            <Panel title="Traffic sources" eyebrow="UTM_SOURCE · DIRECT INCLUDED">
+              {data.topSources.length ? <SourceDonut rows={data.topSources} /> : <EmptyState title="No sources yet" detail="Share links with ?utm_source= to attribute campaigns." />}
+            </Panel>
+          </div>
+
+          <div className="admin-overview-columns">
+            <Panel title="Top referrers" eyebrow="WHERE THEY COME FROM">
+              {data.topReferrers.length ? <RankBarChart rows={data.topReferrers} label="Page views" color="#58a6ff" /> : <EmptyState title="No referrers yet" detail="Direct visits carry no referrer; the beacon only keeps hostnames." />}
+            </Panel>
+            <Panel title="Campaigns" eyebrow="UTM_CAMPAIGN">
+              {data.topCampaigns.length ? <RankBarChart rows={data.topCampaigns} label="Page views" color="#3fb950" /> : <EmptyState title="No campaigns yet" detail="Tag a link with ?utm_campaign= to see it here." />}
+            </Panel>
+          </div>
+
+          <div className="admin-overview-columns">
+            <Panel title="Countries" eyebrow={data.countryPrecise ? 'EDGE-CONFIRMED' : 'APPROXIMATE · TIMEZONE'}>
+              {data.topCountries.length
+                ? <>
+                  <RankBarChart rows={data.topCountries} label="Page views" color="#a371f7" />
+                  {!data.countryPrecise && <p className="admin-note">Approximate: no edge geo header survived the proxy chain, so countries come from browser timezones (full IANA coverage). Unknown stays empty rather than guessed.</p>}
+                </>
+                : <EmptyState title="No country data yet" detail="Codes arrive with the next page views — edge headers first, timezone second." />}
+            </Panel>
+            <Panel title="Top button clicks" eyebrow="WHAT THEY PRESS">
+              {data.topClicks.length ? <RankBarChart rows={data.topClicks} label="Clicks" color="#d29922" /> : <EmptyState title="No clicks yet" detail="Only call-to-action navigations are recorded." />}
+            </Panel>
+          </div>
+
+          {data.topMediums.length > 0 && <Panel title="Mediums" eyebrow="UTM_MEDIUM">
+            <RankBarChart rows={data.topMediums} label="Page views" color="#39c5cf" />
+          </Panel>}
+        </>}
     </>
-  );
-}
-
-/**
- * Daily pageviews (area) and clicks (line) as dependency-free SVG. Scales to
- * any range length; axis ticks thin out so labels never collide. The numbers
- * stay in the DOM as text for screen readers and tests.
- */
-function TrafficChart({ days }: { days: AnalyticsData['byDay'] }) {
-  const width = 680;
-  const height = 230;
-  const padLeft = 40;
-  const padRight = 12;
-  const padTop = 14;
-  const padBottom = 30;
-  const innerWidth = width - padLeft - padRight;
-  const innerHeight = height - padTop - padBottom;
-  const peak = days.reduce((best, day) => Math.max(best, day.pageviews, day.clicks), 0);
-  const top = Math.max(peak, 1);
-  const step = days.length > 1 ? innerWidth / (days.length - 1) : 0;
-  const x = (index: number) => padLeft + (days.length > 1 ? index * step : innerWidth / 2);
-  const y = (value: number) => padTop + innerHeight - (value / top) * innerHeight;
-  const line = (pick: (day: AnalyticsData['byDay'][number]) => number) =>
-    days.map((day, index) => `${index === 0 ? 'M' : 'L'}${x(index).toFixed(1)},${y(pick(day)).toFixed(1)}`).join(' ');
-  const viewsLine = line(day => day.pageviews);
-  const clicksLine = line(day => day.clicks);
-  const viewsArea = `${viewsLine} L${x(days.length - 1).toFixed(1)},${(padTop + innerHeight).toFixed(1)} L${x(0).toFixed(1)},${(padTop + innerHeight).toFixed(1)} Z`;
-  const gridlines = [0.25, 0.5, 0.75, 1].map(fraction => Math.round(top * fraction));
-  const tickEvery = Math.max(1, Math.ceil(days.length / 8));
-  return (
-    <figure className="admin-chart" role="img" aria-label={`Daily page views and clicks, peak ${peak} events in a day`}>
-      <svg viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
-        {gridlines.map(value => (
-          <g key={value}>
-            <line x1={padLeft} x2={width - padRight} y1={y(value)} y2={y(value)} className="admin-chart__grid" />
-            <text x={padLeft - 8} y={y(value) + 3.5} textAnchor="end" className="admin-chart__tick">{value}</text>
-          </g>
-        ))}
-        <path d={viewsArea} className="admin-chart__area" />
-        <path d={viewsLine} className="admin-chart__line admin-chart__line--views" />
-        <path d={clicksLine} className="admin-chart__line admin-chart__line--clicks" />
-        {days.map((day, index) => index % tickEvery === 0 || index === days.length - 1 ? (
-          <text key={day.day} x={x(index)} y={height - 10} textAnchor="middle" className="admin-chart__tick">{day.day.slice(5)}</text>
-        ) : null)}
-        {days.map((day, index) => (
-          <circle key={day.day} cx={x(index)} cy={y(day.pageviews)} r="2.5" className="admin-chart__dot" />
-        ))}
-      </svg>
-      <figcaption>
-        <span><i className="admin-chart__swatch admin-chart__swatch--views" /> Page views</span>
-        <span><i className="admin-chart__swatch admin-chart__swatch--clicks" /> Clicks</span>
-        <span className="admin-chart__peak">Peak {number(peak)}/day</span>
-      </figcaption>
-    </figure>
-  );
-}
-
-/** Ranked rows with proportional bars and share percentages. Replaces loose fact chips. */
-function RankBars({ rows }: { rows: Array<{ name: string; count: number }> }) {
-  const total = rows.reduce((sum, row) => sum + row.count, 0);
-  const top = Math.max(1, ...rows.map(row => row.count));
-  return (
-    <ol className="admin-rank">
-      {rows.map(row => (
-        <li key={row.name}>
-          <span className="admin-rank__name"><code>{row.name}</code></span>
-          <span className="admin-rank__track" aria-hidden="true">
-            <i style={{ width: `${Math.max(2, Math.round((row.count / top) * 100))}%` }} />
-          </span>
-          <span className="admin-rank__value"><b>{number(row.count)}</b><small>{total ? `${Math.round((row.count / total) * 100)}%` : '—'}</small></span>
-        </li>
-      ))}
-    </ol>
   );
 }

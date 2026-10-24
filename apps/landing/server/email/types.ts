@@ -12,8 +12,16 @@
  * Nothing here may be rendered into a browser response, and nothing here carries a credential.
  */
 
-/** Reputation lane. Intake only ever sends transactional mail (Phase 17 scope, mission §24). */
-export type EmailStream = 'transactional' | 'marketing';
+/**
+ * Reputation lane reported to the provider.
+ *
+ * `transactional` is everything the product itself decides to send: verification codes, password
+ * resets, security notices, receipts. `campaign` is reserved for a note an operator composed in the
+ * admin dashboard and chose to send to selected accounts — it is still written and approved by a
+ * human, one message per recipient, so it is not a marketing broadcast. `marketing` is unused: Intake
+ * has no newsletter, no drip sequence and no bulk marketing send.
+ */
+export type EmailStream = 'transactional' | 'campaign' | 'marketing';
 
 /** Internal failure taxonomy (mission §21). Provider errors are mapped into this, never surfaced raw. */
 export type EmailErrorCode =
@@ -54,7 +62,9 @@ export type EmailType =
   | 'billing_payment_failed'
   | 'billing_credit_pack_purchased'
   | 'billing_receipt'
-  | 'billing_renewal_reminder';
+  | 'billing_renewal_reminder'
+  /** A one-off note an operator writes in the dashboard and sends to selected accounts, one by one. */
+  | 'admin_message';
 
 export interface EmailTag {
   name: string;

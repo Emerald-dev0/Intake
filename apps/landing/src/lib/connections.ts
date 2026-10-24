@@ -3,6 +3,36 @@
 export const PROVIDER_IDS = ['google', 'microsoft', 'typeform'] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 
+/**
+ * Providers Intake can actually create forms in today. Microsoft is deliberately absent: it is a
+ * connection without a supported Forms API. Anything typed against this list is a creation target,
+ * not merely an account Intake can authorize.
+ */
+export const FORM_PROVIDERS = ['google', 'typeform'] as const;
+export type FormProvider = (typeof FORM_PROVIDERS)[number];
+
+export const FORM_PROVIDER_LABELS: Record<FormProvider, string> = {
+  google: 'Google Forms',
+  typeform: 'Typeform',
+};
+
+/** The account a form lives in, for sentences like "remains in your Google account". */
+export const FORM_PROVIDER_ACCOUNTS: Record<FormProvider, string> = {
+  google: 'Google',
+  typeform: 'Typeform',
+};
+
+export function isFormProvider(value: string | null | undefined): value is FormProvider {
+  return value === 'google' || value === 'typeform';
+}
+
+export function formProviderLabel(provider: ProviderId | string | null | undefined): string {
+  if (provider === 'google') return 'Google Forms';
+  if (provider === 'typeform') return 'Typeform';
+  if (provider === 'microsoft') return 'Microsoft Forms';
+  return 'Form provider';
+}
+
 export const RESULT_CODES = [
   'connected',
   'disconnected',

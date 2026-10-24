@@ -176,7 +176,7 @@ export function createFormEditRouter(deps: FormEditRouterDeps): Router {
   router.post('/edit/confirm', ...jsonMutation, asyncRoute(async (req, res) => {
     const body = bodyWithKeys(req.body, ['draftId', 'version', 'confirm']);
     if (!body || typeof body.draftId !== 'string' || !DRAFT_ID.test(body.draftId) || !version(body.version) || body.confirm !== true) {
-      return send(res, new FormEditError({ code: 'invalid_request', message: 'Review the edit proposal and explicitly confirm applying it to the existing Google Form.', outcome: 'not_applied', retryable: false }));
+      return send(res, new FormEditError({ code: 'invalid_request', message: 'Review the edit proposal and explicitly confirm applying it to the existing form.', outcome: 'not_applied', retryable: false }));
     }
     try {
       // Replays of an already-applied/blocked proposal are reads and do not consume provider-write
@@ -188,7 +188,7 @@ export function createFormEditRouter(deps: FormEditRouterDeps): Router {
       return sendJson(res, 200, { requestId: requestId(res), result, ...(draft ? { draft } : {}) });
     } catch (error) {
       const draft = await engine.getDraft(user(res).id, body.draftId).catch(() => null);
-      const failure = error instanceof FormEditError ? error : new FormEditError({ code: 'internal_error', message: 'Intake could not confirm the edit result. Check the original Google Form before taking further action.', outcome: 'unknown', retryable: false });
+      const failure = error instanceof FormEditError ? error : new FormEditError({ code: 'internal_error', message: 'Intake could not confirm the edit result. Check the original form before taking further action.', outcome: 'unknown', retryable: false });
       if (failure.info.retryAfterSeconds) setRateLimitHeaders(res, failure.info.retryAfterSeconds);
       return sendJson(res, STATUS[failure.info.code] ?? 500, { requestId: requestId(res), failure: toFormEditFailure(failure.info, requestId(res)), ...(draft ? { draft } : {}) });
     }
@@ -202,7 +202,7 @@ export function createFormEditRouter(deps: FormEditRouterDeps): Router {
     if (type === 'entity.parse.failed' || type === 'encoding.unsupported' || type === 'charset.unsupported') return send(res, new FormEditError({ code: 'invalid_request', message: 'Send a valid JSON object. No changes were made.', outcome: 'not_applied', retryable: false }));
     if (error instanceof FormEditError) return send(res, error);
     logSafe('Form edit route failed unexpectedly', error);
-    return send(res, new FormEditError({ code: 'internal_error', message: 'Something went wrong inside Intake. The current Google Form was not replaced. Check its status before trying again.', outcome: 'unknown', retryable: false }));
+    return send(res, new FormEditError({ code: 'internal_error', message: 'Something went wrong inside Intake. The current form was not replaced. Check its status before trying again.', outcome: 'unknown', retryable: false }));
   });
   return router;
 }

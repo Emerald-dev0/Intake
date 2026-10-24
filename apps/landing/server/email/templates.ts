@@ -791,6 +791,38 @@ const billingRenewalReminder: EmailTemplate = {
   ].join('\n'),
 };
 
+/**
+ * A message an operator composed in the dashboard.
+ *
+ * The body is plain text on purpose: it is authored by a person in a textarea, so it is escaped and
+ * split into paragraphs rather than trusted as markup. `{{name}}` and friends are substituted by the
+ * server before rendering, never by the browser, so nothing about a recipient's identity is decided
+ * client-side.
+ */
+const adminMessage: EmailTemplate = {
+  id: 'admin_message',
+  alias: 'intake-admin-message',
+  subject: vars => text_(vars.adminSubject, 'A note from Intake'),
+  preheader: vars => text_(vars.adminPreheader, text_(vars.adminSubject, 'A note from the Intake team.')),
+  heading: vars => text_(vars.adminHeading, text_(vars.adminSubject, 'A note from Intake')),
+  // No greeting is added here: the operator writes the whole message, and the composer starts them
+  // off with "Hi {{name}},". Adding one automatically would either duplicate their salutation or
+  // greet a stranger "Hi there," in an email they did not write that way.
+  body: vars => {
+    const paragraphs = text_(vars.adminBody).split(/\n{2,}/).map(part => part.trim()).filter(Boolean);
+    const url = text_(vars.dashboardUrl);
+    return [
+      ...paragraphs.map(part => paragraph(escapeHtml(part).replace(/\n/g, '<br />'))),
+      url ? button(url, text_(vars.adminButtonLabel, 'Open Intake')) : '',
+    ].join('');
+  },
+  text: vars => {
+    const paragraphs = text_(vars.adminBody).split(/\n{2,}/).map(part => part.trim()).filter(Boolean);
+    const url = text_(vars.dashboardUrl);
+    return [...paragraphs, ...(url ? [`${text_(vars.adminButtonLabel, 'Open Intake')}: ${url}`] : [])].join('\n\n');
+  },
+};
+
 export const EMAIL_TEMPLATES: readonly EmailTemplate[] = [
   otp,
   passwordReset,
@@ -813,6 +845,7 @@ export const EMAIL_TEMPLATES: readonly EmailTemplate[] = [
   billingPaymentFailed,
   billingCreditPackPurchased,
   billingRenewalReminder,
+  adminMessage,
 ];
 
 const BY_ID = new Map<EmailType, EmailTemplate>(EMAIL_TEMPLATES.map(template => [template.id, template]));

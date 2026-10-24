@@ -37,6 +37,8 @@ import { logSafe } from './providers/oauth';
 import { newRequestId } from './forms/logging';
 import { createAdminRouter } from './admin/routes';
 import { createPostgresAdminStore } from './admin/postgres-store';
+import { createMailService } from './admin/mail';
+import { createPostgresMailStore } from './admin/mail-postgres';
 import { createHmac } from 'node:crypto';
 import { setAuthEmailHooks } from './email/bridge';
 import { createAccountEmailRouter } from './email/routes';
@@ -148,9 +150,20 @@ const adminStore = createPostgresAdminStore(pool, providerEnv);
 // Admin-editable allowances and prices share the process-wide settings service,
 // so a dashboard save takes effect for grants and checkout immediately.
 bindBillingSettingsStore(createPostgresBillingSettingsStore(pool));
+/**
+ * Admin-composed mail. The mail service only resolves recipients and composes; every message still
+ * goes out through `emailRuntime.emails`, so suppression, the delivery row, the idempotency key and
+ * the provider's own retries are the same code path as a password reset.
+ */
+const adminMail = createMailService({
+  store: createPostgresMailStore(pool),
+  config: emailRuntime.config,
+  send: request => emailRuntime.emails.send(request),
+  log: (label, detail) => logSafe(label, undefined, detail ? JSON.stringify(detail) : ''),
+});
 app.use('/api/admin', createAdminRouter({
   store: adminStore, getSession, rateLimiter: abuseLimiter, env: providerEnv,
-  settings: billingSettings, waitlist: waitlistStore,
+  settings: billingSettings, waitlist: waitlistStore, mail: adminMail,
 }));
 // Public, privacy-first engagement ingress. No auth, no cookies, no identifiers: the payload
 // carries only an allowlisted path, a click label, a referrer hostname and UTM tags.

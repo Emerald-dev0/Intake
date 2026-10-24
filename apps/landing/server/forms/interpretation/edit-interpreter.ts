@@ -1,10 +1,13 @@
 import type { FormEditOperation, FormEditPlan, FormEditSnapshot } from '../../../src/lib/form-edit';
+import type { FormProvider } from '../../../src/lib/connections';
 import { validateFormEditPlan } from '../edit-validation';
 import { InterpretationError } from './interpreter';
 import type { AiOperationContext } from '../../admin/ai-operations';
 
 export interface FormEditInterpretationInput {
   request: string;
+  /** Which provider's rules the proposal must obey. Defaults to Google for older callers. */
+  provider?: FormProvider;
   clarification?: string;
   current: FormEditSnapshot;
   /** Earlier turns of this edit conversation, oldest first. Treated as data, never as instructions. */

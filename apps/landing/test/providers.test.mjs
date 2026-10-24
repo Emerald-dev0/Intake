@@ -64,10 +64,11 @@ async function boot(options = {}) {
     pendingMicrosoftToken: '',
     store: createMemoryStore(),
   };
-  const calls = { token: 0, refresh: 0, revoke: 0, refreshMode: 'ok' };
+  const calls = { token: 0, refresh: 0, revoke: 0, refreshMode: 'ok', tokenBodies: [] };
   const http = {
     async postForm(url, body) {
       const params = new URLSearchParams(body.toString());
+      calls.tokenBodies.push({ url: String(url), params: Object.fromEntries(params) });
       if (String(url).endsWith('/revoke')) {
         calls.revoke += 1;
         return { status: 200, json: {} };
@@ -82,11 +83,13 @@ async function boot(options = {}) {
       if (String(url).includes('login.microsoftonline.com')) {
         return { status: 200, json: { access_token: 'MS_ACCESS_SHOULD_NOT_LEAK', refresh_token: 'MS_REFRESH_SHOULD_NOT_LEAK', expires_in: 3600, token_type: 'Bearer', scope: 'openid profile email offline_access', id_token: users.pendingMicrosoftToken } };
       }
-      return { status: 200, json: { access_token: ACCESS, refresh_token: REFRESH, expires_in: 3600, token_type: 'Bearer', scope: options.scope || GOOGLE_SCOPE } };
+      return { status: 200, json: { access_token: ACCESS, refresh_token: REFRESH, expires_in: options.accessTokenExpiresIn ?? 3600, token_type: 'Bearer', ...('scope' in options ? { scope: options.scope } : { scope: GOOGLE_SCOPE }) } };
     },
     async getJson(url, headers = {}) {
       if (String(url).includes('/discovery/')) return { status: 200, json: { keys: [jwk] } };
       assert.match(headers.authorization || '', /^Bearer /);
+      // Typeform answers GET /me with {id, email, name}; the adapter needs `id` as the account id.
+      if (String(url) === 'https://api.typeform.com/me') return { status: 200, json: { id: 'tf-user-1', email: 'ada@typeform.test', name: 'Ada Typeform' } };
       return { status: 200, json: { sub: users.identity, email: 'ada@gmail.com', email_verified: true, name: 'Ada Lovelace' } };
     },
   };
@@ -435,4 +438,82 @@ test('provider routes do not return an authorized access token', async () => {
   const source = await readFile(new URL('../server/providers/routes.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /getAuthorizedConnection/);
   assert.doesNotMatch(source, /res\.json\([\s\S]*accessToken/);
+});
+
+const TYPEFORM_ENV = { TYPEFORM_OAUTH_CLIENT_ID: 'test-typeform-client-id', TYPEFORM_OAUTH_CLIENT_SECRET: 'test-typeform-client-secret' };
+const TYPEFORM_SCOPE = 'accounts:read forms:read forms:write offline';
+
+test('Typeform uses the documented OAuth 2.0 flow: offline scope, no PKCE or nonce, no verifier', async () => {
+  const world = await boot({ env: env(TYPEFORM_ENV), scope: TYPEFORM_SCOPE });
+  try {
+    const start = await fetch(`${world.app}/api/providers/typeform/connect`, { method: 'POST', redirect: 'manual', headers: { origin: ORIGIN } });
+    const url = new URL(start.headers.get('location'));
+    assert.equal(`${url.origin}${url.pathname}`, 'https://api.typeform.com/oauth/authorize');
+    assert.equal(url.searchParams.get('scope'), TYPEFORM_SCOPE, 'offline is what makes a refresh token possible');
+    assert.equal(url.searchParams.has('code_challenge'), false, 'Typeform documents no PKCE on its authorize endpoint');
+    assert.equal(url.searchParams.has('code_challenge_method'), false);
+    assert.equal(url.searchParams.has('nonce'), false, 'Typeform is not OIDC and would not echo a nonce');
+    assert.equal(url.toString().includes('client_secret'), false);
+
+    const result = await fetch(`${world.app}/api/providers/typeform/callback?${new URLSearchParams({ code: 'code-typeform', state: url.searchParams.get('state') })}`, { redirect: 'manual' });
+    assert.equal(new URL(result.headers.get('location'), ORIGIN).searchParams.get('result'), 'connected');
+    const exchange = world.calls.tokenBodies.at(-1);
+    assert.equal(exchange.params.code_verifier, undefined, 'a verifier without a challenge would be rejected');
+    const [connection] = (await world.service.list('user-a')).filter(entry => entry.id === 'typeform');
+    assert.deepEqual(connection.scopes, ['accounts:read', 'forms:read', 'forms:write', 'offline']);
+    assert.equal(connection.accountEmail, 'ada@typeform.test');
+    assert.equal(connection.canRefresh, true);
+  } finally { await world.close(); }
+});
+
+test('a week-long Typeform access token is used for the week instead of being re-refreshed every few minutes', async () => {
+  // Typeform documents expires_in as seconds and a default lifetime of one week. Stamping that as
+  // "expires in five minutes" is not a security win: it refreshes on nearly every request, spends the
+  // 2 req/s account budget on token exchanges, and rotates the refresh token constantly — and every
+  // rotation is a chance for two concurrent refreshes to invalidate each other and force a reconnect.
+  const world = await boot({ env: env(TYPEFORM_ENV), scope: TYPEFORM_SCOPE, accessTokenExpiresIn: 604_800 });
+  try {
+    assert.equal(await connect(world.app, 'typeform'), 'connected');
+    const stored = await world.users.store.getConnection('user-a', 'typeform');
+    const hours = (stored.accessTokenExpiresAt.getTime() - Date.now()) / 3_600_000;
+    assert.ok(hours > 167 && hours <= 168, `a seven-day token should be stored seven days out, got ${hours.toFixed(1)}h`);
+    const connection = await world.service.getAuthorizedConnection('user-a', 'typeform');
+    assert.equal(connection.ok, true);
+    assert.equal(world.calls.refresh, 0, 'a token with six days left must not be refreshed');
+  } finally { await world.close(); }
+});
+
+test('an absurd expires_in is not trusted as a near-permanent token', async () => {
+  const world = await boot({ env: env(TYPEFORM_ENV), scope: TYPEFORM_SCOPE, accessTokenExpiresIn: 10 * 365 * 24 * 60 * 60 });
+  try {
+    assert.equal(await connect(world.app, 'typeform'), 'connected');
+    const stored = await world.users.store.getConnection('user-a', 'typeform');
+    const minutes = (stored.accessTokenExpiresAt.getTime() - Date.now()) / 60_000;
+    assert.ok(minutes <= 5.1, `a decade-long lifetime should fall back to minutes, got ${minutes.toFixed(1)}m`);
+    const [connection] = (await world.service.list('user-a')).filter(entry => entry.id === 'typeform');
+    assert.equal(connection.status, 'connected');
+  } finally { await world.close(); }
+});
+
+test('a token response without a scope field still connects using the requested scopes', async () => {
+  // Typeform documents access_token/expires_in/refresh_token only; treating "no scope echoed" as
+  // "no permission" would refuse every legitimate connection.
+  const world = await boot({ env: env(TYPEFORM_ENV), scope: null });
+  try {
+    const result = await connect(world.app, 'typeform');
+    assert.equal(result, 'connected');
+    const [connection] = (await world.service.list('user-a')).filter(entry => entry.id === 'typeform');
+    assert.deepEqual(connection.scopes, ['accounts:read', 'forms:read', 'forms:write', 'offline']);
+  } finally { await world.close(); }
+});
+
+test('Google keeps PKCE and the OIDC nonce', async () => {
+  const world = await boot();
+  try {
+    const start = await fetch(`${world.app}/api/providers/google/connect`, { method: 'POST', redirect: 'manual', headers: { origin: ORIGIN } });
+    const url = new URL(start.headers.get('location'));
+    assert.equal(url.searchParams.get('code_challenge_method'), 'S256');
+    assert.ok(url.searchParams.get('code_challenge'));
+    assert.ok(url.searchParams.get('nonce'));
+  } finally { await world.close(); }
 });

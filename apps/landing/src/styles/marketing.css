@@ -746,6 +746,34 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
 .mk-hero-story { display: none; }
 .mk-hero__trust { display: none; }
 
+/* Where the form lands: the two provider marks, on paper so the brand colours stay true. */
+.mk-providers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 26px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.mk-provider {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 15px 9px 12px;
+  border-radius: var(--mk-pill);
+  background: var(--mk-paper);
+  color: var(--mk-ink);
+  box-shadow: var(--mk-shadow-1);
+}
+.mk-provider svg { flex: none; }
+.mk-provider span { display: grid; gap: 1px; }
+.mk-provider strong { font-size: 12.5px; font-weight: 600; line-height: 1.25; letter-spacing: -.01em; }
+.mk-provider small { color: #6b6b62; font-size: 11px; line-height: 1.3; }
+
+/* The connection section carries both providers, so it is a pair rather than Intake → Google. */
+.mk-providers--connect { flex-direction: column; gap: 8px; margin: 0; }
+.mk-providers--connect .mk-provider { border-radius: var(--mk-r-md); width: 100%; }
+
 /* Product preview — warm paper, hard edges, one accent pin. */
 .mk-product-preview {
   min-width: 0;
@@ -1357,11 +1385,68 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
 }
 .mk-google__logo { display: inline-flex; align-items: center; gap: 8px; color: var(--mk-text); font-size: 12.5px; font-weight: 550; }
 .mk-google__logo--google { color: #cfccc3; font-weight: 450; }
+.mk-google__targets { display: grid; gap: 6px; align-content: center; justify-items: start; }
 .mk-google__link { display: grid; gap: 3px; }
 .mk-google__link i { display: block; height: 1px; background: var(--mk-line-strong); }
 .mk-google__link i:nth-child(2) { background: var(--mk-accent); }
 .mk-google__copy h2 { font-size: clamp(26px, 2.8vw, 40px); }
 .mk-google__copy p { max-width: 52ch; margin: 0; color: var(--mk-muted); font-size: 14px; line-height: 1.7; }
+
+/* The provider board: two that work, four that are next. Planned marks stay monochrome and carry a
+   PLANNED chip, so a shared logo never reads as a working integration. */
+.mk-provider-board {
+  margin-top: clamp(30px, 3.4vw, 46px);
+  padding-top: clamp(24px, 2.6vw, 34px);
+  border-top: 1px solid var(--mk-line);
+}
+.mk-provider-board__intro { max-width: 62ch; }
+.mk-provider-board__intro h3 {
+  margin: 12px 0 10px;
+  color: var(--mk-text);
+  font-family: var(--serif);
+  font-size: clamp(23px, 2.4vw, 32px);
+  font-weight: 400;
+  letter-spacing: -.025em;
+  line-height: 1.1;
+}
+.mk-provider-board__intro p { margin: 0; color: var(--mk-muted); font-size: 13.5px; line-height: 1.7; }
+.mk-provider-board__groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 24px; }
+.mk-provider-board__group {
+  padding: 18px 20px 20px;
+  border: 1px solid var(--mk-line-strong);
+  border-radius: var(--mk-r-md);
+  background: rgba(0, 0, 0, .22);
+}
+.mk-provider-board__group h4 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  color: var(--mk-text);
+  font-size: 12px;
+  font-weight: 550;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.mk-provider-board__group ul { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.mk-provider-board__group li { display: flex; align-items: flex-start; gap: 11px; }
+.mk-provider-board__group li > span:last-child { display: grid; gap: 2px; }
+.mk-provider-board__group strong { color: var(--mk-text); font-size: 14px; font-weight: 550; letter-spacing: -.01em; }
+.mk-provider-board__group small { color: var(--mk-muted); font-size: 12.5px; line-height: 1.5; }
+.mk-provider-board__mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--mk-line);
+  border-radius: 9px;
+  background: var(--mk-paper);
+  color: var(--mk-ink);
+}
+.mk-provider-board__group--planned .mk-provider-board__mark { background: transparent; color: var(--mk-muted); }
+.mk-provider-board__group--planned strong { color: var(--mk-muted); }
 
 /* Pricing */
 
@@ -1556,8 +1641,15 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
 .mk-footer__column h2 { margin: 0 0 6px; color: var(--mk-text); font: 9.5px var(--mono); letter-spacing: .16em; text-transform: uppercase; }
 .mk-footer__column a { color: var(--mk-dim); font-size: 13px; transition: color .2s var(--mk-ease-soft); }
 .mk-footer__column a:hover { color: var(--mk-text); }
-.mk-footer__column--google p { margin: 0; color: var(--mk-dim); font-size: 13px; line-height: 1.65; }
-.mk-footer__column--google > a { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; color: var(--mk-text); }
+.mk-footer__column--providers p { margin: 0; color: var(--mk-dim); font-size: 13px; line-height: 1.65; }
+.mk-footer__providers { display: grid; gap: 10px; margin: 6px 0 0; padding: 0; list-style: none; }
+.mk-footer__providers li { display: grid; gap: 2px; }
+.mk-footer__providers a { display: inline-flex; align-items: center; gap: 7px; color: var(--mk-text); font-size: 13px; }
+.mk-footer__providers a:hover { color: var(--mk-accent); }
+.mk-footer__providers small { color: var(--mk-dim); font-size: 11.5px; }
+.mk-footer__roadmap { margin: 12px 0 0; color: var(--mk-dim); font-size: 11.5px; line-height: 1.6; }
+.mk-footer__roadmap a { color: var(--mk-muted); text-decoration: underline; text-underline-offset: 2px; }
+.mk-footer__roadmap a:hover { color: var(--mk-accent); }
 .mk-footer__bottom {
   display: flex;
   flex-wrap: wrap;
@@ -1710,7 +1802,7 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
 @media (max-width: 1180px) {
   .mk-hero__grid { gap: clamp(28px, 3vw, 44px); }
   .mk-footer__top { grid-template-columns: minmax(0, 1.3fr) repeat(2, minmax(0, .9fr)); }
-  .mk-footer__column--google { grid-column: 3; }
+  .mk-footer__column--providers { grid-column: 3; }
 }
 
 @media (max-width: 1100px) {
@@ -1732,6 +1824,7 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
   .mk-hero__grid { grid-template-columns: minmax(0, 1fr); }
   .mk-hero h1 { max-width: 20ch; }
   .mk-google__inner { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  .mk-provider-board__groups { grid-template-columns: minmax(0, 1fr); }
   .mk-control__grid { grid-template-columns: minmax(0, 1fr); gap: 32px; }
   .mk-faq__layout { grid-template-columns: minmax(0, 1fr); gap: 26px; }
   .mk-faq__heading { position: static; }
@@ -1749,7 +1842,7 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
   .mk-difference__intro { grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
   .mk-difference__aside { margin: 0; }
   .mk-footer__top { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr); }
-  .mk-footer__column--google { grid-column: 1 / -1; }
+  .mk-footer__column--providers { grid-column: 1 / -1; }
 }
 
 /* --------------------------------------------------------------- mobile ----
@@ -2050,3 +2143,10 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
   .mk-index__label, .mk-index__tick { transition: none; }
 }
 
+
+/* Editing limits on the trust page: the same list the workspace shows before you ask. */
+.mk-trust__limits { margin: 18px 0 6px; border: 1px solid var(--mk-line); border-radius: var(--mk-r-md); padding: 18px 20px; background: rgba(var(--mk-text-rgb), .02); }
+.mk-trust__limits h3 { margin: 0 0 6px; font-size: 14.5px; letter-spacing: -.01em; }
+.mk-trust__limits p { margin: 0 0 10px; font-size: 14px; color: var(--mk-muted); }
+.mk-trust__limits ul { margin: 0; padding-left: 18px; display: grid; gap: 8px; font-size: 14px; line-height: 1.6; }
+.mk-trust__limits strong { color: var(--mk-text); }

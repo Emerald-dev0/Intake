@@ -11,6 +11,11 @@ Signing in with an email, or any future social login, does **not** grant Forms a
 
 This layer stores authorization. It does not create, edit, or pretend to create forms. The form engine in `server/forms/` does that, using this layer and nothing else for credentials.
 
+Google Forms and Typeform are the providers that can create forms today; Microsoft records identity
+only, because no supported Forms API exists. The public roadmap (SurveyMonkey, Google Sheets, Jira,
+n8n) is maintained in [`../../docs/PROVIDERS.md`](../../docs/PROVIDERS.md), together with the checklist
+a new provider has to clear before it may be described as live anywhere on the site.
+
 ## Flow
 
 1. An authenticated user opens **Connections**.
@@ -62,6 +67,8 @@ See `apps/landing/.env.example`. Do not commit real values. Empty variables mean
 | --- | --- | --- |
 | `GOOGLE_OAUTH_CLIENT_ID` | For Google connect | Web client id from Google Cloud |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | For Google connect | Web client secret |
+| `TYPEFORM_OAUTH_CLIENT_ID` | For Typeform connect | Client id from a Typeform app (`admin.typeform.com/tool/app`) |
+| `TYPEFORM_OAUTH_CLIENT_SECRET` | For Typeform connect | Typeform app client secret |
 | `MICROSOFT_OAUTH_CLIENT_ID` | For Microsoft connect | Entra application (client) id |
 | `MICROSOFT_OAUTH_CLIENT_SECRET` | For Microsoft connect | Entra client secret |
 | `MICROSOFT_OAUTH_TENANT` | No | `common` (default), `organizations`, `consumers`, or a tenant GUID |
@@ -72,7 +79,41 @@ See `apps/landing/.env.example`. Do not commit real values. Empty variables mean
 Redirect URIs to register, with no trailing slash on the origin:
 
 - `{BETTER_AUTH_URL}/api/providers/google/callback`
+- `{BETTER_AUTH_URL}/api/providers/typeform/callback`
 - `{BETTER_AUTH_URL}/api/providers/microsoft/callback`
+
+Typeform requests `accounts:read` (read `GET /me` so the connection can show which account it is),
+`forms:read` (import and inspect an existing Typeform), `forms:write` (create one) and `offline`.
+`offline` is not a permission: Typeform only issues a refresh token when it is requested, and its
+access tokens last one week, so omitting it would make every connection expire. Typeform does not
+expose a token-revocation endpoint to third-party apps, so disconnecting deletes Intake's stored
+grant and tells the user to remove the app from their Typeform account; Intake never claims a
+revocation it did not perform.
+
+The Typeform flow is plain OAuth 2.0 as Typeform documents it — `client_id`, `redirect_uri`, `scope`,
+`state`, then a code exchange with `client_id`/`client_secret`/`redirect_uri`. Intake therefore sends
+**no** PKCE challenge or OIDC `nonce` to Typeform (`pkce: false`, `oidcNonce: false` in the registry),
+and sends no `code_verifier`. Google and Microsoft still use both. A token response with no `scope`
+field is accepted, because Typeform documents no such field; the requested scopes are stored instead.
+
+## Typeform setup (manual)
+
+1. Sign in at `https://admin.typeform.com/`. In the organization drop-down (top left) choose
+   **Developer Apps** → **Register a new app**.
+2. App name `Intake`, app website your production origin, and **Redirect URI(s)** exactly
+   `{BETTER_AUTH_URL}/api/providers/typeform/callback`. Register the app.
+3. Copy the **client ID**, and copy the **client secret** from the one-time dialog (regenerate it if
+   you missed it) into `TYPEFORM_OAUTH_CLIENT_ID` / `TYPEFORM_OAUTH_CLIENT_SECRET` on the API service.
+   Never in a `VITE_` variable and never in git.
+4. Restart the API. The Connections page stops showing "Setup required" for Typeform.
+5. Sign in to Intake, open **Connections**, press **Connect Typeform**, and approve the consent screen.
+   Intake reads `GET /me` to label the account, then stores the encrypted access and refresh tokens.
+
+EU data-residency accounts are handled without configuration: the API client walks `api.typeform.eu`
+(for `eu_` tokens) and `api.eu.typeform.com` (for `tfp_` tokens) ahead of `api.typeform.com`.
+
+Scopes requested: `accounts:read`, `forms:read`, `forms:write`, `offline`. Intake never requests
+`responses:*`, `webhooks:*`, `workspaces:*`, `themes:*` or `images:*`.
 
 Local development uses `http://localhost:5173`. A cloud preview or production host must use its exact HTTPS origin in `BETTER_AUTH_URL` **and** in the provider console. `localhost` and `127.0.0.1` are different origins. A changed domain requires new redirect URIs and a restart.
 

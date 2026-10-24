@@ -45,8 +45,10 @@ export function buildAuthorizationUrl(input: {
   redirectUri: string;
   scopes: string[];
   state: string;
-  nonce: string;
-  codeChallenge: string;
+  /** OIDC nonce; omitted for providers whose flow is plain OAuth 2.0. */
+  nonce?: string;
+  /** PKCE challenge; omitted for providers that do not accept PKCE. */
+  codeChallenge?: string;
   extraParams?: Record<string, string>;
 }): string {
   const url = new URL(input.endpoint);
@@ -55,9 +57,11 @@ export function buildAuthorizationUrl(input: {
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('scope', input.scopes.join(' '));
   url.searchParams.set('state', input.state);
-  url.searchParams.set('nonce', input.nonce);
-  url.searchParams.set('code_challenge', input.codeChallenge);
-  url.searchParams.set('code_challenge_method', 'S256');
+  if (input.nonce) url.searchParams.set('nonce', input.nonce);
+  if (input.codeChallenge) {
+    url.searchParams.set('code_challenge', input.codeChallenge);
+    url.searchParams.set('code_challenge_method', 'S256');
+  }
   for (const [key, value] of Object.entries(input.extraParams ?? {})) url.searchParams.set(key, value);
   return url.toString();
 }
@@ -67,7 +71,8 @@ export function authorizationCodeBody(input: {
   clientId: string;
   clientSecret: string;
   redirectUri: string;
-  codeVerifier: string;
+  /** Only sent when the authorization request carried a PKCE challenge. */
+  codeVerifier?: string;
 }): URLSearchParams {
   return new URLSearchParams({
     grant_type: 'authorization_code',
@@ -75,7 +80,7 @@ export function authorizationCodeBody(input: {
     client_id: input.clientId,
     client_secret: input.clientSecret,
     redirect_uri: input.redirectUri,
-    code_verifier: input.codeVerifier,
+    ...(input.codeVerifier ? { code_verifier: input.codeVerifier } : {}),
   });
 }
 

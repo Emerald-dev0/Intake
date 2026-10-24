@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import { Navigate, type RouteObject } from 'react-router-dom';
+import { type RouteObject } from 'react-router-dom';
 import { ProtectedLayout } from './layouts/ProtectedLayout';
 import { WorkspaceLayout } from './layouts/WorkspaceLayout';
 
@@ -12,7 +12,6 @@ const LibraryPage = lazy(() => import('./pages/LibraryPage').then(m => ({ defaul
 const AccountPage = lazy(() => import('./pages/AccountPage').then(m => ({ default: m.AccountPage })));
 const VerifyEmailPage = lazy(() => import('./pages/VerifyEmailPage').then(m => ({ default: m.VerifyEmailPage })));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
-const WaitlistPage = lazy(() => import('./WaitlistPage'));
 const PricingPage = lazy(() => import('./pages/PricingPage').then(m => ({ default: m.PricingPage })));
 const VsPage = lazy(() => import('../marketing/MarketingPages').then(m => ({ default: m.VsPage })));
 const TemplatesPage = lazy(() => import('../marketing/MarketingPages').then(m => ({ default: m.TemplatesPage })));
@@ -36,6 +35,7 @@ const AdminSystemPage = lazy(() => import('../admin/AdminPages').then(m => ({ de
 const AdminActivityPage = lazy(() => import('../admin/AdminPages').then(m => ({ default: m.AdminActivityPage })));
 const AdminAnalyticsPage = lazy(() => import('../admin/AdminPages').then(m => ({ default: m.AdminAnalyticsPage })));
 const AdminWaitlistPage = lazy(() => import('../admin/AdminWaitlistPage'));
+const AdminMailPage = lazy(() => import('../admin/AdminMailPage'));
 function NotFoundPage() {
   return <main className="workspace-status"><h1>Page not found</h1><a href="/">Back to Intake</a></main>;
 }
@@ -51,8 +51,7 @@ export const routes: RouteObject[] = [
   { path: '/privacy', element: <PrivacyPage /> },
   { path: '/terms', element: <TermsPage /> },
   { path: '/auth/sign-in', element: <AuthPage key="sign-in" /> },
-  { path: '/auth/sign-up', element: <Navigate to="/auth/sign-in" replace /> },
-  { path: '/waitlist', element: <WaitlistPage /> },
+  { path: '/auth/sign-up', element: <AuthPage key="sign-up" signUp /> },
   { path: '/auth/verify', element: <VerifyEmailPage /> },
   { path: '/auth/reset-password', element: <ResetPasswordPage /> },
   { path: '/admin', element: <AdminGate />, children: [
@@ -65,6 +64,7 @@ export const routes: RouteObject[] = [
       { path: 'forms', element: <AdminFormsPage /> },
       { path: 'providers', element: <AdminProvidersPage /> },
       { path: 'email', element: <AdminEmailPage /> },
+      { path: 'mail', element: <AdminMailPage /> },
       { path: 'waitlist', element: <AdminWaitlistPage /> },
       { path: 'system', element: <AdminSystemPage /> },
       { path: 'activity', element: <AdminActivityPage /> },

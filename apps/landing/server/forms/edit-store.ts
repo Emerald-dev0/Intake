@@ -1,4 +1,5 @@
 import type { FormEditPlan, FormEditResult, FormEditSnapshot } from '../../src/lib/form-edit';
+import type { FormProvider } from '../../src/lib/connections';
 
 export type StoredEditStatus = 'ready' | 'applying' | 'applied' | 'blocked' | 'stale';
 
@@ -6,7 +7,7 @@ export type StoredEditStatus = 'ready' | 'applying' | 'applied' | 'blocked' | 's
 export interface FormEditDraftRecord {
   id: string;
   userId: string;
-  provider: 'google';
+  provider: FormProvider;
   version: number;
   status: StoredEditStatus;
   providerFormId: string;

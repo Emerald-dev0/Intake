@@ -36,13 +36,16 @@ globalThis.location = dom.window.location;
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 test('all public and protected paths have explicit ownership', () => {
-  for (const path of ['/', '/auth/sign-in', '/auth/sign-up', '/waitlist', '/app', '/app/connections', '/app/forms', '/app/library', '/app/account']) {
+  for (const path of ['/', '/auth/sign-in', '/auth/sign-up', '/app', '/app/connections', '/app/forms', '/app/library', '/app/account']) {
     const matches = matchRoutes(routes, path);
     assert.ok(matches);
     assert.notEqual(matches.at(-1).route.path, '*');
     assert.equal(matches.some(m => m.route.path === '/app'), path.startsWith('/app'));
   }
   assert.equal(matchRoutes(routes, '/application').at(-1).route.path, '*');
+  // Signup is the public action; the wait-list gate was removed and must not creep back in.
+  assert.equal(matchRoutes(routes, '/waitlist').at(-1).route.path, '*', 'no public wait-list route');
+  assert.equal(matchRoutes(routes, '/wait-list').at(-1).route.path, '*');
   assert.equal(matchRoutes(routes, '/app/forms').at(-1).route.path, 'forms', 'the forms page has its own protected route');
   assert.equal(matchRoutes(routes, '/app/forms')[0].route.path, '/app');
   assert.equal(matchRoutes(routes, '/admin')[0].route.path, '/admin');
@@ -68,12 +71,12 @@ test('public auth pages and protected pages render with shared authentication en
     for (const [path, status, expected] of [
       ['/', 200, 'Tell Intake what you need.'],
       ['/auth/sign-in', 503, 'Welcome back'],
-      ['/auth/sign-up', 503, 'Less busywork.'],
+      ['/auth/sign-up', 503, 'Create your account'],
       ['/app', 200, 'What do you need'],
-      ['/app/connections', 200, 'Your forms stay'],
-      ['/app/forms', 200, 'What should your form ask?'],
-      ['/app/library', 200, 'Your Forms'],
-      ['/app/account', 200, 'Your account.'],
+      ['/app/connections', 200, 'Connections'],
+      ['/app/forms', 200, 'Describe it'],
+      ['/app/library', 200, 'Your forms'],
+      ['/app/account', 200, 'Your account'],
       ['/app', 401, 'Welcome back'],
       ['/app/connections', 401, 'Welcome back'],
       ['/app/forms', 401, 'Welcome back'],

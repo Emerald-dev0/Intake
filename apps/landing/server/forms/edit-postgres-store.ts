@@ -1,9 +1,10 @@
 import type { Pool } from 'pg';
 import type { FormEditPlan, FormEditResult, FormEditSnapshot } from '../../src/lib/form-edit';
 import type { FormEditDraftRecord, FormEditDraftStore, StoredEditStatus } from './edit-store';
+import type { FormProvider } from '../../src/lib/connections';
 
 interface Row {
-  id: string; user_id: string; provider: 'google'; version: number; status: StoredEditStatus;
+  id: string; user_id: string; provider: FormProvider; version: number; status: StoredEditStatus;
   provider_form_id: string; form_record_id: string | null; external_account_id: string;
   current_form: FormEditSnapshot; edit_plan: FormEditPlan; result: FormEditResult | null; created_at: Date; updated_at: Date;
 }

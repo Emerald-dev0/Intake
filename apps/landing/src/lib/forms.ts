@@ -4,7 +4,7 @@
  * The server builds these shapes; the browser parses them defensively before rendering. The shared
  * specification types live in lib/specification.ts; only the server validates and acts on them.
  */
-import { isProviderId, type ProviderId } from './connections';
+import { isProviderId, type FormProvider, type ProviderId } from './connections';
 
 export const FORM_STAGES = ['connection', 'create', 'add_questions', 'configure_logic', 'publish'] as const;
 export type FormStage = (typeof FORM_STAGES)[number];
@@ -340,16 +340,22 @@ function outcomeHeading(outcome: FormOutcome | undefined): string {
 }
 
 /** How the workspace presents a failure. The wording itself comes from the server so it stays in one place. */
-export function describeFailure(failure: FormFailure): { tone: 'warn' | 'bad'; heading: string; action: FailureAction } {
+/**
+ * Provider-aware headline. Defaults to Google so existing call sites (and the failure contract
+ * tests) keep their exact wording; a Typeform draft says Typeform instead.
+ */
+export function describeFailure(failure: FormFailure, provider?: FormProvider | null): { tone: 'warn' | 'bad'; heading: string; action: FailureAction } {
+  const label = provider === 'typeform' ? 'Typeform' : 'Google Forms';
+  const account = provider === 'typeform' ? 'Typeform' : 'Google';
   switch (failure.code) {
     case 'provider_not_connected':
-      return { tone: 'warn', heading: 'Google is not connected', action: 'connect' };
+      return { tone: 'warn', heading: `${account} is not connected`, action: 'connect' };
     case 'provider_reauthorization_required':
-      return { tone: 'warn', heading: 'Google authorization needs renewing', action: 'reconnect' };
+      return { tone: 'warn', heading: `${account} authorization needs renewing`, action: 'reconnect' };
     case 'validation_failed':
       return { tone: 'warn', heading: 'The specification is not valid', action: null };
     case 'unsupported_by_provider':
-      return { tone: 'warn', heading: 'Google Forms cannot express this form as written', action: null };
+      return { tone: 'warn', heading: `${label} cannot express this form as written`, action: null };
     case 'provider_not_supported':
       return { tone: 'warn', heading: 'Creation is not available for this provider yet', action: null };
     case 'model_not_configured':
