@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import { Navigate, type RouteObject } from 'react-router-dom';
+import { type RouteObject } from 'react-router-dom';
 import { ProtectedLayout } from './layouts/ProtectedLayout';
 import { WorkspaceLayout } from './layouts/WorkspaceLayout';
 
@@ -51,9 +51,7 @@ export const routes: RouteObject[] = [
   { path: '/privacy', element: <PrivacyPage /> },
   { path: '/terms', element: <TermsPage /> },
   { path: '/auth/sign-in', element: <AuthPage key="sign-in" /> },
-  // New accounts open through the wait-list, so the sign-up entry never shows a sign-in form to
-  // somebody who has no account yet.
-  { path: '/auth/sign-up', element: <Navigate to="/waitlist" replace /> },
+  { path: '/auth/sign-up', element: <AuthPage key="sign-up" signUp /> },
   { path: '/waitlist', element: <WaitlistPage /> },
   { path: '/auth/verify', element: <VerifyEmailPage /> },
   { path: '/auth/reset-password', element: <ResetPasswordPage /> },

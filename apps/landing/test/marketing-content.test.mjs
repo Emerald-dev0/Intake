@@ -94,12 +94,12 @@ test('the public documents name both creation targets and carry their marks', as
   const fallback = html.match(/<noscript>([\s\S]*?)<\/noscript>/)?.[1] ?? '';
 
   // Metadata: a crawler that never runs JavaScript still learns there are two targets.
-  assert.match(html, /<title>[^<]*Google Forms and Typeform[^<]*<\/title>/);
-  assert.match(html, /<meta property="og:title" content="[^"]*Google Forms and Typeform[^"]*"/);
-  assert.match(html, /<meta name="description" content="[^"]*Google Forms or Typeform[^"]*"/);
+  assert.match(html, /<title>[^<]*Google Forms, Typeform and more[^<]*<\/title>/);
+  assert.match(html, /<meta property="og:title" content="[^"]*Google Forms, Typeform and more[^"]*"/);
+  assert.match(html, /<meta name="description" content="[^"]*Google Forms or Typeform today[^"]*"/);
   const structured = JSON.parse(html.match(/<script id="intake-structured-data" type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
   const app = structured['@graph'].find(node => node['@type'] === 'SoftwareApplication');
-  assert.match(app.name, /Google Forms and Typeform/);
+  assert.match(app.name, /Google Forms, Typeform and more/);
   assert.ok(app.featureList.some(item => /Typeform/.test(item)), 'the feature list mentions Typeform');
 
   // The no-script document shows the two marks with their real colours, not a text-only claim.
@@ -109,7 +109,8 @@ test('the public documents name both creation targets and carry their marks', as
   assert.match(fallback, /Typeform · create and import/);
 
   // llms.txt states the split honestly: creation in both, in-place editing in Google only.
-  assert.match(llms, /Google Forms and Typeform/);
+  assert.match(llms, /Google Forms, Typeform and more/);
+  assert.match(llms, /SurveyMonkey, Google Sheets, Jira, n8n/, 'the roadmap is stated as planned, not as support');
   assert.match(llms, /Typeform creation and import are supported, Typeform editing is not yet/);
   assert.match(llms, /accounts:read, forms:read, forms:write, offline/);
 });

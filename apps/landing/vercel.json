@@ -19,18 +19,19 @@
     {
       "src": "/api(?:/(.*))?$",
       "dest": "${BACKEND_URL}/api/$1",
-      "env": ["BACKEND_URL"],
-      "headers": { "Cache-Control": "no-store" }
-    },
-    {
-      "src": "/auth/sign-up/?$",
-      "status": 307,
-      "headers": { "Location": "/waitlist", "Cache-Control": "no-store" }
+      "env": [
+        "BACKEND_URL"
+      ],
+      "headers": {
+        "Cache-Control": "no-store"
+      }
     },
     {
       "src": "/((?:app|admin|auth)(?:/|$).*)",
       "dest": "/private.html",
-      "headers": { "X-Robots-Tag": "noindex, nofollow" }
+      "headers": {
+        "X-Robots-Tag": "noindex, nofollow"
+      }
     },
     {
       "src": "/pricing/?$",
@@ -40,7 +41,9 @@
       "src": "/waitlist/?$",
       "dest": "/waitlist.html"
     },
-    { "handle": "filesystem" },
+    {
+      "handle": "filesystem"
+    },
     {
       "src": "/((?!api(?:/|$)).*)",
       "dest": "/index.html"

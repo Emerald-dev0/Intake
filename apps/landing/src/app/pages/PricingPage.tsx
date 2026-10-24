@@ -69,7 +69,7 @@ export function PricingPage() {
           <h2 id="free-plan-title">{PLAN_CATALOG.free.label}</h2>
           <p className="pricing-plan-description">Everything you need to build forms from a sentence.</p>
           <p className="pricing-amount"><strong>$0</strong><span>forever</span></p>
-          <a className="btn btn-ghost pricing-plan-action" href={authenticated ? '/app' : '/waitlist'}>{authenticated ? 'Open Intake' : 'Join the wait-list'} <span aria-hidden>→</span></a>
+          <a className="btn btn-ghost pricing-plan-action" href={authenticated ? '/app' : '/auth/sign-up'}>{authenticated ? 'Open Intake' : 'Sign up free'} <span aria-hidden>→</span></a>
           <p className="pricing-no-card">No card needed · Free forever</p>
           <ul>{freeFeatures.map(feature => <li key={feature}>{feature}</li>)}</ul>
         </article>
@@ -90,7 +90,7 @@ export function PricingPage() {
             <p className="pricing-amount" aria-live="polite" aria-atomic="true"><strong>Coming soon</strong><span> · {formatUsd(amount)}/{cadence === 'month' ? 'month' : 'year'} at launch</span></p>
           )}
           <div className="pricing-waitlist">
-            <p><strong>Pro is not on sale yet.</strong> Join the waitlist and you will hear the day it opens.</p>
+            <p><strong>Pro is not on sale yet.</strong> Your free account works today; leave an email and we will tell you the day Pro opens.</p>
             <NotifyForm interest="pro" buttonLabel="Notify me" id="pricing-pro-notify" />
           </div>
           <ul>{proFeatures.map(feature => <li key={feature}>{feature}</li>)}</ul>
@@ -100,7 +100,7 @@ export function PricingPage() {
       {/* Credit Packs */}
       <section className="pricing-credit-packs" aria-labelledby="packs-title">
         <div><span className="info-index">NEED MORE? · COMING SOON</span><h2 id="packs-title">Credit packs</h2></div>
-        <p className="pricing-section-note">Credit packs are not on sale yet. Join the early-access list to hear when Intake opens — packs follow later.</p>
+        <p className="pricing-section-note">Credit packs are not on sale yet. Start on the free plan today — packs follow later, and the daily allowance carries you until they do.</p>
         <div className="pricing-packs-grid">
           {plans.packs.map(pack => (
             <article key={pack.id} className="pricing-pack-card" aria-labelledby={`pack-${pack.id}`}>
@@ -108,8 +108,8 @@ export function PricingPage() {
               <p className="pricing-pack-credits">{pack.credits} credits</p>
               <p className="pricing-pack-price">{formatUsd(pack.priceCents)}</p>
               <p className="pricing-pack-note">Purchased credits never expire.</p>
-              <a className="btn btn-ghost btn-sm" href={authenticated ? '/app' : '/waitlist'}>
-                {authenticated ? 'Coming soon' : 'Join the wait-list'}
+              <a className="btn btn-ghost btn-sm" href={authenticated ? '/app/billing' : '/auth/sign-up'}>
+                {authenticated ? 'Open billing' : 'Sign up free'}
               </a>
             </article>
           ))}

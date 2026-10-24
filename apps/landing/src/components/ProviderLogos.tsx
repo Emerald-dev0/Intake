@@ -2,7 +2,7 @@
  * Provider brand marks for the public pages.
  *
  * The geometry is the providers' own logo shape as redistributed by Simple Icons 16.x under CC0 1.0
- * (`googleforms`, `typeform`). The names and marks remain the property of Google LLC and Typeform
+ * (`googleforms`, `typeform`, and the roadmap marks further down). The names and marks remain the property of Google LLC and Typeform
  * S.L.; they are used here only to identify which accounts Intake can create forms in — never as an
  * endorsement, and never redrawn, recoloured or distorted. `brand` colours are the official hex
  * values; `mono` renders in the surrounding text colour for dense or low-contrast contexts.
@@ -93,5 +93,56 @@ export function ProviderLogoStrip({ className }: { className?: string }) {
         </span>
       </li>
     </ul>
+  );
+}
+
+/**
+ * Roadmap marks: brands Intake does not talk to yet.
+ *
+ * These exist so the provider story is a line, not a closed list — but they are always rendered
+ * `mono` and muted, never in brand colour, and always beside the word "Planned". A brand colour
+ * next to a working provider would read as support that does not exist yet; a monochrome roadmap
+ * chip reads as intent. Geometry from Simple Icons 16.x (CC0 1.0), same source as the live marks.
+ */
+export const PLANNED_PROVIDERS = [
+  { name: 'SurveyMonkey', icon: 'surveymonkey' },
+  { name: 'Google Sheets', icon: 'googlesheets' },
+  { name: 'Jira', icon: 'jira' },
+  { name: 'n8n', icon: 'n8n' },
+] as const;
+
+export type PlannedProviderName = (typeof PLANNED_PROVIDERS)[number]['icon'];
+
+const PLANNED_PATHS: Record<PlannedProviderName, string> = {
+  surveymonkey: 'M21.1627 13.1843a2.8517 2.8517 0 0 0-.6778.0841c-.8438-3.3181-3.5478-5.8376-6.9172-6.4452a8.3933 8.3933 0 0 0-.4407-.0668c.0259-.8255.0636-1.7791 1.2781-2.6369l-.1918-.4838s-2.3708.7349-2.6391 2.7598c-.1175-.5507-1.2209-1.2403-1.7673-1.3707l-.2717.4384s.7242.3621.9009 1.361c-3.3691.6056-6.0743 3.1229-6.9204 6.4398-1.5194-.376-3.056.5508-3.432 2.0703-.376 1.5194.5508 3.056 2.0703 3.432a2.8346 2.8346 0 0 0 1.7195-.1142 8.6821 8.6821 0 0 0 .9203 1.7123l2.3524-1.5852c-.6381-.8071-1.0206-1.9884-1.0873-3.1736-.07-1.2931.2446-2.5755 1.0701-3.3298 1.7016-1.4483 3.5561-.7877 4.7135.6002h.3114c1.1606-1.388 3.0173-2.0475 4.7135-.6002.8244.7543 1.1401 2.0378 1.0701 3.3298-.0656 1.1853-.4481 2.3664-1.0873 3.1736l2.3524 1.5852a8.6854 8.6854 0 0 0 .9224-1.7123c1.4551.5751 3.1009-.1384 3.676-1.5935s-.1384-3.1009-1.5935-3.676a2.8349 2.8349 0 0 0-1.0448-.1983zM2.7861 16.8482a.8362.8362 0 0 1 0-1.6724.8442.8442 0 0 1 .4688.1444c.0071.4391.0369.8776.0894 1.3136-.1472.1346-.3738.2329-.5582.2144zm18.4273 0a.8361.8361 0 0 1-.5582-.2155 12.679 12.679 0 0 0 .0894-1.3136.8352.8352 0 0 1 1.304.6929c.0078.4574-.3823.8581-.8352.8362z',
+  googlesheets: 'M11.318 12.545H7.91v-1.909h3.41v1.91zM14.728 0v6h6l-6-6zm1.363 10.636h-3.41v1.91h3.41v-1.91zm0 3.273h-3.41v1.91h3.41v-1.91zM20.727 6.5v15.864c0 .904-.732 1.636-1.636 1.636H4.909a1.636 1.636 0 0 1-1.636-1.636V1.636C3.273.732 4.005 0 4.909 0h9.318v6.5h6.5zm-3.273 2.773H6.545v7.909h10.91v-7.91zm-6.136 4.636H7.91v1.91h3.41v-1.91z',
+  jira: 'M11.571 11.513H0a5.218 5.218 0 0 0 5.232 5.215h2.13v2.057A5.215 5.215 0 0 0 12.575 24V12.518a1.005 1.005 0 0 0-1.005-1.005zm5.723-5.756H5.736a5.215 5.215 0 0 0 5.215 5.214h2.129v2.058a5.218 5.218 0 0 0 5.215 5.214V6.758a1.001 1.001 0 0 0-1.001-1.001zM23.013 0H11.455a5.215 5.215 0 0 0 5.215 5.215h2.129v2.057A5.215 5.215 0 0 0 24 12.483V1.005A1.001 1.001 0 0 0 23.013 0Z',
+  n8n: 'M21.4737 5.6842c-1.1772 0-2.1663.8051-2.4468 1.8947h-2.8955c-1.235 0-2.289.893-2.492 2.111l-.1038.623a1.263 1.263 0 0 1-1.246 1.0555H11.289c-.2805-1.0896-1.2696-1.8947-2.4468-1.8947s-2.1663.8051-2.4467 1.8947H4.973c-.2805-1.0896-1.2696-1.8947-2.4468-1.8947C1.1311 9.4737 0 10.6047 0 12s1.131 2.5263 2.5263 2.5263c1.1772 0 2.1663-.8051 2.4468-1.8947h1.4223c.2804 1.0896 1.2696 1.8947 2.4467 1.8947 1.1772 0 2.1663-.8051 2.4468-1.8947h1.0008a1.263 1.263 0 0 1 1.2459 1.0555l.1038.623c.203 1.218 1.257 2.111 2.492 2.111h.3692c.2804 1.0895 1.2696 1.8947 2.4468 1.8947 1.3952 0 2.5263-1.131 2.5263-2.5263s-1.131-2.5263-2.5263-2.5263c-1.1772 0-2.1664.805-2.4468 1.8947h-.3692a1.263 1.263 0 0 1-1.246-1.0555l-.1037-.623A2.52 2.52 0 0 0 13.9607 12a2.52 2.52 0 0 0 .821-1.4794l.1038-.623a1.263 1.263 0 0 1 1.2459-1.0555h2.8955c.2805 1.0896 1.2696 1.8947 2.4468 1.8947 1.3952 0 2.5263-1.131 2.5263-2.5263s-1.131-2.5263-2.5263-2.5263m0 1.2632a1.263 1.263 0 0 1 1.2631 1.2631 1.263 1.263 0 0 1-1.2631 1.2632 1.263 1.263 0 0 1-1.2632-1.2632 1.263 1.263 0 0 1 1.2632-1.2631M2.5263 10.7368A1.263 1.263 0 0 1 3.7895 12a1.263 1.263 0 0 1-1.2632 1.2632A1.263 1.263 0 0 1 1.2632 12a1.263 1.263 0 0 1 1.2631-1.2632m6.3158 0A1.263 1.263 0 0 1 10.1053 12a1.263 1.263 0 0 1-1.2632 1.2632A1.263 1.263 0 0 1 7.579 12a1.263 1.263 0 0 1 1.2632-1.2632m10.1053 3.7895a1.263 1.263 0 0 1 1.2631 1.2632 1.263 1.263 0 0 1-1.2631 1.2631 1.263 1.263 0 0 1-1.2632-1.2631 1.263 1.263 0 0 1 1.2632-1.2632',
+};
+
+/** A roadmap mark. Monochrome by construction: there is no `tone` prop to get wrong. */
+export function PlannedProviderLogo({
+  name,
+  size = 16,
+  className,
+}: {
+  name: PlannedProviderName;
+  size?: number | string;
+  className?: string;
+}) {
+  const label = PLANNED_PROVIDERS.find(provider => provider.icon === name)?.name ?? name;
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      role="img"
+      aria-label={label}
+      focusable="false"
+      fill="currentColor"
+    >
+      <path d={PLANNED_PATHS[name]} />
+    </svg>
   );
 }

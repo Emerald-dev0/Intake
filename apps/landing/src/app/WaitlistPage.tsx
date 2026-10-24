@@ -112,7 +112,10 @@ export default function WaitlistPage() {
         <div className="waitlist-hero__copy">
           <p className="waitlist-eyebrow"><span className="waitlist-status-dot" /> THE NEXT CHAPTER STARTS HERE</p>
           <h1 id="waitlist-title">Less busywork.<br /><em>More possibility.</em></h1>
-          <p className="waitlist-hero__lead">A simpler way to collect, organize, and work with information. Starting with AI-assisted forms. Built with you.</p>
+          <p className="waitlist-hero__lead">A simpler way to collect, organize, and work with information. Starting with forms. Built with you.</p>
+          <p className="waitlist-hero__lead waitlist-hero__open">
+            Intake is open — you do not need this list. <a href="/auth/sign-up">Create a free account</a> and build the first form today.
+          </p>
 
           <div className="waitlist-signup" id="join">
             {state === 'joined' ? <div className="waitlist-success" role="status" aria-live="polite">

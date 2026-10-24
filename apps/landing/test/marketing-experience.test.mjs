@@ -141,16 +141,16 @@ test('the pricing page sends Pro to a real next step instead of an unfinished ch
   const page = await renderRoute(t, '/pricing', '.pricing-plan-action');
   const text = page.text();
 
-  // Free has one real action. Pro is not on sale yet, so its next step is a working waitlist form
-  // rather than a checkout that cannot finish.
+  // Free has one real action and it opens a real account. Pro is not on sale yet, so its next step
+  // is a notification list rather than a checkout that cannot finish.
   const actions = [...document.querySelectorAll('.pricing-plan-action')];
   assert.equal(actions.length, 1, 'the free plan has exactly one action');
   assert.equal(actions[0].tagName, 'A');
   assert.equal(document.getElementById('payment-status'), null, 'the old payment notice is gone');
-  assert.equal(actions[0].getAttribute('href'), '/waitlist', 'the free plan follows the same wait-list gate as every other CTA');
+  assert.equal(actions[0].getAttribute('href'), '/auth/sign-up', 'the free plan opens sign-up, like every other CTA');
 
   const proCard = document.querySelector('.pricing-plan-card.is-pro');
-  assert.ok(proCard.querySelector('.pricing-waitlist form'), 'Pro offers a waitlist form, not a dead button');
+  assert.ok(proCard.querySelector('.pricing-waitlist form'), 'Pro offers a notification form, not a dead button');
   assert.match(proCard.textContent, /Pro is not on sale yet\./);
   assert.equal(proCard.querySelector('a.button, a.btn'), null, 'Pro never links to a checkout that does not exist');
 
@@ -185,15 +185,30 @@ test('the homepage shows both provider marks where the promise is made', async (
   for (const svg of strip.querySelectorAll('svg')) assert.equal(svg.getAttribute('aria-hidden'), 'true');
 
   const heroText = document.querySelector('.mk-hero').textContent;
-  assert.match(heroText, /Google Forms or Typeform/, 'the hero lede names both targets');
+  assert.match(heroText, /Google Forms and Typeform today/, 'the hero lede names what works today');
+  assert.match(heroText, /SurveyMonkey, Google Sheets, Jira and n8n/, 'the hero names the queue without claiming it works');
   assert.doesNotMatch(heroText, /creates and edits Google Forms from a plain-English description/, 'the old Google-only promise is gone');
 
-  // Connection section: Intake connects to either account, and says which one can be edited.
+  // Connection section: two providers work, four are labelled planned. A logo alone must never
+  // imply support, so every planned row sits under a PLANNED chip.
   const connection = document.querySelector('#providers');
   assert.ok(connection, 'the connection section exists');
   assert.match(connection.textContent, /Your forms stay in your account/);
-  assert.match(connection.textContent, /Google/);
-  assert.match(connection.textContent, /Typeform/);
-  assert.match(connection.textContent, /editing is next/);
-  assert.equal(connection.querySelectorAll('svg[role="img"], svg[aria-hidden="true"]').length >= 2, true);
+  assert.match(connection.textContent, /Two live now\. More in the queue\./);
+
+  const [live, planned] = connection.querySelectorAll('.mk-provider-board__group');
+  assert.match(live.textContent, /Live today/);
+  assert.equal(live.querySelectorAll('li').length, 2);
+  assert.match(live.textContent, /Google Forms/);
+  assert.match(live.textContent, /Typeform/);
+
+  assert.match(planned.textContent, /Next in line/);
+  assert.match(planned.textContent, /PLANNED/);
+  const plannedNames = [...planned.querySelectorAll('li strong')].map(node => node.textContent);
+  assert.deepEqual(plannedNames, ['SurveyMonkey', 'Google Sheets', 'Jira', 'n8n']);
+  for (const name of plannedNames) assert.ok(planned.textContent.includes(name));
+  // Planned marks are monochrome, so none of them can be mistaken for a supported brand colour.
+  for (const svg of planned.querySelectorAll('svg')) {
+    assert.equal(svg.getAttribute('fill'), 'currentColor', 'planned marks are never brand-coloured');
+  }
 });

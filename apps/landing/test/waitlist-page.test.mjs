@@ -107,11 +107,24 @@ test('a query parameter cannot forge a successful join', async t => {
   assert.equal(view.$('#waitlist-email').value, '');
 });
 
-test('new-account routes lead to the wait-list without touching account creation', async t => {
-  const view = await page(t, undefined, '/auth/sign-up?plan=pro');
-  assert.equal(view.router.state.location.pathname, '/waitlist');
-  assert.equal(document.querySelector('input[type="password"]'), null);
-  assert.equal(view.calls.length, 0);
+test('sign-up is a real account form, not a detour through the wait-list', async t => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async url => {
+    if (url === '/api/analytics/event') return json({ ok: true });
+    assert.match(String(url), /^\/api\/(email\/config|sign-in\/config|auth\/)/, 'account creation does not post to the wait-list');
+    return json({ verificationRequired: false, providers: {} });
+  };
+  const router = createMemoryRouter(routes, { initialEntries: ['/auth/sign-up?plan=pro'] });
+  const root = createRoot(document.getElementById('root'));
+  t.after(async () => { await act(async () => root.unmount()); router.dispose(); globalThis.fetch = original; });
+  await act(async () => root.render(React.createElement(Suspense, { fallback: 'Loading' }, React.createElement(RouterProvider, { router }))));
+  for (let i = 0; i < 50 && !document.querySelector('input[type="password"]'); i++) await act(async () => { await new Promise(resolve => setTimeout(resolve, 10)); });
+
+  assert.equal(router.state.location.pathname, '/auth/sign-up', 'the sign-up URL renders its own page');
+  assert.match(document.querySelector('.auth-card h2')?.textContent ?? '', /Create your account/);
+  assert.ok(document.querySelector('input[type="password"]'), 'a password field means a real account form');
+  // The sign-in page still points at it, so the two halves of the account flow stay connected.
+  assert.equal(document.querySelector('.auth-switch a')?.getAttribute('href'), '/auth/sign-in');
 });
 
 test('pending submissions are disabled and same-tick double submissions make one request', async t => {
@@ -171,10 +184,11 @@ test('static wait-list metadata, routing, fallback, sitemap, and mobile/reduced-
   assert.match(html, /mailto:daniel@intake.calder.click/);
   const routing = JSON.parse(await readFile('vercel.json', 'utf8'));
   assert.ok(routing.routes.some(rule => rule.dest === '/waitlist.html'));
-  const redirect = routing.routes.find(rule => rule.src === '/auth/sign-up/?$');
-  assert.equal(redirect.status, 307);
-  assert.equal(redirect.headers.Location, '/waitlist');
-  assert.match(await readFile('dist/sitemap.xml', 'utf8'), /\/waitlist<\/loc>/);
+  // Sign-up is public and served by the app: no routing rule may bounce it to the wait-list.
+  assert.equal(routing.routes.find(rule => rule.src === '/auth/sign-up/?$'), undefined);
+  assert.ok(routing.routes.some(rule => rule.src === '/((?:app|admin|auth)(?:/|$).*)'), 'auth pages still use the private document');
+  // The wait-list page still exists for old links, but it is no longer advertised to crawlers.
+  assert.doesNotMatch(await readFile('dist/sitemap.xml', 'utf8'), /\/waitlist<\/loc>/);
   const css = await readFile('src/styles/waitlist.css', 'utf8');
   assert.match(css, /@media \(max-width: 560px\)/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);

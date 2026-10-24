@@ -16,9 +16,9 @@ test('public marketing and pricing CTAs route signed-in visitors to the app', as
   const original = globalThis.fetch;
   const cases = [
     ['/', 200, '.mk-header__actions .mk-button--nav', '/app'],
-    ['/', 401, '.mk-header__actions .mk-button--nav', '/waitlist'],
+    ['/', 401, '.mk-header__actions .mk-button--nav', '/auth/sign-up'],
     ['/pricing', 200, '.pricing-plan-card a.pricing-plan-action', '/app'],
-    ['/pricing', 401, '.pricing-plan-card a.pricing-plan-action', '/waitlist'],
+    ['/pricing', 401, '.pricing-plan-card a.pricing-plan-action', '/auth/sign-up'],
   ];
   try {
     for (const [path, status, selector, expectedHref] of cases) {

@@ -32,19 +32,20 @@ function structuredData(siteUrl: string): string {
       {
         '@type': 'SoftwareApplication',
         '@id': `${siteUrl}/#software`,
-        name: 'Intake, AI form builder for Google Forms and Typeform',
+        name: 'Intake, AI form builder for Google Forms, Typeform and more',
         alternateName: ['Intake by Calder', SITE_NAME],
         url: `${siteUrl}/`,
         description: PRODUCT_DESCRIPTION,
         applicationCategory: 'BusinessApplication',
-        applicationSubCategory: 'Google Forms and Typeform creation from a written description, with in-place Google Forms editing',
+        applicationSubCategory: 'Form creation from a written description in the provider the user connects, with in-place editing of forms they already own',
         inLanguage: 'en',
         offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD', description: 'Free plan with 20 daily credits. No card needed.' },
         featureList: [
           'Create a Google Form or Typeform from a plain-English description',
           'Review and change the proposed questions before anything is created',
-          'Propose and review changes to a Google Form you already have',
+          'Propose and review changes to a form you already own',
           'Keep every form you make or import in a private library',
+          'Planned next: SurveyMonkey, Google Sheets, Jira, n8n',
         ],
         creator: { '@id': creatorId },
         author: { '@id': creatorId },
@@ -70,7 +71,7 @@ function structuredData(siteUrl: string): string {
         '@type': 'WebSite',
         '@id': `${siteUrl}/#website`,
         url: `${siteUrl}/`,
-        name: 'Intake, AI form builder for Google Forms and Typeform',
+        name: 'Intake, AI form builder for Google Forms, Typeform and more',
         alternateName: 'Intake by Calder',
         description: META_DESCRIPTION,
         publisher: { '@id': `${siteUrl}/#organization` },
@@ -109,7 +110,8 @@ function providerLogos(): string {
   return `<div class="seo-fallback__providers">
       <span>${FALLBACK_LOGOS.google} Google Forms · create and edit</span>
       <span>${FALLBACK_LOGOS.typeform} Typeform · create and import</span>
-    </div>`;
+    </div>
+    <p class="seo-fallback__roadmap"><strong>Next in line, not live yet:</strong> SurveyMonkey, Google Sheets, Jira, n8n. Each one ships as a real connection with its own narrow permissions, in the order people ask for them.</p>`;
 }
 
 function noScriptContent(): string {
@@ -133,8 +135,8 @@ function noScriptContent(): string {
     </section>
     <section aria-labelledby="fallback-product">
       <h2 id="fallback-product">Three things the others do not do.</h2>
-      <p><strong>Not another form builder.</strong> Intake writes the form, you approve it, and Google Forms or Typeform hosts it — your account, your links, your responses.</p>
-      <p>Describe what you want to collect in a sentence. Intake turns it into a full list of questions, you adjust anything that does not fit, and the form is created in the Google Forms or Typeform account you chose.</p>
+      <p><strong>Not another form builder.</strong> Intake writes the form, you approve it, and your own provider hosts it — your account, your links, your responses. Google Forms and Typeform work today; the next providers are already chosen and labelled as planned until they work.</p>
+      <p>Describe what you want to collect in a sentence. Intake turns it into a full list of questions, you adjust anything that does not fit, and the form is created in the account you connected.</p>
       <p>Editing works the same way for Google Forms: point Intake at a form you already have, describe the change, and confirm it once the proposal looks right. Typeform creation and import work today; editing a Typeform is the next step, and Intake says so instead of pretending otherwise.</p>
     </section>
     <section aria-labelledby="fallback-how">
@@ -144,7 +146,7 @@ function noScriptContent(): string {
     <section aria-labelledby="fallback-pricing">
       <h2 id="fallback-pricing">Plans and pricing</h2>
       <h3>Free · $0</h3>
-      <p>${PLAN_CATALOG.free.dailyCredits} credits every day, form creation in Google Forms or Typeform from a description, editing for the Google Forms you already have, a library of everything you make, and a review step before anything is applied.</p>
+      <p>${PLAN_CATALOG.free.dailyCredits} credits every day, form creation in the provider you connect from a description, editing for the forms you already own, a library of everything you make, and a review step before anything is applied.</p>
       <h3>Pro · opens later</h3>
       <p>Pro is not on sale yet. When it opens at ${escapeHtml(proMonthly)} per month or ${escapeHtml(proAnnual)} per year, it will add ${PLAN_CATALOG.pro.monthlyCredits} monthly credits on top of the ${PLAN_CATALOG.pro.dailyCredits} daily credits, with every workflow from Free unchanged.</p>
     </section>
@@ -225,13 +227,13 @@ function pricingNoScriptContent(): string {
     <section aria-labelledby="pricing-fallback-title">
       <h1 id="pricing-fallback-title">Intake plans and pricing</h1>
       <h2>Free · $0</h2>
-      <p>${PLAN_CATALOG.free.dailyCredits} credits every day, refreshed at 00:00 UTC, with the full Google Forms creation and editing workflow.</p>
+      <p>${PLAN_CATALOG.free.dailyCredits} credits every day, refreshed at 00:00 UTC, with the full create-and-edit workflow in the provider you connect.</p>
       <h2>Pro · Coming soon</h2>
       <p>Pro is not on sale yet. When it opens at ${escapeHtml(proMonthly)} per month or ${escapeHtml(proAnnual)} per year, it will add ${PLAN_CATALOG.pro.monthlyCredits} monthly credits on top of the ${PLAN_CATALOG.pro.dailyCredits} daily credits. Paying annually would save ${escapeHtml(annualSavings)} compared with twelve monthly payments, and unused credits do not roll over.</p>
       <p>Start with a free account; Pro opens to existing accounts first and can be switched on from your account page. Google’s own limits apply the same way on both plans.</p>
     </section>
     <section id="faq" aria-labelledby="pricing-fallback-faq"><h2 id="pricing-fallback-faq">Pricing questions</h2>${faq}</section>
-    <footer><a href="/waitlist">Join the wait-list</a> · <a href="/">Back to Intake</a></footer>
+    <footer><a href="/auth/sign-up">Sign up free</a> · <a href="/">Back to Intake</a></footer>
   </main>`;
 }
 
@@ -291,7 +293,7 @@ function robotsDocument(siteUrl: string): string {
   ].join('\n');
 }
 
-const SITEMAP_PATHS = ['/', '/waitlist', '/pricing', '/privacy', '/terms', '/vs', '/templates', '/guides', '/trust', '/changelog'];
+const SITEMAP_PATHS = ['/', '/pricing', '/privacy', '/terms', '/vs', '/templates', '/guides', '/trust', '/changelog'];
 
 function sitemapDocument(siteUrl: string): string {
   const urls = SITEMAP_PATHS.map(path => [
@@ -311,18 +313,17 @@ function sitemapDocument(siteUrl: string): string {
 /** A plain-language map of the site for language models and fast human skimming. */
 function llmsDocument(siteUrl: string): string {
   return [
-    '# Intake, AI form builder for Google Forms and Typeform (Intake by Calder)',
+    '# Intake, AI form builder for Google Forms, Typeform and more (Intake by Calder)',
     '',
     `> ${PRODUCT_DESCRIPTION} Free plan includes 20 daily credits.`,
     '',
-    `- Homepage: ${siteUrl}/ — try a prompt with no signup, see the proof, compare, pricing, FAQ`,
+    `- Homepage: ${siteUrl}/ — try a prompt with no signup, see the proof, compare providers, pricing, FAQ`,
     `- Compare: ${siteUrl}/vs — Intake vs Google's built-in AI, Typeform AI, and ChatGPT`,
     `- Templates: ${siteUrl}/templates — stealable prompts for teachers, events, HR, clinics, student orgs`,
-    `- Guides: ${siteUrl}/guides — how to create a Google Form with AI in five steps`,
-    `- Trust: ${siteUrl}/trust — what Intake asks Google for and what it never does`,
+    `- Guides: ${siteUrl}/guides — how to create a form with AI in five steps`,
+    `- Trust: ${siteUrl}/trust — what Intake asks each provider for and what it never does`,
     `- Changelog: ${siteUrl}/changelog — what shipped and what is next`,
-    `- Wait-list: ${siteUrl}/waitlist — join for early access and product updates, no account required`,
-    `- Pricing: ${siteUrl}/pricing — Free forever, Pro coming soon with a waitlist`,
+    `- Pricing: ${siteUrl}/pricing — Free forever, Pro later, no card needed`,
     `- Privacy: ${siteUrl}/privacy — written against Google's API Services User Data Policy`,
     `- Terms: ${siteUrl}/terms`,
     '',
@@ -330,7 +331,9 @@ function llmsDocument(siteUrl: string): string {
     '',
     '- Intake creates real Google Forms and Typeforms in the user’s own account after explicit approval.',
     '- Editing in place applies to Google Forms; Typeform creation and import are supported, Typeform editing is not yet.',
-    '- Intake never reads form responses and never requests Gmail, Drive, Calendar, Contacts, or Sheets scopes.',
+    '- Providers that are planned, not live: SurveyMonkey, Google Sheets, Jira, n8n. They are listed on the homepage under “Next in line” and are never described as working.',
+    '- Every new provider is announced only once its OAuth connection, scope list and creation path work.',
+    '- Intake never reads form responses and never requests Gmail, Drive, Calendar or Contacts scopes. A Sheets scope would only ever be requested by the planned Google Sheets provider, when the user connects it.',
     '- Google scope beyond identity: https://www.googleapis.com/auth/forms.body (create/edit owned forms).',
     '- Typeform scopes: accounts:read, forms:read, forms:write, offline. No responses, webhooks, workspaces, themes or images.',
     '',

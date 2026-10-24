@@ -32,7 +32,7 @@ test('production homepage metadata uses the verified production origin and an ac
   const canonical = html.match(/<link rel="canonical" href="([^"]+)"\s*\/>/)?.[1];
 
   assert.equal(canonical, `${SITE_ORIGIN}/`);
-  assert.match(html, /<title>Intake, AI form builder for Google Forms and Typeform — describe it, review it, done<\/title>/);
+  assert.match(html, /<title>Intake, AI form builder for Google Forms, Typeform and more — describe it, review it, done<\/title>/);
   assert.equal(meta.get('robots'), 'index,follow,max-image-preview:large');
   assert.equal(meta.get('author'), CREATOR_NAME);
   assert.equal(meta.get('og:type'), 'website');
@@ -75,7 +75,7 @@ test('JSON-LD connects Intake to its creator and matches the visible FAQ', async
   assert.ok(website);
   assert.ok(faq);
 
-  assert.equal(software.name, 'Intake, AI form builder for Google Forms and Typeform');
+  assert.equal(software.name, 'Intake, AI form builder for Google Forms, Typeform and more');
   assert.equal(software.offers.price, '0', 'the genuine free plan is the only offer ever marked up');
   assert.equal(software.url, `${SITE_ORIGIN}/`);
   assert.equal(software.creator['@id'], creator['@id']);
@@ -126,7 +126,7 @@ test('robots, sitemap and private document expose only intended public indexable
   }
   assert.ok(robots.split(/\r?\n/).includes(`Sitemap: ${SITE_ORIGIN}/sitemap.xml`));
   const locations = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(([, location]) => location);
-  assert.deepEqual(locations, [`${SITE_ORIGIN}/`, `${SITE_ORIGIN}/waitlist`, `${SITE_ORIGIN}/pricing`, `${SITE_ORIGIN}/privacy`, `${SITE_ORIGIN}/terms`, `${SITE_ORIGIN}/vs`, `${SITE_ORIGIN}/templates`, `${SITE_ORIGIN}/guides`, `${SITE_ORIGIN}/trust`, `${SITE_ORIGIN}/changelog`]);
+  assert.deepEqual(locations, [`${SITE_ORIGIN}/`, `${SITE_ORIGIN}/pricing`, `${SITE_ORIGIN}/privacy`, `${SITE_ORIGIN}/terms`, `${SITE_ORIGIN}/vs`, `${SITE_ORIGIN}/templates`, `${SITE_ORIGIN}/guides`, `${SITE_ORIGIN}/trust`, `${SITE_ORIGIN}/changelog`]);
   for (const path of ['/vs', '/templates', '/guides', '/trust', '/changelog']) {
     assert.ok(llms.includes(`${SITE_ORIGIN}${path}`), `llms.txt must link ${path}`);
   }

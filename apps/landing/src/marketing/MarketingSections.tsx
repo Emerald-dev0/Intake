@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { FAQS, COMPARISON_ROWS, COMING_SOON, HERO_DEMO_PROMPTS, PROOF_EXAMPLE, PROMPT_EXAMPLES, USE_CASES, WORKFLOW_STEPS, type DemoProposal } from '../content/site';
+import { FAQS, COMPARISON_ROWS, COMING_SOON, HERO_DEMO_PROMPTS, LIVE_PROVIDERS, PROOF_EXAMPLE, PROMPT_EXAMPLES, ROADMAP_NOTE, ROADMAP_PROVIDERS, USE_CASES, WORKFLOW_STEPS, type DemoProposal } from '../content/site';
 import { NotifyForm } from './NotifyForm';
 import { formatUsd } from '../lib/plans';
 import { useBillingPlans, comparePlanPrices } from '../lib/useBillingPlans';
 import { LogoMark } from '../components/LogoMark';
-import { GoogleFormsLogo, ProviderLogoStrip, TypeformLogo } from '../components/ProviderLogos';
+import { GoogleFormsLogo, PlannedProviderLogo, ProviderLogoStrip, TypeformLogo } from '../components/ProviderLogos';
 import { StartLink } from './MarketingChrome';
 import { useViewState } from './motion';
 
@@ -187,9 +187,9 @@ function HeroPromptBox({ authenticated }: { authenticated: boolean }) {
           </div>
           <div className="mk-hero-try__cta">
             <StartLink authenticated={authenticated}>
-              {authenticated ? 'Open Intake' : 'Join the wait-list'}
+              {authenticated ? 'Open Intake' : 'Sign up free'}
             </StartLink>
-            <span>Explore the preview now. We’ll email you when early access opens.</span>
+            <span>That was a sample. A free account makes the real thing — no card, 20 credits a day.</span>
           </div>
         </div>
       )}
@@ -422,7 +422,7 @@ export function Hero({ authenticated }: { authenticated: boolean }) {
             <span className="mk-hero__accent mk-anim-in" style={{ '--d': '240ms' } as CSSProperties}>It builds the form for you.</span>
           </h1>
           <p className="mk-hero__lede mk-anim-in" style={{ '--d': '340ms' } as CSSProperties}>
-            Intake turns one plain-English description into a real form — in Google Forms or Typeform. You get the questions first, change whatever you like, and only then does the form appear in the account you chose. The Free plan includes 20 daily credits.
+            Intake turns one plain-English description into a real form in the tool you already use. Google Forms and Typeform today; SurveyMonkey, Google Sheets, Jira and n8n are next in line. You get the questions first, change whatever you like, and only then does anything appear in your account. Free, with 20 credits a day.
           </p>
           <div className="mk-hero__actions mk-anim-in" style={{ '--d': '440ms' } as CSSProperties}>
             <StartLink authenticated={authenticated} />
@@ -434,8 +434,8 @@ export function Hero({ authenticated }: { authenticated: boolean }) {
             Free during launch · {plans.freeDailyCredits} credits daily · Your account, your forms
           </p>
           <div className="mk-hero__facts mk-anim-in" style={{ '--d': '540ms' } as CSSProperties} role="group" aria-label="What Intake does">
-            <span>Real Google Forms or Typeforms</span>
-            <span>Edit the Google Forms you have</span>
+            <span>Real forms in your own account</span>
+            <span>Edit in place, no copies</span>
             <span>Nothing changes until you say so</span>
           </div>
         </div>
@@ -472,7 +472,7 @@ const DIFFERENCES = [
   },
   {
     title: 'The form lives in your own account',
-    text: 'Google Forms or Typeform, whichever you picked: a normal form in your own workspace, with the same links, the same responses tab, the same sharing you already have. Your data never moves to another platform.',
+    text: 'Whichever provider you connected: a normal form in your own workspace, with the same links, the same responses tab, the same sharing you already have. Your data never moves to another platform, and adding a provider later does not change that.',
   },
 ] as const;
 
@@ -552,7 +552,7 @@ export function DifferenceSection() {
       <div className="mk-container">
         <div className="mk-difference__intro">
           <SectionIntro eyebrow="WHY INTAKE" titleId="mk-difference-title" title={<>Three things the others do not do.</>}>
-            Intake does not move your forms somewhere new. It gives you a faster way to make the Google Forms and Typeforms you were always going to make — and to change the Google Forms you already own.
+            Intake does not move your forms somewhere new, and it is not tied to one vendor. It gives you a faster way to make the forms you were always going to make — in Google Forms or Typeform today, in whichever tool joins next — and to change the forms you already own.
           </SectionIntro>
           <Reveal className="mk-difference__aside" as="p" delay={120} variant="fade" fadeOut>
             Build the form you already had in your head, then decide when it is ready.
@@ -564,7 +564,7 @@ export function DifferenceSection() {
             <span className="mk-eyebrow">BY HAND</span>
             <h3>Piece it together.</h3>
             <ol>
-              <li>Open Google Forms</li>
+              <li>Open your form tool</li>
               <li>Add and set up every question</li>
               <li>Sort out sections and answer options</li>
               <li>Do it again whenever something changes</li>
@@ -601,14 +601,14 @@ export function DifferenceSection() {
 /**
  * Head-to-head against the obvious alternatives. Claims stay modest and checkable:
  * native AI drafts inside someone else's product, a chatbot gives text — Intake
- * builds reviewable Google Forms and edits them in place.
+ * builds reviewable forms in the tool you pick and edits the ones you own in place.
  */
 export function CompareSection() {
   return (
     <section className="mk-section mk-compare" id="compare" aria-labelledby="mk-compare-title">
       <div className="mk-container">
         <SectionIntro eyebrow="INTAKE VS THE ALTERNATIVES" titleId="mk-compare-title" title={<>How does it compare?</>}>
-          The alternatives draft text or lock you into their platform. Intake builds the actual Google Form and lets you approve it first.
+          The alternatives draft text or lock you into their platform. Intake builds the actual form in the tool you chose and lets you approve it first.
         </SectionIntro>
         <Reveal variant="rise">
           <div className="mk-compare__scroll">
@@ -750,7 +750,7 @@ export function CreationDemo({ authenticated }: { authenticated: boolean }) {
                   </li>
                 ))}
               </ol>
-              <p className="mk-creation-proposal__foot"><Check /> Happy with it? Confirm and it is created in Google Forms.</p>
+              <p className="mk-creation-proposal__foot"><Check /> Happy with it? Confirm and it is created in the provider you picked.</p>
             </article>
           </Reveal>
         </div>
@@ -840,8 +840,8 @@ export function UseCaseSection({ authenticated }: { authenticated: boolean }) {
                   Use this prompt <Arrow />
                 </Link>
               ) : (
-                <a className="mk-text-link" href="/waitlist">
-                  Join the wait-list <Arrow />
+                <a className="mk-text-link" href="/auth/sign-up">
+                  Sign up free <Arrow />
                 </a>
               )}
             </Reveal>
@@ -870,7 +870,7 @@ const TRUST_ASK = [
 
 const TRUST_NEVER = [
   'Read your form responses',
-  'Touch Gmail, Drive, Calendar, Contacts, or Sheets',
+  'Touch Gmail, Drive, Calendar, or Contacts',
   'Delete a form or change who it is shared with',
   'Train models on your forms or sell your data',
   'Show ads or send marketing email you did not ask for',
@@ -881,7 +881,7 @@ export function TrustSection() {
     <section className="mk-section mk-trust" id="trust" aria-labelledby="mk-trust-title">
       <div className="mk-container">
         <SectionIntro eyebrow="PERMISSIONS, IN PLAIN LANGUAGE" titleId="mk-trust-title" title={<>What Intake asks for, and what it never does.</>}>
-          Each provider gets two permissions and a reason. Everything else on this list is something Intake cannot do — by design, not by promise.
+          Each provider gets the narrowest permission its API allows and a reason. Everything else on this list is something Intake cannot do — by design, not by promise, and that rule does not change as providers are added.
         </SectionIntro>
         <div className="mk-trust__grid">
           <Reveal variant="fade">
@@ -938,23 +938,67 @@ export function ControlSection() {
 export function ProviderConnection({ authenticated }: { authenticated: boolean }) {
   return (
     <section className="mk-google" id="providers" aria-labelledby="mk-google-title">
-      <div className="mk-container mk-google__inner">
-        <Reveal className="mk-google__mark">
-          <div aria-hidden="true">
-            <span className="mk-google__logo"><LogoMark size={22} /> Intake</span>
-            <span className="mk-google__link"><i /><i /><i /></span>
-            <span className="mk-google__targets">
-              <span className="mk-google__logo"><GoogleFormsLogo size={18} /> Google Forms</span>
-              <span className="mk-google__logo"><TypeformLogo height={12} tone="mono" /> Typeform</span>
-            </span>
+      <div className="mk-container">
+        <div className="mk-google__inner">
+          <Reveal className="mk-google__mark">
+            <div aria-hidden="true">
+              <span className="mk-google__logo"><LogoMark size={22} /> Intake</span>
+              <span className="mk-google__link"><i /><i /><i /></span>
+              <span className="mk-google__targets">
+                <span className="mk-google__logo"><GoogleFormsLogo size={18} /> Google Forms</span>
+                <span className="mk-google__logo"><TypeformLogo height={12} tone="mono" /> Typeform</span>
+              </span>
+            </div>
+          </Reveal>
+          <Reveal className="mk-google__copy" delay={110}>
+            <span className="mk-eyebrow">A CONNECTION, NOT A MOVE</span>
+            <h2 id="mk-google-title">Your forms stay in your account.</h2>
+            <p>Sign in to Intake, then connect the tool the form should live in. That provider hosts the page people fill in, the answers go to you, and Intake keeps only what it needs to write the form. Two providers are connected today; the next ones are already chosen.</p>
+          </Reveal>
+          <Reveal className="mk-google__action" delay={200}><StartLink authenticated={authenticated} className="mk-text-link">Sign up free</StartLink></Reveal>
+        </div>
+
+        <Reveal className="mk-provider-board" delay={120}>
+          <div className="mk-provider-board__intro">
+            <span className="mk-eyebrow">PROVIDERS</span>
+            <h3 id="mk-provider-board-title">Two live now. More in the queue.</h3>
+            <p>{ROADMAP_NOTE}</p>
+          </div>
+          <div className="mk-provider-board__groups" aria-labelledby="mk-provider-board-title">
+            <div className="mk-provider-board__group">
+              <h4>Live today <span className="mk-chip mk-chip--quiet">WORKS NOW</span></h4>
+              <ul>
+                {LIVE_PROVIDERS.map(provider => (
+                  <li key={provider.name}>
+                    <span className="mk-provider-board__mark">
+                      {provider.name === 'Google Forms'
+                        ? <GoogleFormsLogo size={18} label={null} />
+                        : <TypeformLogo height={12} label={null} />}
+                    </span>
+                    <span>
+                      <strong>{provider.name}</strong>
+                      <small>{provider.detail}</small>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="mk-provider-board__group mk-provider-board__group--planned">
+              <h4>Next in line <span className="mk-chip">PLANNED</span></h4>
+              <ul>
+                {ROADMAP_PROVIDERS.map(provider => (
+                  <li key={provider.name}>
+                    <span className="mk-provider-board__mark"><PlannedProviderLogo name={provider.icon} size={17} /></span>
+                    <span>
+                      <strong>{provider.name}</strong>
+                      <small>{provider.detail}</small>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </Reveal>
-        <Reveal className="mk-google__copy" delay={110}>
-          <span className="mk-eyebrow">A CONNECTION, NOT A MOVE</span>
-          <h2 id="mk-google-title">Your forms stay in your account.</h2>
-          <p>Sign in to Intake, then connect the account you want the form to live in — Google or Typeform. That provider hosts the page people fill in, the answers go to you, and Intake keeps only the form definitions it needs. Google Forms can also be edited in place; Typeform creation and import work today, editing is next.</p>
-        </Reveal>
-        <Reveal className="mk-google__action" delay={200}><StartLink authenticated={authenticated} className="mk-text-link">Get started</StartLink></Reveal>
       </div>
     </section>
   );
@@ -988,7 +1032,7 @@ export function PricingSection({ authenticated }: { authenticated: boolean }) {
               <p className="mk-price-card__description">Everything you need to build and change forms.</p>
               <p className="mk-price"><strong>$0</strong><span>forever</span></p>
               <StartLink authenticated={authenticated} className="mk-button mk-button--secondary mk-price-card__cta">
-                {authenticated ? 'Open Intake' : 'Join the wait-list'}
+                {authenticated ? 'Open Intake' : 'Sign up free'}
               </StartLink>
               <p className="mk-price-card__fine">No card needed · Free forever</p>
               <ul className="mk-feature-list">
@@ -1082,7 +1126,7 @@ export function FinalCTA({ authenticated }: { authenticated: boolean }) {
         <Reveal variant="rise">
           <span className="mk-eyebrow">YOUR NEXT FORM</span>
           <h2 id="mk-final-title">Write it once. Watch it become a form.</h2>
-          <p>Describe what you need, look it over, and let Intake build it in Google Forms.</p>
+          <p>Describe what you need, look it over, and let Intake build it in the tool your team already works in.</p>
         </Reveal>
         <Reveal delay={140}><StartLink authenticated={authenticated} /></Reveal>
       </div>

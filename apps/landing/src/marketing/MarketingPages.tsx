@@ -86,10 +86,10 @@ export function VsPage() {
     <HubShell
       path="/vs"
       title="Intake vs Typeform AI, Google AI & ChatGPT — AI form builder comparison"
-      description="How Intake compares with Google's built-in AI, Typeform AI, and ChatGPT: one description becomes a real Google Form or Typeform, approval-first, with in-place Google Forms editing."
+      description="How Intake compares with Google's built-in AI, Typeform AI, and ChatGPT: one description becomes a real form in the tool you choose, approval-first, with in-place editing for the forms you own."
       eyebrow="INTAKE VS THE ALTERNATIVES"
       heading={<>Intake vs Typeform AI, Google AI, and ChatGPT.</>}
-      lede="The alternatives draft text or lock you into one platform. Intake builds the actual form — in Google Forms or Typeform, whichever you choose — shows you every question first, and edits your existing Google Forms without making copies."
+      lede="The alternatives draft text or lock you into one platform. Intake builds the actual form — in Google Forms or Typeform today, in whichever tool joins next — shows you every question first, and edits your existing forms without making copies."
     >
       <section className="mk-section" aria-label="Comparison table">
         <div className="mk-container"><CompareTable /></div>
@@ -106,7 +106,7 @@ export function VsPage() {
           </Reveal>
           <Reveal variant="fade">
             <h2>Intake vs just asking ChatGPT</h2>
-            <p>A chatbot writes question text you then retype into Google Forms or Typeform field by field — including every choice, section, and required toggle. Intake skips the transcription: the proposal becomes the form with one confirmation, and follow-up changes (“make email optional”) apply to the live Google Form instead of starting over.</p>
+            <p>A chatbot writes question text you then retype into Google Forms or Typeform field by field — including every choice, section, and required toggle. Intake skips the transcription: the proposal becomes the form with one confirmation, and follow-up changes (“make email optional”) apply to the live form instead of starting over.</p>
           </Reveal>
           <p className="mk-hub-updated">Updated October 2026. Capabilities change; the approval-first workflow does not.</p>
         </div>
@@ -157,7 +157,7 @@ export function TemplatesPage() {
                   {authenticated ? (
                     <Link className="mk-text-link" to="/app/forms" state={{ initialPrompt: useCase.prompt }}>Use it now <Arrow /></Link>
                   ) : (
-                    <a className="mk-text-link" href="/waitlist">Join the wait-list <Arrow /></a>
+                    <a className="mk-text-link" href="/auth/sign-up">Sign up free <Arrow /></a>
                   )}
                 </div>
               </Reveal>
@@ -174,7 +174,7 @@ const GUIDE_STEPS = [
   'Write one description of what the form should collect — who answers, what you need to know, anything required.',
   'Read Intake’s proposed question list. Check types, choices, and required flags the way you would proofread.',
   'Ask for changes in plain words until the proposal matches what you had in mind.',
-  'Confirm once. Intake creates the form in the account you connected — Google Forms or Typeform — with the same links and responses tab you already use.',
+  'Confirm once. Intake creates the form in the account you connected — Google Forms or Typeform today — with the same links and responses tab you already use.',
   'Share the link. Answers land in that provider; Intake never sees them.',
 ] as const;
 
@@ -200,7 +200,7 @@ export function GuidesPage() {
           </ol>
           <Reveal variant="fade">
             <h2>Editing works the same way</h2>
-            <p>Point Intake at a form you already have and describe the change — “make email optional, then move phone below it”. Intake reads the live form, proposes the edit, and updates that same form once you confirm. No second copy, ever.</p>
+            <p>Point Intake at a Google Form you already have and describe the change — “make email optional, then move phone below it”. Intake reads the live form, proposes the edit, and updates that same form once you confirm. No second copy, ever. Typeform creation and import work today; editing a Typeform is the next step.</p>
             <h2>What it costs</h2>
             <p>A standard form is about 2 credits and a simple edit is 1. The Free plan renews 20 credits daily at no cost and no card, so the guide above is free to follow every day.</p>
             <p className="mk-hub-updated">Updated October 2026.</p>
@@ -227,8 +227,8 @@ export function TrustPage() {
   return (
     <HubShell
       path="/trust"
-      title="Trust & permissions — what Intake asks Google for | Intake"
-      description="Intake asks for your identity to sign in and forms.body to build forms — nothing else. No Gmail, Drive, or response access. Full details and the privacy policy."
+      title="Trust & permissions — what Intake asks for | Intake"
+      description="Intake asks for your identity to sign in, then the narrowest scope each provider allows — nothing else. No Gmail, Drive, or response access, for any provider, now or later."
       eyebrow="TRUST & PERMISSIONS"
       heading={<>Your forms, your account, your responses.</>}
       lede="Two permissions, each with a reason. Intake cannot read your responses, touch your Gmail or Drive, or move your data anywhere — by design, not by promise."
@@ -244,8 +244,10 @@ export function TrustPage() {
             </ul>
           </Reveal>
           <Reveal variant="fade">
+            <h2>What happens when a provider is added</h2>
+            <p>Each new provider gets its own connection, its own narrow scope list, and its own entry on this page before it appears as live anywhere on the site. A logo in the roadmap is not a connection: planned providers are labelled planned until the OAuth flow, the scope list, and the creation path actually work.</p>
             <h2>What happens to your data</h2>
-            <p>Your description goes to the AI provider to produce the proposal; the proposal comes back to you for approval. Form responses go straight to Google or Typeform and Intake never sees them. Intake shows no ads, sells no data, and sends only the emails your account activity requires — plus the welcome mail and the update list you explicitly join.</p>
+            <p>Your description goes to the AI provider to produce the proposal; the proposal comes back to you for approval. Form responses go straight to the provider you connected and Intake never sees them. Intake shows no ads, sells no data, and sends only the emails your account activity requires — plus the welcome mail and the update list you explicitly join.</p>
             <p>The binding version is the <a href="/privacy">privacy policy</a>, written against Google&rsquo;s API Services User Data Policy and Typeform&rsquo;s developer terms, and the <a href="/terms">terms of service</a>.</p>
             <p className="mk-hub-updated">Updated October 2026.</p>
           </Reveal>

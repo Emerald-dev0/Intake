@@ -94,7 +94,9 @@ Two authorizations, **two separate OAuth clients**, never merged:
 | Let Intake create the user's Typeforms | `TYPEFORM_OAUTH_CLIENT_ID` / `TYPEFORM_OAUTH_CLIENT_SECRET` | `<SITE_ORIGIN>/api/providers/typeform/callback` | `accounts:read`, `forms:read`, `forms:write`, `offline` |
 
 The full runbook — app registration, exact redirect URIs, scopes, environment, deploy order, the
-hand-test script, troubleshooting and rollback — is in [docs/TYPEFORM.md](docs/TYPEFORM.md).
+hand-test script, troubleshooting and rollback — is in [docs/TYPEFORM.md](docs/TYPEFORM.md). What is live
+today, what is only planned, and the checklist for adding the next provider — SurveyMonkey, Google
+Sheets, Jira, n8n and beyond — is in [docs/PROVIDERS.md](docs/PROVIDERS.md).
 
 Short version: create the app in the Typeform admin panel (organization drop-down → **Developer
 Apps** → **Register a new app**), paste that exact callback URI, and set both values on the API service. `client_secret` is

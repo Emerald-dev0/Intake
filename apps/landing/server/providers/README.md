@@ -11,6 +11,11 @@ Signing in with an email, or any future social login, does **not** grant Forms a
 
 This layer stores authorization. It does not create, edit, or pretend to create forms. The form engine in `server/forms/` does that, using this layer and nothing else for credentials.
 
+Google Forms and Typeform are the providers that can create forms today; Microsoft records identity
+only, because no supported Forms API exists. The public roadmap (SurveyMonkey, Google Sheets, Jira,
+n8n) is maintained in [`../../docs/PROVIDERS.md`](../../docs/PROVIDERS.md), together with the checklist
+a new provider has to clear before it may be described as live anywhere on the site.
+
 ## Flow
 
 1. An authenticated user opens **Connections**.

@@ -191,3 +191,12 @@ html[data-theme='light'] .waitlist-page { --mk-accent-2: #a93208; }
   .waitlist-page *, .waitlist-page *::before, .waitlist-page *::after { transition: none !important; scroll-behavior: auto; }
   .waitlist-spinner { animation: none; }
 }
+
+/* The wait-list page is unlinked from the marketing site now that sign-up is open. Anyone arriving
+   from an old shared link gets the direct route to an account, not a queue. */
+.waitlist-hero__open { margin-top: 18px; font-size: 14px; }
+.waitlist-hero__open a {
+  color: var(--mk-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
