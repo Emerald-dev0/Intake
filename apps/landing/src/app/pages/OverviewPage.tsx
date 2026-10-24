@@ -2,47 +2,138 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { connectionSummary } from '../Connections';
 import { billingStatusLabel, creditSummary, resetInterval } from '../../lib/credits';
+import { FORM_PROVIDERS, FORM_PROVIDER_LABELS, formProviderLabel, type FormProvider } from '../../lib/connections';
 import { PAID_BILLING_ENABLED, PLAN_CATALOG } from '../../lib/plans';
 import { useWorkspace } from '../hooks/useWorkspace';
+import { useRecentForms } from '../hooks/useRecentForms';
+import { ProviderMark } from '../components/ProviderBadge';
 
+const STARTERS: { label: string; prompt: string }[] = [
+  { label: 'Event registration', prompt: 'Create an event registration form with full name, email, phone number, ticket type, and dietary requirements.' },
+  { label: 'Project feedback', prompt: 'Create a short feedback form for our project showcase with a rating, what worked well, and what we should improve.' },
+  { label: 'Team sign-up', prompt: 'Create a form for people to join a waiting list: name, email, department, and whether they need accessibility support.' },
+];
+
+/**
+ * The home surface. It is a composer, not a dashboard: the thing a person came to do is type one
+ * sentence. Recent forms and plan details sit underneath, at the weight of footnotes.
+ */
 export function OverviewPage() {
   const { user, providers, credits, reloadCredits } = useWorkspace();
+  const recent = useRecentForms();
   const [idea, setIdea] = useState('');
+  const [provider, setProvider] = useState<FormProvider>('google');
   const navigate = useNavigate();
+
   function start(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (idea.trim()) navigate('/app/forms', { state: { initialPrompt: idea.trim() } });
+    if (idea.trim()) navigate('/app/forms', { state: { initialPrompt: idea.trim(), provider } });
   }
-  return <>
-    <div className="page-heading"><div className="eyebrow">01 / YOUR WORKSPACE</div>
-      <p>Welcome, {user.name.split(' ')[0]}.</p><h1>What do you need<br />to <em>collect?</em></h1><div className="heading-description">Describe the form you want. Intake will propose questions and logic for you to review before anything is created in Google Forms.</div>
-    </div>
 
-    <section className="dashboard-credit-card" aria-labelledby="dashboard-credit-title">
-      {credits.status === 'ready' ? <>
-        <div className="dashboard-credit-top">
-          <div><span className="info-index">YOUR PLAN</span><h2 id="dashboard-credit-title">{PLAN_CATALOG[credits.credits.plan].label} <span>{credits.credits.plan === 'free' ? '· $0' : `· Billing ${billingStatusLabel(credits.credits.subscriptionStatus).toLowerCase()}`}</span></h2></div>
-          <div className="dashboard-credit-total"><strong>{credits.credits.availableCredits}</strong><span>available now</span></div>
-        </div>
-        <p className="dashboard-credit-summary">{creditSummary(credits.credits)}</p>
-        <div className="dashboard-credit-buckets">
-          <div><span>DAILY</span><strong>{credits.credits.dailyRemaining} <small>/ {credits.credits.dailyLimit}</small></strong><small>Resets {resetInterval(credits.credits.nextDailyReset)} (00:00 UTC)</small></div>
-          <div className={credits.credits.monthlyLimit > 0 ? undefined : 'is-empty'}><span>MONTHLY</span><strong>{credits.credits.monthlyLimit > 0 ? <>{credits.credits.monthlyRemaining} <small>/ {credits.credits.monthlyLimit}</small></> : 'Not included'}</strong><small>{credits.credits.monthlyLimit > 0 ? `Resets ${resetInterval(credits.credits.nextMonthlyReset)} (no rollover)` : <a href="/pricing">Pro includes a monthly reserve</a>}</small></div>
-        </div>
-        {credits.credits.availableCredits === 0 && <p className="form-banner warn dashboard-credit-state" role="status">No credits are available right now. Nothing was created or changed. Daily credits renew {resetInterval(credits.credits.nextDailyReset)}.</p>}
-        <div className="dashboard-credit-actions"><a href="/app/account">Manage account and credits <span aria-hidden>↗</span></a>{credits.credits.plan === 'free' && <a href="/pricing">{PAID_BILLING_ENABLED ? 'Explore Pro' : 'Pro is coming soon — see pricing'} <span aria-hidden>↗</span></a>}</div>
-      </> : <>
-        <div className="dashboard-credit-top"><div><span className="info-index">YOUR PLAN &amp; CREDITS</span><h2 id="dashboard-credit-title">{credits.status === 'loading' ? 'Checking your balance…' : 'Balance unavailable'}</h2></div></div>
-        <p className="dashboard-credit-state" role={credits.status === 'error' ? 'alert' : 'status'}>{credits.status === 'loading' ? 'Intake is reading your server-reported plan and credit balance.' : 'Intake could not verify your balance. This is not a zero-credit result, and no plan is assumed.'}</p>
-        {credits.status === 'error' && <button className="btn btn-ghost btn-sm" type="button" onClick={reloadCredits}>Retry credit check</button>}
-      </>}
-    </section>
+  const firstName = user.name.trim().split(/\s+/)[0] || 'there';
+  const ready = credits.status === 'ready' ? credits.credits : null;
+  const outOfCredits = ready !== null && ready.availableCredits === 0;
+  const connected = providers.providers?.filter(entry => entry.status === 'connected').length ?? 0;
+  const suggested = recent.state.forms.slice(0, 4);
 
-    <form className="prompt-card" onSubmit={start}><div className="prompt-top"><span><span className="rec" /> START A FORM</span><span>INTAKE / CREATE</span></div><label htmlFor="future-prompt">Start with an idea</label><textarea id="future-prompt" value={idea} onChange={event => setIdea(event.target.value)} maxLength={3000} required placeholder="e.g. A registration form for our conference, with name, email and transportation needs…" aria-describedby="prompt-note" /><div className="prompt-actions"><span id="prompt-note">You can refine it before it reaches Google. No JSON required.</span><button className="btn btn-accent" type="submit" disabled={!idea.trim()}>Review my form →</button></div></form>
-    <div className="dashboard-grid">
-      <section className="info-card"><span className="info-index">01 / CONNECT</span><div className="info-icon">◇</div><h2>Your tools, your forms.</h2><p>Google Forms authorization is separate from your Intake sign-in. A connection lets Intake work only after you confirm a reviewed proposal.</p><a href="/app/connections">{connectionSummary(providers.providers)} <span>↗</span></a></section>
-      <section className="info-card"><span className="info-index">02 / CREATE</span><div className="info-icon orange">✳</div><h2>Just say what you need.</h2><p>Intake turns your description into a proposed form. Review the questions, revise naturally and choose when to create the real form in your Google account.</p><a href="/app/forms">Open form creation <span>↗</span></a></section>
-      <section className="info-card"><span className="info-index">03 / LIBRARY</span><div className="info-icon">▤</div><h2>All your forms in one place.</h2><p>Find, inspect live status, open in Google Forms, or continue editing previously created or imported forms.</p><a href="/app/library">Open form library <span>↗</span></a></section>
+  return (
+    <div className="home">
+      <header className="home__greeting">
+        <span className="eyebrow">Good to see you, {firstName}</span>
+        <h1>What do you need<br /><em>to collect?</em></h1>
+        <p>Describe the form in a sentence. Intake drafts the questions, you approve them, then it creates the real form in your own account.</p>
+      </header>
+
+      <form className="home__composer" onSubmit={start}>
+        <label className="sr-only" htmlFor="future-prompt">Describe the form you need</label>
+        <textarea
+          id="future-prompt"
+          value={idea}
+          onChange={event => setIdea(event.target.value)}
+          maxLength={3000}
+          required
+          placeholder="e.g. A registration form for our conference, with name, email and transportation needs…"
+          aria-describedby="prompt-note"
+          onKeyDown={event => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault();
+              (event.currentTarget.form as HTMLFormElement | null)?.requestSubmit();
+            }
+          }}
+        />
+        <div className="home__composer-target" role="group" aria-label="Create the form in">
+          <span>Create in</span>
+          {FORM_PROVIDERS.map(option => {
+            const connection = providers.providers?.find(entry => entry.id === option);
+            const connectedOption = connection?.status === 'connected';
+            return <button
+              key={option}
+              type="button"
+              className={`target-chip ${option === provider ? 'selected' : ''}`}
+              aria-pressed={option === provider}
+              onClick={() => setProvider(option)}
+              title={connectedOption ? `Connected${connection?.accountEmail ? ` as ${connection.accountEmail}` : ''}` : `${FORM_PROVIDER_LABELS[option]} is not connected yet`}
+            >
+              <ProviderMark provider={option} />
+              {FORM_PROVIDER_LABELS[option]}
+              {connection && !connectedOption && <span className="target-chip__dot" aria-label="Not connected" />}
+            </button>;
+          })}
+        </div>
+        <div className="home__composer-foot">
+          <span id="prompt-note">Enter to start · nothing is created until you confirm</span>
+          <button className="btn btn-accent" type="submit" disabled={!idea.trim() || outOfCredits}>Start →</button>
+        </div>
+      </form>
+
+      <div className="home__starters" aria-label="Example forms">
+        <span>Try</span>
+        {STARTERS.map(starter => (
+          <button key={starter.label} type="button" className="home__starter" onClick={() => setIdea(starter.prompt)}>{starter.label}</button>
+        ))}
+      </div>
+
+      {outOfCredits && ready && <div className="form-banner warn home__banner" role="status">
+        <p>No credits are available right now. Nothing was created or changed. Daily credits renew {resetInterval(ready.nextDailyReset)}.</p>
+        <a className="btn btn-ghost btn-sm" href="/pricing">See plans →</a>
+      </div>}
+
+      <section className="home__section" aria-labelledby="home-recent-title">
+        <div className="home__section-head">
+          <h2 id="home-recent-title">Recent forms</h2>
+          <a href="/app/library">Open library →</a>
+        </div>
+        {recent.state.status === 'loading' && <p className="fine-print" role="status">Loading your forms…</p>}
+        {recent.state.status === 'error' && <div className="form-banner bad" role="alert">
+          <p>Intake couldn’t load your recent forms. This does not mean they are gone.</p>
+          <button className="btn btn-ghost btn-sm" type="button" onClick={() => void recent.load()}>Try again</button>
+        </div>}
+        {recent.state.status === 'ready' && suggested.length === 0 && <p className="fine-print">Forms you create will show up here, with the links you need to share them.</p>}
+        {suggested.length > 0 && <ul className="home__recent">
+          {suggested.map(form => <li key={form.id}>
+            <ProviderMark provider={form.provider} />
+            <div>
+              <strong>{form.title}</strong>
+              <small>{formProviderLabel(form.provider)} · {form.status === 'incomplete' ? 'Incomplete' : 'Live'}</small>
+            </div>
+            {form.responderUrl && <a href={form.responderUrl} target="_blank" rel="noreferrer">Open ↗</a>}
+          </li>)}
+        </ul>}
+      </section>
+
+      <footer className="home__footnote">
+        <div>
+          {ready
+            ? <><strong>{PLAN_CATALOG[ready.plan].label}</strong> · {creditSummary(ready)}{ready.subscriptionStatus !== 'none' && <> · Billing {billingStatusLabel(ready.subscriptionStatus).toLowerCase()}</>} <a href="/app/billing">Manage</a></>
+            : credits.status === 'error'
+              ? <button type="button" className="link-button" onClick={reloadCredits}>Credits unavailable — retry</button>
+              : 'Checking your plan…'}
+        </div>
+        <div>
+          <a href="/app/connections">{connectionSummary(providers.providers)}{connected === 0 ? ' — connect a provider' : ''} ↗</a>
+          {ready?.plan === 'free' && <a href="/pricing">{PAID_BILLING_ENABLED ? 'Explore Pro' : 'Pro is coming soon'} ↗</a>}
+        </div>
+      </footer>
     </div>
-  </>;
+  );
 }

@@ -26,7 +26,10 @@ async function generate(options: InterpreterOptions, request: AiModelRequest): P
     : options.provider.generate(modelCall);
   try {
     const raw = await invoke(call);
-    const issues = placementIssues(raw);
+    const target = typeof request.input === 'object' && request.input !== null
+      ? (request.input as { target?: unknown }).target
+      : undefined;
+    const issues = placementIssues(raw, target === 'typeform' ? 'typeform' : 'google');
     // The model arranged the questions in a way Google Forms cannot lay out. Adapt, don't refuse:
     // give it one guided chance to produce a WORKING arrangement. The goal is an output, not an
     // apology. Only fall back to needs_clarification when adaptation would distort the request's

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import express, { Router, type NextFunction, type Request, type Response } from 'express';
 import type { CreateFormResult } from '../../../src/lib/forms';
+import { FORM_PROVIDER_LABELS, isFormProvider, isProviderId, type FormProvider } from '../../../src/lib/connections';
 import { assertPublic, trustedMutation } from '../../providers/routes';
 import type { SessionUser } from '../../providers/service';
 import type { DraftRecord, DraftStore } from '../draft-store';
@@ -92,7 +93,7 @@ function user(res: Response): SessionUser { return res.locals.user as SessionUse
 
 const missingDraft: FormErrorInfo = { code: 'draft_not_found', message: 'This draft is not available in your Intake account. Start a new form.', outcome: 'not_created', retryable: false };
 const conflict: FormErrorInfo = { code: 'draft_conflict', message: 'This draft changed in another tab. Reload it before making more changes.', outcome: 'not_created', retryable: false };
-const locked: FormErrorInfo = { code: 'draft_locked', message: 'This draft has already had a creation attempt. It cannot be revised or created again. Check your recent forms and Google Forms.', outcome: 'unknown', retryable: false };
+const locked: FormErrorInfo = { code: 'draft_locked', message: 'This draft has already had a creation attempt. It cannot be revised or created again. Check your recent forms and the provider account.', outcome: 'unknown', retryable: false };
 const invalidRequest = (message: string): FormErrorInfo => ({ code: 'invalid_request', message, outcome: 'not_created', retryable: false });
 
 /** Mounted before the original forms router. The original POST /api/forms still owns execution. */
@@ -160,7 +161,9 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
     log('form.interpret.started', { requestId: id, userId: person.id, provider: input.provider, mode: input.mode });
     try {
       const execute = async (): Promise<{ kind: 'usable'; value: InterpretationResult; cost: number } | { kind: 'no_result'; value: InterpretationResult }> => {
-        const result = assessInterpretation(await deps.interpreter.interpret(input));
+        // Planning happens against the draft's provider, so a proposal is only ready when that
+        // provider can actually express it.
+        const result = assessInterpretation(await deps.interpreter.interpret(input), input.provider);
         // The price is a deterministic function of the validated result, never of the raw model output.
         return result.status === 'ready'
           ? { kind: 'usable', value: result, cost: costForFormCreation(creationComplexity(result.specification)) }
@@ -212,12 +215,25 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
     if (!body || !phrase(body.request, MAX_REQUEST) || (body.clarification !== undefined && !phrase(body.clarification, MAX_CLARIFICATION))) {
       return send(res, invalidRequest(`Describe the form in up to ${MAX_REQUEST} characters. Only provider, request, optional clarification and optional operationId are accepted.`));
     }
-    if (body.provider !== 'google') return send(res, { code: 'provider_not_supported', message: 'Only Google Forms creation is available. Microsoft Forms creation is not supported.', outcome: 'not_created', retryable: false });
+    if (!isFormProvider(body.provider as string)) {
+      // A known provider without a creation API (Microsoft) is a capability answer; anything else is
+      // a malformed request. Neither reaches the model, the store, or a provider.
+      const knownProvider = isProviderId(body.provider as string);
+      return send(res, {
+        code: 'provider_not_supported',
+        message: knownProvider
+          ? 'Intake creates forms in Google Forms or Typeform. Microsoft Forms has no supported creation API, so it cannot be a target.'
+          : 'That provider is not supported. Choose Google Forms or Typeform.',
+        outcome: 'not_created',
+        retryable: false,
+      }, knownProvider ? undefined : 400);
+    }
+    const provider: FormProvider = body.provider as FormProvider;
     const key = deps.operations ? deps.operations.operationKey(body.operationId) : 'unmetered';
-    const result = await infer({ mode: 'new', provider: 'google', request: body.request.trim(), ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}) }, req, res, { type: 'form_create', key });
+    const result = await infer({ mode: 'new', provider, request: body.request.trim(), ...(body.clarification ? { clarification: (body.clarification as string).trim() } : {}) }, req, res, { type: 'form_create', key });
     if (!result) return;
     if (result.status !== 'ready') return sendJson(res, 200, withCredits(res, { requestId: requestId(res), status: result.status, ...(result.status === 'needs_clarification' ? { question: result.question } : { explanation: result.explanation }) }));
-    const draft = await deps.store.create({ id: newId(), userId: user(res).id, provider: 'google', specification: result.specification, assumptions: result.assumptions, warnings: result.warnings }, now());
+    const draft = await deps.store.create({ id: newId(), userId: user(res).id, provider, specification: result.specification, assumptions: result.assumptions, warnings: result.warnings }, now());
     sendJson(res, 201, withCredits(res, { requestId: requestId(res), status: 'ready', draft: publicDraft(draft) }));
   }));
 
@@ -302,7 +318,7 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
       if (!draft.result) return send(res, locked);
       return respondResult(res, draft.result, draft, true);
     }
-    if (draft.status === 'creating') return send(res, { ...locked, code: 'creation_in_progress', message: 'Creation may still be running or the result may be unknown. Do not submit this draft again. Check Recent forms and Google Forms.', outcome: 'unknown' });
+    if (draft.status === 'creating') return send(res, { ...locked, code: 'creation_in_progress', message: `Creation may still be running or the result may be unknown. Do not submit this draft again. Check Recent forms and ${FORM_PROVIDER_LABELS[draft.provider]}.`, outcome: 'unknown' });
 
     // Completed/blocked replays above never consume provider capacity. Only a ready draft is charged
     // against the technical creation ceiling before the durable claim and any Google request.
@@ -312,11 +328,12 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
         setRateLimitHeaders(res, distributed.retryAfterSeconds);
         return send(res, { code: 'rate_limited', message: 'Too many form creation attempts were made in a short time. Wait before trying this ready draft again.', retryable: true, outcome: 'not_created' });
       }
-      return send(res, { code: 'storage_unavailable', message: 'Intake cannot safely start form creation right now. Nothing was sent to Google. Try again later.', retryable: true, outcome: 'not_created' });
+      return send(res, { code: 'storage_unavailable', message: 'Intake cannot safely start form creation right now. Nothing was sent to the provider. Try again later.', retryable: true, outcome: 'not_created' });
     }
 
     // This one SQL UPDATE is the durable idempotency boundary. Model output and browser state have
-    // no authority to choose a connection. The engine will validate and fetch this user's grant.
+    // no authority to choose a connection: the provider was fixed when the draft was created, and
+    // the engine fetches this user's grant for it.
     const claimed = await deps.store.claim(user(res).id, draft.id, draft.version, now());
     if (!claimed) return send(res, conflict);
     log('form.draft.create_started', { requestId: requestId(res), userId: user(res).id, draftId: draft.id, version: draft.version, provider: draft.provider });
@@ -328,7 +345,7 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
         : { ok: false, failure: toFailureBody(created.error, requestId(res)) };
     } catch {
       log('form.draft.create_failed', { requestId: requestId(res), userId: user(res).id, draftId: draft.id, reason: 'unexpected_engine_error' });
-      outcome = { ok: false, failure: { code: 'internal_error', error: 'Intake could not confirm the result. Check Recent forms and Google Forms before starting a new draft.', requestId: requestId(res), outcome: 'unknown', retryable: false } };
+      outcome = { ok: false, failure: { code: 'internal_error', error: `Intake could not confirm the result. Check Recent forms and ${FORM_PROVIDER_LABELS[draft.provider]} before starting a new draft.`, requestId: requestId(res), outcome: 'unknown', retryable: false } };
     }
     const status = outcome.ok ? 'created' : outcome.failure.outcome === 'not_created' ? 'ready' : 'blocked';
     try {
@@ -336,7 +353,7 @@ export function createFormDraftRouter(deps: DraftRouterDeps): Router {
     } catch {
       log('form.draft.create_failed', { requestId: requestId(res), userId: user(res).id, draftId: draft.id, reason: 'outcome_not_saved' });
       // The claim remains locked, even if a provider form exists. Never instruct a blind retry.
-      return send(res, { code: 'storage_unavailable', message: 'Intake could not save the creation result. A form may exist. Check Recent forms and Google Forms before taking any action; this draft will not be sent again.', outcome: 'unknown', retryable: false });
+      return send(res, { code: 'storage_unavailable', message: `Intake could not save the creation result. A form may exist. Check Recent forms and ${FORM_PROVIDER_LABELS[draft.provider]} before taking any action; this draft will not be sent again.`, outcome: 'unknown', retryable: false });
     }
     log(outcome.ok ? 'form.draft.create_completed' : 'form.draft.create_failed', { requestId: requestId(res), userId: user(res).id, draftId: draft.id, status, ...(outcome.ok ? { formId: outcome.form.providerFormId } : { code: outcome.failure.code, outcome: outcome.failure.outcome }) });
     respondResult(res, outcome, { ...claimed, status, result: outcome }, false);

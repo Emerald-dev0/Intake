@@ -45,7 +45,7 @@ function provider(id, overrides = {}) {
     canRefresh: true, revocation: 'supported', formsApi: id === 'google' ? 'supported' : 'unsupported', formsNote: 'Fixture note', permissionLinks: [], ...overrides };
 }
 
-async function mount({ handlers = {}, google = {}, recent = [], start = '/app/forms', savedDraftId = null } = {}) {
+async function mount({ handlers = {}, google = {}, typeform = {}, recent = [], start = '/app/forms', savedDraftId = null } = {}) {
   sessionStorage.clear();
   if (savedDraftId) sessionStorage.setItem('intake:current-form-draft', savedDraftId);
   const original = globalThis.fetch;
@@ -56,7 +56,11 @@ async function mount({ handlers = {}, google = {}, recent = [], start = '/app/fo
     const custom = handlers[`${method} ${url}`];
     if (custom) return custom(init, calls);
     if (url === '/api/me') return json({ user: { id: 'u1', name: 'Test User', email: 'test@example.com' } });
-    if (url === '/api/providers') return json({ providers: [provider('google', google), provider('microsoft')] });
+    if (url === '/api/providers') return json({ providers: [
+      provider('google', google),
+      provider('microsoft'),
+      provider('typeform', { name: 'Typeform', accountName: 'Typeform', formsApi: 'supported', setupEnv: ['TYPEFORM_OAUTH_CLIENT_ID'], status: 'connected', accountEmail: 'ada@typeform.test', ...typeform }),
+    ] });
     if (url === '/api/forms' && method === 'GET') return json({ requestId: 'req_list1', forms: recent });
     throw new Error(`unexpected request ${method} ${url}`);
   };
@@ -191,6 +195,30 @@ test('unsupported requests and model failures are recoverable without inventing 
   assert.match(page.text(), /GROQ_API_KEY is missing/);
   assert.ok(!page.button('Send →').disabled);
   assert.equal(page.posts('/confirm').length, 0);
+}));
+
+test('the composer lets a person choose Typeform, and that choice is what reaches the server', () => withPage({}, async page => {
+  const chip = [...document.querySelectorAll('.composer-target__option')].find(button => button.textContent.includes('Typeform'));
+  assert.ok(chip, 'Typeform is offered beside Google Forms');
+  assert.match(page.text(), /Create in/, 'the target is visible before anything is described');
+  await page.click(chip);
+  assert.equal(chip.getAttribute('aria-pressed'), 'true');
+  assert.match(page.text(), /FORMS LIVE IN YOUR TYPEFORM ACCOUNT/);
+  await page.type(page.$('#form-request'), 'Register people for our meetup.');
+  await page.click(page.button('Send →'));
+  await page.until(() => JSON.parse(page.posts('/interpret')[0]?.init.body ?? '{}').provider === 'typeform', 'the chosen provider is sent');
+}));
+
+test('a Typeform draft is reviewed as Typeform and never offers Google-only editing', () => withPage({ handlers: {
+  'POST /api/forms/interpret': () => json({ requestId: 'req_tf1', status: 'ready', draft: draft(SPEC, { provider: 'typeform' }) }, 201),
+} }, async page => {
+  await page.type(page.$('#form-request'), 'Register people for our meetup.');
+  await page.click(page.button('Send →'));
+  await page.until(() => page.$('#review-title'), 'a Typeform draft is reviewed');
+  assert.match(page.$('.draft-review').textContent, /TYPEFORM/);
+  assert.match(page.text(), /Nothing has been sent to Typeform yet/);
+  assert.equal(page.$('.composer-target'), null, 'the provider is fixed once a draft exists');
+  assert.ok(page.button('Create form →'));
 }));
 
 // ------------------------------------------------------------------ existing-form edit workflow
@@ -385,11 +413,23 @@ test('cancel discards a ready draft, never calls the provider, and returns to th
 
 test('the overview input carries a private initial prompt into the creation workspace without putting it in a URL', () => withPage({ start: '/app' }, async page => {
   await page.type(page.$('#future-prompt'), 'Register our team');
-  await page.click(page.button('Review my form →'));
+  await page.click(page.button('Start →'));
   await page.until(() => page.$('#form-request'), 'forms page opened');
   assert.equal(page.$('#form-request').value, 'Register our team');
   assert.equal(page.router.state.location.pathname, '/app/forms');
   assert.equal(page.posts('/interpret').length, 0);
+}));
+
+test('the home composer carries the chosen provider into the create workspace', () => withPage({ start: '/app' }, async page => {
+  const chip = [...document.querySelectorAll('.target-chip')].find(button => button.textContent.includes('Typeform'));
+  assert.ok(chip, 'both creation targets are offered on the home composer');
+  await page.click(chip);
+  await page.type(page.$('#future-prompt'), 'Register our team');
+  await page.click(page.button('Start →'));
+  await page.until(() => page.$('#form-request'), 'forms page opened');
+  const chosen = [...document.querySelectorAll('.composer-target__option')].find(button => button.textContent.includes('Typeform'));
+  assert.equal(chosen.getAttribute('aria-pressed'), 'true', 'the chosen target survives the navigation');
+  assert.match(page.text(), /FORMS LIVE IN YOUR TYPEFORM ACCOUNT/);
 }));
 
 test('reloading the tab resumes the user-owned specification from the server without a new model or Google call', () => withPage({ savedDraftId: ID, handlers: {

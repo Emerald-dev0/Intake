@@ -30,6 +30,18 @@ function useOperatorAccess() {
   return isOperator;
 }
 
+const NAV = [
+  { key: 'home', href: '/app', label: 'Home', icon: '⌂' },
+  { key: 'forms', href: '/app/forms', label: 'Create', icon: '✳' },
+  { key: 'library', href: '/app/library', label: 'Library', icon: '▤' },
+  { key: 'connections', href: '/app/connections', label: 'Connections', icon: '◇' },
+  { key: 'billing', href: '/app/billing', label: 'Billing', icon: '◎' },
+] as const;
+
+/**
+ * The workspace shell. One narrow rail, one composer-first stage: a person should always be one
+ * sentence — not one menu — away from the thing they came to do.
+ */
 export function WorkspaceLayout() {
   const { user, clearSession } = useSession();
   const providers = useProviders(true);
@@ -38,7 +50,7 @@ export function WorkspaceLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState('');
-  const [newChatNonce, setNewChatNonce] = useState(0);
+  const [newFormNonce, setNewFormNonce] = useState(0);
   const isOperator = useOperatorAccess();
   const navigate = useNavigate();
 
@@ -57,48 +69,82 @@ export function WorkspaceLayout() {
   }
 
   const page = useLocation().pathname.split('/')[2] || 'home';
+  const current = NAV.find(item => item.key === page) ?? NAV[0];
+
+  function startNewForm() {
+    setMobileOpen(false);
+    setNewFormNonce(value => value + 1);
+    if (page !== 'forms') navigate('/app/forms');
+  }
+
   return (
     <CreditsProvider value={{ state: credits.state, reload: credits.reload, note: credits.note }}>
     <div className="workspace">
       <aside className={`app-sidebar ${mobileOpen ? 'open' : ''}`}>
-        <a href="/app" className="app-logo"><LogoMark size={28} /><span>intake</span><small>WORKSPACE</small></a>
-        <div className="sidebar-label">WORKSPACE</div>
+        <a href="/app" className="app-logo"><LogoMark size={26} /><span>intake</span></a>
+        <button type="button" className="sidebar-new" onClick={startNewForm}>
+          <span aria-hidden>＋</span> New form
+        </button>
+
         <nav aria-label="Application navigation" className="side-nav">
-          <a className={page === 'home' ? 'active' : ''} href="/app"><span aria-hidden>⌂</span> Overview</a>
-          <a className={page === 'library' ? 'active' : ''} href="/app/library"><span aria-hidden>▤</span> Library</a>
-          <a className={page === 'forms' ? 'active' : ''} href="/app/forms"><span aria-hidden>✎</span> Forms</a>
-          <a className={page === 'connections' ? 'active' : ''} href="/app/connections"><span aria-hidden>◇</span> Connections</a>
-          <a className={page === 'billing' ? 'active' : ''} href="/app/billing"><span aria-hidden>$</span> Billing</a>
+          {NAV.map(item => (
+            <a
+              key={item.key}
+              className={page === item.key ? 'active' : ''}
+              href={item.href}
+              aria-current={page === item.key ? 'page' : undefined}
+            >
+              <span className="side-nav__icon" aria-hidden>{item.icon}</span>{item.label}
+            </a>
+          ))}
         </nav>
-        <div className="sidebar-chats">
-          <span className="chats-label">Conversations</span>
-          <button className="btn btn-ghost btn-sm" onClick={() => { setNewChatNonce(value => value + 1); if (page !== 'forms') navigate('/app/forms'); }}>
-            New chat
-          </button>
-        </div>
-        {isOperator && <>
-          <div className="sidebar-label">OPERATOR</div>
-          <nav aria-label="Operator navigation" className="side-nav">
-            <a href="/admin"><span aria-hidden>⌁</span> Admin console</a>
-          </nav>
-        </>}
+
+        <div className="sidebar-spacer" />
+
+        {isOperator && <a href="/admin" className="sidebar-operator"><span aria-hidden>⌁</span> Operator console</a>}
+
         <div className="sidebar-credits" aria-live="polite">
-          <span className="sidebar-label">CREDITS</span>
           {credits.state.status === 'ready'
-            ? <><strong>{creditSummary(credits.state.credits)}</strong><span>Daily {resetLabel(credits.state.credits.nextDailyReset)}</span>{credits.state.credits.monthlyLimit > 0 && <span>Monthly {resetLabel(credits.state.credits.nextMonthlyReset)}</span>}<a className="sidebar-plan-link" href="/app/billing">Billing &amp; credits →</a></>
+            ? <>
+              <span className="sidebar-credits__label">CREDITS</span>
+              <strong>{creditSummary(credits.state.credits)}</strong>
+              <span className="sidebar-credits__reset">Daily · {resetLabel(credits.state.credits.nextDailyReset)}</span>
+              <a className="sidebar-plan-link" href="/app/billing">Plan &amp; billing →</a>
+            </>
             : credits.state.status === 'loading'
-              ? <span>Checking your credits…</span>
+              ? <span className="sidebar-credits__label">Checking credits…</span>
               : <button type="button" className="sidebar-credits-retry" onClick={() => credits.reload()}>Credits unavailable — retry</button>}
         </div>
-        <div className="sidebar-bottom"><div className="side-note"><span className="rec" /> INTAKE / EARLY STAGE<p>Describe a form, review the draft, then confirm creation in your own Google account. Connect Google separately from your Intake login.</p></div><a href="/" className="site-link">← Visit website</a></div>
+
+        <div className="sidebar-bottom">
+          <a href="/app/account" className="sidebar-account"><span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span><span>{user.name}</span></a>
+          <a href="/" className="site-link">Visit website ↗</a>
+        </div>
       </aside>
       {mobileOpen && <button className="mobile-shade" aria-label="Close navigation" onClick={() => setMobileOpen(false)} />}
       <div className="app-body">
-        <header className="app-topbar"><button className="mobile-trigger" onClick={() => setMobileOpen(true)} aria-label="Open navigation">☰</button><div className="topbar-path">WORKSPACE <span>/</span> {page === 'home' ? 'OVERVIEW' : page === 'connections' ? 'CONNECTIONS' : page === 'library' ? 'LIBRARY' : page === 'forms' ? 'FORMS' : 'ACCOUNT'}</div><div className="account-wrap"><button className="account-trigger" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}><span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span><span className="account-name">{user.name}</span><span aria-hidden>⌄</span></button>{menuOpen && <div className="account-menu"><div className="account-identity"><strong>{user.name}</strong><span>{user.email}</span></div><a href="/app/account">Account</a><ThemeToggle menuItem /><button disabled={signingOut} onClick={() => void signOut()}>{signingOut ? 'Signing out…' : 'Sign out →'}</button>{signOutError && <p role="alert">{signOutError}</p>}</div>}</div></header>
+        <header className="app-topbar">
+          <button className="mobile-trigger" onClick={() => setMobileOpen(true)} aria-label="Open navigation">☰</button>
+          <div className="topbar-path">{current.label}</div>
+          <div className="account-wrap">
+            <button className="account-trigger" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
+              <span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span>
+              <span className="account-name">{user.name}</span>
+              <span aria-hidden>⌄</span>
+            </button>
+            {menuOpen && <div className="account-menu">
+              <div className="account-identity"><strong>{user.name}</strong><span>{user.email}</span></div>
+              <a href="/app/account">Account</a>
+              <a href="/app/billing">Plan &amp; billing</a>
+              <ThemeToggle menuItem />
+              <button disabled={signingOut} onClick={() => void signOut()}>{signingOut ? 'Signing out…' : 'Sign out →'}</button>
+              {signOutError && <p role="alert">{signOutError}</p>}
+            </div>}
+          </div>
+        </header>
         <main className="app-content">
-          <Outlet context={{ user, providers: providers.state, reloadProviders: providers.load, credits: credits.state, reloadCredits: credits.reload, noteCredits: credits.note, newChatNonce }} />
+          <Outlet context={{ user, providers: providers.state, reloadProviders: providers.load, credits: credits.state, reloadCredits: credits.reload, noteCredits: credits.note, newChatNonce: newFormNonce }} />
         </main>
-        <footer className="app-bottom">INTAKE <span>Built for the forms you already use.</span></footer>
       </div>
     </div>
     </CreditsProvider>

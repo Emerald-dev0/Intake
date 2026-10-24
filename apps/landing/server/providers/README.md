@@ -62,6 +62,8 @@ See `apps/landing/.env.example`. Do not commit real values. Empty variables mean
 | --- | --- | --- |
 | `GOOGLE_OAUTH_CLIENT_ID` | For Google connect | Web client id from Google Cloud |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | For Google connect | Web client secret |
+| `TYPEFORM_OAUTH_CLIENT_ID` | For Typeform connect | Client id from a Typeform app (`admin.typeform.com/tool/app`) |
+| `TYPEFORM_OAUTH_CLIENT_SECRET` | For Typeform connect | Typeform app client secret |
 | `MICROSOFT_OAUTH_CLIENT_ID` | For Microsoft connect | Entra application (client) id |
 | `MICROSOFT_OAUTH_CLIENT_SECRET` | For Microsoft connect | Entra client secret |
 | `MICROSOFT_OAUTH_TENANT` | No | `common` (default), `organizations`, `consumers`, or a tenant GUID |
@@ -72,7 +74,13 @@ See `apps/landing/.env.example`. Do not commit real values. Empty variables mean
 Redirect URIs to register, with no trailing slash on the origin:
 
 - `{BETTER_AUTH_URL}/api/providers/google/callback`
+- `{BETTER_AUTH_URL}/api/providers/typeform/callback`
 - `{BETTER_AUTH_URL}/api/providers/microsoft/callback`
+
+Typeform requests the least access that can build a form: `forms:write` (and `forms:read` so an
+existing form can be inspected). Typeform does not expose a token-revocation endpoint to third-party
+apps, so disconnecting deletes Intake's stored grant and tells the user to remove the app from their
+Typeform account; Intake never claims a revocation it did not perform.
 
 Local development uses `http://localhost:5173`. A cloud preview or production host must use its exact HTTPS origin in `BETTER_AUTH_URL` **and** in the provider console. `localhost` and `127.0.0.1` are different origins. A changed domain requires new redirect URIs and a restart.
 

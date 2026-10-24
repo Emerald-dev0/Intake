@@ -71,7 +71,7 @@ test('public auth pages and protected pages render with shared authentication en
       ['/auth/sign-up', 503, 'Less busywork.'],
       ['/app', 200, 'What do you need'],
       ['/app/connections', 200, 'Your forms stay'],
-      ['/app/forms', 200, 'What should your form ask?'],
+      ['/app/forms', 200, 'Describe it'],
       ['/app/library', 200, 'Your Forms'],
       ['/app/account', 200, 'Your account.'],
       ['/app', 401, 'Welcome back'],

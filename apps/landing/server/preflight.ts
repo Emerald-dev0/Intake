@@ -102,7 +102,7 @@ export function runPreflight(env: NodeJS.ProcessEnv = process.env): PreflightChe
   const googleConfigured = supportedProviders(env).some(provider => provider.id === 'google' && isProviderConfigured(provider, env));
   add('provider connections', googleConfigured ? 'pass' : 'warn', googleConfigured
     ? providerSetup
-    : `${providerSetup}. Google Forms connection/creation is unavailable until GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET are set and the Forms API is enabled in that Google Cloud project.`);
+    : `${providerSetup}. Google Forms connection/creation is unavailable until GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET are set and the Forms API is enabled in that Google Cloud project. Typeform is independent of that: set TYPEFORM_OAUTH_CLIENT_ID and TYPEFORM_OAUTH_CLIENT_SECRET to enable it.`);
 
   let googleSignIn = false;
   try {

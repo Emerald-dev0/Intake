@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { safeFormUrl } from '../../src/lib/forms';
+import { FORM_PROVIDER_LABELS, type FormProvider } from '../../src/lib/connections';
 import { logSafe } from '../providers/oauth';
 import { editChanges, toFormEditView, type FormEditFailure, type FormEditResult, type FormEditSnapshot, type PublicFormEditDraft } from '../../src/lib/form-edit';
 import type { FormStore } from './store';
@@ -117,7 +118,14 @@ export function createFormEditEngine(deps: FormEditEngineDeps) {
       if (!FORM_RECORD_ID.test(target.formRecordId)) throw new FormEditError({ code: 'invalid_request', message: 'Select one of your Intake forms or paste a valid Google Forms edit URL.', outcome: 'not_applied', retryable: false });
       storedRecord = await deps.forms.getForUser(userId, target.formRecordId);
       if (!storedRecord) throw new FormEditError({ code: 'form_not_found', message: 'That form is not available in your Intake account. Choose one of your forms or paste a Google Forms edit URL.', outcome: 'not_applied', retryable: false });
-      if (storedRecord.provider !== 'google') throw new FormEditError({ code: 'edit_unsupported', message: 'Intake only supports editing Google Forms. Microsoft Forms editing is unavailable.', outcome: 'not_applied', retryable: false });
+      if (storedRecord.provider !== 'google') {
+        throw new FormEditError({
+          code: 'edit_unsupported',
+          message: `Intake can edit Google Forms in place today. This is a ${FORM_PROVIDER_LABELS[storedRecord.provider as FormProvider] ?? 'provider'} form, so change it in your own account — Intake will not create a copy.`,
+          outcome: 'not_applied',
+          retryable: false,
+        });
+      }
       providerFormId = storedRecord.providerFormId;
       formRecordId = storedRecord.id;
     } else {

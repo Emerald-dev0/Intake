@@ -87,7 +87,19 @@ Two authorizations, **two separate OAuth clients**, never merged:
 | Sign in to Intake ("Continue with Google") | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | `<SITE_ORIGIN>/api/auth/callback/google` | identity only: `openid`, `email`, `profile` |
 | Let Intake create/edit the user's Google Forms | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | `<SITE_ORIGIN>/api/providers/google/callback` | `https://www.googleapis.com/auth/forms.body` |
 
-`BETTER_AUTH_URL` equals `<SITE_ORIGIN>`, so both redirect URIs are exactly the strings above. Do not
+### 3b. Typeform (optional, independent of Google)
+
+| Concern | Environment | Redirect URI | Scopes |
+| --- | --- | --- | --- |
+| Let Intake create the user's Typeforms | `TYPEFORM_OAUTH_CLIENT_ID` / `TYPEFORM_OAUTH_CLIENT_SECRET` | `<SITE_ORIGIN>/api/providers/typeform/callback` | `forms:read`, `forms:write` |
+
+Create the app at `https://admin.typeform.com/tool/app`, paste that exact callback URI, and set both
+values on the API service. Typeform does not let third-party apps revoke tokens, so disconnect only
+removes Intake's stored grant. Skip this section entirely to launch Google-only: the Typeform row then
+shows "Setup required" and cannot be connected. Creating and importing Typeforms has **not** been
+verified against a live Typeform account from this checkout.
+
+`BETTER_AUTH_URL` equals `<SITE_ORIGIN>`, so both Google redirect URIs are exactly the strings above. Do not
 guess different paths, and do not add a trailing slash. `localhost` and a custom domain are different
 origins: add the local URIs too if you develop locally, but keep production values distinct.
 
@@ -167,6 +179,7 @@ Environment variables (server-only; secret values are entered in the dashboard):
 | `BETTER_AUTH_URL` | yes | Exactly `<SITE_ORIGIN>`, HTTPS, no trailing slash. |
 | `PROVIDER_TOKEN_KEY` | strongly recommended | 32+ random bytes. Without it, provider tokens are encrypted with a key derived from `BETTER_AUTH_SECRET`, so rotating that secret forces every user to reconnect Google. |
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | for Forms | Forms connection client. |
+| `TYPEFORM_OAUTH_CLIENT_ID` / `TYPEFORM_OAUTH_CLIENT_SECRET` | optional | Typeform connection and creation client. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | for sign-in | Identity client; both or neither — a half-configured pair is a startup error. |
 | `GROQ_API_KEY` | yes | Interpretation. Missing → `model_not_configured`, no charge, no fake form. |
 | `GROQ_MODEL` | optional | Default `openai/gpt-oss-120b`. |

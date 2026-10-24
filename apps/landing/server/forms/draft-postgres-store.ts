@@ -1,12 +1,13 @@
 import type { Pool } from 'pg';
 import type { CreateFormResult, FormWarning } from '../../src/lib/forms';
+import type { FormProvider } from '../../src/lib/connections';
 import type { FormSpecification } from './specification';
 import type { DraftRecord, DraftStatus, DraftStore } from './draft-store';
 
 interface Row {
   id: string;
   user_id: string;
-  provider: 'google';
+  provider: FormProvider;
   version: number;
   status: DraftStatus;
   specification: FormSpecification;

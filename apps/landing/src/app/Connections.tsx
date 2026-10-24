@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { ProviderMark } from './components/ProviderBadge';
 import {
   isProviderId,
   isResultCode,
@@ -57,7 +58,7 @@ export function Connections({ load, reload }: { load: ProviderLoad; reload: () =
       <div className="page-heading">
         <div className="eyebrow">02 / PROVIDERS</div>
         <h1>Your forms stay<br /><em>your forms.</em></h1>
-        <div className="heading-description">A provider connection is a separate authorization. Signing in to Intake does not give Intake access to Google or Microsoft.</div>
+        <div className="heading-description">Connect the account where your forms should live. A connection is a separate authorization — signing in to Intake does not give Intake access to Google, Microsoft or Typeform.</div>
       </div>
       {message && <div className={`form-banner ${message.tone}`} role="status">{message.text}</div>}
       {load.status === 'loading' && <p className="fine-print" role="status">Checking connections…</p>}
@@ -72,7 +73,7 @@ export function Connections({ load, reload }: { load: ProviderLoad; reload: () =
           {load.providers.map(provider => <ProviderRow key={provider.id} provider={provider} onChange={result => { setNotice(result); void reload(); }} />)}
         </div>
       )}
-      <p className="fine-print">Disconnecting here stops Intake from using that account. It does not delete forms already in Google or Microsoft. One account per provider for now — disconnect before switching accounts.</p>
+      <p className="fine-print">Disconnecting here stops Intake from using that account. It does not delete forms already in Google, Microsoft or Typeform. One account per provider for now — disconnect before switching accounts.</p>
     </>
   );
 }
@@ -117,7 +118,7 @@ function ProviderRow({ provider, onChange }: { provider: PublicProvider; onChang
 
   return (
     <article className="provider-row">
-      <span className={`provider-symbol ${provider.id === 'microsoft' ? 'microsoft' : ''}`} aria-hidden>{provider.id === 'google' ? 'G' : '⊞'}</span>
+      <ProviderMark provider={provider.id} />
       <div className="provider-main">
         <div className="provider-title">
           <h2>{provider.name}</h2>

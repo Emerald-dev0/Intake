@@ -8,6 +8,8 @@ import {
   type PublicFormSummary,
 } from '../lib/forms';
 import { Insights } from './components/Insights';
+import { ProviderMark } from './components/ProviderBadge';
+import { formProviderLabel } from '../lib/connections';
 
 export interface FormLibraryProps {
   providers: ProviderLoad;
@@ -62,6 +64,7 @@ export function FormLibrary({
   // Filters & Sorting state
   const [searchQuery, setSearchQuery] = useState('');
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
+  const [providerFilter, setProviderFilter] = useState<'all' | 'google' | 'typeform'>('all');
   const [archiveFilter, setArchiveFilter] = useState<ActiveFilter>('active');
   const [sortOption, setSortOption] = useState<SortOption>('newest');
 
@@ -87,7 +90,9 @@ export function FormLibrary({
   const alive = useRef(true);
   const loadSequence = useRef(0);
   const google = providers.providers?.find(provider => provider.id === 'google');
+  const typeform = providers.providers?.find(provider => provider.id === 'typeform');
   const isGoogleConnected = google?.status === 'connected';
+  const canImport = isGoogleConnected || typeform?.status === 'connected';
 
   useEffect(() => {
     alive.current = true;
@@ -102,6 +107,7 @@ export function FormLibrary({
       const params = new URLSearchParams();
       if (searchQuery.trim()) params.set('query', searchQuery.trim());
       if (sourceFilter !== 'all') params.set('source', sourceFilter);
+      if (providerFilter !== 'all') params.set('provider', providerFilter);
       if (archiveFilter === 'archived') params.set('archived', 'true');
       else if (archiveFilter === 'all') params.set('archived', 'all');
       else params.set('archived', 'false');
@@ -186,7 +192,7 @@ export function FormLibrary({
 
   useEffect(() => {
     void loadLibrary();
-  }, [searchQuery, sourceFilter, archiveFilter, sortOption]);
+  }, [searchQuery, sourceFilter, providerFilter, archiveFilter, sortOption]);
 
   async function checkLiveStatus(formId: string) {
     if (liveChecking || actionBusy || deleteBusy) return;
@@ -387,11 +393,12 @@ export function FormLibrary({
   function clearFilters() {
     setSearchQuery('');
     setSourceFilter('all');
+    setProviderFilter('all');
     setArchiveFilter('active');
     setSortOption('newest');
   }
 
-  const hasActiveFilters = searchQuery.trim() !== '' || sourceFilter !== 'all' || archiveFilter !== 'active' || sortOption !== 'newest';
+  const hasActiveFilters = searchQuery.trim() !== '' || sourceFilter !== 'all' || providerFilter !== 'all' || archiveFilter !== 'active' || sortOption !== 'newest';
 
   return (
     <div className="library-container" aria-label="Form library workspace">
@@ -399,14 +406,14 @@ export function FormLibrary({
         <div className="eyebrow">03 / FORM LIBRARY</div>
         <h1>Your Forms</h1>
         <div className="heading-description">
-          Find, inspect, open, and continue editing forms created through Intake or imported from your connected Google account.
+          Find, inspect, open and continue editing forms created through Intake or imported from your connected Google or Typeform account.
         </div>
       </div>
 
-      {!isGoogleConnected && (
+      {!canImport && (
         <div className="form-banner warn" role="status" style={{ marginBottom: 24 }}>
           <p>
-            Your Google account is not connected. Saved forms remain available in your library, but live status verification and editing with Intake require reconnecting.
+            No form provider is connected. Saved forms remain available in your library, but live status verification and editing with Intake require reconnecting Google or Typeform.
           </p>
           <a href="/app/connections" className="btn btn-ghost btn-sm">Manage connections →</a>
         </div>
@@ -437,6 +444,18 @@ export function FormLibrary({
         </div>
 
         <div className="library-controls">
+          <label htmlFor="filter-provider" className="sr-only">Filter by provider</label>
+          <select
+            id="filter-provider"
+            className="library-select"
+            value={providerFilter}
+            onChange={e => setProviderFilter(e.target.value as 'all' | 'google' | 'typeform')}
+          >
+            <option value="all">All providers</option>
+            <option value="google">Google Forms</option>
+            <option value="typeform">Typeform</option>
+          </select>
+
           <label htmlFor="filter-source" className="sr-only">Filter by source</label>
           <select
             id="filter-source"
@@ -526,7 +545,7 @@ export function FormLibrary({
           <div className="library-empty-icon" aria-hidden>▤</div>
           <h2>Your form library is empty</h2>
           <p>
-            Forms you create with Intake or import from your Google account will appear here. You can reopen them, inspect live provider status, and continue editing anytime.
+            Forms you create with Intake or import from Google or Typeform will appear here. You can reopen them, inspect live provider status, and continue editing anytime.
           </p>
           <div className="library-empty-actions">
             <button
@@ -541,7 +560,7 @@ export function FormLibrary({
               className="btn btn-ghost"
               onClick={() => { setImportOpen(true); setImportError(null); }}
             >
-              Import an existing Google Form
+              Import an existing form
             </button>
           </div>
         </div>
@@ -570,8 +589,8 @@ export function FormLibrary({
               <li key={form.id} className={`library-card ${isArchived ? 'archived' : ''}`}>
                 <div className="library-card-top">
                   <div className="library-card-badges">
-                    <span className="library-badge provider">
-                      <span aria-hidden>G</span> Google Forms
+                    <span className={`library-badge provider provider-${form.provider}`}>
+                      <ProviderMark provider={form.provider} /> {formProviderLabel(form.provider)}
                     </span>
                     <span className="library-badge source">
                       {form.source === 'imported' ? 'Imported' : 'Intake'}
@@ -734,7 +753,7 @@ export function FormLibrary({
                 </p>
               ) : (
                 <p className="library-live-status-msg">
-                  Verify that this form remains accessible in your connected Google account and refresh metadata.
+                  Verify that this form remains accessible in the connected provider account and refresh metadata.
                 </p>
               )}
             </div>
@@ -758,21 +777,23 @@ export function FormLibrary({
                   rel="noreferrer"
                   className="btn btn-ghost btn-sm"
                 >
-                  Open in Google Forms ↗
+                  Open in {formProviderLabel(inspectingForm.provider)} ↗
                 </a>
               )}
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={() => {
-                  const id = inspectingForm.id;
-                  setInspectingForm(null);
-                  if (onSelectMode) onSelectMode('edit', id);
-                  else window.location.assign(`/app/forms?mode=edit&form=${id}`);
-                }}
-              >
-                Edit with Intake →
-              </button>
+              {inspectingForm.provider === 'google'
+                ? <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => {
+                    const id = inspectingForm.id;
+                    setInspectingForm(null);
+                    if (onSelectMode) onSelectMode('edit', id);
+                    else window.location.assign(`/app/forms?mode=edit&form=${id}`);
+                  }}
+                >
+                  Edit with Intake →
+                </button>
+                : <span className="library-edit-note">Edit this form in Typeform — in-place Typeform editing is not available in Intake yet.</span>}
               <button
                 type="button"
                 className="btn btn-ghost btn-sm"
@@ -786,7 +807,7 @@ export function FormLibrary({
             {/* Removal Danger Zone */}
             <div className="library-danger-zone">
               <p>
-                Removing this form deletes the record from Intake. It does <strong>not</strong> delete the form in your Google account.
+                Removing this form deletes the record from Intake. It does <strong>not</strong> delete the form in your {formProviderLabel(inspectingForm.provider).replace(' Forms', '')} account.
               </p>
               <button
                 type="button"
@@ -872,20 +893,20 @@ export function FormLibrary({
 
             <div>
               <span className="library-modal-legend">IMPORT AN EXISTING FORM</span>
-              <h2 id="import-title">Import from Google Forms</h2>
+              <h2 id="import-title">Import an existing form</h2>
             </div>
 
             <p className="library-modal-desc">
-              Paste the edit URL of a form in your connected Google account (e.g. <code>https://docs.google.com/forms/d/FORM_ID/edit</code>). Intake will verify access, add it to your library, and allow you to inspect or edit it naturally.
+              Paste a Google Forms edit URL (<code>https://docs.google.com/forms/d/FORM_ID/edit</code>) or a Typeform link (<code>https://form.typeform.com/to/FORM_ID</code>). Intake verifies access, adds the form to your library, and lets you inspect it. Google Forms can also be edited with Intake; Typeforms are edited in Typeform.
             </p>
 
             <form onSubmit={submitImport} className="library-import-form">
-              <label htmlFor="import-url" className="sr-only">Google Forms URL</label>
+              <label htmlFor="import-url" className="sr-only">Form URL</label>
               <input
                 id="import-url"
                 type="url"
                 className="library-import-input"
-                placeholder="https://docs.google.com/forms/d/.../edit"
+                placeholder="https://docs.google.com/forms/d/.../edit or https://form.typeform.com/to/…"
                 value={importUrl}
                 onChange={e => setImportUrl(e.target.value)}
                 disabled={importBusy}

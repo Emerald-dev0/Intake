@@ -1,11 +1,12 @@
 import { CHOICE_TYPES, QUESTION_TYPES, type FormSpecification, type QuestionSpecification, type QuestionType } from './specification';
 import { parseCreateFormResponse, parseFormFailure, type CreateFormResult, type FormFailure, type FormWarning } from './forms';
+import { isFormProvider, type FormProvider } from './connections';
 import { parseOperationCost, type PublicOperationCost } from './credits';
 
 /** Browser contract. Only the id stays in sessionStorage; the actual draft stays server-side. */
 export interface PublicDraft {
   id: string;
-  provider: 'google';
+  provider: FormProvider;
   version: number;
   status: 'ready' | 'creating' | 'created' | 'blocked';
   specification: FormSpecification;
@@ -80,7 +81,7 @@ function warnings(value: unknown): FormWarning[] | null {
 
 export function parsePublicDraft(value: unknown): PublicDraft | null {
   const row = record(value);
-  if (!row || !(typeof row.id === 'string' && draftIdPattern.test(row.id)) || row.provider !== 'google' || !Number.isSafeInteger(row.version) || (row.version as number) < 1 ||
+  if (!row || !(typeof row.id === 'string' && draftIdPattern.test(row.id)) || !isFormProvider(row.provider as string) || !Number.isSafeInteger(row.version) || (row.version as number) < 1 ||
       !['ready', 'creating', 'created', 'blocked'].includes(row.status as string) ||
       !text(row.createdAt, 40) || !text(row.updatedAt, 40) || Number.isNaN(Date.parse(row.createdAt)) || Number.isNaN(Date.parse(row.updatedAt))) return null;
   const spec = specification(row.specification);
@@ -98,7 +99,7 @@ export function parsePublicDraft(value: unknown): PublicDraft | null {
       (row.status === 'ready' && result && (result.ok || result.failure.outcome !== 'not_created')) ||
       (row.status === 'creating' && result)) return null;
   return {
-    id: row.id as string, provider: 'google', version: row.version as number, status: row.status as PublicDraft['status'],
+    id: row.id as string, provider: row.provider as FormProvider, version: row.version as number, status: row.status as PublicDraft['status'],
     specification: spec, assumptions: [...row.assumptions] as string[], warnings: notes, result,
     createdAt: row.createdAt, updatedAt: row.updatedAt,
   };

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { isProviderId, type ProviderId } from '../../src/lib/connections';
+import { FORM_PROVIDER_ACCOUNTS, FORM_PROVIDER_LABELS, isProviderId, type FormProvider, type ProviderId } from '../../src/lib/connections';
 import type { FormWarning, PublicCreatedForm, PublicFormSummary, PublicLibraryForm } from '../../src/lib/forms';
 import { logSafe } from '../providers/oauth';
 import { isMissingTable } from '../providers/service';
@@ -112,7 +112,7 @@ export function createFormEngine(deps: FormEngineDeps): FormEngine {
       // 1. Which provider? An unknown value never reaches an adapter.
       const provider = typeof input.provider === 'string' && isProviderId(input.provider) ? input.provider : null;
       if (!provider) {
-        return reject({ code: 'unsupported_provider', message: 'That provider is not supported. Use "google".', outcome: 'not_created', retryable: false }, 'unsupported_provider');
+        return reject({ code: 'unsupported_provider', message: 'That provider is not supported. Use "google" or "typeform".', outcome: 'not_created', retryable: false }, 'unsupported_provider');
       }
 
       // 2. Provider-independent validation. Pure: no request of any kind has been made yet.
@@ -286,7 +286,7 @@ export function createFormEngine(deps: FormEngineDeps): FormEngine {
 
         if (code === 'form_not_found') {
           status = 'missing';
-          message = 'Google Forms could not find this form. It may have been deleted or moved in your Google account.';
+          message = `${FORM_PROVIDER_LABELS[existing.provider as FormProvider] ?? 'The provider'} could not find this form. It may have been deleted or moved in that account.`;
         } else if (code === 'form_not_editable' || code === 'provider_permission_denied') {
           status = 'inaccessible';
           message = 'Your connected Google account does not have permission to access or edit this form.';
@@ -324,7 +324,7 @@ export function createFormEngine(deps: FormEngineDeps): FormEngine {
           return { ok: false, error: { code: 'invalid_request', message: 'That form is not available in your Intake account.', retryable: false } };
         }
         await deps.store.remove(userId, id);
-        return { ok: true, removed: true, message: 'Form removed from your Intake library. The form remains in your Google account.' };
+        return { ok: true, removed: true, message: `Form removed from your Intake library. The form remains in your ${FORM_PROVIDER_ACCOUNTS[existing.provider as FormProvider] ?? 'provider'} account.` };
       } catch (error) {
         logSafe('Removing form from library failed', error);
         return { ok: false, error: { code: 'storage_unavailable', message: 'Intake could not remove the form reference right now.', retryable: true } };
@@ -332,39 +332,40 @@ export function createFormEngine(deps: FormEngineDeps): FormEngine {
     },
 
     async importForm(userId, url, requestId = newRequestId()) {
-      const formId = extractGoogleFormId(url);
-      if (!formId) {
+      const target = extractFormTarget(url);
+      if (!target) {
         return {
           ok: false,
           error: {
             code: 'invalid_request',
-            message: 'Provide a valid Google Forms edit URL (e.g. https://docs.google.com/forms/d/FORM_ID/edit). Short links and invalid URLs are rejected.',
+            message: 'Provide a valid Google Forms edit URL or Typeform form URL (for example https://docs.google.com/forms/d/FORM_ID/edit or https://form.typeform.com/to/FORM_ID). Short links and invalid URLs are rejected.',
             retryable: false,
           },
         };
       }
+      const { provider, formId } = target;
 
       try {
-        const existing = await deps.store.getByProviderFormId(userId, 'google', formId);
+        const existing = await deps.store.getByProviderFormId(userId, provider, formId);
         if (existing) {
           return { ok: true, form: publicLibrary(existing), alreadyExists: true };
         }
 
-        const adapter = deps.providers.google;
+        const adapter = deps.providers[provider];
         if (!adapter?.retrieveForm) {
-          return { ok: false, error: { code: 'provider_not_supported', message: 'Google Forms provider cannot retrieve forms.', retryable: false } };
+          return { ok: false, error: { code: 'provider_not_supported', message: `${FORM_PROVIDER_LABELS[provider]} does not support importing forms into Intake yet.`, retryable: false } };
         }
 
-        log('form.library.import_started', { requestId, userId, formId });
+        log('form.library.import_started', { requestId, userId, provider, formId });
         const loaded = await adapter.retrieveForm(userId, formId, { requestId, log });
 
         const record: NewFormRecord = {
           id: newId(),
           userId,
-          provider: 'google',
+          provider,
           externalAccountId: loaded.externalAccountId,
           providerFormId: loaded.current.providerFormId,
-          title: loaded.current.title || 'Untitled Google Form',
+          title: loaded.current.title || `Untitled ${FORM_PROVIDER_LABELS[provider]}`,
           description: loaded.current.description ?? null,
           status: 'created',
           editUrl: loaded.current.editUrl,
@@ -379,11 +380,11 @@ export function createFormEngine(deps: FormEngineDeps): FormEngine {
         };
 
         const saved = await deps.store.save(record, now());
-        log('form.library.import_completed', { requestId, userId, formId, recordId: saved.id });
+        log('form.library.import_completed', { requestId, userId, provider, formId, recordId: saved.id });
         return { ok: true, form: publicLibrary(saved), alreadyExists: false };
       } catch (error) {
-        logSafe('Importing Google Form failed', error);
-        log('form.library.import_failed', { requestId, userId, formId });
+        logSafe('Importing form failed', error);
+        log('form.library.import_failed', { requestId, userId, provider, formId });
         if (error instanceof FormEditError || error instanceof FormEngineError) {
           const code = error.info.code;
           const mappedCode =
@@ -392,10 +393,34 @@ export function createFormEngine(deps: FormEngineDeps): FormEngine {
               : code;
           return { ok: false, error: { code: mappedCode as FormErrorInfo['code'], message: error.info.message, retryable: error.info.retryable } };
         }
-        return { ok: false, error: { code: 'internal_error', message: 'Intake could not import this Google Form. Check your connection and try again.', retryable: false } };
+        return { ok: false, error: { code: 'internal_error', message: 'Intake could not import this form. Check your connection and try again.', retryable: false } };
       }
     },
   };
+}
+
+const TYPEFORM_FORM_ID = /^[A-Za-z0-9]{6,64}$/;
+
+/**
+ * Extracts a provider and form id from a supported share/edit URL. The URL is parsed, never fetched:
+ * the connected account still has to prove access through the provider's own API.
+ */
+export function extractFormTarget(url: unknown): { provider: FormProvider; formId: string } | null {
+  const google = extractGoogleFormId(url);
+  if (google) return { provider: 'google', formId: google };
+  if (typeof url !== 'string' || url.length > 2048) return null;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' || parsed.port || parsed.username || parsed.password || parsed.search || parsed.hash) return null;
+    const candidate = parsed.hostname === 'form.typeform.com'
+      ? /^\/to\/([A-Za-z0-9]{6,64})\/?$/.exec(parsed.pathname)?.[1]
+      : parsed.hostname === 'admin.typeform.com'
+        ? /^\/form\/([A-Za-z0-9]{6,64})(?:\/(?:edit|share))?\/?$/.exec(parsed.pathname)?.[1]
+        : undefined;
+    return candidate && TYPEFORM_FORM_ID.test(candidate) ? { provider: 'typeform', formId: candidate } : null;
+  } catch {
+    return null;
+  }
 }
 
 function isIncompleteStage(stage: string): stage is IncompleteStage {

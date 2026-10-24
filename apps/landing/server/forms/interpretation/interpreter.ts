@@ -2,8 +2,25 @@ import type { AiFailureCode } from '../../ai/provider';
 import type { FormWarning, ValidationIssue } from '../../../src/lib/forms';
 import type { FormSpecification } from '../specification';
 import type { AiOperationContext } from '../../admin/ai-operations';
+import type { FormProvider } from '../../../src/lib/connections';
 import { planGoogleForm } from '../providers/google/plan';
+import { planTypeform } from '../providers/typeform/plan';
 import { parseFormSpecification } from '../validation';
+
+/**
+ * Plan against the provider the draft is actually for. Interpretation is shared, but a proposal is
+ * only honest if the target provider can express it: Typeform has no section routing and a narrower
+ * field set, Google imposes ordering rules on conditional sections.
+ */
+function planFor(provider: FormProvider, specification: FormSpecification):
+  { ok: true; warnings: FormWarning[] } | { ok: false; issues: ValidationIssue[] } {
+  if (provider === 'typeform') {
+    const planned = planTypeform(specification);
+    return planned.ok ? { ok: true, warnings: planned.plan.warnings } : { ok: false, issues: planned.issues };
+  }
+  const planned = planGoogleForm(specification);
+  return planned.ok ? { ok: true, warnings: planned.plan.warnings } : { ok: false, issues: planned.issues };
+}
 
 /** Planner codes the model can fix by reshuffling: placement and controller shape, never content. */
 const REPAIRABLE_CODES = ['google_condition_placement', 'google_nested_condition', 'google_condition_source_not_required'];
@@ -15,7 +32,7 @@ const FRIENDLY_CODES = ['google_condition_placement', 'google_nested_condition']
  * there is nothing to repair (other statuses, unparseable specs, clean plans). Lets the caller
  * retry the model with targeted feedback instead of showing engineer text to the user.
  */
-export function placementIssues(value: unknown): ValidationIssue[] {
+export function placementIssues(value: unknown, provider: FormProvider = 'google'): ValidationIssue[] {
   if (!record(value) || value.status !== 'ready' || !record(value.specification)) return [];
   let specification: FormSpecification;
   try {
@@ -25,9 +42,8 @@ export function placementIssues(value: unknown): ValidationIssue[] {
   } catch {
     return [];
   }
-  const planned = planGoogleForm(specification);
-  if (planned.ok) return [];
-  return planned.issues;
+  const planned = planFor(provider, specification);
+  return planned.ok ? [] : planned.issues;
 }
 
 /** True when every issue is a reshuffle problem rather than an unsupported-content problem. */
@@ -50,7 +66,8 @@ export interface InterpretationInput {
   clarification?: string;
   /** Only the server's current, user-owned draft; never a client-supplied specification. */
   specification?: FormSpecification;
-  provider: 'google';
+  /** The provider this proposal will be created in. Chosen by the user, never by the model. */
+  provider: FormProvider;
   /** Request/user context is used only for secret-free server-side usage metadata. */
   telemetry?: AiOperationContext;
 }
@@ -91,10 +108,10 @@ function text(value: unknown, max: number): value is string {
 
 /**
  * Enforce the result union even when the model claims to have followed a JSON schema. A ready result
- * must pass BOTH the engine's strict validator and the actual Google planner. A provider limitation
- * becomes an honest unsupported result, never a silently approximated draft.
+ * must pass BOTH the engine's strict validator and the target provider's planner. A provider
+ * limitation becomes an honest unsupported result, never a silently approximated draft.
  */
-export function assessInterpretation(value: unknown): InterpretationResult {
+export function assessInterpretation(value: unknown, provider: FormProvider = 'google'): InterpretationResult {
   if (!record(value) || !exactly(value, keys) || !Array.isArray(value.assumptions) || value.assumptions.length > 6 ||
       !value.assumptions.every(item => text(item, 240))) throw invalid();
 
@@ -110,7 +127,7 @@ export function assessInterpretation(value: unknown): InterpretationResult {
 
   const parsed = parseFormSpecification(value.specification);
   if (!parsed.ok) throw invalid();
-  const planned = planGoogleForm(parsed.specification);
+  const planned = planFor(provider, parsed.specification);
   if (!planned.ok) {
     // Back-to-back and nested layouts get plain language (the repair loop in provider-interpreter
     // usually resolves them before this is ever shown); anything else keeps the planner's specific
@@ -121,5 +138,5 @@ export function assessInterpretation(value: unknown): InterpretationResult {
     const explanation = planned.issues.slice(0, 2).map(issue => issue.message).join(' ');
     return { status: 'unsupported', explanation: explanation.length > 500 ? `${explanation.slice(0, 497)}…` : explanation };
   }
-  return { status: 'ready', specification: parsed.specification, assumptions: value.assumptions.map(item => (item as string).trim()), warnings: planned.plan.warnings };
+  return { status: 'ready', specification: parsed.specification, assumptions: value.assumptions.map(item => (item as string).trim()), warnings: planned.warnings };
 }

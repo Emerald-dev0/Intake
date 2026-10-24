@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
-  describeFailure, parseFormFailure, parseFormList,
+  describeFailure, parseFormFailure,
   type CreateFormResult, type FormFailure, type FormStage, type PublicFormSummary,
 } from '../lib/forms';
 import { parseConfirmedResponse, parseDraftLoad, parseInterpretResponse, parseDraftList, type PublicDraft } from '../lib/drafts';
-import type { PublicProvider } from '../lib/connections';
+import {
+  FORM_PROVIDERS, FORM_PROVIDER_ACCOUNTS, FORM_PROVIDER_LABELS, formProviderLabel, isFormProvider,
+  type FormProvider, type PublicProvider,
+} from '../lib/connections';
+import { ProviderBadge, ProviderMark } from './components/ProviderBadge';
+import { useRecentForms } from './hooks/useRecentForms';
 import type { ProviderLoad } from './Connections';
 import { FormEditWorkspace } from './FormEditWorkspace';
 import { FormLibrary } from './FormLibrary';
@@ -18,8 +23,6 @@ import { Preview } from './components/Preview';
 import type { FormSpecification } from '../lib/specification';
 
 type Busy = 'loading' | 'interpreting' | 'revising' | 'creating' | 'cancelling' | null;
-export type RecentFormsState = { status: 'loading' | 'error' | 'ready'; forms: PublicFormSummary[] };
-type Recent = RecentFormsState;
 type Pending = { mode: 'new' | 'revise'; request: string; question: string; answers: string };
 /** Conversational thread entries. Interactive content (proposals, results) renders from live state;
     history entries carry just enough snapshot to read as a transcript. */
@@ -29,7 +32,7 @@ type ThreadEntry =
   | { id: number; role: 'intake'; kind: 'proposal'; draftId: string; version: number; title: string; questions: number }
   | { id: number; role: 'intake'; kind: 'result'; result: CreateFormResult }
   | { id: number; role: 'intake'; kind: 'failure'; failure: FormFailure; draftId: string | null };
-const greetingEntry = (): ThreadEntry => ({ id: 0, role: 'intake', kind: 'text', text: 'Hi, I’m Intake. Describe the form you need — I’ll plan the questions, you review, and nothing reaches Google until you say create.' });
+const greetingEntry = (): ThreadEntry => ({ id: 0, role: 'intake', kind: 'text', text: 'Hi, I’m Intake. Describe the form you need — I’ll plan the questions, you review, and nothing is created until you say so.' });
 /** pushEntry takes the same shapes minus the auto-assigned id. Omit does not distribute over the
     union, so the input union is spelled out. */
 type ThreadEntryInput =
@@ -41,10 +44,18 @@ type ThreadEntryInput =
 const STORAGE_KEY = 'intake:current-form-draft'; // only an opaque id, never the specification or chat text
 const EXAMPLE = 'Create a registration form for my final-year project. Ask for full name, email, phone number, department, and whether they need accommodation. If they do, ask what type of accommodation they need.';
 const MICROSOFT_REASON = 'Microsoft Forms creation is not available yet; Microsoft does not publish a supported creation API.';
-const NETWORK_FAILURE: FormFailure = {
-  error: 'Intake could not confirm the result. A Google Form may exist. Check your draft status, Recent forms and Google Forms before starting over. This draft will not be sent again if creation started.',
+/**
+ * What to say when a confirmation response is lost. The likely-exists sentence names the provider
+ * the draft targets, because "check Google Forms" is unhelpful advice for a Typeform draft.
+ */
+function networkFailure(provider: FormProvider): FormFailure {
+  return {
+  error: provider === 'google'
+    ? 'Intake could not confirm the result. A Google Form may exist. Check your draft status, Recent forms and Google Forms before starting over. This draft will not be sent again if creation started.'
+    : `Intake could not confirm the result. A Typeform form may exist. Check your draft status, Recent forms and Typeform before starting over. This draft will not be sent again if creation started.`,
   code: 'internal_error', requestId: '', outcome: 'unknown', retryable: false,
-};
+  } as FormFailure;
+}
 const STAGE_LABEL: Partial<Record<FormStage, string>> = {
   add_questions: 'adding the questions', configure_logic: 'setting up conditional logic', publish: 'publishing',
 };
@@ -63,24 +74,6 @@ function useAlive() {
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   return alive;
-}
-
-export function useRecentForms() {
-  const [state, setState] = useState<Recent>({ status: 'loading', forms: [] });
-  const alive = useAlive();
-  async function load() {
-    try {
-      const response = await fetch('/api/forms', { credentials: 'same-origin', cache: 'no-store', headers: { accept: 'application/json' } });
-      if (!response.ok) throw new Error('unavailable');
-      const forms = parseFormList(await response.json());
-      if (!forms) throw new Error('invalid');
-      if (alive.current) setState({ status: 'ready', forms });
-    } catch {
-      if (alive.current) setState(previous => ({ status: 'error', forms: previous.forms }));
-    }
-  }
-  useEffect(() => { void load(); }, []);
-  return { state, load };
 }
 
 export function useDrafts() {
@@ -105,12 +98,12 @@ function FormLink({ href, primary, children }: { href: string; primary?: boolean
   return <a className={`btn ${primary ? 'btn-accent' : 'btn-ghost'} btn-sm`} href={href} target="_blank" rel="noreferrer">{children} <span aria-hidden>↗</span></a>;
 }
 
-function connectionLine(google: PublicProvider | undefined): string {
-  if (!google) return 'Not connected';
-  if (google.status === 'connected') return `Connected${google.accountEmail ? ` as ${google.accountEmail}` : ''}`;
-  if (google.status === 'expired') return 'Expired';
-  if (google.status === 'reauthorization_required') return 'Reconnect required';
-  if (!google.configured) return 'Setup required';
+function connectionLine(provider: PublicProvider | undefined): string {
+  if (!provider) return 'Not connected';
+  if (provider.status === 'connected') return `Connected${provider.accountEmail ? ` as ${provider.accountEmail}` : ''}`;
+  if (provider.status === 'expired') return 'Expired';
+  if (provider.status === 'reauthorization_required') return 'Reconnect required';
+  if (!provider.configured) return 'Setup required';
   return 'Not connected';
 }
 
@@ -132,6 +125,10 @@ async function post(
   // ambiguous drop must be checked by the user, not re-fired. Interpret/revise are model reads
   // under idempotency keys, so one wake retry is safe there.
   const attempts = options.retry ? 2 : 1;
+  // A 502/503 with a readable Intake error body is a real answer, not a dropped connection: if the
+  // retry gets the same answer, that answer is returned so the user sees "GROQ_API_KEY is missing"
+  // or "Try again later" instead of a made-up network failure.
+  let lastAnswer: { status: number; body: unknown } | null = null;
   for (let attempt = 1; attempt <= attempts; attempt++) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 75_000);
@@ -145,6 +142,7 @@ async function post(
       });
       const body = await response.json().catch(() => null) as unknown;
       if (!asleep(response.status)) return { status: response.status, body };
+      lastAnswer = { status: response.status, body };
     } catch {
       // Network failure or timeout: fall through to the wake retry below.
     } finally {
@@ -152,14 +150,17 @@ async function post(
     }
     if (attempt === 1) options.onWake?.();
   }
+  if (lastAnswer && lastAnswer.body !== null) return lastAnswer;
   throw new Error('Intake could not be reached after two attempts.');
 }
 
 export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { providers: ProviderLoad; reloadProviders: () => void; newChatNonce?: number }) {
   const location = useLocation();
-  const locationState = location.state as { initialPrompt?: unknown; mode?: unknown; initialRecordId?: unknown } | null;
+  const locationState = location.state as { initialPrompt?: unknown; mode?: unknown; initialRecordId?: unknown; provider?: unknown } | null;
   const initialPrompt = locationState?.initialPrompt;
   const [prompt, setPrompt] = useState(typeof initialPrompt === 'string' && initialPrompt.length <= 3000 ? initialPrompt : '');
+  const seededProvider = locationState?.provider;
+  const [provider, setProvider] = useState<FormProvider>(isFormProvider(seededProvider as string) ? seededProvider as FormProvider : 'google');
   const [pending, setPending] = useState<Pending | null>(null);
   const [thread, setThread] = useState<ThreadEntry[]>([greetingEntry()]);
   const threadSeq = useRef(1);
@@ -202,7 +203,9 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
   }, [newChatNonce]);
   // Stable idempotency keys for AI operations: one key per distinct submission.
   const operations = useRef(createOperationTracker()).current;
-  const google = providers.providers?.find(provider => provider.id === 'google');
+  const selectedProvider = providers.providers?.find(entry => entry.id === provider);
+  /** The provider is fixed once a draft exists: the server planned that draft for one target. */
+  const activeProvider: FormProvider = draft?.provider ?? provider;
   const costCredits = credits.state.status === 'ready' ? credits.state.credits : null;
   const costGuide = credits.state.status === 'ready' ? credits.state.costGuide : null;
 
@@ -217,6 +220,7 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
       if (!alive.current) return;
       if ('draft' in parsed) {
         setDraft(parsed.draft);
+        setProvider(parsed.draft.provider);
         setResult(parsed.draft.result);
         setFailure(null);
         if (seededDraftRef.current !== parsed.draft.id) {
@@ -240,8 +244,10 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
   }
   useEffect(() => { if (draftId) void loadDraft(draftId); }, []);
 
-  async function interpret(mode: 'new' | 'revise', request: string, clarification?: string) {
-    if (busyRef.current || (mode === 'revise' && (!draft || draft.status !== 'ready'))) return;
+  /** Resolves true when the server answered (even with a clarification or refusal), false when the
+      words could not be sent at all — in which case the composer keeps them for another try. */
+  async function interpret(mode: 'new' | 'revise', request: string, clarification?: string): Promise<boolean> {
+    if (busyRef.current || (mode === 'revise' && (!draft || draft.status !== 'ready'))) return true;
     busyRef.current = true;
     setBusy(mode === 'new' ? 'interpreting' : 'revising');
     setFailure(null);
@@ -252,10 +258,10 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
     const operationId = operations.id(signature);
     try {
       const { status, body } = await post(mode === 'new' ? '/api/forms/interpret' : '/api/forms/revise',
-        mode === 'new' ? { provider: 'google', request, operationId, ...(clarification ? { clarification } : {}) }
+        mode === 'new' ? { provider: activeProvider, request, operationId, ...(clarification ? { clarification } : {}) }
           : { draftId: draft!.id, version: draft!.version, request, operationId, ...(clarification ? { clarification } : {}) },
         { retry: true, onWake: () => { if (alive.current) setWaking(true); } });
-      if (!alive.current) return;
+      if (!alive.current) return true;
       operations.settle();
       credits.note(body);
       const parsed = parseInterpretResponse(status, body);
@@ -280,25 +286,34 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
         setFailure(failure);
         pushEntry({ role: 'intake', kind: 'failure', failure, draftId: draft?.id ?? draftId });
         if (outOfCredits) credits.reload();
+        // The words go back in the composer: a refused or failed request is retryable, and retyping
+        // a paragraph to try again is exactly the friction this page exists to remove.
+        return false;
       }
     } catch {
       // The key is deliberately kept: if the server did process this submission, the retry cannot charge twice.
-      if (alive.current) setFailure({ error: 'Intake could not confirm the interpretation result. No Google Form was created by this step. If you were revising, check the draft status before trying again.', code: 'model_unavailable', requestId: '', outcome: 'not_created', retryable: true });
+      if (alive.current) setFailure({ error: 'Intake could not confirm the interpretation result. No form was created by this step. If you were revising, check the draft status before trying again.', code: 'model_unavailable', requestId: '', outcome: 'not_created', retryable: true });
+      return false;
     } finally {
       busyRef.current = false;
       if (alive.current) { setBusy(null); setWaking(false); }
     }
+    return true;
   }
 
+  /** Keep the person's words when nothing reached the server; the thread has the copy already. */
+  function restorePrompt(text: string, sent: Promise<boolean>) {
+    void sent.then(ok => { if (!ok && alive.current) setPrompt(current => current || text); });
+  }
   function submitDescription(text: string) {
     pushEntry({ role: 'user', text });
     setPrompt('');
-    void interpret('new', text);
+    restorePrompt(text, interpret('new', text));
   }
   function submitRevision(text: string) {
     pushEntry({ role: 'user', text });
     setPrompt('');
-    void interpret('revise', text);
+    restorePrompt(text, interpret('revise', text));
   }
   function submitAnswer(text: string) {
     if (!pending) return;
@@ -311,7 +326,7 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
     }
     pushEntry({ role: 'user', text });
     setPrompt('');
-    void interpret(pending.mode, pending.request, combined);
+    restorePrompt(text, interpret(pending.mode, pending.request, combined));
   }
   /** One composer routes by conversation state: answer a question, revise a draft, or start fresh. */
   function submitComposer(event: FormEvent<HTMLFormElement>) {
@@ -350,7 +365,9 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
       if (!parsed.result.ok && (parsed.result.failure.code === 'provider_not_connected' || parsed.result.failure.code === 'provider_reauthorization_required')) void reloadProviders();
     } catch {
       if (alive.current) {
-        setResult({ ok: false, failure: NETWORK_FAILURE });
+        const failure = networkFailure(activeProvider);
+        setResult({ ok: false, failure });
+        pushEntry({ role: 'intake', kind: 'result', result: { ok: false, failure } });
         setDraft(previous => previous && { ...previous, status: 'creating' });
         void recent.load();
       }
@@ -435,16 +452,18 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
     setThread([greetingEntry()]);
   }
 
-  const notice = google && google.status !== 'connected'
-    ? !google.configured && google.status === 'not_connected'
-      ? `Google OAuth is not configured on this server. An operator must set ${google.setupEnv.join(' and ')} before you can connect.`
-      : google.status === 'not_connected'
-        ? 'Connect Google separately from your Intake sign-in before you create a form.'
-        : 'Your Google authorization needs renewing before you can create a form.'
+  const providerName = FORM_PROVIDER_LABELS[activeProvider];
+  const providerAccount = activeProvider === 'typeform' ? 'Typeform' : 'Google';
+  const notice = selectedProvider && selectedProvider.status !== 'connected'
+    ? !selectedProvider.configured && selectedProvider.status === 'not_connected'
+      ? `${providerAccount} OAuth is not configured on this server. An operator must set ${selectedProvider.setupEnv.join(' and ')} before you can connect.`
+      : selectedProvider.status === 'not_connected'
+        ? `Connect ${providerAccount} separately from your Intake sign-in before you create a form. You can keep drafting meanwhile.`
+        : `Your ${providerAccount} authorization needs renewing before you can create a form.`
     : null;
-  const googleLine = !providers.providers
+  const providerLine = !providers.providers
     ? providers.status === 'error' ? 'Connection status could not be loaded. Intake will verify it when you create.' : 'Checking connection…'
-    : connectionLine(google);
+    : connectionLine(selectedProvider);
   const blocked = draft?.status === 'creating' || draft?.status === 'blocked';
   const finished = draft?.status === 'created';
   const typingText = waking
@@ -466,16 +485,16 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
   const composerHint = pending
     ? 'Your answer goes back with the original request.'
     : draft && draft.status === 'ready'
-      ? 'Anything you send now revises this draft. Nothing reaches Google until you create.'
+      ? `Anything you send now revises this draft. Nothing reaches ${providerName} until you create.`
       : 'A clear first draft is enough. You can make changes before anything is created.';
   function renderEntry(entry: ThreadEntry) {
     if (entry.role === 'user') return <div key={entry.id} className="msg msg-user">{entry.text}</div>;
     if (entry.kind === 'text') return <div key={entry.id} className="msg msg-intake">{entry.text}</div>;
     if (entry.kind === 'failure') {
-      return <div key={entry.id} className="msg msg-intake msg-wide"><FailureNotice failure={entry.failure} onReload={entry.draftId ? () => void loadDraft(entry.draftId as string) : undefined} /></div>;
+      return <div key={entry.id} className="msg msg-intake msg-wide"><FailureNotice failure={entry.failure} provider={activeProvider} onReload={entry.draftId ? () => void loadDraft(entry.draftId as string) : undefined} /></div>;
     }
     if (entry.kind === 'result') {
-      return <div key={entry.id} className="msg msg-intake msg-wide"><Outcome result={entry.result} onContinueEditing={(providerFormId) => { setSelectedEditRecordId(providerFormId); setWorkspaceMode('edit'); }} /></div>;
+      return <div key={entry.id} className="msg msg-intake msg-wide"><Outcome result={entry.result} provider={activeProvider} onContinueEditing={(providerFormId) => { setSelectedEditRecordId(providerFormId); setWorkspaceMode('edit'); }} /></div>;
     }
     const live = draft?.id === entry.draftId && draft?.version === entry.version && draft?.status === 'ready';
     if (!live || !draft) {
@@ -489,7 +508,7 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
           <button type="button" className="btn btn-accent" onClick={() => void confirm()} disabled={busy !== null}>{busy === 'creating' ? 'Creating your form…' : 'Create form →'}</button>
           <button type="button" className="draft-cancel" onClick={() => void cancel()} disabled={busy !== null}>{busy === 'cancelling' ? 'Discarding…' : 'Cancel'}</button>
         </div>
-        <p className="forms-help">Nothing has been sent to Google yet. Creating requires your confirmation.</p>
+        <p className="forms-help">Nothing has been sent to {providerName} yet. Creating requires your confirmation.</p>
       </div>;
     }
 
@@ -500,7 +519,7 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
           <button type="button" className="btn btn-accent" onClick={() => void confirm()} disabled={busy !== null}>{busy === 'creating' ? 'Creating your form…' : 'Create form →'}</button>
           <button type="button" className="draft-cancel" onClick={() => void cancel()} disabled={busy !== null}>{busy === 'cancelling' ? 'Discarding…' : 'Cancel'}</button>
         </div>
-        <p className="forms-help">Nothing has been sent to Google yet. Creating requires your confirmation.</p>
+        <p className="forms-help">Nothing has been sent to {providerName} yet. Creating requires your confirmation.</p>
       </div>;
     }
 
@@ -512,7 +531,7 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
         <button type="button" className="btn btn-ghost" onClick={() => setEditMode('preview')} disabled={busy !== null}>Preview</button>
         <button type="button" className="draft-cancel" onClick={() => void cancel()} disabled={busy !== null}>{busy === 'cancelling' ? 'Discarding…' : 'Cancel'}</button>
       </div>
-      <p className="forms-help">Nothing has been sent to Google yet. Creating requires your confirmation, and this draft can only be submitted once.</p>
+      <p className="forms-help">Nothing has been sent to {providerName} yet. Creating requires your confirmation, and this draft can only be submitted once.</p>
     </div>;
   }
   const workspaceSwitch = <nav className="forms-mode-switch" aria-label="Form workflow">
@@ -546,13 +565,16 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
 
   return <>
     {workspaceSwitch}
-    <div className="page-heading draft-heading">
-      <div className="eyebrow">04 / CREATE A FORM</div>
-      <h1>Describe it.<br /><em>Make it real.</em></h1>
-      <div className="heading-description">Tell Intake what you need to collect. Review what it understood, then choose when to create a real Google Form in your account.</div>
-    </div>
+    {thread.length <= 1 && draft === null && !pending && <div className="chat-intro">
+      <h1>Describe it. <em>Make it real.</em></h1>
+      <p>Tell Intake what you need to collect. Review what it understood, then choose when to create the real form — it lives in your own Google or Typeform account.</p>
+    </div>}
 
-    <section className="draft-provider" aria-label="Form provider"><span className="provider-symbol" aria-hidden>G</span><div><strong>Google Forms</strong><small>{googleLine}</small></div><span className="draft-provider-note">FORMS LIVE IN YOUR GOOGLE ACCOUNT</span></section>
+    <section className="draft-provider" aria-label="Form provider">
+      <ProviderBadge provider={activeProvider} />
+      <div className="draft-provider__status"><small>{providerLine}</small></div>
+      <span className="draft-provider-note">{activeProvider === 'google' ? 'FORMS LIVE IN YOUR GOOGLE ACCOUNT' : 'FORMS LIVE IN YOUR TYPEFORM ACCOUNT'}</span>
+    </section>
     {notice && <div className="form-banner warn draft-notice" role="status"><p>{notice}</p><a href="/app/connections" className="btn btn-ghost btn-sm">View connections →</a></div>}
     {!draft && !draftId && <CreditCostPreview mode="create" guide={costGuide} credits={costCredits} />}
     {draft?.status === 'ready' && <CreditCostPreview mode="revise" guide={costGuide} credits={costCredits} />}
@@ -567,6 +589,26 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
     </section>
     <OperationCostReceipt receipt={operationCost} />
     <form className="thread-composer" onSubmit={submitComposer} aria-busy={busy !== null}>
+      {!draft && !pending && <div className="composer-target" role="group" aria-label="Create the form in">
+        <span className="composer-target__label">Create in</span>
+        {FORM_PROVIDERS.map(option => {
+          const connection = providers.providers?.find(entry => entry.id === option);
+          const state = connection ? connectionLine(connection) : 'Checking connection…';
+          return <button
+            key={option}
+            type="button"
+            className={`composer-target__option ${option === provider ? 'selected' : ''}`}
+            aria-pressed={option === provider}
+            onClick={() => setProvider(option)}
+            disabled={busy !== null}
+            title={state}
+          >
+            <ProviderMark provider={option} />
+            {FORM_PROVIDER_LABELS[option]}
+            {connection && connection.status !== 'connected' && <span className="composer-target__dot" aria-label="Not connected" />}
+          </button>;
+        })}
+      </div>}
       <label className="sr-only" htmlFor="form-request">{composerLabel}</label>
       <textarea id="form-request" className="draft-input" placeholder={composerPlaceholder} value={prompt} onChange={event => setPrompt(event.target.value)} maxLength={3000} required disabled={busy !== null} onKeyDown={event => {
         if (event.key === 'Enter' && !event.shiftKey) {
@@ -583,7 +625,7 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
     {!draft && thread.length <= 1 && <div className="draft-example"><span>NEED A STARTING POINT?</span><button type="button" onClick={() => setPrompt(EXAMPLE)} disabled={busy !== null}>Use a registration example ↗</button></div>}
     {finished && <button className="btn btn-ghost draft-start-again" type="button" onClick={reset}>Start another form →</button>}
 
-    {blocked && draft && <div className="form-banner warn draft-feedback" role="alert"><strong>Do not create this draft again.</strong><p>{draft.status === 'creating' ? 'Creation was started, but Intake has not confirmed its outcome. It may still be running. Check Recent forms and Google Forms before starting a new draft.' : 'The creation attempt had a partial or uncertain outcome. Check the result and Google Forms; Intake will not submit this draft again.'}</p><div className="draft-recovery-actions"><button className="btn btn-ghost btn-sm" type="button" disabled={busy !== null} onClick={() => void loadDraft(draft.id)}>Check draft status</button><button className="btn btn-ghost btn-sm" type="button" disabled={busy !== null} onClick={reset}>Start a different form after checking Google →</button></div></div>}
+    {blocked && draft && <div className="form-banner warn draft-feedback" role="alert"><strong>Do not create this draft again.</strong><p>{draft.status === 'creating' ? 'Creation was started, but Intake has not confirmed its outcome. It may still be running. Check Recent forms and Google Forms before starting a new draft.' : 'The creation attempt had a partial or uncertain outcome. Check the result and Google Forms; Intake will not submit this draft again.'}</p><div className="draft-recovery-actions"><button className="btn btn-ghost btn-sm" type="button" disabled={busy !== null} onClick={() => void loadDraft(draft.id)}>Check draft status</button><button className="btn btn-ghost btn-sm" type="button" disabled={busy !== null} onClick={reset}>Start a different form after checking {FORM_PROVIDER_ACCOUNTS[activeProvider]} →</button></div></div>}
 
     <section className="forms-recent" aria-labelledby="recent-forms-title">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -622,15 +664,16 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
         </ul>
       )}
     </section>
-    <p className="draft-boundary">Google Forms is the only creation target today. {MICROSOFT_REASON} Intake never hosts responses.</p>
+    <p className="draft-boundary">Google Forms and Typeform are supported creation targets. {MICROSOFT_REASON} Intake never hosts responses.</p>
   </>;
 }
 
 function Review({ draft, operationCost }: { draft: PublicDraft; operationCost: PublicOperationCost | null }) {
   const { specification: spec } = draft;
+  const providerName = FORM_PROVIDER_LABELS[draft.provider];
   const controllers = new Map(spec.questions.map(question => [question.id, question.title]));
   return <section className="draft-review" aria-labelledby="review-title"><div className="draft-review-head"><div><span className="forms-legend">02 / WHAT INTAKE UNDERSTOOD</span><h2 id="review-title">{spec.title}</h2>{spec.description && <p className="draft-description">{spec.description}</p>}</div><span className="status-pill ok">{draft.status === 'ready' ? 'DRAFT · NOT CREATED' : draft.status === 'created' ? 'CREATED' : 'CREATION ATTEMPTED'}</span></div>
-    <div className="draft-review-meta"><span>{spec.questions.length} {spec.questions.length === 1 ? 'QUESTION' : 'QUESTIONS'}</span><span>GOOGLE FORMS</span>{spec.questions.some(question => question.visibility) && <span>SECTION ROUTING</span>}</div>
+    <div className="draft-review-meta"><span>{spec.questions.length} {spec.questions.length === 1 ? 'QUESTION' : 'QUESTIONS'}</span><span>{providerName.toUpperCase()}</span>{spec.questions.some(question => question.visibility) && <span>SECTION ROUTING</span>}</div>
     <OperationCostReceipt receipt={operationCost} />
     <ol className="draft-items">{spec.questions.map((question, index) => {
       const condition = question.visibility?.when;
@@ -638,36 +681,40 @@ function Review({ draft, operationCost }: { draft: PublicDraft; operationCost: P
       const beginsSection = condition && (condition.question !== previous?.question || condition.equals !== previous?.equals);
       const resumes = !condition && !!previous;
       return <li key={question.id}>{(beginsSection || resumes) && <div className="draft-section-marker">{beginsSection ? `ROUTING SECTION · SHOW IF “${controllers.get(condition.question) ?? condition.question}” = “${condition.equals}”` : 'NEXT SECTION · EVERYONE ELSE CONTINUES'}</div>}
-        <div className="draft-item"><span className="draft-number">{String(index + 1).padStart(2, '0')}</span><div className="draft-item-body"><div className="draft-item-title"><h3>{question.title}</h3><span className={question.required ? 'draft-required' : 'draft-optional'}>{question.required ? 'Required' : 'Optional'}</span></div><p className="draft-kind">{TYPE_LABEL[question.type]}</p>{question.description && <p className="draft-description">{question.description}</p>}{question.options && <ul className="draft-options">{question.options.map(option => <li key={option}>{option}</li>)}</ul>}{condition && <p className="draft-condition">Shown when “{controllers.get(condition.question) ?? condition.question}” is “{condition.equals}” · Google routes respondents by section</p>}</div></div>
+        <div className="draft-item"><span className="draft-number">{String(index + 1).padStart(2, '0')}</span><div className="draft-item-body"><div className="draft-item-title"><h3>{question.title}</h3><span className={question.required ? 'draft-required' : 'draft-optional'}>{question.required ? 'Required' : 'Optional'}</span></div><p className="draft-kind">{TYPE_LABEL[question.type]}</p>{question.description && <p className="draft-description">{question.description}</p>}{question.options && <ul className="draft-options">{question.options.map(option => <li key={option}>{option}</li>)}</ul>}{condition && <p className="draft-condition">Shown when “{controllers.get(condition.question) ?? condition.question}” is “{condition.equals}” · routing is applied by {providerName}</p>}</div></div>
       </li>;
     })}</ol>
-    {(draft.assumptions.length > 0 || draft.warnings.length > 0) && <aside className="draft-notes"><span className="forms-legend">BEFORE YOU CREATE</span>{draft.assumptions.length > 0 && <div><strong>Assumptions</strong><ul>{draft.assumptions.map((note, index) => <li key={`${index}:${note}`}>{note}</li>)}</ul></div>}{draft.warnings.length > 0 && <div><strong>Google Forms limitations</strong><ul>{draft.warnings.map(note => <li key={`${note.code}:${note.questionId ?? ''}`}>{note.message}</li>)}</ul></div>}</aside>}
+    {(draft.assumptions.length > 0 || draft.warnings.length > 0) && <aside className="draft-notes"><span className="forms-legend">BEFORE YOU CREATE</span>{draft.assumptions.length > 0 && <div><strong>Assumptions</strong><ul>{draft.assumptions.map((note, index) => <li key={`${index}:${note}`}>{note}</li>)}</ul></div>}{draft.warnings.length > 0 && <div><strong>{providerName} limitations</strong><ul>{draft.warnings.map(note => <li key={`${note.code}:${note.questionId ?? ''}`}>{note.message}</li>)}</ul></div>}</aside>}
   </section>;
 }
 
-function FailureNotice({ failure, onReload }: { failure: FormFailure; onReload?: () => void }) {
-  const view = describeFailure(failure);
+function FailureNotice({ failure, provider, onReload }: { failure: FormFailure; provider?: FormProvider; onReload?: () => void }) {
+  const view = describeFailure(failure, provider);
   return <div className={`form-banner ${view.tone === 'bad' ? 'bad' : 'warn'} draft-feedback`} role="alert"><strong>{view.heading}</strong><p>{failure.error}</p>{failure.issues && <ul className="forms-issues">{failure.issues.map((issue, index) => <li key={`${issue.code}:${index}`}>{issue.message}{issue.hint && <em>{issue.hint}</em>}</li>)}</ul>}{view.action && <a className="btn btn-ghost btn-sm" href="/app/connections">View connections →</a>}{onReload && <button type="button" className="btn btn-ghost btn-sm" onClick={onReload}>Check draft status</button>}{failure.requestId && <p className="forms-trace">Request {failure.requestId}</p>}</div>;
 }
 
-function Outcome({ result, onContinueEditing }: { result: CreateFormResult; onContinueEditing?: (providerFormId: string) => void }) {
+function Outcome({ result, provider, onContinueEditing }: { result: CreateFormResult; provider?: FormProvider; onContinueEditing?: (providerFormId: string) => void }) {
   if (result.ok) {
     const { form, warnings, requestId } = result;
-    return <div className="form-banner ok forms-result draft-result" role="status"><span className="forms-legend">03 / READY TO SHARE</span><strong>Form created.</strong><p>{form.title} {form.published ? 'is published in your Google account and accepting responses.' : 'was created in your Google account but is not accepting responses.'}</p><div className="forms-links">{form.responderUrl && <FormLink href={form.responderUrl} primary>Open form</FormLink>}{form.editUrl && <FormLink href={form.editUrl}>Edit form</FormLink>}</div>{!form.responderUrl && <p className="provider-note">Google did not return a respondent link that Intake could verify. Use Edit form to find it in Google Forms.</p>}{form.id === null && <p className="provider-note">Intake could not save a record of this form, so it will not appear under Recent forms. The links above still work.</p>}{warnings.length > 0 && <ul className="forms-issues" aria-label="Things to know">{warnings.map(warning => <li key={`${warning.code}:${warning.questionId ?? ''}`}>{warning.message}</li>)}</ul>}{requestId ? (
+    const target = isFormProvider(form.provider as string) ? form.provider as FormProvider : provider ?? 'google';
+    const providerName = FORM_PROVIDER_LABELS[target];
+    const account = target === 'typeform' ? 'Typeform' : 'Google';
+    return <div className="form-banner ok forms-result draft-result" role="status"><span className="forms-legend">03 / READY TO SHARE</span><strong>Form created.</strong><p>{form.title} {form.published ? `is published in your ${account} account and accepting responses.` : `was created in your ${account} account but is not accepting responses.`}</p><div className="forms-links">{form.responderUrl && <FormLink href={form.responderUrl} primary>Open form</FormLink>}{form.editUrl && <FormLink href={form.editUrl}>Edit form</FormLink>}</div>{!form.responderUrl && <p className="provider-note">{providerName} did not return a respondent link that Intake could verify. Use Edit form to find it in {providerName}.</p>}{form.id === null && <p className="provider-note">Intake could not save a record of this form, so it will not appear under Recent forms. The links above still work.</p>}{warnings.length > 0 && <ul className="forms-issues" aria-label="Things to know">{warnings.map(warning => <li key={`${warning.code}:${warning.questionId ?? ''}`}>{warning.message}</li>)}</ul>}{requestId ? (
       <>
         <p className="forms-trace">Request {requestId}</p>
-        <button className="btn btn-accent btn-sm mt-2" onClick={() => onContinueEditing?.(form.providerFormId)}>Continue editing in Intake →</button>
+        {target === 'google' && <button className="btn btn-accent btn-sm mt-2" onClick={() => onContinueEditing?.(form.providerFormId)}>Continue editing in Intake →</button>}
       </>
     ) : null}</div>;
   }
   const { failure } = result;
-  const view = describeFailure(failure);
+  const view = describeFailure(failure, provider);
   return <div className={`form-banner ${view.tone === 'bad' ? 'bad' : 'warn'} forms-result`} role="alert"><strong>{view.heading}</strong><p>{failure.error}</p>{failure.issues && <ul className="forms-issues" aria-label="What to fix">{failure.issues.map((issue, index) => <li key={`${issue.code}:${index}`}>{issue.message}{issue.hint && <em>{issue.hint}</em>}</li>)}</ul>}{failure.partialForm?.editUrl && <div className="forms-links"><FormLink href={failure.partialForm.editUrl}>Open partly built form</FormLink></div>}{view.action && <a className="btn btn-ghost btn-sm" href="/app/connections">View connections →</a>}{failure.requestId && <p className="forms-trace">Request {failure.requestId}</p>}</div>;
 }
 
 function RecentRow({ form }: { form: PublicFormSummary }) {
   const incomplete = form.status === 'incomplete';
-  return <li className="provider-row forms-row"><span className="provider-symbol" aria-hidden>G</span><div className="provider-main"><div className="provider-title"><h3>{form.title}</h3><span className={`status-pill ${incomplete ? 'warn' : 'ok'}`}>{incomplete ? 'Incomplete' : 'Published'}</span></div><p className="provider-note">Google Forms · {formatWhen(form.createdAt)}</p>{incomplete && <p className="provider-note">Stopped while {(form.failureStage && STAGE_LABEL[form.failureStage]) || 'building'}. It is not published and does not accept responses.</p>}</div><div className="provider-actions">{form.responderUrl && <FormLink href={form.responderUrl} primary>Open form</FormLink>}{form.editUrl && <FormLink href={form.editUrl}>Edit form</FormLink>}</div></li>;
+  const owner = formProviderLabel(form.provider);
+  return <li className="provider-row forms-row"><ProviderMark provider={form.provider} /><div className="provider-main"><div className="provider-title"><h3>{form.title}</h3><span className={`status-pill ${incomplete ? 'warn' : 'ok'}`}>{incomplete ? 'Incomplete' : 'Published'}</span></div><p className="provider-note">{owner} · {formatWhen(form.createdAt)}</p>{incomplete && <p className="provider-note">Stopped while {(form.failureStage && STAGE_LABEL[form.failureStage]) || 'building'}. It is not published and does not accept responses.</p>}</div><div className="provider-actions">{form.responderUrl && <FormLink href={form.responderUrl} primary>Open form</FormLink>}{form.editUrl && <FormLink href={form.editUrl}>Edit form</FormLink>}</div></li>;
 }
 
 function formatWhen(value: string): string {
