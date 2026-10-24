@@ -91,10 +91,12 @@ Two authorizations, **two separate OAuth clients**, never merged:
 
 | Concern | Environment | Redirect URI | Scopes |
 | --- | --- | --- | --- |
-| Let Intake create the user's Typeforms | `TYPEFORM_OAUTH_CLIENT_ID` / `TYPEFORM_OAUTH_CLIENT_SECRET` | `<SITE_ORIGIN>/api/providers/typeform/callback` | `forms:read`, `forms:write` |
+| Let Intake create the user's Typeforms | `TYPEFORM_OAUTH_CLIENT_ID` / `TYPEFORM_OAUTH_CLIENT_SECRET` | `<SITE_ORIGIN>/api/providers/typeform/callback` | `accounts:read`, `forms:read`, `forms:write`, `offline` |
 
-Create the app at `https://admin.typeform.com/tool/app`, paste that exact callback URI, and set both
-values on the API service. Typeform does not let third-party apps revoke tokens, so disconnect only
+Create the app in the Typeform admin panel (organization drop-down → **Developer Apps** → **Register a
+new app**), paste that exact callback URI, and set both values on the API service. `client_secret` is
+shown only once — copy it before closing the dialog; if it is lost, regenerate it and update the
+server, because a stale secret fails the token exchange with `invalid_client`. Typeform does not let third-party apps revoke tokens, so disconnect only
 removes Intake's stored grant. Skip this section entirely to launch Google-only: the Typeform row then
 shows "Setup required" and cannot be connected. Creating and importing Typeforms has **not** been
 verified against a live Typeform account from this checkout.

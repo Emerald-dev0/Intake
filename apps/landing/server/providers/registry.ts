@@ -17,6 +17,15 @@ export interface ProviderDefinition {
   clientSecretEnv: string;
   identity: { type: 'google-userinfo'; url: string } | { type: 'microsoft-id-token'; jwksUrl: string; tenant: string } | { type: 'typeform-userinfo'; url: string };
   revocation: { type: 'google'; url: string } | { type: 'unsupported' };
+  /**
+   * Send PKCE (S256 challenge + verifier). Google and Microsoft accept it; Typeform's OAuth 2.0
+   * server documents only the classic code exchange, so an unknown parameter there is a risk to the
+   * consent screen for no security gain — Typeform's grant is a confidential client with a state,
+   * nonce-less callback instead.
+   */
+  pkce: boolean;
+  /** Send an OIDC `nonce`. Only providers that echo it back (OIDC) can bind it to anything. */
+  oidcNonce: boolean;
   formsApi: 'supported' | 'unsupported';
   formsNote: string;
   scopeLabels: Record<string, string>;
@@ -99,6 +108,8 @@ function googleDefinition(): ProviderDefinition {
       'https://www.googleapis.com/auth/forms.responses.readonly': 'Read response summaries for your forms (only if you enable them)',
     },
     permissionLinks: [{ label: 'Google account permissions', href: 'https://myaccount.google.com/permissions' }],
+    pkce: true,
+    oidcNonce: true,
     sendScopesOnRefresh: false,
   };
 }
@@ -109,8 +120,11 @@ function typeformDefinition(): ProviderDefinition {
     name: 'Typeform',
     accountName: 'Typeform',
     description: 'Connect your Typeform account so Intake can create and manage Typeforms there. Signing in to Intake does not do this.',
-    scopes: ['forms:read', 'forms:write'],
-    requiredScopes: ['forms:write'],
+    // `accounts:read` is what GET /me needs (connection identity), `forms:read` lets an imported
+    // form be inspected, and `offline` is Typeform's documented requirement for a refresh token —
+    // without it every connection dies after the one-week access-token lifetime.
+    scopes: ['accounts:read', 'forms:read', 'forms:write', 'offline'],
+    requiredScopes: ['forms:read', 'forms:write'],
     authorizationEndpoint: 'https://api.typeform.com/oauth/authorize',
     tokenEndpoint: 'https://api.typeform.com/oauth/token',
     extraAuthParams: {},
@@ -119,13 +133,19 @@ function typeformDefinition(): ProviderDefinition {
     identity: { type: 'typeform-userinfo', url: 'https://api.typeform.com/me' },
     revocation: { type: 'unsupported' },
     formsApi: 'supported',
-    formsNote: 'Intake uses the Typeform Create API to create and edit Typeforms. Response summaries are available via the Responses API.',
+    formsNote: 'Intake creates Typeforms in this account after you confirm a reviewed draft, and can open and archive them from your library. Editing an existing Typeform inside Intake is not supported yet.',
     scopeLabels: {
-      'forms:read': 'Read your Typeforms and responses',
-      'forms:write': 'Create and edit your Typeforms',
+      'accounts:read': 'See which Typeform account you connected',
+      'forms:read': 'Read your Typeforms',
+      'forms:write': 'Create your Typeforms',
+      offline: 'Stay connected between visits (refresh token)',
     },
-    permissionLinks: [{ label: 'Typeform applications', href: 'https://admin.typeform.com/tool/app' }],
-    sendScopesOnRefresh: true,
+    // The documented revocation route is a REST call with the app's own token, not an endpoint a
+    // third party can call for someone else's grant, and there is no per-grant admin URL.
+    permissionLinks: [{ label: 'Typeform developer apps', href: 'https://www.typeform.com/developers/get-started/applications/' }],
+    pkce: false,
+    oidcNonce: false,
+    sendScopesOnRefresh: false,
   };
 }
 
@@ -162,6 +182,8 @@ function microsoftDefinition(tenant: string): ProviderDefinition {
       { label: 'Work or school account apps', href: 'https://myapplications.microsoft.com/' },
       { label: 'Microsoft account app permissions', href: 'https://myaccount.microsoft.com/' },
     ],
+    pkce: true,
+    oidcNonce: true,
     sendScopesOnRefresh: true,
   };
 }

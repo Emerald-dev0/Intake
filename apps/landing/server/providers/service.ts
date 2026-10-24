@@ -244,8 +244,8 @@ async function startAuthorization(deps: ProviderDeps, userId: string, provider: 
     // the forms.body grant. Only allowlisted optional scopes are accepted.
     scopes: [...definition.scopes, ...extraScopes.filter(scope => OPTIONAL_SCOPES.includes(scope as OptionalScope))],
     state,
-    nonce,
-    codeChallenge: challenge,
+    nonce: definition.oidcNonce ? nonce : undefined,
+    codeChallenge: definition.pkce ? challenge : undefined,
     extraParams: definition.extraAuthParams,
   });
   if (url.includes('client_secret') || url.includes(verifier)) return { ok: false, result: 'exchange_failed' };
@@ -280,7 +280,7 @@ async function completeAuthorization(deps: ProviderDeps, userId: string, provide
       clientId: deps.env[definition.clientIdEnv]!.trim(),
       clientSecret: deps.env[definition.clientSecretEnv]!.trim(),
       redirectUri: expectedRedirect,
-      codeVerifier: verifier,
+      codeVerifier: definition.pkce ? verifier : undefined,
     }));
     tokenJson = response.json;
     if (response.status < 200 || response.status >= 300) {
@@ -306,7 +306,8 @@ async function completeAuthorization(deps: ProviderDeps, userId: string, provide
     await revokeTokens(deps, definition, token.accessToken, token.refreshToken);
     return { result: identity.result };
   }
-  const scopes = grantedScopes(token.scope);
+  const granted = grantedScopes(token.scope);
+  const scopes = granted.length ? granted : definition.scopes;
   if (definition.requiredScopes.some(scope => !hasScope(scopes, scope))) {
     await revokeTokens(deps, definition, token.accessToken, token.refreshToken);
     return { result: 'insufficient_permissions' };
@@ -321,7 +322,7 @@ async function completeAuthorization(deps: ProviderDeps, userId: string, provide
       externalAccountId: identity.accountId,
       externalAccountEmail: identity.email,
       externalAccountLabel: identity.label,
-      scopes: scopes.length ? scopes : definition.scopes,
+      scopes,
       accessTokenCiphertext: deps.cipher.encrypt(token.accessToken, credentialAad(userId, provider, 'access')),
       accessTokenExpiresAt: accessExpiresAt(at, token.expiresIn),
       refreshTokenCiphertext: token.refreshToken ? deps.cipher.encrypt(token.refreshToken, credentialAad(userId, provider, 'refresh')) : null,
