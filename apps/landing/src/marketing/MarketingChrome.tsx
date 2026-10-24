@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { CREATOR } from '../content/site';
 import { LogoMark } from '../components/LogoMark';
+import { GoogleFormsLogo, TypeformLogo } from '../components/ProviderLogos';
 import { useScrolled, useScrollProgress } from './motion';
 
 export function StartLink({
@@ -13,8 +14,8 @@ export function StartLink({
   className?: string;
 }) {
   return (
-    <a className={className} href={authenticated ? '/app' : '/waitlist'}>
-      <span>{children ?? (authenticated ? 'Open Intake' : 'Join the wait-list')}</span>
+    <a className={className} href={authenticated ? '/app' : '/auth/sign-up'}>
+      <span>{children ?? (authenticated ? 'Open Intake' : 'Sign up free')}</span>
       <svg aria-hidden="true" viewBox="0 0 16 16" width="15" height="15">
         <path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
@@ -27,6 +28,7 @@ const MAIN_LINKS = [
   ['How it works', '#how-it-works'],
   ['Create', '#creation'],
   ['Edit', '#editing'],
+  ['Providers', '#providers'],
   ['Pricing', '#pricing'],
   ['FAQ', '#faq'],
 ] as const;
@@ -164,7 +166,7 @@ export function MarketingFooter({ authenticated }: { authenticated: boolean }) {
               <span className="mk-brand__mark"><LogoMark size={26} /></span>
               <span>intake</span>
             </a>
-            <p>Describe a form, look it over, and it lands in your Google Forms account. Editing the ones you already have works the same way.</p>
+            <p>Describe a form, look it over, and it lands in the account you connected — Google Forms or Typeform today, with the next providers already chosen. Editing the forms you own works the same way.</p>
             {!authenticated && <StartLink authenticated={false} className="mk-button mk-button--secondary mk-footer__cta" />}
           </div>
 
@@ -177,10 +179,26 @@ export function MarketingFooter({ authenticated }: { authenticated: boolean }) {
             </nav>
           ))}
 
-          <div className="mk-footer__column mk-footer__column--google">
-            <h2>Google Forms</h2>
-            <p>Your forms, your account, your responses. Intake sets up the questions and hands Google a form that behaves like any other.</p>
-            <a href="https://forms.google.com" target="_blank" rel="noreferrer">Open Google Forms <span aria-hidden="true">↗</span></a>
+          <div className="mk-footer__column mk-footer__column--providers">
+            <h2>Providers</h2>
+            <p>Your forms, your account, your responses — whichever tool you connect. Two work today; four more are queued.</p>
+            <ul className="mk-footer__providers">
+              <li>
+                <a href="https://forms.google.com" target="_blank" rel="noreferrer">
+                  <GoogleFormsLogo size={16} tone="mono" label={null} />
+                  Google Forms <span aria-hidden="true">↗</span>
+                </a>
+                <small>Create and edit in place</small>
+              </li>
+              <li>
+                <a href="https://www.typeform.com" target="_blank" rel="noreferrer">
+                  <TypeformLogo height={11} tone="mono" />
+                  <span aria-hidden="true">↗</span>
+                </a>
+                <small>Create and import</small>
+              </li>
+            </ul>
+            <p className="mk-footer__roadmap">Next in line: SurveyMonkey, Google Sheets, Jira, n8n. <a href="/#providers">See the provider list</a></p>
           </div>
         </div>
 

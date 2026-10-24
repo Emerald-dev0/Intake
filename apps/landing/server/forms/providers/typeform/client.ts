@@ -294,6 +294,8 @@ export function createTypeformClient(options: { fetchImpl?: FetchLike; timeoutMs
 
     async updateForm(accessToken, formId, input) {
       if (!isFormId(formId)) throw new TypeformApiError({ operation: 'forms.update', kind: 'malformed_response' });
+      // Typeform's full update is a PUT. It overwrites the form, so anything omitted here is gone:
+      // callers must echo settings, logic and both screen arrays, which is why logic is in the body.
       const json = await call('forms.update', accessToken, `/forms/${encodeURIComponent(formId)}`, {
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.fields !== undefined ? { fields: input.fields } : {}),
@@ -301,8 +303,9 @@ export function createTypeformClient(options: { fetchImpl?: FetchLike; timeoutMs
         ...(input.theme !== undefined ? { theme: input.theme } : {}),
         ...(input.welcomeScreens !== undefined ? { welcome_screens: input.welcomeScreens } : {}),
         ...(input.thankYouScreens !== undefined ? { thankyou_screens: input.thankYouScreens } : {}),
+        ...(input.logic !== undefined ? { logic: input.logic } : {}),
         ...(input.override !== undefined ? { override: input.override } : {}),
-      }, undefined, 'POST');
+      }, undefined, 'PUT');
       return parseFormResource(json, formId);
     },
 

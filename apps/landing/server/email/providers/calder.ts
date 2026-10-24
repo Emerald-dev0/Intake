@@ -123,7 +123,7 @@ export function createCalderProvider(options: CalderProviderOptions): EmailProvi
       subject: message.subject,
       html: message.html,
       text: message.text,
-      // Intake only ever sends transactional mail in this phase (mission §24).
+      // Chosen by the service: `transactional` for product mail, `campaign` for an operator note.
       stream: message.stream,
     };
     if (message.replyTo ?? config.replyTo) body.reply_to = message.replyTo ?? config.replyTo;

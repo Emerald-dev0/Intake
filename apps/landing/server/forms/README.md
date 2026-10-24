@@ -33,10 +33,13 @@ implementation, because Microsoft publishes no supported Forms API.
 | `specification.ts` → `../../src/lib/specification.ts` | Shared `FormSpecification` types, question types and limits. Provider independent; server still owns validation. |
 | `validation.ts` | `parseFormSpecification`: strict, pure validation with structured issues. |
 | `provider.ts` | `FormsProvider`, `CreatedForm`, and the pending-provider used for Microsoft. |
-| `providers/index.ts` | The provider slots: `google` (real) and `microsoft` (refuses, no request). |
+| `providers/index.ts` | The provider slots: `google` and `typeform` (real), `microsoft` (refuses, no request). |
 | `providers/google/plan.ts` | Pure translation of a specification into Google requests, and the Google layout rules. |
 | `providers/google/client.ts` | The only code that talks to `forms.googleapis.com`. Hardened `fetch`, error mapping. |
 | `providers/google/adapter.ts` | `GoogleFormsProvider`: connection, create/publish and fresh-read/revision-checked edit operations. |
+| `providers/typeform/plan.ts` | Pure translation of a specification into Typeform fields, welcome/thank-you screens, settings and logic jumps. |
+| `providers/typeform/client.ts` | The only code that talks to `api.typeform.com` (including the EU hosts for `eu_`/`tfp_` tokens). Bounded, timeout-bound requests. |
+| `providers/typeform/adapter.ts` | `TypeformFormsProvider`: connection, one-request creation, and read-only form retrieval. Editing is deliberately absent. |
 | `engine.ts`, `edit-engine.ts` | Creation and existing-form edit orchestration, ownership, validation, persistence and logging. |
 | `routes.ts`, `edit-routes.ts` | Creation routes plus edit inspect, interpret, revise, load, discard and confirm routes. |
 | `store.ts`, `memory-store.ts`, `postgres-store.ts` | Ownership records (`form` table) and safe metadata refresh. |
@@ -134,7 +137,7 @@ registered, so **no provider request can follow an invalid specification**, whic
 
 ```ts
 interface FormsProvider {
-  readonly id: 'google' | 'microsoft';
+  readonly id: 'google' | 'typeform' | 'microsoft';
   readonly capabilities: { createForm: boolean; note?: string; editForm?: boolean; editNote?: string };
   createForm(userId: string, specification: FormSpecification, context?: { requestId: string; log: FormLogger }): Promise<CreatedForm>;
   retrieveForm?(userId: string, providerFormId: string, context?: FormEditProviderContext): Promise<LoadedEditableForm>;
@@ -142,7 +145,7 @@ interface FormsProvider {
 }
 
 interface CreatedForm {            // what adapters return; raw provider responses never leave the adapter
-  provider: 'google' | 'microsoft';
+  provider: 'google' | 'typeform' | 'microsoft';
   providerFormId: string;
   title: string;
   editUrl?: string;
@@ -167,6 +170,33 @@ call it, scrape it or imitate it. Microsoft records are rejected by the edit eng
 `provider_not_supported` ("Microsoft Forms creation is not available yet…"), HTTP 501, and makes **no** network request
 and reads **no** connection. The workspace shows the option disabled with that reason. A Microsoft *connection* still
 works (Phase 4); it records which account was authorized and nothing more.
+
+## The Typeform flow
+
+Typeform is a creation target beside Google, not a fallback. The adapter is
+`providers/typeform/adapter.ts`; the pure translation lives in `providers/typeform/plan.ts`.
+
+1. **Plan, don't approximate.** `planTypeform(specification)` maps every supported question type to a
+   Typeform field (`short_text`, `long_text`, `email`, `multiple_choice`, `dropdown`, with `checkboxes`
+   expressed as a multiple-choice field that allows several answers). Visibility rules become Typeform
+   logic jumps, with each field carrying a stable `ref`. Anything the planner cannot express is
+   refused as `unsupported_by_provider` before a network request, exactly like Google's layout refusals.
+2. **One request, one form.** Typeform's Create API accepts the whole definition at once: title,
+   fields, settings, theme, welcome and thank-you screens and logic. There is no separate "add
+   questions then publish" sequence, so there is no partial-build stage to recover from.
+3. **Connection.** `getProviderConnection(userId, 'typeform')` decrypts the user's own grant and
+   requires the `forms:write` scope. The token never leaves the server, and one user can never reach
+   another user's Typeform account.
+4. **Result.** The record stores `provider: 'typeform'`, the returned form id, Typeform's display link
+   (only if it is an `https://form.typeform.com/to/…` URL) and the edit link built as
+   `https://admin.typeform.com/form/{id}/edit`.
+5. **Reading.** `retrieveForm` maps a Typeform back into the shared snapshot shape, which is what
+   library import and live status checks use. **Editing is not implemented**: the adapter reports
+   `editForm: false`, and the edit engine refuses a Typeform record with a plain explanation instead of
+   building a replacement.
+
+Live Typeform creation has not been exercised against a real account from this checkout; the tests use
+a stateful fake at the HTTP boundary.
 
 ## The Google flow
 
@@ -291,7 +321,7 @@ All forms routes require a signed-in Intake user. The user comes from the sessio
 Compatibility request (JSON, ≤ 100 KB, must come from the Intake origin):
 
 ```json
-{ "provider": "google", "specification": { "title": "…", "questions": [ … ] } }
+{ "provider": "google" | "typeform", "specification": { "title": "…", "questions": [ … ] } }
 ```
 
 Only those two properties are accepted. `accessToken`, `userId`, `connectionId`, `providerAccountId` and anything else are
@@ -510,7 +540,7 @@ and the real latency. The emulator does not prove Google's behavior or batch ato
 
 ## Known limitations
 
-- Google only; Microsoft Forms editing remains unavailable without a verified supported API.
+- Editing Google Forms in place only. Typeform editing and Microsoft Forms editing remain unavailable without a verified supported API, and Intake says so instead of writing a replacement form.
 - No Drive-wide form discovery. Choose an Intake Recent form or provide a known standard Google Forms URL; Google still
   enforces the connected account's access.
 - Existing-form edits are limited to the operations/capabilities above. Quiz/scoring, branching/section structural changes,

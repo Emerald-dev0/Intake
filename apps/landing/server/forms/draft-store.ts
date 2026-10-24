@@ -1,4 +1,5 @@
 import type { FormWarning, CreateFormResult } from '../../src/lib/forms';
+import type { FormProvider } from '../../src/lib/connections';
 import type { FormSpecification } from './specification';
 
 export type DraftStatus = 'ready' | 'creating' | 'created' | 'blocked';
@@ -7,13 +8,14 @@ export type DraftStatus = 'ready' | 'creating' | 'created' | 'blocked';
 export interface DraftRecord {
   id: string;
   userId: string;
-  provider: 'google';
+  /** The provider the specification is planned for. Fixed at interpretation time. */
+  provider: FormProvider;
   version: number;
   status: DraftStatus;
   specification: FormSpecification;
   assumptions: string[];
   warnings: FormWarning[];
-  /** One attempted creation's public outcome. A blocked attempt is never sent to Google again. */
+  /** One attempted creation's public outcome. A blocked attempt is never sent to the provider again. */
   result: CreateFormResult | null;
   createdAt: Date;
   updatedAt: Date;

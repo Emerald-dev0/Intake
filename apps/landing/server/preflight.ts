@@ -102,7 +102,7 @@ export function runPreflight(env: NodeJS.ProcessEnv = process.env): PreflightChe
   const googleConfigured = supportedProviders(env).some(provider => provider.id === 'google' && isProviderConfigured(provider, env));
   add('provider connections', googleConfigured ? 'pass' : 'warn', googleConfigured
     ? providerSetup
-    : `${providerSetup}. Google Forms connection/creation is unavailable until GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET are set and the Forms API is enabled in that Google Cloud project.`);
+    : `${providerSetup}. Google Forms connection/creation is unavailable until GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET are set and the Forms API is enabled in that Google Cloud project. Typeform is independent of that: set TYPEFORM_OAUTH_CLIENT_ID and TYPEFORM_OAUTH_CLIENT_SECRET to enable it.`);
 
   let googleSignIn = false;
   try {
@@ -206,6 +206,14 @@ export async function checkDatabase(env: NodeJS.ProcessEnv = process.env): Promi
     checks.push(missing.length
       ? { name: 'schema', status: 'fail', detail: `Missing tables: ${missing.join(', ')}. Run npm run db:migrate (Better Auth) and then npm run db:migrate:intake.` }
       : { name: 'schema', status: 'pass', detail: `All ${EXPECTED_TABLES.length} expected tables exist.` });
+
+    // Composed mail is optional, so its send log is a warning rather than a failure: without it the
+    // composer refuses to send (unrecorded mail is worse than a closed composer) and everything else
+    // in the product still works. Say which it is before someone writes their first message.
+    const mailLog = await pool.query<{ present: string | null }>(`SELECT to_regclass('public.admin_mail_send')::text AS present`);
+    checks.push(mailLog.rows[0]?.present
+      ? { name: 'composed mail', status: 'pass', detail: 'admin_mail_send exists, so /admin/mail can send and keep a record.' }
+      : { name: 'composed mail', status: 'warn', detail: 'admin_mail_send is missing (020_admin_mail.sql). /admin/mail will refuse to send until it is applied; nothing else is affected.' });
 
     if (!missing.includes('waitlist')) {
       const columns = await pool.query<{ column_name: string }>(

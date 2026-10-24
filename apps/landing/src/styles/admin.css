@@ -47,6 +47,7 @@
 .admin-page-heading h1 { margin:9px 0 7px; font-size:clamp(28px,3.1vw,40px); line-height:1.1; letter-spacing:-.055em; font-weight:530; }
 .admin-page-heading p { max-width:820px; margin:0; color:var(--cream-3); font-size:13px; line-height:1.6; }
 .admin-heading-action { display:flex; flex-shrink:0; align-items:center; }
+.admin-heading-action-group { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
 .admin-section-label { display:flex; align-items:center; gap:12px; margin:23px 0 10px; color:var(--cream-2); font:10px var(--mono); letter-spacing:.1em; }
 .admin-section-label span { color:var(--cream-4); font-size:9px; }
 .admin-metric-grid { display:grid; gap:10px; grid-template-columns:repeat(4,minmax(0,1fr)); margin-bottom:12px; }
@@ -228,3 +229,61 @@
 .admin-bar-fill { position:absolute; top:0; bottom:0; left:0; border-radius:5px; }
 .admin-bar-fill.views { background:color-mix(in srgb, var(--accent) 70%, transparent); z-index:1; }
 .admin-bar-fill.clicks { background:color-mix(in srgb, #3b82f6 65%, transparent); }
+
+/* ── Charts ──────────────────────────────────────────────────────────────────────────────────
+   Recharts draws the shapes; these rules keep the frame quiet so the data is the loudest thing. */
+.admin-chart { margin: 4px 0 0; }
+.admin-chart figcaption { margin-top: 8px; font: 11px/1.5 var(--mono); color: var(--cream-4); letter-spacing: .02em; }
+.admin-chart .recharts-cartesian-axis-tick-value { font-family: var(--mono); }
+.admin-chart .recharts-legend-item-text { color: var(--cream-4) !important; font-size: 11px; }
+.admin-panel .admin-chart { max-width: 100%; }
+
+/* The funnel is four steps, not a time series: each row states its own count and the drop into the
+   next, so a rate never has to be read off a shape. */
+.admin-funnel { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.admin-funnel__head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 13px; }
+.admin-funnel__head b { font: 600 15px/1 var(--mono); color: var(--cream); }
+.admin-funnel__track { height: 8px; border-radius: 999px; background: rgba(255,255,255,.07); overflow: hidden; margin: 6px 0 5px; }
+.admin-funnel__track i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #ff5a1f, #ff8a5c); }
+.admin-funnel small { font: 11px/1.4 var(--mono); color: var(--cream-4); }
+
+/* ── Compose mail ────────────────────────────────────────────────────────────────────────────
+   Two columns: the message on the left, the people on the right, the rendered email underneath.
+   The preview is an iframe because it is literally the email HTML — no part of it may inherit the
+   dashboard's styles or script context. */
+.admin-mail-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: 14px; align-items: start; }
+.admin-mail-grid .admin-panel { display: flex; flex-direction: column; gap: 12px; }
+.admin-mail-body textarea { min-height: 210px; padding: 10px 11px; border: 1px solid var(--line-2); border-radius: 6px; outline: none; background: var(--ink-1); color: var(--cream); font: 12px/1.65 var(--mono); resize: vertical; }
+.admin-mail-body textarea:focus { border-color: var(--accent-2); box-shadow: 0 0 0 2px #ff5a1f22; }
+.admin-mail-body textarea::placeholder { color: var(--cream-4); }
+.admin-mail-button-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.admin-mail-tokens { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.admin-mail-tokens small { flex: 1 1 100%; color: var(--cream-4); font-size: 10px; line-height: 1.5; }
+.admin-mail-error { margin: 0; padding: 8px 10px; border: 1px solid #ff5a1f44; border-radius: 6px; color: #ff9270; font-size: 11px; line-height: 1.5; }
+.admin-mail-picker .admin-filter-row { flex-wrap: wrap; }
+.admin-mail-people { list-style: none; margin: 0; padding: 0; max-height: 430px; overflow-y: auto; border: 1px solid var(--line-2); border-radius: 6px; }
+.admin-mail-people li + li { border-top: 1px solid var(--line); }
+.admin-mail-people li.is-selected { background: #ff5a1f0d; }
+.admin-mail-people label { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 9px 11px; cursor: pointer; }
+.admin-mail-people input[type="checkbox"], .admin-mail-ack input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--accent); }
+.admin-mail-person { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.admin-mail-person strong { overflow: hidden; color: var(--cream); font-size: 12px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+.admin-mail-person small { overflow: hidden; color: var(--cream-4); font: 10px var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+.admin-mail-joined { color: var(--cream-4); font: 10px var(--mono); white-space: nowrap; }
+.admin-mail-preview-panel .admin-panel-header h2 { word-break: break-word; }
+.admin-mail-preview { width: 100%; height: 560px; border: 1px solid var(--line-2); border-radius: 6px; background: #f4efe6; }
+.admin-mail-plaintext summary { cursor: pointer; color: var(--cream-3); font: 10px var(--mono); letter-spacing: .05em; text-transform: uppercase; }
+.admin-mail-plaintext pre { margin: 9px 0 0; padding: 12px; max-height: 240px; overflow: auto; border: 1px solid var(--line-2); border-radius: 6px; background: var(--ink-1); color: var(--cream-2); font: 11px/1.6 var(--mono); white-space: pre-wrap; }
+.admin-mail-ack { display: flex; align-items: flex-start; gap: 10px; padding: 11px 12px; border: 1px solid var(--line-2); border-radius: 6px; color: var(--cream-2); font-size: 12px; line-height: 1.55; cursor: pointer; }
+.admin-mail-ack span { flex: 1; }
+.admin-mail-result strong { font-size: 15px; }
+.admin-mail-perrecipient { margin-top: 4px; }
+.admin-mail-perrecipient summary { cursor: pointer; color: var(--cream-3); font: 10px var(--mono); letter-spacing: .05em; text-transform: uppercase; }
+.admin-mail-perrecipient .admin-table-scroll { margin-top: 10px; }
+
+@media (max-width: 1080px) {
+  .admin-mail-grid { grid-template-columns: 1fr; }
+  .admin-mail-button-row { grid-template-columns: 1fr; }
+  .admin-mail-people label { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .admin-mail-joined { display: none; }
+}

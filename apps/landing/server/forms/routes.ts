@@ -9,7 +9,7 @@ import { statusFor, toFailureBody, type FormErrorInfo } from './errors';
 import { createFormLogger, newRequestId, type FormLogger } from './logging';
 import { consumeRequestLimit, setRateLimitHeaders, type AbuseScope, type RateLimitStore } from '../security/rate-limit';
 import type { FormLibraryFilter } from './store';
-import { extractGoogleFormId } from './edit-engine';
+import { extractFormTarget } from './engine';
 
 const MAX_BODY = '100kb';
 const ALLOWED_KEYS = ['provider', 'specification'] as const;
@@ -78,7 +78,7 @@ function parseLibraryFilter(query: Request['query']): FilterParse {
  * GET  /api/forms                 -> recent forms (or filtered library if requested)
  * GET  /api/forms/library         -> rich library list with search, filter, and sort
  * GET  /api/forms/library/:id     -> inspect an individual form record
- * POST /api/forms/library/import  -> import an existing Google Form by URL
+ * POST /api/forms/library/import  -> import an existing Google Form or Typeform by URL
  * POST /api/forms/library/:id/refresh   -> live status verification & metadata refresh
  * POST /api/forms/library/:id/archive   -> archive a form record
  * POST /api/forms/library/:id/unarchive -> restore an archived form record
@@ -155,7 +155,7 @@ export function createFormsRouter(deps: FormsRouterDeps): Router {
     return sendJson(res, 200, { requestId, forms: outcome.forms });
   });
 
-  // Import existing Google Form by URL into library
+  // Import an existing Google Form or Typeform by URL into the library
   router.post(
     '/library/import',
     (req, res, next) => {
@@ -172,8 +172,8 @@ export function createFormsRouter(deps: FormsRouterDeps): Router {
       const requestId = res.locals.requestId as string;
       const user = res.locals.user as SessionUser;
       const body = req.body;
-      if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => key !== 'url') || typeof body.url !== 'string' || !body.url.trim() || body.url.length > 2048 || !extractGoogleFormId(body.url.trim())) {
-        return send(res, { code: 'invalid_request', message: 'Provide only one valid Google Forms edit URL (up to 2,048 characters). Short links and other hosts are rejected.' }, requestId);
+      if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => key !== 'url') || typeof body.url !== 'string' || !body.url.trim() || body.url.length > 2048 || !extractFormTarget(body.url.trim())) {
+        return send(res, { code: 'invalid_request', message: 'Provide one Google Forms edit URL or Typeform form URL (up to 2,048 characters). Short links and other hosts are rejected.' }, requestId);
       }
       if (!await allowExpensive(req, res, 'forms.provider_read', 'provider form import')) return;
       const outcome = await deps.engine.importForm(user.id, body.url.trim(), requestId);
@@ -272,7 +272,7 @@ export function createFormsRouter(deps: FormsRouterDeps): Router {
       if (deps.allowDirectCreation === false) {
         return send(res, {
           code: 'invalid_request',
-          message: 'Direct form creation is disabled. Describe the form, review the server-owned draft, and explicitly confirm it before Intake contacts Google.',
+          message: 'Direct form creation is disabled. Describe the form, review the server-owned draft, and explicitly confirm it before Intake contacts the provider.',
           outcome: 'not_created',
           retryable: false,
         }, requestId, 405);
@@ -298,7 +298,7 @@ export function createFormsRouter(deps: FormsRouterDeps): Router {
           message: `Unexpected property "${safeKey(key)}". Only "provider" and "specification" are accepted. Intake decides which account to use from your signed-in session, so tokens and account ids cannot be supplied.`,
         });
       }
-      if (record.provider === undefined) issues.push({ code: 'invalid_type', path: 'provider', message: '"provider" is required. Use "google".' });
+      if (record.provider === undefined) issues.push({ code: 'invalid_type', path: 'provider', message: '"provider" is required. Use "google" or "typeform".' });
       if (record.specification === undefined) issues.push({ code: 'invalid_type', path: 'specification', message: '"specification" is required.' });
       if (issues.length > 0) {
         // Property names only, never values.

@@ -42,7 +42,7 @@ export function createFakeTypeform(options = {}) {
       : path === '/forms' && method === 'GET' ? 'forms.list'
       : path === '/me' ? 'me.get'
       : /^\/forms\/[^/]+$/.test(path) && method === 'GET' ? 'forms.get'
-      : /^\/forms\/[^/]+$/.test(path) && method === 'POST' ? 'forms.update'
+      : /^\/forms\/[^/]+$/.test(path) && (method === 'POST' || method === 'PUT') ? 'forms.update'
       : 'unknown';
     calls.push({
       operation, method, url: url.toString(), path,
@@ -87,7 +87,16 @@ export function createFakeTypeform(options = {}) {
       const id = path.split('/').pop();
       const record = forms.get(id);
       if (!record) return json(404, { code: 'NOT_FOUND', description: 'form not found' });
-      Object.assign(record, { title: body?.title ?? record.title, fields: structuredClone(body?.fields ?? record.fields) });
+      // A full PUT: everything the caller omits is what Typeform would delete, so the fake applies
+      // exactly what arrived instead of merging generously.
+      Object.assign(record, {
+        title: body?.title ?? record.title,
+        fields: structuredClone(body?.fields ?? record.fields),
+        settings: structuredClone(body?.settings ?? record.settings),
+        logic: structuredClone(body?.logic ?? []),
+        welcome_screens: structuredClone(body?.welcome_screens ?? record.welcome_screens ?? []),
+        thankyou_screens: structuredClone(body?.thankyou_screens ?? record.thankyou_screens ?? []),
+      });
       return json(200, { ...record, _links: { display: `https://form.typeform.com/to/${id}`, edit: `https://admin.typeform.com/form/${id}/edit` } });
     }
     if (operation === 'forms.list') return json(200, { items: [...forms.values()].map(f => ({ id: f.id, title: f.title })), page_count: 1, total_items: forms.size });

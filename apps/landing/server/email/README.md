@@ -30,6 +30,11 @@ delivery fails.
 
 ---
 
+Composed mail (a note an operator writes in `/admin/mail` and sends to selected accounts, one message
+each) is documented in [docs/MAIL.md](../../docs/MAIL.md). It uses this same stack: the `admin_message`
+template, the normal suppression check, one `email_delivery` row per recipient, and the `campaign`
+stream.
+
 ## 1. The files
 
 | File | Responsibility |
@@ -73,7 +78,8 @@ told to fail with a typed `EmailError`.
 - Body: `{ from, to, subject, html, text, stream: 'transactional', reply_to?, tags?, metadata?, template?, variables? }`
 - `GET /v1/emails/:id` → `{ data: { … } }`; Intake unwraps the envelope for `status()`.
 
-Intake only ever sends on the `transactional` stream in this phase. `from` is a `sender_…` id when
+Intake sends on `transactional` (verification, resets, security, receipts) and `campaign` (a note an
+operator composed in the admin dashboard and sent to selected accounts, one message each). `from` is a `sender_…` id when
 `CALDER_SENDER_ID` is set, otherwise `CALDER_FROM_EMAIL`.
 
 ### Timeouts and retries

@@ -1,5 +1,6 @@
 /** Public, provider-independent contract for reviewing and editing an existing form. */
 import { safeFormUrl } from './forms';
+import type { FormProvider } from './connections';
 import { QUESTION_TYPES, type QuestionType } from './specification';
 import { parseOperationCost, type PublicOperationCost } from './credits';
 
@@ -118,7 +119,7 @@ export type FormEditDraftStatus = 'ready' | 'applying' | 'applied' | 'blocked' |
 
 export interface PublicFormEditDraft {
   id: string;
-  provider: 'google';
+  provider: FormProvider;
   version: number;
   status: FormEditDraftStatus;
   current: FormEditView;
@@ -277,7 +278,7 @@ function parseSuccess(value: unknown): FormEditSuccess | null {
 
 export function parseFormEditDraft(value: unknown): PublicFormEditDraft | null {
   const row = record(value);
-  if (!row || !text(row.id, 36) || !DRAFT_ID.test(row.id) || row.provider !== 'google' || !Number.isSafeInteger(row.version) || (row.version as number) < 1 ||
+  if (!row || !text(row.id, 36) || !DRAFT_ID.test(row.id) || (row.provider !== 'google' && row.provider !== 'typeform') || !Number.isSafeInteger(row.version) || (row.version as number) < 1 ||
       !['ready', 'applying', 'applied', 'blocked', 'stale'].includes(row.status as string) ||
       !text(row.createdAt, 40) || Number.isNaN(Date.parse(row.createdAt)) || !text(row.updatedAt, 40) || Number.isNaN(Date.parse(row.updatedAt))) return null;
   const current = parseView(row.current);
@@ -298,7 +299,7 @@ export function parseFormEditDraft(value: unknown): PublicFormEditDraft | null {
   }
   if ((row.status === 'applied' && !result?.ok) || (row.status === 'blocked' && (!result || result.ok || ['not_applied', 'stale'].includes(result.failure.outcome ?? ''))) ||
       (row.status === 'stale' && (!result || result.ok || result.failure.outcome !== 'stale')) || (row.status === 'applying' && result)) return null;
-  return { id: row.id, provider: 'google', version: row.version as number, status: row.status as FormEditDraftStatus, current, plan, changes, result,
+  return { id: row.id, provider: row.provider as FormProvider, version: row.version as number, status: row.status as FormEditDraftStatus, current, plan, changes, result,
     createdAt: row.createdAt, updatedAt: row.updatedAt };
 }
 

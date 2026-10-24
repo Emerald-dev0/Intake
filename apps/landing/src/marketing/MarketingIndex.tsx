@@ -16,9 +16,10 @@ const ENTRIES = [
   ['03', 'How it works', '#how-it-works'],
   ['04', 'Create', '#creation'],
   ['05', 'Edit', '#editing'],
-  ['06', 'Control', '#control'],
-  ['07', 'Pricing', '#pricing'],
-  ['08', 'Questions', '#faq'],
+  ['06', 'Providers', '#providers'],
+  ['07', 'Control', '#control'],
+  ['08', 'Pricing', '#pricing'],
+  ['09', 'Questions', '#faq'],
 ] as const;
 
 export function MarketingIndex() {

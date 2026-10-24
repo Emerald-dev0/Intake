@@ -107,6 +107,30 @@ test('the complete mocked workflow does not reach Google until a user confirms a
   noSecrets(app, draft, response.json);
 }));
 
+test('every interpretation answer carries the assistant sentence the chat renders', () => withApi({
+  interpret: (_, number) => number === 1
+    ? { ...ready(), reply: 'Five questions, with accommodation behind a yes/no gate.' }
+    : number === 2
+      ? { ...clarify('Which departments should be listed?'), reply: 'I need the department list before I build this.' }
+      : { ...unsupported('File uploads are not supported.'), reply: 'Everything except file uploads works.' },
+}, async app => {
+  const built = await app.interpret();
+  assert.equal(built.status, 201);
+  assert.equal(built.json.reply, 'Five questions, with accommodation behind a yes/no gate.');
+
+  const asked = await app.interpret({ provider: 'google', request: 'Department list' });
+  assert.equal(asked.json.status, 'needs_clarification');
+  assert.equal(asked.json.reply, 'I need the department list before I build this.');
+  assert.match(asked.json.question, /Which departments/);
+
+  const refused = await app.interpret({ provider: 'google', request: 'Upload files' });
+  assert.equal(refused.json.status, 'unsupported');
+  assert.equal(refused.json.reply, 'Everything except file uploads works.');
+  assert.match(refused.json.explanation, /File uploads/);
+  // A result without a sentence simply omits the key, so an older provider cannot break the page.
+  assert.equal('reply' in (await app.interpret({ provider: 'google', request: 'Again', clarification: 'try again' })).json, true);
+}));
+
 test('clarification and unsupported requests do not create drafts or contact Google', () => withApi({ interpret: (_, number) => number === 1 ? clarify('Which options should department have?') : unsupported('File uploads are not supported.') }, async app => {
   const question = await app.interpret();
   assert.equal(question.status, 200);

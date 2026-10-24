@@ -76,7 +76,11 @@ test('analytics are unavailable with a reason before migration 013', async () =>
 test('summary aggregates events, referrers, sources, clicks, signups and forms', async () => {
   const pool = fakePool(async (sql, params) => {
     if (sql.includes('to_regclass')) return { rows: [{ present: 'site_events' }], rowCount: 1 };
-    if (sql.includes('GROUP BY kind')) return { rows: [{ kind: 'pageview', count: '7' }, { kind: 'click', count: '3' }], rowCount: 2 };
+    // The previous-window totals use the same SQL and differ only by the bounds passed in.
+    if (sql.includes('GROUP BY kind')) return params[0] instanceof Date && params[0].getTime() < Date.parse('2026-10-01T00:00:00Z')
+      ? { rows: [{ kind: 'pageview', count: '4' }, { kind: 'click', count: '1' }], rowCount: 2 }
+      : { rows: [{ kind: 'pageview', count: '7' }, { kind: 'click', count: '3' }], rowCount: 2 };
+    if (sql.includes('EXTRACT(HOUR')) return { rows: [{ hour: 9, pageviews: '4', clicks: '2' }, { hour: 17, pageviews: '3', clicks: '1' }], rowCount: 2 };
     if (sql.includes('FILTER (WHERE kind')) return {
       rows: [
         { day: '2026-10-03', pageviews: '5', clicks: '2' },
@@ -93,8 +97,12 @@ test('summary aggregates events, referrers, sources, clicks, signups and forms',
         { name: 'US', count: '2', precise: true },
       ], rowCount: 2,
     };
-    if (sql.includes('FROM "user"')) return { rows: [{ count: '2' }], rowCount: 1 };
-    if (sql.includes('FROM form')) return { rows: [{ count: '1' }], rowCount: 1 };
+    if (sql.includes('utm_campaign')) return { rows: [{ name: 'launch-week', count: '4' }], rowCount: 1 };
+    if (sql.includes('utm_medium')) return { rows: [{ name: '(none)', count: '5' }, { name: 'social', count: '2' }], rowCount: 2 };
+    if (sql.includes('FROM "user"') && sql.includes('to_char')) return { rows: [{ day: '2026-10-03', count: '2' }], rowCount: 1 };
+    if (sql.includes('FROM form') && sql.includes('to_char')) return { rows: [{ day: '2026-10-04', count: '1' }], rowCount: 1 };
+    if (sql.includes('FROM "user"')) return { rows: [{ count: params[0]?.getTime() < Date.parse('2026-10-01T00:00:00Z') ? '4' : '2' }], rowCount: 1 };
+    if (sql.includes('FROM form')) return { rows: [{ count: params[0]?.getTime() < Date.parse('2026-10-01T00:00:00Z') ? '0' : '1' }], rowCount: 1 };
     throw new Error(`unexpected query: ${sql.slice(0, 80)}`);
   });
   const summary = await createPostgresAnalyticsStore(pool).summary(BOUNDS);
@@ -103,7 +111,15 @@ test('summary aggregates events, referrers, sources, clicks, signups and forms',
   assert.equal(summary.clicks, 3);
   assert.equal(summary.signups, 2);
   assert.equal(summary.formsCreated, 1);
-  assert.deepEqual(summary.byDay[0], { day: '2026-10-03', pageviews: 5, clicks: 2 });
+  assert.equal(summary.byDay.length, 7, 'every day in the window appears, including quiet ones');
+  assert.deepEqual(summary.byDay[2], { day: '2026-10-03', pageviews: 5, clicks: 2, signups: 2, formsCreated: 0 });
+  assert.deepEqual(summary.byDay[3], { day: '2026-10-04', pageviews: 2, clicks: 1, signups: 0, formsCreated: 1 });
+  assert.equal(summary.byHour.length, 24, 'an hour with no events is a zero, not a missing tick');
+  assert.deepEqual(summary.byHour[9], { hour: 9, pageviews: 4, clicks: 2 });
+  assert.deepEqual(summary.byHour[3], { hour: 3, pageviews: 0, clicks: 0 });
+  assert.deepEqual(summary.funnel, { pageviews: 7, clicks: 3, signups: 2, formsCreated: 1, viewToClick: 0.429, clickToSignup: 0.667, viewToSignup: 0.286, signupToForm: 0.5 });
+  assert.deepEqual(summary.topCampaigns, [{ name: 'launch-week', count: 4 }]);
+  assert.deepEqual(summary.previous, { pageviews: 4, clicks: 1, signups: 4, formsCreated: 0 }, 'the previous window is reported separately, never mixed in');
   assert.deepEqual(summary.topReferrers, [{ name: 'google.com', count: 4 }]);
   assert.deepEqual(summary.topClicks, [{ name: 'Start free', count: 3 }]);
   assert.deepEqual(summary.topCountries, [{ name: 'NG', count: 4 }, { name: 'US', count: 2 }]);

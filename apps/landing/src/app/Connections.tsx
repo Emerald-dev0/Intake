@@ -1,4 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { ProviderMark } from './components/ProviderBadge';
+import { PageHeader, Section, EmptyState, ErrorState, Skeleton, Note } from './components/PagePrimitives';
 import {
   isProviderId,
   isResultCode,
@@ -54,25 +56,36 @@ export function Connections({ load, reload }: { load: ProviderLoad; reload: () =
   const message = notice ? resultMessage(notice.result, notice.provider, notice.revocation) : null;
   return (
     <>
-      <div className="page-heading">
-        <div className="eyebrow">02 / PROVIDERS</div>
-        <h1>Your forms stay<br /><em>your forms.</em></h1>
-        <div className="heading-description">A provider connection is a separate authorization. Signing in to Intake does not give Intake access to Google or Microsoft.</div>
-      </div>
+      <PageHeader
+        kicker="ACCOUNTS"
+        title="Connections"
+        description="Intake creates forms in an account you control. Connecting is separate from signing in — Intake only gets access when you connect a provider here."
+      />
       {message && <div className={`form-banner ${message.tone}`} role="status">{message.text}</div>}
-      {load.status === 'loading' && <p className="fine-print" role="status">Checking connections…</p>}
+      {load.status === 'loading' && <Skeleton variant="rows" lines={2} label="Checking your connections" />}
       {load.status === 'error' && (
-        <div className="form-banner bad" role="alert">
-          <p>Intake couldn’t load provider connections. This does not mean they are disconnected.</p>
-          <button className="btn btn-ghost btn-sm" type="button" onClick={() => void reload()}>Try again</button>
-        </div>
+        <ErrorState
+          title="Connections could not be loaded"
+          detail="Intake couldn’t reach its own records. This does not mean your accounts are disconnected."
+          onRetry={() => void reload()}
+        />
       )}
-      {load.status === 'ready' && load.providers && (
-        <div className="provider-list">
-          {load.providers.map(provider => <ProviderRow key={provider.id} provider={provider} onChange={result => { setNotice(result); void reload(); }} />)}
-        </div>
-      )}
-      <p className="fine-print">Disconnecting here stops Intake from using that account. It does not delete forms already in Google or Microsoft. One account per provider for now — disconnect before switching accounts.</p>
+      <Section
+        eyebrow="FORM PROVIDERS"
+        title="Where Intake creates forms"
+        description="One account per provider. Connecting is a separate permission from signing in, and Intake only uses it for the workflows you explicitly confirm."
+        actions={<a className="btn btn-ghost btn-sm" href="/app/library">Your forms ↗</a>}
+      >
+        {load.status === 'ready' && load.providers && (load.providers.length > 0
+          ? <div className="provider-list">
+            {load.providers.map(provider => <ProviderRow key={provider.id} provider={provider} onChange={result => { setNotice(result); void reload(); }} />)}
+          </div>
+          : <EmptyState
+            title="No providers are configured on this server"
+            detail="An operator turns these on. Your saved forms stay in the Library either way."
+          />)}
+      </Section>
+      <Note>Disconnecting stops Intake from using that account. It does not delete forms that already exist. One account per provider — disconnect before switching.</Note>
     </>
   );
 }
@@ -117,7 +130,7 @@ function ProviderRow({ provider, onChange }: { provider: PublicProvider; onChang
 
   return (
     <article className="provider-row">
-      <span className={`provider-symbol ${provider.id === 'microsoft' ? 'microsoft' : ''}`} aria-hidden>{provider.id === 'google' ? 'G' : '⊞'}</span>
+      <ProviderMark provider={provider.id} />
       <div className="provider-main">
         <div className="provider-title">
           <h2>{provider.name}</h2>

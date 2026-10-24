@@ -2,8 +2,25 @@ import type { AiFailureCode } from '../../ai/provider';
 import type { FormWarning, ValidationIssue } from '../../../src/lib/forms';
 import type { FormSpecification } from '../specification';
 import type { AiOperationContext } from '../../admin/ai-operations';
+import type { FormProvider } from '../../../src/lib/connections';
 import { planGoogleForm } from '../providers/google/plan';
+import { planTypeform } from '../providers/typeform/plan';
 import { parseFormSpecification } from '../validation';
+
+/**
+ * Plan against the provider the draft is actually for. Interpretation is shared, but a proposal is
+ * only honest if the target provider can express it: Typeform has no section routing and a narrower
+ * field set, Google imposes ordering rules on conditional sections.
+ */
+function planFor(provider: FormProvider, specification: FormSpecification):
+  { ok: true; warnings: FormWarning[] } | { ok: false; issues: ValidationIssue[] } {
+  if (provider === 'typeform') {
+    const planned = planTypeform(specification);
+    return planned.ok ? { ok: true, warnings: planned.plan.warnings } : { ok: false, issues: planned.issues };
+  }
+  const planned = planGoogleForm(specification);
+  return planned.ok ? { ok: true, warnings: planned.plan.warnings } : { ok: false, issues: planned.issues };
+}
 
 /** Planner codes the model can fix by reshuffling: placement and controller shape, never content. */
 const REPAIRABLE_CODES = ['google_condition_placement', 'google_nested_condition', 'google_condition_source_not_required'];
@@ -15,7 +32,7 @@ const FRIENDLY_CODES = ['google_condition_placement', 'google_nested_condition']
  * there is nothing to repair (other statuses, unparseable specs, clean plans). Lets the caller
  * retry the model with targeted feedback instead of showing engineer text to the user.
  */
-export function placementIssues(value: unknown): ValidationIssue[] {
+export function placementIssues(value: unknown, provider: FormProvider = 'google'): ValidationIssue[] {
   if (!record(value) || value.status !== 'ready' || !record(value.specification)) return [];
   let specification: FormSpecification;
   try {
@@ -25,9 +42,8 @@ export function placementIssues(value: unknown): ValidationIssue[] {
   } catch {
     return [];
   }
-  const planned = planGoogleForm(specification);
-  if (planned.ok) return [];
-  return planned.issues;
+  const planned = planFor(provider, specification);
+  return planned.ok ? [] : planned.issues;
 }
 
 /** True when every issue is a reshuffle problem rather than an unsupported-content problem. */
@@ -50,7 +66,8 @@ export interface InterpretationInput {
   clarification?: string;
   /** Only the server's current, user-owned draft; never a client-supplied specification. */
   specification?: FormSpecification;
-  provider: 'google';
+  /** The provider this proposal will be created in. Chosen by the user, never by the model. */
+  provider: FormProvider;
   /** Request/user context is used only for secret-free server-side usage metadata. */
   telemetry?: AiOperationContext;
 }
@@ -59,10 +76,17 @@ export interface FormInterpreter {
   interpret(input: InterpretationInput): Promise<unknown>;
 }
 
-export type InterpretationResult =
+/**
+ * `reply` is the assistant's own sentence, shown as the chat bubble. It is optional in the type so a
+ * provider that omits it degrades to the structured result rather than failing the request — but the
+ * schema and the prompt both require it, because a specification with no words reads as a form
+ * generator, not as the conversation people came for.
+ */
+export type InterpretationResult = (
   | { status: 'ready'; specification: FormSpecification; assumptions: string[]; warnings: FormWarning[] }
   | { status: 'needs_clarification'; question: string }
-  | { status: 'unsupported'; explanation: string };
+  | { status: 'unsupported'; explanation: string }
+) & { reply?: string };
 
 /** One taxonomy for provider and application failures. See server/ai/provider.ts. */
 export type InterpretationErrorCode = AiFailureCode;
@@ -76,13 +100,30 @@ export class InterpretationError extends Error {
 
 const invalid = () => new InterpretationError('model_invalid_output', 'Intake could not validate the interpretation. Your draft was not changed. Try again or rephrase your request.');
 const keys = ['status', 'specification', 'assumptions', 'question', 'explanation'];
+/** Present in the model schema, optional in the contract: older or degraded outputs may omit it. */
+const replyKey = 'reply';
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function exactly(value: Record<string, unknown>, allowed: readonly string[]): boolean {
-  return Object.keys(value).length === allowed.length && allowed.every(key => Object.prototype.hasOwnProperty.call(value, key));
+  const present = Object.keys(value).filter(key => key !== replyKey);
+  return present.length === allowed.length && allowed.every(key => Object.prototype.hasOwnProperty.call(value, key));
+}
+
+/**
+ * The chat bubble, when the model wrote one. It is deliberately lenient about the edges of the
+ * contract: null, absent, or whitespace-only all mean "no words", while a non-string or an
+ * over-long essay is a schema violation and fails closed like any other malformed output.
+ */
+function readReply(value: unknown): { valid: boolean; reply?: string } {
+  if (value === undefined || value === null) return { valid: true };
+  if (typeof value !== 'string') return { valid: false };
+  const reply = value.replace(/\s+/g, ' ').trim();
+  if (!reply) return { valid: true };
+  if (reply.length > 400) return { valid: false };
+  return { valid: true, reply };
 }
 
 function text(value: unknown, max: number): value is string {
@@ -91,35 +132,38 @@ function text(value: unknown, max: number): value is string {
 
 /**
  * Enforce the result union even when the model claims to have followed a JSON schema. A ready result
- * must pass BOTH the engine's strict validator and the actual Google planner. A provider limitation
- * becomes an honest unsupported result, never a silently approximated draft.
+ * must pass BOTH the engine's strict validator and the target provider's planner. A provider
+ * limitation becomes an honest unsupported result, never a silently approximated draft.
  */
-export function assessInterpretation(value: unknown): InterpretationResult {
+export function assessInterpretation(value: unknown, provider: FormProvider = 'google'): InterpretationResult {
   if (!record(value) || !exactly(value, keys) || !Array.isArray(value.assumptions) || value.assumptions.length > 6 ||
       !value.assumptions.every(item => text(item, 240))) throw invalid();
+  const spoken = readReply(value.reply);
+  if (!spoken.valid) throw invalid();
+  const reply = spoken.reply ? { reply: spoken.reply } : {};
 
   if (value.status === 'needs_clarification') {
     if (value.specification !== null || value.explanation !== null || value.assumptions.length !== 0 || !text(value.question, 400)) throw invalid();
-    return { status: 'needs_clarification', question: value.question.trim() };
+    return { status: 'needs_clarification', question: value.question.trim(), ...reply };
   }
   if (value.status === 'unsupported') {
     if (value.specification !== null || value.question !== null || value.assumptions.length !== 0 || !text(value.explanation, 500)) throw invalid();
-    return { status: 'unsupported', explanation: value.explanation.trim() };
+    return { status: 'unsupported', explanation: value.explanation.trim(), ...reply };
   }
   if (value.status !== 'ready' || value.question !== null || value.explanation !== null) throw invalid();
 
   const parsed = parseFormSpecification(value.specification);
   if (!parsed.ok) throw invalid();
-  const planned = planGoogleForm(parsed.specification);
+  const planned = planFor(provider, parsed.specification);
   if (!planned.ok) {
     // Back-to-back and nested layouts get plain language (the repair loop in provider-interpreter
     // usually resolves them before this is ever shown); anything else keeps the planner's specific
     // explanation, which contains no provider payload.
     if (planned.issues.length > 0 && planned.issues.every(issue => FRIENDLY_CODES.includes(issue.code))) {
-      return { status: 'unsupported', explanation: friendlyPlacementExplanation() };
+      return { status: 'unsupported', explanation: friendlyPlacementExplanation(), ...reply };
     }
     const explanation = planned.issues.slice(0, 2).map(issue => issue.message).join(' ');
-    return { status: 'unsupported', explanation: explanation.length > 500 ? `${explanation.slice(0, 497)}…` : explanation };
+    return { status: 'unsupported', explanation: explanation.length > 500 ? `${explanation.slice(0, 497)}…` : explanation, ...reply };
   }
-  return { status: 'ready', specification: parsed.specification, assumptions: value.assumptions.map(item => (item as string).trim()), warnings: planned.plan.warnings };
+  return { status: 'ready', specification: parsed.specification, assumptions: value.assumptions.map(item => (item as string).trim()), warnings: planned.warnings, ...reply };
 }

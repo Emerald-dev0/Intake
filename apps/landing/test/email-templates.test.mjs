@@ -38,6 +38,13 @@ const VARIABLES = {
   billing_payment_failed: { description: 'Intake Pro subscription', timestamp: '5 October 2026', dashboardUrl: 'https://intake.example/app' },
   billing_credit_pack_purchased: { packLabel: 'Standard', credits: '500', amount: '$5.99', timestamp: '5 October 2026', dashboardUrl: 'https://intake.example/app' },
   billing_renewal_reminder: { renewalDate: '1 November 2026', amount: '$7.99', planLabel: 'Pro', dashboardUrl: 'https://intake.example/app' },
+  admin_message: {
+    adminSubject: 'A small change to your account',
+    adminBody: 'Hi Ada,\n\nWe tidied the dashboard this week, so recent forms sit at the top.',
+    adminButtonLabel: 'Open the dashboard',
+    dashboardUrl: 'https://intake.example/app',
+    userName: 'Ada',
+  },
 };
 
 test('every email type in the catalogue has a template, and vice versa', () => {
@@ -61,6 +68,30 @@ test('every template renders a subject, html and plaintext body', () => {
     assert.ok(rendered.text.length > 80, `${type} plaintext looks empty`);
     assert.ok(!rendered.text.includes('<'), `${type} plaintext must not contain markup`);
   }
+});
+
+test('an operator-composed note is escaped, greeted once, and button-less when no link was given', () => {
+  const withButton = renderEmail('admin_message', {
+    ...APP,
+    adminSubject: 'A small change',
+    adminBody: 'Hi {{name}} & friends,\n\nLine one.\nLine two.',
+    adminButtonLabel: 'Open Intake',
+    dashboardUrl: 'https://intake.example/app',
+    userName: 'Ada',
+  });
+  // Placeholders are substituted by the caller, so a literal brace pair would be an operator mistake,
+  // never something the template expands. What matters here is escaping and paragraph handling.
+  assert.match(withButton.html, /&amp; friends/);
+  assert.match(withButton.html, /Line one\.<br \/>Line two\./);
+  assert.match(withButton.html, /href="https:\/\/intake\.example\/app"/);
+  assert.match(withButton.text, /Open Intake: https:\/\/intake\.example\/app/);
+  assert.equal(withButton.text.match(/Hi Ada/g)?.length ?? 0, 0, 'the template adds no greeting of its own');
+
+  const plain = renderEmail('admin_message', {
+    ...APP, adminSubject: 'A small change', adminBody: 'Just two sentences, no button at all.', dashboardUrl: '',
+  });
+  assert.doesNotMatch(plain.html, /<a href=/, 'no link was given, so no button is rendered');
+  assert.doesNotMatch(plain.text, /Open Intake:/);
 });
 
 test('the plaintext alternative carries the same call to action as the html', () => {

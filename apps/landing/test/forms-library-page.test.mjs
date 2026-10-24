@@ -160,7 +160,7 @@ async function withLibraryPage(options, run) {
 test('Form Library page displays persisted forms with substantiated metadata and links', () =>
   withLibraryPage({}, async page => {
     assert.equal(page.router.state.location.pathname, '/app/library');
-    assert.match(page.text(), /Your Forms/);
+    assert.match(page.text(), /Your forms/);
     assert.match(page.text(), /Project Registration/);
     assert.match(page.text(), /Faculty Feedback Survey/);
     assert.match(page.text(), /Register for final-year project showcase/);
@@ -298,14 +298,14 @@ test('clicking Edit with Intake transitions to the edit workspace with the selec
 test('empty library state renders helpful guidance and creation routes', () =>
   withLibraryPage({ forms: [] }, async page => {
     assert.match(page.text(), /Your form library is empty/);
-    assert.match(page.text(), /Forms you create with Intake or import from your Google account/);
+    assert.match(page.text(), /Forms you create with Intake or import from Google or Typeform/);
     assert.ok(page.button('Create your first form →'));
-    assert.ok(page.button('Import an existing Google Form'));
+    assert.ok(page.button('Import an existing form'));
   }));
 
 test('provider disconnected notice appears when Google is not connected, but forms remain visible', () =>
   withLibraryPage({ google: { status: 'not_connected', accountEmail: null } }, async page => {
-    assert.match(page.text(), /Your Google account is not connected/);
+    assert.match(page.text(), /No form provider is connected/);
     assert.match(page.text(), /Saved forms remain available in your library/);
     assert.ok(page.$('a[href="/app/connections"]'));
 

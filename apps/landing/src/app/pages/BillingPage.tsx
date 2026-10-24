@@ -3,6 +3,7 @@ import { creditSummary, resetInterval } from '../../lib/credits';
 import { CREDIT_PACK_CATALOG, PAID_BILLING_ENABLED, PLAN_CATALOG, formatUsd } from '../../lib/plans';
 import { useCredits } from '../hooks/useCredits';
 import { useWorkspace } from '../hooks/useWorkspace';
+import { PageHeader, Section, EmptyState, Skeleton } from '../components/PagePrimitives';
 
 interface BillingSummary {
   plan: string;
@@ -122,26 +123,22 @@ export function BillingPage() {
   const isCanceled = summary?.cancelAtPeriodEnd ?? false;
 
   return <>
-    <div className="page-heading">
-      <div className="eyebrow">07 / BILLING</div>
-      <h1>Your <em>billing.</em></h1>
-      <div className="heading-description">{PAID_BILLING_ENABLED
+    <PageHeader
+      kicker="BILLING"
+      title="Your billing"
+      description={PAID_BILLING_ENABLED
         ? 'Manage your subscription, view credits and billing history, and purchase credit packs.'
-        : 'Your plan, credits and billing history. Paid plans open later — everyone builds on Free for now.'}</div>
-    </div>
+        : 'Your plan, credits and billing history. Paid plans open later — everyone builds on Free for now.'}
+    />
 
     {message && <div className="form-banner ok" role="status"><p>{message}</p><button className="btn-dismiss" onClick={() => setMessage('')} aria-label="Dismiss">×</button></div>}
     {error && <div className="form-banner warn" role="alert"><p>{error}</p><button className="btn-dismiss" onClick={() => setError('')} aria-label="Dismiss">×</button></div>}
 
     {/* Current Plan */}
-    <section className="billing-section" aria-labelledby="current-plan-title">
-      <div className="billing-section-header">
-        <span className="info-index">CURRENT PLAN</span>
-        <h2 id="current-plan-title">{isPro ? 'Pro' : 'Free'}</h2>
-      </div>
+    <Section eyebrow="CURRENT PLAN" title={isPro ? 'Pro' : 'Free'} id="current-plan">
       <div className="billing-plan-detail">
         {loading ? (
-          <p className="forms-progress">Checking your plan…</p>
+          <Skeleton lines={2} label="Checking your plan" />
         ) : (
           <>
             <div className="billing-plan-info">
@@ -178,14 +175,10 @@ export function BillingPage() {
           </>
         )}
       </div>
-    </section>
+    </Section>
 
     {/* Credits */}
-    <section className="billing-section" aria-labelledby="credits-title">
-      <div className="billing-section-header">
-        <span className="info-index">CREDITS</span>
-        <h2 id="credits-title">Your available credits</h2>
-      </div>
+    <Section eyebrow="CREDITS" title="Your available credits" id="credits">
       {credits ? (
         <div className="billing-credits-grid">
           <div className="billing-credit-card">
@@ -207,19 +200,19 @@ export function BillingPage() {
           </div>
         </div>
       ) : (
-        <p className="forms-progress">Checking credits…</p>
+        <Skeleton lines={2} label="Checking credits" />
       )}
-    </section>
+    </Section>
 
     {/* Credit Packs */}
-    <section className="billing-section" aria-labelledby="packs-title">
-      <div className="billing-section-header">
-        <span className="info-index">CREDIT PACKS{PAID_BILLING_ENABLED ? '' : ' · COMING SOON'}</span>
-        <h2 id="packs-title">Buy credits when you need more</h2>
-      </div>
-      <p className="billing-section-description">{PAID_BILLING_ENABLED
+    <Section
+      eyebrow={`CREDIT PACKS${PAID_BILLING_ENABLED ? '' : ' · COMING SOON'}`}
+      title="Buy credits when you need more"
+      description={PAID_BILLING_ENABLED
         ? 'Purchased credits are used after your daily and subscription credits. They do not expire.'
-        : 'Credit packs are not on sale yet. When they open, purchased credits are used after your daily and subscription credits and never expire.'}</p>
+        : 'Credit packs are not on sale yet. When they open, purchased credits are used after your daily and subscription credits and never expire.'}
+      id="packs"
+    >
       <div className="billing-packs-grid">
         {CREDIT_PACK_CATALOG.map(pack => (
           <div key={pack.id} className="billing-pack-card">
@@ -230,16 +223,12 @@ export function BillingPage() {
           </div>
         ))}
       </div>
-    </section>
+    </Section>
 
     {/* Billing History */}
-    <section className="billing-section" aria-labelledby="history-title">
-      <div className="billing-section-header">
-        <span className="info-index">HISTORY</span>
-        <h2 id="history-title">Billing history</h2>
-      </div>
+    <Section eyebrow="HISTORY" title="Billing history" id="history">
       {loading ? (
-        <p className="forms-progress">Loading history…</p>
+        <Skeleton variant="rows" lines={3} label="Loading billing history" />
       ) : history && (history.payments.length > 0 || history.creditPurchases.length > 0) ? (
         <div className="billing-history-list">
           {history.payments.map(payment => (
@@ -264,8 +253,11 @@ export function BillingPage() {
           ))}
         </div>
       ) : (
-        <p className="billing-empty">No billing history yet. Your payments and credit purchases will appear here.</p>
+        <EmptyState
+          title="No billing history yet"
+          detail="Your payments and credit purchases will appear here."
+        />
       )}
-    </section>
+    </Section>
   </>;
 }

@@ -10,7 +10,7 @@ import {
   EditingDemo,
   FAQSection,
   FinalCTA,
-  GoogleConnection,
+  ProviderConnection,
   Hero,
   HowItWorks,
   PricingSection,
@@ -41,7 +41,7 @@ export default function MarketingHome() {
         <UseCaseSection authenticated={authenticated} />
         <ControlSection />
         <TrustSection />
-        <GoogleConnection authenticated={authenticated} />
+        <ProviderConnection authenticated={authenticated} />
         <PricingSection authenticated={authenticated} />
         <ComingSoonSection />
         <FAQSection authenticated={authenticated} />

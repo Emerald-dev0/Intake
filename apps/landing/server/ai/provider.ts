@@ -7,8 +7,9 @@
  *
  * Two rules hold for every implementation:
  * 1. A provider call happens server-side only. Keys never reach the browser.
- * 2. A provider call is attempted **once**. Retrying here could duplicate a downstream action, so
- *    retry policy lives with the caller and with the user.
+ * 2. A provider call never changes vendor. Transport may retry the same endpoint a bounded number of
+ *    times for a fast 429/5xx wobble, but a failure is never re-sent to a second provider and never
+ *    re-sent after a timeout: a different model answering the same request is a surprise, not a fix.
  */
 
 export const AI_PROVIDER_IDS = ['groq', 'openai'] as const;
