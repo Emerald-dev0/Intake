@@ -1,11 +1,19 @@
 # Internal administration console
 
 The `/admin` console is operator-only. Every route re-verifies the session and
-allowlist; all other surfaces are read-only. The single exception is plan
-settings below: daily allowances and prices are editable by design, strictly
-validated, and rate-limited, because the dashboard is the supported way to
-change them without a redeploy. It does not create an admin role-management
-product and it does not rely on client state for permission decisions.
+allowlist; everything else is read-only. Two exceptions exist, both deliberate and
+both narrow:
+
+- **Plan settings** — daily allowances and prices are editable by design, strictly
+  validated, and rate-limited, because the dashboard is the supported way to change
+  them without a redeploy.
+- **Composed mail** — an operator may write a note and send it to selected accounts,
+  one message per recipient. Previewing never sends; a send must carry the render it
+  was approved from and the recipient count the operator confirmed. See
+  [docs/MAIL.md](../../docs/MAIL.md).
+
+Neither creates an admin role-management product, and neither relies on client state
+for permission decisions.
 
 ## Access control
 
@@ -14,7 +22,7 @@ product and it does not rely on client state for permission decisions.
 3. The database email must be verified, then compared case-insensitively for exact equality with server-only `ADMIN_EMAILS` entries. An unverified sign-up cannot claim an allowlisted address.
 4. Missing/malformed allowlist entries grant no access. Unauthenticated requests receive 401; signed-in non-admins or unverified accounts receive 403.
 
-Configure `ADMIN_EMAILS=owner@example.com,ops@example.com` on the API service only, for existing Better Auth accounts whose email verification has been independently completed. This checkout has no email-delivery/verification service; if the operator provisions the verification state out of band, do so through the trusted database/admin process and do not treat an unverified public sign-up as identity proof. Do not use a `VITE_` prefix. The web client receives only the authorized admin's display identity after the API check. Every API request, including direct requests that skip the React route, performs the same check. The only admin mutation endpoint is plan settings (`PUT /billing/settings`); everything else is read-only.
+Configure `ADMIN_EMAILS=owner@example.com,ops@example.com` on the API service only, for existing Better Auth accounts whose email verification has been independently completed. This checkout has no email-delivery/verification service; if the operator provisions the verification state out of band, do so through the trusted database/admin process and do not treat an unverified public sign-up as identity proof. Do not use a `VITE_` prefix. The web client receives only the authorized admin's display identity after the API check. Every API request, including direct requests that skip the React route, performs the same check. The only admin mutation endpoints are plan settings (`PUT /billing/settings`) and composed mail (`POST /mail/preview`, `POST /mail/send`); everything else is read-only.
 
 The `/admin` document has a separate noindex HTML entry, and `/api/admin/*` responses set `X-Robots-Tag` and `Cache-Control: no-store`. These are supplemental privacy controls; authentication and the allowlist are the security boundary.
 
@@ -54,10 +62,10 @@ The shared PostgreSQL rate-limit store protects admin reads independently of cus
 
 ## Database changes
 
-Run Better Auth migrations first, then `npm run db:migrate:intake`. Migration `007_ai_credits.sql` creates the customer entitlement, ledger and logical-operation schema. The historical `007_ai_operations.sql` identifier is retained as a no-op so migration history remains compatible. `008_ai_operation_compat.sql` archives the earlier Phase 12 telemetry table and safely backfills its metadata into the logical-operation table without deleting the source. `009_admin_indexes.sql` adds indexes for the read-only query paths; it does not create a competing operation schema. `010_email.sql` and `011_billing.sql` hold delivery and billing records, `012_billing_settings.sql` holds the single admin-editable allowances row (seeded with code defaults), and `013_site_analytics.sql` holds the privacy-first traffic events behind `/analytics`. These migrations rely on the Better Auth, provider, draft and form tables established by `001`–`006`.
+Run Better Auth migrations first, then `npm run db:migrate:intake`. Migration `007_ai_credits.sql` creates the customer entitlement, ledger and logical-operation schema. The historical `007_ai_operations.sql` identifier is retained as a no-op so migration history remains compatible. `008_ai_operation_compat.sql` archives the earlier Phase 12 telemetry table and safely backfills its metadata into the logical-operation table without deleting the source. `009_admin_indexes.sql` adds indexes for the read-only query paths; it does not create a competing operation schema. `010_email.sql` and `011_billing.sql` hold delivery and billing records, `012_billing_settings.sql` holds the single admin-editable allowances row (seeded with code defaults), and `013_site_analytics.sql` holds the privacy-first traffic events behind `/analytics`, and `020_admin_mail.sql` holds the composed-mail send log (counts only, never message bodies). These migrations rely on the Better Auth, provider, draft and form tables established by `001`–`006`.
 
 This repository change has not applied migrations to the production database. Apply the ordered migration sequence before rollout and verify it under `/admin/system`. Until then, the admin reports missing sources explicitly rather than presenting false zeroes; `/ai` history requires the current logical-operation schema, and legacy telemetry is available only after `008` runs.
 
 ## Intentionally deferred
 
-Admin-side billing and revenue/MRR/ARR, Calder email monitoring, manual credit grants or adjustments, support impersonation, feature flags, centralized provider/API logs, error-resolution state, and product analytics are not implemented. Customer-side plans, entitlements and credit consumption remain server-authoritative. Plan allowances and prices are the only admin-editable values (see `PUT /billing/settings`); opening paid billing itself stays a code flag and every other admin operation is read-only.
+Admin-side billing and revenue/MRR/ARR, Calder email monitoring, manual credit grants or adjustments, support impersonation, feature flags, centralized provider/API logs, error-resolution state, and product analytics are not implemented. Customer-side plans, entitlements and credit consumption remain server-authoritative. Plan allowances and prices are the only admin-editable *settings* (see `PUT /billing/settings`); opening paid billing itself stays a code flag. Composed mail is the only way an admin can reach a customer directly, and it has no scheduling, drafting, retrying, tracking or reply handling. Every other admin operation is read-only.

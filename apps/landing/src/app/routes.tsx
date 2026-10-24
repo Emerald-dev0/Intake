@@ -35,6 +35,7 @@ const AdminSystemPage = lazy(() => import('../admin/AdminPages').then(m => ({ de
 const AdminActivityPage = lazy(() => import('../admin/AdminPages').then(m => ({ default: m.AdminActivityPage })));
 const AdminAnalyticsPage = lazy(() => import('../admin/AdminPages').then(m => ({ default: m.AdminAnalyticsPage })));
 const AdminWaitlistPage = lazy(() => import('../admin/AdminWaitlistPage'));
+const AdminMailPage = lazy(() => import('../admin/AdminMailPage'));
 function NotFoundPage() {
   return <main className="workspace-status"><h1>Page not found</h1><a href="/">Back to Intake</a></main>;
 }
@@ -63,6 +64,7 @@ export const routes: RouteObject[] = [
       { path: 'forms', element: <AdminFormsPage /> },
       { path: 'providers', element: <AdminProvidersPage /> },
       { path: 'email', element: <AdminEmailPage /> },
+      { path: 'mail', element: <AdminMailPage /> },
       { path: 'waitlist', element: <AdminWaitlistPage /> },
       { path: 'system', element: <AdminSystemPage /> },
       { path: 'activity', element: <AdminActivityPage /> },

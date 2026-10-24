@@ -5,6 +5,7 @@ import { boundedText, parseAdminPage, parseRange, positiveId, rangeBounds } from
 import type { SessionUser } from '../providers/service';
 import { createBillingSettingsService, type BillingSettingsService } from '../billing/settings';
 import type { WaitlistStore } from '../waitlist/store';
+import { MAIL_RECIPIENT_CAP, MAIL_SEGMENTS, MailError, SEGMENT_LABEL, parseComposeDraft, parseSelection, type MailService } from './mail';
 
 const RANGE_DEFAULT: AdminRange = '7d';
 const EMAIL = /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/;
@@ -12,6 +13,9 @@ const RATE_RULES = {
   read: { limit: 120, windowSeconds: 60 },
   search: { limit: 60, windowSeconds: 60 },
   analytics: { limit: 30, windowSeconds: 60 },
+  // A send reaches real inboxes, so it is the slowest-moving admin action there is: six sends a
+  // minute is already far more than a person can write.
+  mail: { limit: 6, windowSeconds: 60 },
 } as const;
 
 type Quota = keyof typeof RATE_RULES;
@@ -26,6 +30,11 @@ export interface AdminRouterDeps {
   /** Billing settings service. Absent in tests and minimal harnesses: reads report code defaults and writes are refused. */
   settings?: BillingSettingsService;
   waitlist?: Pick<WaitlistStore, 'list'>;
+  /**
+   * Admin-composed mail. Absent in tests and minimal harnesses: the routes then report 503 rather
+   * than inventing an "email sent" response.
+   */
+  mail?: MailService;
 }
 
 function asyncRoute(handler: AdminHandler) {
@@ -289,6 +298,88 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
     const userId = optionalId(queryValue(req, 'userId'));
     if (!page || !range || userId === null) return invalid(res);
     res.json(await deps.store.listErrors({ ...page, bounds: rangeBounds(range, now()), userId: userId || '' }));
+  }));
+
+  // ── Composed mail ─────────────────────────────────────────────────────────────────────────────
+  // Everything below rides the same verified, allowlisted session as the rest of /api/admin. The
+  // browser sends a *selection* (a segment name or user ids) and a draft; the server decides who
+  // matches, renders the preview, and enforces the recipient cap.
+
+  router.get('/mail/recipients', asyncRoute(async (req, res) => {
+    if (!await allowRequest(req, res, 'search')) return;
+    if (!deps.mail) return res.status(503).json({ error: 'mail_unavailable', message: 'Composed mail is not configured on this server.' });
+    const page = readPage(req);
+    const search = boundedText(queryValue(req, 'q'), 120);
+    const segment = optionalEnum(queryValue(req, 'segment'), MAIL_SEGMENTS);
+    if (!page || search === null || segment === undefined) return invalid(res, 'Use a search up to 120 characters and a valid page/limit.');
+    try {
+      const result = await deps.mail.search({ query: search, segment, page: page.page, limit: page.limit });
+      res.json({ ...result, cap: MAIL_RECIPIENT_CAP, segments: SEGMENT_LABEL });
+    } catch {
+      res.status(503).json({ error: 'mail_unavailable', message: 'Account lookup is temporarily unavailable.' });
+    }
+  }));
+
+  router.post(
+    '/mail/preview',
+    express.json({ limit: '32kb', strict: true }),
+    asyncRoute(async (req, res) => {
+      if (!await allowRequest(req, res, 'analytics')) return;
+      if (!deps.mail) return res.status(503).json({ error: 'mail_unavailable', message: 'Composed mail is not configured on this server.' });
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const selection = parseSelection(body.selection);
+      if (!selection) return res.status(400).json({ error: 'invalid_selection', message: 'Choose a segment or a set of accounts.' });
+      const parsed = parseComposeDraft(body.draft, deps.mail.appOrigin);
+      if (!parsed.ok) return res.status(400).json({ error: 'invalid_draft', message: parsed.message, fieldErrors: parsed.errors });
+      try {
+        const preview = await deps.mail.preview({ draft: parsed.draft, selection });
+        res.json({ ...preview, draft: parsed.draft });
+      } catch (error) {
+        if (error instanceof MailError) return res.status(error.status).json({ error: error.code, message: error.message, ...error.detail });
+        res.status(503).json({ error: 'mail_unavailable', message: 'The preview could not be rendered.' });
+      }
+    }),
+  );
+
+  router.post(
+    '/mail/send',
+    express.json({ limit: '32kb', strict: true }),
+    asyncRoute(async (req, res) => {
+      if (!await allowRequest(req, res, 'mail')) return;
+      if (!deps.mail) return res.status(503).json({ error: 'mail_unavailable', message: 'Composed mail is not configured on this server.' });
+      const admin = res.locals.admin as { id: string } | undefined;
+      if (!admin) return res.status(401).json({ error: 'Authentication required.' });
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const selection = parseSelection(body.selection);
+      if (!selection) return res.status(400).json({ error: 'invalid_selection', message: 'Choose a segment or a set of accounts.' });
+      const parsed = parseComposeDraft(body.draft, deps.mail.appOrigin);
+      if (!parsed.ok) return res.status(400).json({ error: 'invalid_draft', message: parsed.message, fieldErrors: parsed.errors });
+      // The preview id makes a double-click idempotent: every recipient's key is derived from it.
+      const previewId = positiveId(body.previewId, 64);
+      if (!previewId || !/^[A-Za-z0-9-]{8,64}$/.test(previewId)) {
+        return res.status(400).json({ error: 'invalid_preview', message: 'Preview the message again before sending.' });
+      }
+      const confirmedRecipients = typeof body.confirmedRecipients === 'number' ? body.confirmedRecipients : Number.NaN;
+      try {
+        const result = await deps.mail.send({
+          draft: parsed.draft, selection, previewId, confirmedRecipients, adminUserId: admin.id,
+        });
+        res.json(result);
+      } catch (error) {
+        if (error instanceof MailError) return res.status(error.status).json({ error: error.code, message: error.message, ...error.detail });
+        res.status(503).json({ error: 'mail_unavailable', message: 'The message could not be sent.' });
+      }
+    }),
+  );
+
+  router.get('/mail/sends', asyncRoute(async (req, res) => {
+    if (!await allowRequest(req, res, 'read')) return;
+    if (!deps.mail) return res.status(503).json({ error: 'mail_unavailable', message: 'Composed mail is not configured on this server.' });
+    try {
+      res.json({ items: await deps.mail.recent(20), ready: await deps.mail.ready() });
+    } catch {
+      res.status(503).json({ error: 'mail_unavailable', message: 'Send history is temporarily unavailable.' });
+    }
   }));
 
   router.use((_req, res) => res.status(404).json({ error: 'Admin API route not found.' }));

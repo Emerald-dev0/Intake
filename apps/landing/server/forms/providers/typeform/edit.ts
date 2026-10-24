@@ -1,6 +1,7 @@
 import type { EditCapability, FormEditItem, FormEditPlan, FormEditSnapshot, NewEditQuestion } from '../../../../src/lib/form-edit';
 import type { QuestionType } from '../../specification';
 import { safeFormUrl } from '../../../../src/lib/forms';
+import { editLimitText } from '../../../../src/lib/edit-limits';
 import type { TypeformField, TypeformFormResource, TypeformFieldType, TypeformLogic, TypeformSettings, TypeformWelcomeScreen, TypeformThankYouScreen } from './client';
 
 /**
@@ -189,15 +190,11 @@ export function refuseUnsafeTypeformOperation(resource: TypeformFormResource, pl
   (resource.fields ?? []).forEach((field, index) => byId.set(itemIdOf(field, index), field));
   const hasLogic = (resource.logic ?? []).length > 0;
   for (const operation of plan.operations) {
-    if (operation.type === 'delete_question') {
-      return 'Typeform cannot delete a question safely from Intake: removing a field also removes the answers already collected for it, and Intake does not request access to those responses. Delete it in Typeform, where the response count is visible.';
-    }
-    if (operation.type === 'update_question' && operation.changes.type !== undefined) {
-      return 'Typeform cannot change a question’s type in place — it would behave like a new field and orphan existing answers. Add a new question and retire the old one in Typeform instead.';
-    }
-    if (operation.type === 'move_question' && hasLogic) {
-      return 'This Typeform uses logic jumps, so the order of questions is part of the flow. Intake will not reorder a form with logic; change the order in Typeform and review the jump targets there.';
-    }
+    // The wording is shared with the workspace and the public trust page, so a person reads the
+    // same explanation before asking and after being refused.
+    if (operation.type === 'delete_question') return editLimitText('typeform', 'delete')!;
+    if (operation.type === 'update_question' && operation.changes.type !== undefined) return editLimitText('typeform', 'retype')!;
+    if (operation.type === 'move_question' && hasLogic) return editLimitText('typeform', 'reorder')!;
     if ('questionId' in operation && !byId.has(operation.questionId)) {
       return 'That question no longer exists on the form. Nothing was changed; review the current Typeform and prepare a new proposal.';
     }

@@ -253,12 +253,20 @@ export interface AnalyticsData {
   clicks: number;
   signups: number;
   formsCreated: number;
-  byDay: Array<{ day: string; pageviews: number; clicks: number }>;
+  byDay: Array<{ day: string; pageviews: number; clicks: number; signups: number; formsCreated: number }>;
+  byHour: Array<{ hour: number; pageviews: number; clicks: number }>;
+  funnel: {
+    pageviews: number; clicks: number; signups: number; formsCreated: number;
+    viewToClick: number | null; clickToSignup: number | null; viewToSignup: number | null; signupToForm: number | null;
+  };
+  previous: { pageviews: number; clicks: number; signups: number; formsCreated: number };
   topPages: Array<{ name: string; count: number }>;
   topReferrers: Array<{ name: string; count: number }>;
   topSources: Array<{ name: string; count: number }>;
   topClicks: Array<{ name: string; count: number }>;
   topCountries: Array<{ name: string; count: number }>;
+  topCampaigns: Array<{ name: string; count: number }>;
+  topMediums: Array<{ name: string; count: number }>;
   countryPrecise: boolean;
 }
 
@@ -299,4 +307,85 @@ export interface SystemData {
     webhooks: 'configured' | 'not_configured';
   };
   migrations: { trackingAvailable: boolean; applied: string[] | null; pending: string[] | null; latestAppliedAt: string | null; required: string[] };
+}
+
+// ── Composed mail ────────────────────────────────────────────────────────────────────────────────
+// Mirrors `server/admin/mail.ts`. The dashboard never invents a recipient, a count or a cap: every
+// number here came back from the server.
+
+export type MailSegment = 'verified' | 'unverified';
+
+export interface MailRecipient {
+  id: string;
+  name: string;
+  email: string;
+  verified: boolean;
+  createdAt: string | null;
+}
+
+export interface MailRecipientList {
+  items: MailRecipient[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  /** Server-owned ceiling for one send. Displayed, never recomputed in the browser. */
+  cap: number;
+  segments: Record<'all' | 'verified' | 'unverified', string>;
+}
+
+export interface MailDraft {
+  subject: string;
+  heading: string;
+  body: string;
+  buttonLabel: string;
+  buttonUrl: string;
+}
+
+export type MailSelection = { kind: 'ids'; ids: string[] } | { kind: 'segment'; segment: 'all' | MailSegment };
+
+export interface MailPreview {
+  previewId: string;
+  subject: string;
+  html: string;
+  text: string;
+  sample: { name: string; email: string };
+  recipients: { total: number; cap: number; overCap: boolean; segmentLabel: string };
+  /** False when the send log table is missing. Sending is refused by the server in that case. */
+  ready: boolean;
+  tokens: string[];
+  draft: MailDraft;
+}
+
+export interface MailSendLog {
+  items: MailSendRecord[];
+  ready: boolean;
+}
+
+export interface MailSendResult {
+  sendId: string;
+  total: number;
+  sent: number;
+  skipped: number;
+  failed: number;
+  results: Array<{
+    userId: string;
+    name: string;
+    email: string;
+    status: 'sent' | 'skipped' | 'failed';
+    errorCode: string | null;
+  }>;
+}
+
+export interface MailSendRecord {
+  id: string;
+  adminUserId: string | null;
+  subject: string;
+  selectionKind: 'segment' | 'ids';
+  selectionLabel: string;
+  recipients: number;
+  sent: number;
+  skipped: number;
+  failed: number;
+  createdAt: string;
 }

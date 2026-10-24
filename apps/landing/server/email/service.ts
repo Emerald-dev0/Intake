@@ -143,7 +143,9 @@ export function createEmailService(options: EmailServiceOptions): EmailService {
       from: (isWelcome ? config.welcomeFromEmail : config.fromEmail) || undefined,
       fromName: isWelcome ? config.welcomeFromName : config.fromName,
       replyTo: (isWelcome ? config.welcomeReplyTo : config.replyTo) ?? undefined,
-      stream: 'transactional' satisfies EmailStream,
+      // An operator-composed note travels on its own lane; everything the product decides to send
+      // stays transactional. Both are one message per recipient (mission §24).
+      stream: (request.type === 'admin_message' ? 'campaign' : 'transactional') satisfies EmailStream,
       tags: [{ name: 'email_type', value: request.type }, ...(request.tags ?? [])].slice(0, 20),
       metadata: request.metadata,
       idempotencyKey,

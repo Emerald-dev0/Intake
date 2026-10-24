@@ -7,6 +7,7 @@ import { MobileActionBar } from './MobileActionBar';
 import { usePageMeta, webPageSchema } from './usePageMeta';
 import { usePublicSession } from './usePublicSession';
 import { useSiteAnalytics } from '../lib/analytics';
+import { EDIT_LIMITS } from '../lib/edit-limits';
 import type { AnalyticsPath } from '../lib/analytics';
 
 /** Shared shell for the content hubs: nav, page head, footer, action bar, metadata. */
@@ -244,6 +245,21 @@ export function TrustPage() {
             </ul>
           </Reveal>
           <Reveal variant="fade">
+            <h2>What editing cannot change</h2>
+            <p>Creating a form has few limits. Editing one you already own is narrower, because every change is made through the provider&rsquo;s own API — and where that API cannot do something safely, Intake refuses and tells you why rather than approximating.</p>
+            {(['google', 'typeform'] as const).map(provider => {
+              const entry = EDIT_LIMITS[provider];
+              if (!entry) return null;
+              return <div key={provider} className="mk-trust__limits">
+                <h3>{provider === 'google' ? 'Google Forms' : 'Typeform'}</h3>
+                <p>{entry.summary}</p>
+                <ul>
+                  {entry.limits.map(limit => <li key={limit.key}><strong>{limit.title}.</strong> {limit.detail}</li>)}
+                </ul>
+              </div>;
+            })}
+            <p className="mk-hub-updated">These are enforced in the editor itself: the same list appears in the workspace, above the conversation, before you ask for a change.</p>
+
             <h2>What happens when a provider is added</h2>
             <p>Each new provider gets its own connection, its own narrow scope list, and its own entry on this page before it appears as live anywhere on the site. A logo in the roadmap is not a connection: planned providers are labelled planned until the OAuth flow, the scope list, and the creation path actually work.</p>
             <h2>What happens to your data</h2>

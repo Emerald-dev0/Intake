@@ -16,6 +16,7 @@ import { createOperationTracker } from '../lib/operation-id';
 import { insufficientCreditsMessage, isInsufficientCredits, type PublicOperationCost } from '../lib/credits';
 import { CreditCostPreview, OperationCostReceipt } from './components/CreditCostPreview';
 import { LogoMark } from '../components/LogoMark';
+import { editLimitsFor } from '../lib/edit-limits';
 
 // Kept provider-independent at the UI boundary; the server resolves all targets against the signed-in user.
 type Target = { kind: 'record'; formRecordId: string } | { kind: 'url'; formUrl: string };
@@ -386,6 +387,7 @@ export function FormEditWorkspace({
     </div>;
   }
 
+  const limits = editLimitsFor(activeProviderId);
   const opening = draft
     ? `Here is the plan for the form you already have. Read the list — nothing has been sent to ${changeWord} yet.`
     : canUsePreview
@@ -405,6 +407,13 @@ export function FormEditWorkspace({
 
     {busy === 'loading' && <div className="forms-panel draft-loading" role="status"><span className="spin" /> Recovering your saved edit proposal…</div>}
     {draftId && !draft && busy !== 'loading' && <div className="form-banner warn" role="alert"><strong>Saved edit status is not confirmed.</strong><p>{failure?.error ?? 'The proposal could not be loaded. No provider update was repeated.'}</p><div className="forms-actions"><button type="button" className="btn btn-ghost btn-sm" disabled={busy !== null} onClick={() => void loadSavedDraft(draftId)}>Check proposal status</button></div></div>}
+
+    {limits && <details className="edit-limits">
+      <summary>{limits.summary} <span>Read the {limits.limits.length} limits</span></summary>
+      <ul>
+        {limits.limits.map(limit => <li key={limit.key}><strong>{limit.title}.</strong> {limit.detail}</li>)}
+      </ul>
+    </details>}
 
     <section className="thread" aria-label="Conversation with Intake">
       {intakeRow(opening)}

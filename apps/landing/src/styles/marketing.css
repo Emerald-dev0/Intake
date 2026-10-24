@@ -2143,3 +2143,10 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
   .mk-index__label, .mk-index__tick { transition: none; }
 }
 
+
+/* Editing limits on the trust page: the same list the workspace shows before you ask. */
+.mk-trust__limits { margin: 18px 0 6px; border: 1px solid var(--mk-line); border-radius: var(--mk-r-md); padding: 18px 20px; background: rgba(var(--mk-text-rgb), .02); }
+.mk-trust__limits h3 { margin: 0 0 6px; font-size: 14.5px; letter-spacing: -.01em; }
+.mk-trust__limits p { margin: 0 0 10px; font-size: 14px; color: var(--mk-muted); }
+.mk-trust__limits ul { margin: 0; padding-left: 18px; display: grid; gap: 8px; font-size: 14px; line-height: 1.6; }
+.mk-trust__limits strong { color: var(--mk-text); }
