@@ -78,7 +78,7 @@ export function AuthPage({ signUp = false }: { signUp?: boolean }) {
         <section className="auth-card" aria-label={signUp ? 'Create an account' : 'Sign in'}>
           <div className="card-kicker">INTAKE / ACCOUNT</div>
           <h2>{signUp ? 'Create your account' : 'Welcome back'}</h2>
-          <p>{signUp ? (emailConfig?.verificationRequired ? 'Start with an Intake account. We will email you a six-digit code to confirm your address.' : 'Start with an Intake account. Connecting Google or Microsoft is a separate step after you sign in.') : 'Sign in to your Intake workspace.'}</p>
+          <p>{signUp ? (emailConfig?.verificationRequired ? 'Start with an Intake account. We will email you a six-digit code to confirm your address.' : 'Start with an Intake account. Connecting Google or Typeform is a separate step after you sign in.') : 'Sign in to your Intake workspace.'}</p>
           {params.get('reason') === 'session_expired' && <div className="form-error" role="status">Your session ended before authorization finished. Sign in, then connect the provider again.</div>}
           {oauthError && <div className="form-error" role="alert">{oauthErrorMessage(oauthError)}</div>}
           {google.status === 'available' && <>

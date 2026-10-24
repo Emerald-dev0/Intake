@@ -88,8 +88,9 @@ async function boot(options = {}) {
     async getJson(url, headers = {}) {
       if (String(url).includes('/discovery/')) return { status: 200, json: { keys: [jwk] } };
       assert.match(headers.authorization || '', /^Bearer /);
-      // Typeform answers GET /me with {id, email, name}; the adapter needs `id` as the account id.
-      if (String(url) === 'https://api.typeform.com/me') return { status: 200, json: { id: 'tf-user-1', email: 'ada@typeform.test', name: 'Ada Typeform' } };
+      // Typeform's documented GET /me response is { alias, email, language }. It does not promise
+      // an `id`; requiring one turned a successful token exchange into exchange_failed.
+      if (String(url) === 'https://api.typeform.com/me') return { status: 200, json: { alias: 'Ada Typeform', email: 'ada@typeform.test', language: 'en' } };
       return { status: 200, json: { sub: users.identity, email: 'ada@gmail.com', email_verified: true, name: 'Ada Lovelace' } };
     },
   };
@@ -197,7 +198,7 @@ test('public connection responses cannot carry credentials', async () => {
     const parsed = parseProviderList(JSON.parse(body));
     assert.equal(parsed.find(provider => provider.id === 'google').status, 'connected');
     assert.equal(parsed.find(provider => provider.id === 'google').accountEmail, 'ada@gmail.com');
-    assert.equal(parsed.find(provider => provider.id === 'microsoft').status, 'not_connected');
+    assert.equal(parsed.some(provider => provider.id === 'microsoft'), false, 'Microsoft is not offered as a connection');
     assert.equal(calls.token, 1);
     const stored = await users.store.getConnection('user-a', 'google');
     assert.equal(stored.accessTokenCiphertext.includes(ACCESS), false);
@@ -463,6 +464,8 @@ test('Typeform uses the documented OAuth 2.0 flow: offline scope, no PKCE or non
     assert.deepEqual(connection.scopes, ['accounts:read', 'forms:read', 'forms:write', 'offline']);
     assert.equal(connection.accountEmail, 'ada@typeform.test');
     assert.equal(connection.canRefresh, true);
+    const stored = await world.users.store.getConnection('user-a', 'typeform');
+    assert.equal(stored.externalAccountId, 'ada@typeform.test', 'the documented /me shape has no id, so email is the stable fallback');
   } finally { await world.close(); }
 });
 

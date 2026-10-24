@@ -64,7 +64,9 @@ export function providerDefinition(id: ProviderId, env: NodeJS.ProcessEnv): Prov
 }
 
 export function supportedProviders(env: NodeJS.ProcessEnv): ProviderDefinition[] {
-  return (['google', 'microsoft', 'typeform'] as const).map(id => providerDefinition(id, env));
+  // Microsoft is still recognized for an existing grant, but it is not offered on the Connections
+  // page: it has no supported Forms creation API, so a connection there only ever records identity.
+  return (['google', 'typeform'] as const).map(id => providerDefinition(id, env));
 }
 
 export function isProviderConfigured(definition: ProviderDefinition, env: NodeJS.ProcessEnv): boolean {

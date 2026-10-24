@@ -295,7 +295,9 @@ async function completeAuthorization(deps: ProviderDeps, userId: string, provide
     if (response.status < 200 || response.status >= 300) {
       const code = readTokenResponse(tokenJson);
       const providerError = code && 'error' in code ? code.error : undefined;
-      logSafe('Provider token exchange rejected', undefined, providerError);
+      // Typeform reports failures as { code, description }, not { error }, so without this the log
+      // said only "rejected" and hid the one detail that makes the failure diagnosable.
+      logSafe('Provider token exchange rejected', undefined, providerTokenFailure(tokenJson) ?? providerError);
       if (providerError === 'invalid_grant') return { result: 'expired_code' };
       if (providerError === 'invalid_client') return { result: 'not_configured' };
       return { result: 'exchange_failed' };
@@ -306,7 +308,7 @@ async function completeAuthorization(deps: ProviderDeps, userId: string, provide
   }
   const token = readTokenResponse(tokenJson);
   if (!token || 'error' in token) {
-    logSafe('Provider token exchange rejected', undefined, token && 'error' in token ? token.error : undefined);
+    logSafe('Provider token exchange rejected', undefined, providerTokenFailure(tokenJson) ?? (token && 'error' in token ? token.error : undefined));
     if (token && 'error' in token && token.error === 'invalid_grant') return { result: 'expired_code' };
     return { result: 'exchange_failed' };
   }
@@ -420,10 +422,15 @@ function googleIdentity(json: unknown): { accountId: string; email: string | nul
 
 function typeformIdentity(json: unknown): { accountId: string; email: string | null; label: string | null } | null {
   if (!json || typeof json !== 'object') return null;
-  const row = json as { id?: unknown; email?: unknown; name?: unknown; alias?: unknown };
-  if (typeof row.id !== 'string' || !row.id || row.id.length > 255) return null;
+  // Typeform's documented GET /me response is { alias, email, language }; some accounts also
+  // return account_id. Requiring a field the API does not guarantee made a successful token
+  // exchange look like exchange_failed, so accept any stable identifier Typeform actually sends.
+  const row = json as { id?: unknown; account_id?: unknown; user_id?: unknown; email?: unknown; name?: unknown; alias?: unknown };
+  const accountId = [row.account_id, row.id, row.user_id, row.email, row.alias]
+    .find(value => typeof value === 'string' && value.trim().length > 0 && value.length <= 255) as string | undefined;
+  if (!accountId) return null;
   return {
-    accountId: row.id,
+    accountId: accountId.trim(),
     email: cleanEmail(typeof row.email === 'string' ? row.email : null),
     label: cleanLabel(typeof row.name === 'string' ? row.name : typeof row.alias === 'string' ? row.alias : null),
   };
@@ -606,6 +613,16 @@ export function cleanLabel(value: string | null | undefined): string | null {
   const label = value.replace(/[\u0000-\u001f]/g, '').trim();
   if (!label) return null;
   return label.slice(0, 120);
+}
+
+/** Provider token errors use either { error } or { code, description }; keep whichever is present. */
+function providerTokenFailure(json: unknown): string | undefined {
+  if (!json || typeof json !== 'object') return undefined;
+  const row = json as { code?: unknown; description?: unknown; error?: unknown; error_description?: unknown };
+  const code = typeof row.code === 'string' ? row.code : typeof row.error === 'string' ? row.error : '';
+  const description = typeof row.description === 'string' ? row.description : typeof row.error_description === 'string' ? row.error_description : '';
+  const detail = [code, description].filter(Boolean).join(': ');
+  return detail ? detail.replace(/[\u0000-\u001f]/g, ' ').slice(0, 240) : undefined;
 }
 
 export function isMissingTable(error: unknown): boolean {

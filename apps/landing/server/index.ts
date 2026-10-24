@@ -308,7 +308,7 @@ setAuthEmailHooks({
 const providerSetup = supportedProviders(providerEnv).map(provider => `${provider.id} ${isProviderConfigured(provider, providerEnv) ? 'configured' : 'not configured'}`).join(', ');
 console.log(`Sign-in: email/password enabled, google ${googleSignInEnabled ? 'configured' : 'not configured'}`);
 console.log(`Provider connections: ${providerSetup}`);
-console.log('Form creation: google enabled, microsoft pending (no supported Microsoft Forms API)');
+console.log('Form creation: google and typeform enabled');
 console.log(`Form interpretation: ${aiProviderLabel(providerEnv)}`);
 console.log(`Transactional email: ${emailRuntime.config.configured ? `calder (${isTestCredential(emailRuntime.config) ? 'test key' : 'live key'}, ${emailRuntime.config.fromEmail || emailRuntime.config.senderId || 'sender id'})` : 'not configured'}`);
 console.log(`Billing: ${billingRuntime.config.configured ? 'bachs configured' : 'not configured (checkout disabled)'}`);

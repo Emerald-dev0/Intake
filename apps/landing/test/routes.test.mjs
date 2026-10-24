@@ -84,7 +84,7 @@ test('Render is API-only and fails closed when Neon is unavailable', async () =>
     });
     assert.equal(interpret.status, 503, 'session lookup fails closed before model access');
     assert.equal((await interpret.json()).code, 'storage_unavailable');
-    assert.match(output, /Form creation: google enabled, microsoft pending/);
+    assert.match(output, /Form creation: google and typeform enabled/);
     assert.match(output, /Form interpretation: not configured/);
     const connect = await fetch(`http://127.0.0.1:${port}/api/providers/google/connect`, { method: 'POST', redirect: 'manual' });
     assert.equal(connect.status, 503);
