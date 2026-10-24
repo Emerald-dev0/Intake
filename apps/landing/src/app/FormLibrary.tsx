@@ -214,18 +214,15 @@ export function FormLibrary({
 
       if (data && typeof data.status === 'string') {
         const status = data.status as LiveStatusResult['status'];
-        let message = 'Form verified accessible in Google Forms.';
-        if (status === 'missing') {
-          message = 'Google Forms could not find this form (404). It may have been deleted or moved.';
-        } else if (status === 'inaccessible') {
-          message = 'Your connected Google account does not have permission to access or edit this form.';
-        } else if (status === 'reconnection_required') {
-          message = 'Google connection needs attention. Reconnect Google to verify live access.';
+        // The server writes the provider-specific sentence; the client only needs a generic
+        // fallback so a Typeform record never gets a Google account message.
+        const serverMessage = typeof (data as { error?: unknown }).error === 'string' ? (data as { error: string }).error : null;
+        let message = serverMessage ?? 'Form verified accessible.';
+        if (status === 'reconnection_required') {
+          message = serverMessage ?? 'The connected account needs attention. Reconnect it to verify live access.';
           reloadProviders();
-        } else if (status === 'unavailable') {
-          message = 'Google Forms could not be reached right now. Your Intake local record is preserved.';
         } else if (status === 'accessible') {
-          message = 'Form is accessible and accepting responses in Google Forms. Local metadata refreshed.';
+          message = 'Form is accessible and accepting responses. Local metadata refreshed.';
           if (data.form) {
             const updated = parseLibraryForm(data.form);
             if (updated) {
@@ -238,14 +235,14 @@ export function FormLibrary({
       } else {
         setLiveStatus({
           status: 'unknown',
-          message: 'Could not verify status with Google Forms. Your local record is preserved.',
+          message: 'Could not verify the current status. Your local record is preserved.',
         });
       }
     } catch {
       if (alive.current) {
         setLiveStatus({
           status: 'unavailable',
-          message: 'Google Forms could not be reached. Local metadata preserved.',
+          message: 'The form provider could not be reached. Local metadata preserved.',
         });
       }
     } finally {
@@ -402,11 +399,10 @@ export function FormLibrary({
 
   return (
     <div className="library-container" aria-label="Form library workspace">
-      <div className="page-heading library-head">
-        <div className="eyebrow">03 / FORM LIBRARY</div>
-        <h1>Your Forms</h1>
+      <div className="page-heading library-head page-heading--quiet">
+        <h1>Your forms</h1>
         <div className="heading-description">
-          Find, inspect, open and continue editing forms created through Intake or imported from your connected Google or Typeform account.
+          Everything Intake made for you or imported from a connected account.
         </div>
       </div>
 

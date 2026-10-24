@@ -471,9 +471,9 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
     : busy === 'interpreting'
     ? 'Intake is planning the questions. No form is being created yet.'
     : busy === 'revising'
-      ? 'Updating the draft only. Google has not been contacted.'
+      ? `Updating the draft only. Nothing has been sent to ${providerName}.`
       : busy === 'creating'
-        ? 'Google is building your form. This can take several seconds. Keep this page open.'
+        ? `${providerAccount} is building your form. This can take several seconds. Keep this page open.`
         : null;
   const composerPlaceholder = pending
     ? 'Answer Intake’s question…'
@@ -534,6 +534,8 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
       <p className="forms-help">Nothing has been sent to {providerName} yet. Creating requires your confirmation, and this draft can only be submitted once.</p>
     </div>;
   }
+  /** Once a sentence has been sent, chrome gets out of the way: the conversation is the page. */
+  const conversationStarted = thread.length > 1 || draft !== null || draftId !== null || pending !== null;
   const workspaceSwitch = <nav className="forms-mode-switch" aria-label="Form workflow">
     <button type="button" className={workspaceMode === 'create' ? 'selected' : ''} aria-current={workspaceMode === 'create' ? 'page' : undefined} onClick={() => setWorkspaceMode('create')}>Create a new form</button>
     <button type="button" className={workspaceMode === 'edit' ? 'selected' : ''} aria-current={workspaceMode === 'edit' ? 'page' : undefined} onClick={() => setWorkspaceMode('edit')}>Edit an existing form</button>
@@ -564,20 +566,20 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
   </>;
 
   return <>
-    {workspaceSwitch}
-    {thread.length <= 1 && draft === null && !pending && <div className="chat-intro">
-      <h1>Describe it. <em>Make it real.</em></h1>
-      <p>Tell Intake what you need to collect. Review what it understood, then choose when to create the real form — it lives in your own Google or Typeform account.</p>
-    </div>}
+    {!conversationStarted && <>{workspaceSwitch}
+      <div className="chat-intro">
+        <h1>Describe it. <em>Make it real.</em></h1>
+        <p>Say what you need to collect. Intake drafts the questions, you approve them, then it creates the real form in your own account.</p>
+      </div>
+    </>}
 
-    <section className="draft-provider" aria-label="Form provider">
+    {conversationStarted && <section className="draft-provider" aria-label="Form provider">
       <ProviderBadge provider={activeProvider} />
       <div className="draft-provider__status"><small>{providerLine}</small></div>
-      <span className="draft-provider-note">{activeProvider === 'google' ? 'FORMS LIVE IN YOUR GOOGLE ACCOUNT' : 'FORMS LIVE IN YOUR TYPEFORM ACCOUNT'}</span>
-    </section>
+      <span className="draft-provider-note">Drafting in {providerName}</span>
+    </section>}
     {notice && <div className="form-banner warn draft-notice" role="status"><p>{notice}</p><a href="/app/connections" className="btn btn-ghost btn-sm">View connections →</a></div>}
     {!draft && !draftId && <CreditCostPreview mode="create" guide={costGuide} credits={costCredits} />}
-    {draft?.status === 'ready' && <CreditCostPreview mode="revise" guide={costGuide} credits={costCredits} />}
 
     {busy === 'loading' && <div className="forms-panel draft-loading" role="status"><span className="spin" /> Checking your draft…</div>}
     {draftId && !draft && busy !== 'loading' && <div className="form-banner warn" role="alert"><p>We couldn’t open your saved draft yet.</p><button type="button" className="btn btn-ghost btn-sm" onClick={() => void loadDraft(draftId)}>Check draft status</button></div>}
@@ -622,48 +624,43 @@ export function Forms({ providers, reloadProviders, newChatNonce = 0 }: { provid
         {pending && <button className="btn btn-ghost btn-sm" type="button" disabled={busy !== null} onClick={() => setPending(null)}>Dismiss question</button>}
       </div>
     </form>
-    {!draft && thread.length <= 1 && <div className="draft-example"><span>NEED A STARTING POINT?</span><button type="button" onClick={() => setPrompt(EXAMPLE)} disabled={busy !== null}>Use a registration example ↗</button></div>}
+    {!conversationStarted && <div className="draft-example"><button type="button" onClick={() => setPrompt(EXAMPLE)} disabled={busy !== null}>Use a registration example ↗</button></div>}
     {finished && <button className="btn btn-ghost draft-start-again" type="button" onClick={reset}>Start another form →</button>}
 
     {blocked && draft && <div className="form-banner warn draft-feedback" role="alert"><strong>Do not create this draft again.</strong><p>{draft.status === 'creating' ? 'Creation was started, but Intake has not confirmed its outcome. It may still be running. Check Recent forms and Google Forms before starting a new draft.' : 'The creation attempt had a partial or uncertain outcome. Check the result and Google Forms; Intake will not submit this draft again.'}</p><div className="draft-recovery-actions"><button className="btn btn-ghost btn-sm" type="button" disabled={busy !== null} onClick={() => void loadDraft(draft.id)}>Check draft status</button><button className="btn btn-ghost btn-sm" type="button" disabled={busy !== null} onClick={reset}>Start a different form after checking {FORM_PROVIDER_ACCOUNTS[activeProvider]} →</button></div></div>}
 
-    <section className="forms-recent" aria-labelledby="recent-forms-title">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <h2 id="recent-forms-title" className="forms-legend" style={{ margin: 0 }}>RECENT FORMS</h2>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setWorkspaceMode('library')}>Open Form Library →</button>
+    {!conversationStarted && <section className="forms-recent" aria-labelledby="recent-forms-title">
+      <div className="forms-recent-head">
+        <h2 id="recent-forms-title" className="forms-legend">Your forms</h2>
+        <a href="/app/library" className="btn btn-ghost btn-sm">Open library →</a>
       </div>
       {recent.state.status === 'loading' && <p className="fine-print" role="status">Loading your forms…</p>}
       {recent.state.status === 'error' && <div className="form-banner bad" role="alert"><p>Intake couldn’t load your recent forms. This does not mean they are gone.</p><button className="btn btn-ghost btn-sm" type="button" onClick={() => void recent.load()}>Try again</button></div>}
-      {recent.state.status === 'ready' && recent.state.forms.length === 0 && <p className="fine-print">Forms you create here will be listed.</p>}
-      {recent.state.forms.length > 0 && <ul className="provider-list forms-list">{recent.state.forms.map(form => <RecentRow key={form.id} form={form} />)}</ul>}
-    </section>
+      {recent.state.status === 'ready' && recent.state.forms.length === 0 && <p className="fine-print">Forms you create here will be listed, with the links you need to share them.</p>}
+      {recent.state.forms.length > 0 && <ul className="provider-list forms-list">{recent.state.forms.slice(0, 4).map(form => <RecentRow key={form.id} form={form} />)}</ul>}
 
-    <section className="forms-drafts" aria-labelledby="drafts-title">
-      <h2 id="drafts-title" className="forms-legend" style={{ margin: 0 }}>SAVED DRAFTS</h2>
-      {drafts.state.status === 'loading' && <p className="fine-print" role="status">Loading your drafts…</p>}
-      {drafts.state.status === 'error' && <div className="form-banner bad" role="alert"><p>Intake couldn't load your saved drafts.</p><button className="btn btn-ghost btn-sm" type="button" onClick={() => void drafts.load()}>Try again</button></div>}
-      {drafts.state.status === 'ready' && drafts.state.drafts.length === 0 && <p className="fine-print">Drafts you save will appear here. They persist across sessions.</p>}
-      {drafts.state.drafts.length > 0 && (
+      {drafts.state.drafts.length > 0 && <>
+        <div className="forms-recent-head"><h2 id="drafts-title" className="forms-legend">Saved drafts</h2></div>
+        {drafts.state.status === 'error' && <div className="form-banner bad" role="alert"><p>Intake couldn't load your saved drafts.</p><button className="btn btn-ghost btn-sm" type="button" onClick={() => void drafts.load()}>Try again</button></div>}
         <ul className="provider-list drafts-list">
-          {drafts.state.drafts.filter(d => d.status === 'ready').map(draft => (
-            <li key={draft.id} className="provider-row drafts-row">
+          {drafts.state.drafts.filter(d => d.status === 'ready').map(saved => (
+            <li key={saved.id} className="provider-row drafts-row">
               <span className="provider-symbol" aria-hidden>✎</span>
               <div className="provider-main">
                 <div className="provider-title">
-                  <h3>{draft.specification.title}</h3>
-                  <span className="status-pill ok">{draft.specification.questions.length} question{draft.specification.questions.length !== 1 ? 's' : ''}</span>
+                  <h3>{saved.specification.title}</h3>
+                  <span className="status-pill ok">{saved.specification.questions.length} question{saved.specification.questions.length !== 1 ? 's' : ''}</span>
                 </div>
-                <p className="provider-note">Updated {formatWhen(draft.updatedAt)} · v{draft.version}</p>
+                <p className="provider-note">{formProviderLabel(saved.provider)} · updated {formatWhen(saved.updatedAt)}</p>
               </div>
               <div className="provider-actions">
-                <button type="button" className="btn btn-accent btn-sm" onClick={() => void loadDraft(draft.id)} disabled={busy !== null}>Resume</button>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => void loadDraft(draft.id)} disabled={busy !== null}>View</button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => void loadDraft(saved.id)} disabled={busy !== null}>Resume →</button>
               </div>
             </li>
           ))}
         </ul>
-      )}
-    </section>
+      </>}
+    </section>}
     <p className="draft-boundary">Google Forms and Typeform are supported creation targets. {MICROSOFT_REASON} Intake never hosts responses.</p>
   </>;
 }

@@ -394,3 +394,27 @@
 .provider-row > .provider-mark { width: 44px; height: 44px; border-radius: 11px; font-size: 15px; }
 .library-badge.provider .provider-mark { width: 16px; height: 16px; border-radius: 4px; font-size: 9px; }
 .library-edit-note { font-size: 12px; line-height: 1.5; color: var(--cream-3); max-width: 240px; }
+
+/* Quiet page headings for settings-style pages: a name, one sentence, no numbered eyebrow. */
+.page-heading--quiet { margin-bottom: 28px; }
+.page-heading--quiet h1 { font-size: clamp(30px, 3.4vw, 40px); letter-spacing: -.045em; margin: 0 0 10px; }
+.page-heading--quiet .heading-description { font-size: 14.5px; max-width: 560px; }
+
+/* The price is one line; the policy is a disclosure. */
+.credit-cost-preview { margin: 18px 0 6px; max-width: 760px; }
+.credit-cost-line { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; margin: 0;
+  font-size: 12.5px; line-height: 1.6; color: var(--cream-3); }
+.credit-cost-line strong { font: 12px var(--mono); letter-spacing: .04em; color: var(--cream-2); }
+.credit-cost-details { display: inline; }
+.credit-cost-details summary { cursor: pointer; color: var(--cream-3); text-decoration: underline;
+  text-decoration-color: var(--line); text-underline-offset: 3px; font-size: 12px; }
+.credit-cost-details summary:hover { color: var(--cream); }
+.credit-cost-details p { flex-basis: 100%; margin: 6px 0 0; font-size: 12px; line-height: 1.6; color: var(--cream-3); max-width: 70ch; }
+.credit-cost-preview.is-unavailable p, .credit-cost-limit { margin: 6px 0 0; font-size: 12px; color: var(--cream-3); }
+
+.forms-recent { margin-top: 46px; opacity: .95; }
+.forms-recent-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.forms-recent-head .forms-legend { margin: 0; }
+.draft-example { margin-top: 14px; }
+.draft-example button { font-size: 12.5px; color: var(--cream-3); background: none; border: 0; cursor: pointer; }
+.draft-example button:hover { color: var(--accent); }

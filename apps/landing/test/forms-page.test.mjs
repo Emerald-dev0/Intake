@@ -203,7 +203,6 @@ test('the composer lets a person choose Typeform, and that choice is what reache
   assert.match(page.text(), /Create in/, 'the target is visible before anything is described');
   await page.click(chip);
   assert.equal(chip.getAttribute('aria-pressed'), 'true');
-  assert.match(page.text(), /FORMS LIVE IN YOUR TYPEFORM ACCOUNT/);
   await page.type(page.$('#form-request'), 'Register people for our meetup.');
   await page.click(page.button('Send →'));
   await page.until(() => JSON.parse(page.posts('/interpret')[0]?.init.body ?? '{}').provider === 'typeform', 'the chosen provider is sent');
@@ -429,7 +428,6 @@ test('the home composer carries the chosen provider into the create workspace', 
   await page.until(() => page.$('#form-request'), 'forms page opened');
   const chosen = [...document.querySelectorAll('.composer-target__option')].find(button => button.textContent.includes('Typeform'));
   assert.equal(chosen.getAttribute('aria-pressed'), 'true', 'the chosen target survives the navigation');
-  assert.match(page.text(), /FORMS LIVE IN YOUR TYPEFORM ACCOUNT/);
 }));
 
 test('reloading the tab resumes the user-owned specification from the server without a new model or Google call', () => withPage({ savedDraftId: ID, handlers: {

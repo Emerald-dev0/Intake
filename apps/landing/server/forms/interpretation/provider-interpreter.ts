@@ -2,7 +2,7 @@ import { AiProviderError, type AiModelRequest, type AiProvider } from '../../ai/
 import { runWithModelCallCollector, type ModelCallCollector } from '../../ai/usage-scope';
 import type { FormEditInterpreter, FormEditInterpretationInput } from './edit-interpreter';
 import { InterpretationError, isRepairablePlacement, placementIssues, type FormInterpreter, type InterpretationInput } from './interpreter';
-import { EDIT_SYSTEM, FORM_EDIT_INTERPRETATION_SCHEMA, INTERPRETATION_SCHEMA, SYSTEM } from './prompts';
+import { EDIT_SYSTEM, FORM_EDIT_INTERPRETATION_SCHEMA, INTERPRETATION_SCHEMA, creationSystem } from './prompts';
 
 /**
  * The interpretation layer, built on the provider abstraction.
@@ -59,7 +59,7 @@ export function createFormInterpreter(options: InterpreterOptions): FormInterpre
       return generate(options, {
         schemaName: 'intake_form_interpretation',
         schema: INTERPRETATION_SCHEMA,
-        system: SYSTEM,
+        system: creationSystem(input.provider),
         input: {
           task: input.mode,
           target: input.provider,

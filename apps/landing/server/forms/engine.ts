@@ -282,20 +282,22 @@ export function createFormEngine(deps: FormEngineDeps): FormEngine {
         logSafe('Live form status check failed', error);
         const code = error instanceof FormEditError ? error.info.code : error instanceof FormEngineError ? error.info.code : undefined;
         let status: RefreshFormStatus = 'unknown';
-        let message = 'Could not verify the current form status with Google Forms.';
+        const label = FORM_PROVIDER_LABELS[existing.provider as FormProvider] ?? 'The provider';
+        const account = FORM_PROVIDER_ACCOUNTS[existing.provider as FormProvider] ?? 'provider';
+        let message = `Could not verify the current form status with ${label}.`;
 
         if (code === 'form_not_found') {
           status = 'missing';
-          message = `${FORM_PROVIDER_LABELS[existing.provider as FormProvider] ?? 'The provider'} could not find this form. It may have been deleted or moved in that account.`;
+          message = `${label} could not find this form. It may have been deleted or moved in that account.`;
         } else if (code === 'form_not_editable' || code === 'provider_permission_denied') {
           status = 'inaccessible';
-          message = 'Your connected Google account does not have permission to access or edit this form.';
+          message = `Your connected ${account} account does not have permission to access or edit this form.`;
         } else if (code === 'provider_not_connected' || code === 'provider_reauthorization_required') {
           status = 'reconnection_required';
-          message = 'Google account reconnection required. Reconnect Google to verify form access.';
+          message = `${account} reconnection required. Reconnect ${account} to verify form access.`;
         } else if (code === 'provider_unavailable' || code === 'provider_rate_limited') {
           status = 'unavailable';
-          message = 'Google Forms is temporarily unreachable. Your Intake record is preserved.';
+          message = `${label} is temporarily unreachable. Your Intake record is preserved.`;
         }
 
         log('form.library.refresh_failed', { requestId, userId, formId: existing.providerFormId, recordId: id, status, code });

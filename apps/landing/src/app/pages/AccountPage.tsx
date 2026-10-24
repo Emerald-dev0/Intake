@@ -97,7 +97,7 @@ export function AccountPage() {
       <ul>
         <li>The server calculates each charge from the validated proposal; the model and browser cannot choose a price.</li>
         <li>A successful interpretation is charged once. A clarification, unsupported result or failed operation uses no credits.</li>
-        <li>Google Forms is contacted only after you review and explicitly confirm a proposal. Applying a reviewed proposal costs no extra credits.</li>
+        <li>Your form provider (Google Forms or Typeform) is contacted only after you review and explicitly confirm a proposal. Applying a reviewed proposal costs no extra credits.</li>
         <li>Daily credits refresh at 00:00 UTC. Monthly credits follow the reset time shown above; neither bucket rolls over.</li>
       </ul>
       <p>Plans and prices are listed on the <a href="/pricing">pricing page</a>. What this account can use right now is always the balance shown above.</p>
@@ -106,7 +106,7 @@ export function AccountPage() {
     <section className="account-connections account-security" aria-labelledby="account-security-title">
       <span className="info-index">EMAIL &amp; SECURITY</span>
       <h2 id="account-security-title">How Intake reaches you</h2>
-      <p>Your email address is where verification codes, password resets and security notices arrive. Intake never emails a password, a code you did not request, or anything about a connected Google account.</p>
+      <p>Your email address is where verification codes, password resets and security notices arrive. Intake never emails a password, a code you did not request, or anything about a connected form account.</p>
       <EmailSecurityCard />
     </section>
 
@@ -122,16 +122,16 @@ export function AccountPage() {
       {linkError && <p className="form-error" role="alert">{oauthErrorMessage(linkError)}</p>}
       {error && <p className="form-error" role="alert">{error}</p>}
       {authenticationMethods?.available && !googleLinked && google.status === 'available' && <button className="btn btn-ghost btn-sm" type="button" disabled={busy} onClick={() => void linkGoogle()}>{busy ? 'Opening Google…' : 'Link Google sign-in →'}</button>}
-      {googleLinked && <p className="forms-progress">Google sign-in is linked. This does not change your Google Forms connection.</p>}
+      {googleLinked && <p className="forms-progress">Google sign-in is linked. This does not change your form provider connections.</p>}
       {google.status === 'unavailable' && google.reason === 'not_configured' && <p className="forms-progress">Google sign-in is not configured on this Intake server.</p>}
       {params.get('error') === 'account_already_linked_to_different_user' && <p className="forms-progress">Use the Google account that matches {user.email}, or keep using your existing sign-in method.</p>}
     </section>
 
     <section className="account-connections account-provider-separation" aria-labelledby="forms-connection-title">
-      <span className="info-index">GOOGLE FORMS AUTHORIZATION</span><h2 id="forms-connection-title">Connecting your forms account</h2>
-      <p>This is a separate permission from Google sign-in. Authorize the Google account that can create and edit your forms; Intake uses it only for the form workflows you explicitly confirm.</p>
+      <span className="info-index">FORM PROVIDERS</span><h2 id="forms-connection-title">Connecting your forms account</h2>
+      <p>This is a separate permission from signing in. Authorize the account that should hold your forms — Google Forms or Typeform — and Intake uses it only for the workflows you explicitly confirm.</p>
       <p>{providers.status === 'loading' ? 'Checking provider connections…' : providers.status === 'error' ? 'Provider connections could not be loaded. This does not affect your Intake sign-in.' : `${connectionSummary(providers.providers)}.`}</p>
-      <a href="/app/connections">Manage Google Forms connection <span aria-hidden>↗</span></a>
+      <a href="/app/connections">Manage connections <span aria-hidden>↗</span></a>
     </section>
   </>;
 }

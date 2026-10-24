@@ -160,7 +160,7 @@ async function withLibraryPage(options, run) {
 test('Form Library page displays persisted forms with substantiated metadata and links', () =>
   withLibraryPage({}, async page => {
     assert.equal(page.router.state.location.pathname, '/app/library');
-    assert.match(page.text(), /Your Forms/);
+    assert.match(page.text(), /Your forms/);
     assert.match(page.text(), /Project Registration/);
     assert.match(page.text(), /Faculty Feedback Survey/);
     assert.match(page.text(), /Register for final-year project showcase/);

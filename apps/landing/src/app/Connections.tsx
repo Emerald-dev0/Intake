@@ -55,10 +55,9 @@ export function Connections({ load, reload }: { load: ProviderLoad; reload: () =
   const message = notice ? resultMessage(notice.result, notice.provider, notice.revocation) : null;
   return (
     <>
-      <div className="page-heading">
-        <div className="eyebrow">02 / PROVIDERS</div>
-        <h1>Your forms stay<br /><em>your forms.</em></h1>
-        <div className="heading-description">Connect the account where your forms should live. A connection is a separate authorization — signing in to Intake does not give Intake access to Google, Microsoft or Typeform.</div>
+      <div className="page-heading page-heading--quiet">
+        <h1>Connections</h1>
+        <div className="heading-description">Intake creates forms in an account you control. Connecting is separate from signing in — Intake only gets access when you connect a provider here.</div>
       </div>
       {message && <div className={`form-banner ${message.tone}`} role="status">{message.text}</div>}
       {load.status === 'loading' && <p className="fine-print" role="status">Checking connections…</p>}
@@ -73,7 +72,7 @@ export function Connections({ load, reload }: { load: ProviderLoad; reload: () =
           {load.providers.map(provider => <ProviderRow key={provider.id} provider={provider} onChange={result => { setNotice(result); void reload(); }} />)}
         </div>
       )}
-      <p className="fine-print">Disconnecting here stops Intake from using that account. It does not delete forms already in Google, Microsoft or Typeform. One account per provider for now — disconnect before switching accounts.</p>
+      <p className="fine-print">Disconnecting stops Intake from using that account. It does not delete forms that already exist. One account per provider — disconnect before switching.</p>
     </>
   );
 }
