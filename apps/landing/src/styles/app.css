@@ -535,3 +535,55 @@ a.home__status-item:hover { background: var(--ink-2); }
   .ui-empty__action { width: 100%; }
   .ui-empty__action .btn { flex: 1; justify-content: center; }
 }
+
+.ui-section__eyebrow { display: block; margin-bottom: 5px; color: var(--cream-4); font: 9.5px var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+
+/* Inert explanation, folded away. Actions never live in here — see Disclosure's own note. */
+.ui-disclosure { margin: 24px 0 0; border-top: 1px solid var(--line); padding-top: 4px; }
+.ui-disclosure summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; padding: 12px 0; cursor: pointer; list-style: none; }
+.ui-disclosure summary::-webkit-details-marker { display: none; }
+.ui-disclosure summary::before { content: "＋"; color: var(--cream-4); font-size: 12px; transition: transform .15s; }
+.ui-disclosure[open] summary::before { content: "−"; }
+.ui-disclosure summary:hover .ui-disclosure__summary { color: var(--accent); }
+.ui-disclosure__summary { color: var(--cream); font-size: 13.5px; font-weight: 550; }
+.ui-disclosure__detail { color: var(--cream-4); font-size: 12px; }
+.ui-disclosure__body { padding: 2px 0 6px 18px; }
+.ui-disclosure__body .ui-note { margin-top: 12px; }
+.account-credit-rules { margin: 0; padding: 0; list-style: none; }
+.account-credit-rules li { position: relative; padding: 8px 0 8px 14px; border-top: 1px solid var(--line); color: var(--cream-2); font-size: 13.5px; line-height: 1.6; }
+.account-credit-rules li:first-child { border-top: 0; }
+.account-credit-rules li::before { content: ""; position: absolute; left: 0; top: 16px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+
+/* ── First-run steps on home ──────────────────────────────────────────────── */
+.home__first-run { max-width: 720px; width: 100%; margin: 16px auto 0; padding: 16px 18px;
+  border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--ink-2) 60%, transparent); }
+.home__first-run header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.home__first-run h2 { margin: 0; color: var(--cream); font-size: 12.5px; font-weight: 550; letter-spacing: -.01em; }
+.home__first-run header > span { color: var(--cream-4); font: 10px var(--mono); letter-spacing: .06em; }
+.home__first-run ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.home__first-run li { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: start; gap: 10px; padding: 9px 0; }
+.home__first-run li + li { border-top: 1px solid var(--line); }
+.home__step-mark { display: grid; place-items: center; width: 18px; height: 18px; margin-top: 1px; border: 1px solid var(--line-2);
+  border-radius: 50%; color: var(--cream-4); font-size: 10px; }
+.home__first-run li.is-done .home__step-mark { border-color: color-mix(in srgb, var(--ok) 55%, transparent); color: var(--ok); }
+.home__first-run li.is-unknown .home__step-mark { border-color: color-mix(in srgb, #e7c568 55%, transparent); color: #e7c568; }
+.home__first-run li.is-done a { color: var(--cream-3); text-decoration: line-through; text-decoration-color: var(--line-2); }
+.home__first-run a { color: var(--cream); font-size: 13px; font-weight: 550; }
+.home__first-run a:hover { color: var(--accent); }
+.home__first-run small { display: block; margin-top: 2px; color: var(--cream-4); font-size: 11.5px; line-height: 1.5; }
+
+.library-focus-missing { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.library-focus-missing p { margin: 0; }
+
+@media (prefers-reduced-motion: reduce) { .ui-disclosure summary::before { transition: none; } }
+
+/* Touch targets: a palette row, a status tile and a first-run link are all primary controls on a
+   phone, so they are sized like controls (44px) rather than like text. */
+@media (max-width: 760px) {
+  .palette__item { min-height: 44px; }
+  .palette__field { padding: 10px 12px; }
+  .palette__field input { min-height: 24px; }
+  .home__status-item { min-height: 62px; padding: 12px; }
+  .home__first-run li { min-height: 44px; }
+  .ui-disclosure summary { min-height: 44px; align-items: center; }
+}

@@ -42,6 +42,7 @@ export function PageHeader({
 
 export function Section({
   title,
+  eyebrow,
   description,
   actions,
   id,
@@ -49,6 +50,8 @@ export function Section({
   tone = 'plain',
 }: {
   title: string;
+  /** Small label above the title, e.g. "CURRENT PLAN". Billing and Account both used one. */
+  eyebrow?: string;
   description?: string;
   actions?: ReactNode;
   /** Set when something else links to this section with a fragment. */
@@ -61,6 +64,7 @@ export function Section({
     <section className={`ui-section ${tone === 'quiet' ? 'is-quiet' : ''}`} aria-labelledby={titleId} id={id}>
       <div className="ui-section__head">
         <div>
+          {eyebrow && <span className="ui-section__eyebrow">{eyebrow}</span>}
           <h2 id={titleId}>{title}</h2>
           {description && <p>{description}</p>}
         </div>
@@ -150,4 +154,34 @@ export function Skeleton({
 /** A one-line note under content. Fine print that still has to be read, not decoration. */
 export function Note({ children }: { children: ReactNode }) {
   return <p className="ui-note">{children}</p>;
+}
+
+/**
+ * A block of explanation that most people read once and never again.
+ *
+ * Only ever used for copy that is *inert* — rules, context, definitions. Anything a person can act
+ * on (a security setting, a sign-in method) stays open on the page: collapsing an action is how a
+ * settings screen becomes a place where people cannot find the setting.
+ */
+export function Disclosure({
+  summary,
+  detail,
+  id,
+  children,
+}: {
+  summary: string;
+  /** One line visible while collapsed, so the summary is not a mystery click. */
+  detail?: string;
+  id?: string;
+  children: ReactNode;
+}) {
+  return (
+    <details className="ui-disclosure" id={id}>
+      <summary>
+        <span className="ui-disclosure__summary">{summary}</span>
+        {detail && <span className="ui-disclosure__detail">{detail}</span>}
+      </summary>
+      <div className="ui-disclosure__body">{children}</div>
+    </details>
+  );
 }

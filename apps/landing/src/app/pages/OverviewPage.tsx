@@ -39,6 +39,37 @@ export function OverviewPage() {
   const suggested = recent.state.forms.slice(0, 4);
   const providerState = providers.status === 'ready' ? (connected > 0 ? 'ready' : 'none') : providers.status;
   // Exactly one next action, chosen from server state. Absent every problem, absent every nudge.
+  /**
+   * First-run progress, and only from things the server has told us.
+   *
+   * Every step maps to a fact Intake actually holds: a connected provider, a saved form record, and
+   * at least one form that reached `created`. Nothing is marked done because a browser remembered a
+   * click, and a step whose source could not be read is `unknown` rather than unticked — "we could
+   * not check" is not the same claim as "you have not done this".
+   */
+  const steps: Array<{ label: string; detail: string; state: 'done' | 'todo' | 'unknown'; href: string }> = [
+    {
+      label: 'Connect a form provider',
+      detail: 'Google Forms or Typeform — the account that will hold your forms.',
+      state: providers.status === 'ready' ? (connected > 0 ? 'done' : 'todo') : providers.status === 'error' ? 'unknown' : 'todo',
+      href: '/app/connections',
+    },
+    {
+      label: 'Describe your first form',
+      detail: 'One sentence in the box above. Intake drafts the questions.',
+      state: recent.state.status === 'error' ? 'unknown' : recent.state.status === 'ready' && recent.state.forms.length > 0 ? 'done' : 'todo',
+      href: '/app/forms',
+    },
+    {
+      label: 'Approve one and create it',
+      detail: 'Nothing is written to your account until you confirm.',
+      state: recent.state.status === 'error' ? 'unknown' : recent.state.status === 'ready' && recent.state.forms.some(form => form.status === 'created') ? 'done' : 'todo',
+      href: '/app/forms',
+    },
+  ];
+  const stepsDone = steps.filter(step => step.state === 'done').length;
+  const showFirstRun = recent.state.status !== 'loading' && stepsDone < steps.length;
+
   const nextAction = outOfCredits
     ? { label: 'See plans', href: '/pricing' }
     : providers.status === 'ready' && connected === 0
@@ -123,6 +154,29 @@ export function OverviewPage() {
           <strong>{nextAction ? nextAction.label : 'Open your library'} →</strong>
         </a>
       </div>
+
+      {showFirstRun && (
+        <section className="home__first-run" aria-labelledby="first-run-title">
+          <header>
+            <h2 id="first-run-title">Getting started</h2>
+            <span>{stepsDone} of {steps.length}</span>
+          </header>
+          <ol>
+            {steps.map(step => (
+              <li key={step.label} className={`is-${step.state}`}>
+                <span className="home__step-mark" aria-hidden>{step.state === 'done' ? '✓' : step.state === 'unknown' ? '?' : ''}</span>
+                <div>
+                  <a href={step.href}>{step.label}</a>
+                  <small>{step.state === 'unknown' ? `Could not check — ${step.detail.toLowerCase()}` : step.detail}</small>
+                </div>
+                <span className="sr-only">
+                  {step.state === 'done' ? 'Done.' : step.state === 'unknown' ? 'Could not be checked.' : 'Not done yet.'}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
 
       <div className="home__starters" aria-label="Example forms">
         <span>Try</span>

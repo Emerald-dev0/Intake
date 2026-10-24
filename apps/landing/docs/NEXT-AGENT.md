@@ -127,28 +127,33 @@ Library, Connections, Billing and Account currently look like four different pro
 - Add coverage for: palette opens on ⌘K, filters forms, Enter navigates, Esc restores focus; home
   status strip reflects an unavailable credits source as an error, not as zero; first-run steps tick
   from server state.
-- Suite must stay green except the known `forms-page.test.mjs` out-of-memory kill; if you touch that
-  file, run it under `--test-name-pattern` and say so.
+- The old 456-line `forms-page.test.mjs` is now split by concern — `forms-page-create`,
+  `forms-page-edit`, `forms-page-outcome`, `forms-page-recovery` — over a shared harness in
+  `test/support/forms-page-harness.mjs` (it exports every helper the bodies use, including `act`).
+  Each file runs on its own; run them per file, not in one 68-file process.
+- **Never `assert.equal(page.$('#x'), null)`.** When that assertion fails, Node serialises the jsdom
+  node into the error message and the process dies with SIGKILL — a real assertion failure then looks
+  like an out-of-memory bug. Assert on a boolean: `assert.equal(Boolean(page.$('#x')), false)`.
 - Before every commit: `npx tsc -p . --noEmit && npx tsc -p tsconfig.server.json --noEmit && npx vite build`.
 - Do not commit generated `dist/` output.
 
 ### 8. What is actually left
 
-Verified done: palette, page system, home strip, Library focus, dead-CSS removal, tests for each.
+Stage 1 is built and verified at the code level. Closed in this pass: palette, home status strip,
+first-run steps from server state, Library focus + missing-filter escape hatch, one page system
+across Library / Connections / Billing / Account, `Disclosure` for inert copy, dead-CSS removal, the
+`forms-page` test split, and tests for each.
 
-Still open, in the order I would do them:
+What is left is no longer redesign work:
 
-1. **First-run steps on home** — three steps that tick from real server state. Designed, not built.
-2. **Connections and Billing content parity** — they share a heading now, but their inner sections
-   still use bespoke markup. Move them onto `Section` so spacing is identical, not merely similar.
-3. **A visual check in a real browser.** Everything so far was verified with jsdom and the build:
-   no human has *looked* at 360 px, dark mode, or the palette against a real form list.
-4. **Account page density.** It is the longest page in the product; three of its cards are
-   read-only facts that could collapse into one summary with disclosure.
-5. **The `forms-page.test.mjs` memory problem.** Eleven mounts in one process; it kills the sandbox
-   in the full suite. Splitting it would let CI trust the whole run instead of a filtered one.
-6. **A `/app/library` empty-filter affordance** from the palette when a search matches nothing:
-   offer "search all forms" rather than only the current filter state.
+1. **A visual check in a real browser.** Everything so far was verified with jsdom, typecheck and the
+   build. No human has *looked* at 360 px, dark mode, or the palette against a real form list. Until
+   someone does, treat spacing and contrast as asserted, not observed.
+2. **Live provider / email / database verification.** Creation against Google and Typeform, OTP mail
+   delivery and the migrations have not been exercised against real services from this branch.
+3. **Account page density, if it still bothers a reader after a look.** The read-only facts are now
+   inside `Section`s and the credit rules sit behind a `Disclosure`; further collapsing is a taste
+   call that needs eyes on the page.
 
 ### 7. Definition of done
 

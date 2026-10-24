@@ -1,33 +1,5 @@
-/* Billing page: consistent with the workspace design system. */
-.billing-section {
-  margin-bottom: 32px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid var(--line);
-}
-.billing-section:last-child {
-  border-bottom: none;
-}
-.billing-section-header {
-  margin-bottom: 16px;
-}
-.billing-section-header .info-index {
-  font-size: 10px;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.billing-section-header h2 {
-  margin: 6px 0 0;
-  font-size: 20px;
-  font-weight: 480;
-  letter-spacing: -.03em;
-}
-.billing-section-description {
-  color: var(--cream-3);
-  font-size: 13px;
-  line-height: 1.6;
-  margin: 0 0 16px;
-}
+/* Billing page. Page-specific layout only: the heading, section rhythm, empty and error states
+   now come from src/app/components/PagePrimitives.tsx (see .ui-* in app.css). */
 .billing-coming-soon {
   color: var(--cream-3);
   font-size: 13px;
@@ -169,14 +141,6 @@
   white-space: nowrap;
 }
 
-.billing-empty {
-  padding: 24px;
-  text-align: center;
-  color: var(--cream-3);
-  font-size: 13px;
-  border: 1px dashed var(--line-2);
-  border-radius: 8px;
-}
 
 /* Status pills for billing */
 .billing-section .status-pill.ok { color: var(--ok); border-color: rgba(100,200,100,.3); }

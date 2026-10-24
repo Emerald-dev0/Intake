@@ -419,6 +419,9 @@ export function FormLibrary({
   }
 
   const hasActiveFilters = searchQuery.trim() !== '' || sourceFilter !== 'all' || providerFilter !== 'all' || archiveFilter !== 'active' || sortOption !== 'newest';
+  // Arrived from the palette for a form that these filters exclude (archived, a different provider,
+  // or outside the search). Say it instead of silently landing on a list that does not contain it.
+  const missingFocus = Boolean(focusFormId) && !loading && !error && !forms.some(form => form.id === focusFormId);
 
   return (
     <div className="library-container" aria-label="Form library workspace">
@@ -531,6 +534,13 @@ export function FormLibrary({
           </div>
         </div>
       </div>
+
+      {missingFocus && (
+        <div className="form-banner warn library-focus-missing" role="status">
+          <p>That form is not in this view. It may be archived, or filtered out by the current search.</p>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={clearFilters}>Show all forms</button>
+        </div>
+      )}
 
       {hasActiveFilters && (
         <div className="library-filter-summary">

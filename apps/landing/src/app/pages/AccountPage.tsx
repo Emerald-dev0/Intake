@@ -9,7 +9,7 @@ import { useCredits } from '../hooks/useCredits';
 import { useSession } from '../hooks/useSession';
 import { useSignInConfig } from '../hooks/useSignInConfig';
 import { useWorkspace } from '../hooks/useWorkspace';
-import { PageHeader } from '../components/PagePrimitives';
+import { PageHeader, Section, Disclosure } from '../components/PagePrimitives';
 
 function nearDailyLimit(remaining: number, limit: number): boolean {
   return limit > 0 && remaining > 0 && remaining <= Math.max(1, Math.ceil(limit * 0.2));
@@ -97,27 +97,31 @@ export function AccountPage() {
       </div>}
     </section>
 
-    <section className="account-credit-rules" aria-labelledby="credit-rules-title">
-      <span className="info-index">CREDIT BASICS</span><h2 id="credit-rules-title">How credits work</h2>
-      <ul>
+    <Disclosure summary="How credits work" detail="Charging, resets, and what never costs a credit" id="credit-rules">
+      <ul className="account-credit-rules">
         <li>The server calculates each charge from the validated proposal; the model and browser cannot choose a price.</li>
         <li>A successful interpretation is charged once. A clarification, unsupported result or failed operation uses no credits.</li>
         <li>Your form provider (Google Forms or Typeform) is contacted only after you review and explicitly confirm a proposal. Applying a reviewed proposal costs no extra credits.</li>
         <li>Daily credits refresh at 00:00 UTC. Monthly credits follow the reset time shown above; neither bucket rolls over.</li>
       </ul>
-      <p>Plans and prices are listed on the <a href="/pricing">pricing page</a>. What this account can use right now is always the balance shown above.</p>
-    </section>
+      <p className="ui-note">Plans and prices are listed on the <a href="/pricing">pricing page</a>. What this account can use right now is always the balance shown above.</p>
+    </Disclosure>
 
-    <section className="account-connections account-security" aria-labelledby="account-security-title">
-      <span className="info-index">EMAIL &amp; SECURITY</span>
-      <h2 id="account-security-title">How Intake reaches you</h2>
-      <p>Your email address is where verification codes, password resets and security notices arrive. Intake never emails a password, a code you did not request, or anything about a connected form account.</p>
+    <Section
+      eyebrow="EMAIL & SECURITY"
+      title="How Intake reaches you"
+      description="Your email address is where verification codes, password resets and security notices arrive. Intake never emails a password, a code you did not request, or anything about a connected form account."
+      id="security"
+    >
       <EmailSecurityCard />
-    </section>
+    </Section>
 
-    <section className="account-connections" aria-labelledby="signin-methods-title">
-      <span className="info-index">SIGN-IN METHODS</span><h2 id="signin-methods-title">Signing in to Intake</h2>
-      <p>Email/password and Google sign-in are ways to authenticate to Intake. Google sign-in is identity-only; it does not connect Google Forms or grant Intake access to your forms.</p>
+    <Section
+      eyebrow="SIGN-IN METHODS"
+      title="Signing in to Intake"
+      description="Email and password, or Google, are ways to authenticate to Intake. Google sign-in is identity-only: it does not connect Google Forms or grant Intake access to your forms."
+      id="sign-in"
+    >
       {!authenticationMethods || !authenticationMethods.available
         ? <p className="forms-progress" role="status">Intake could not check which sign-in methods are linked to this account.</p>
         : <div className="account-auth-methods">
@@ -130,13 +134,19 @@ export function AccountPage() {
       {googleLinked && <p className="forms-progress">Google sign-in is linked. This does not change your form provider connections.</p>}
       {google.status === 'unavailable' && google.reason === 'not_configured' && <p className="forms-progress">Google sign-in is not configured on this Intake server.</p>}
       {params.get('error') === 'account_already_linked_to_different_user' && <p className="forms-progress">Use the Google account that matches {user.email}, or keep using your existing sign-in method.</p>}
-    </section>
+    </Section>
 
-    <section className="account-connections account-provider-separation" aria-labelledby="forms-connection-title">
-      <span className="info-index">FORM PROVIDERS</span><h2 id="forms-connection-title">Connecting your forms account</h2>
-      <p>This is a separate permission from signing in. Authorize the account that should hold your forms — Google Forms or Typeform — and Intake uses it only for the workflows you explicitly confirm.</p>
-      <p>{providers.status === 'loading' ? 'Checking provider connections…' : providers.status === 'error' ? 'Provider connections could not be loaded. This does not affect your Intake sign-in.' : `${connectionSummary(providers.providers)}.`}</p>
-      <a href="/app/connections">Manage connections <span aria-hidden>↗</span></a>
-    </section>
+    <Section eyebrow="FORM PROVIDERS" title="Connecting your forms account" id="form-providers"
+      description="This is a separate permission from signing in. Authorize the account that should hold your forms — Google Forms or Typeform — and Intake uses it only for the workflows you explicitly confirm."
+      actions={<a className="btn btn-ghost btn-sm" href="/app/connections">Manage connections <span aria-hidden>↗</span></a>}
+    >
+      <p className="ui-note">
+        {providers.status === 'loading'
+          ? 'Checking provider connections…'
+          : providers.status === 'error'
+            ? 'Provider connections could not be loaded. This does not affect your Intake sign-in.'
+            : `${connectionSummary(providers.providers)}.`}
+      </p>
+    </Section>
   </>;
 }

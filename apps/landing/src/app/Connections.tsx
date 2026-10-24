@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ProviderMark } from './components/ProviderBadge';
-import { PageHeader, ErrorState, Skeleton, Note } from './components/PagePrimitives';
+import { PageHeader, Section, EmptyState, ErrorState, Skeleton, Note } from './components/PagePrimitives';
 import {
   isProviderId,
   isResultCode,
@@ -70,11 +70,21 @@ export function Connections({ load, reload }: { load: ProviderLoad; reload: () =
           onRetry={() => void reload()}
         />
       )}
-      {load.status === 'ready' && load.providers && (
-        <div className="provider-list">
-          {load.providers.map(provider => <ProviderRow key={provider.id} provider={provider} onChange={result => { setNotice(result); void reload(); }} />)}
-        </div>
-      )}
+      <Section
+        eyebrow="FORM PROVIDERS"
+        title="Where Intake creates forms"
+        description="One account per provider. Connecting is a separate permission from signing in, and Intake only uses it for the workflows you explicitly confirm."
+        actions={<a className="btn btn-ghost btn-sm" href="/app/library">Your forms ↗</a>}
+      >
+        {load.status === 'ready' && load.providers && (load.providers.length > 0
+          ? <div className="provider-list">
+            {load.providers.map(provider => <ProviderRow key={provider.id} provider={provider} onChange={result => { setNotice(result); void reload(); }} />)}
+          </div>
+          : <EmptyState
+            title="No providers are configured on this server"
+            detail="An operator turns these on. Your saved forms stay in the Library either way."
+          />)}
+      </Section>
       <Note>Disconnecting stops Intake from using that account. It does not delete forms that already exist. One account per provider — disconnect before switching.</Note>
     </>
   );
