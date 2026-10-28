@@ -245,7 +245,12 @@ test('a successful join sends Daniel’s exact letter, from the right address, w
   assert.equal(body.reply_to, 'daniel@intake.calder.click', 'the system reply-to must not steal Daniel’s replies');
   assert.equal(body.to, 'ada@example.com');
   assert.equal(body.stream, 'transactional');
-  assert.equal(body.text, APPROVED_TEXT, 'no subject prefix, extra greeting, markdown, or account footer');
+  // The letter is still Daniel's, word for word. What changed is the envelope: the new shell adds a
+  // footer outside the letter (why you are on the list, and a way off it), so the body is asserted as
+  // a prefix rather than the whole message.
+  assert.ok(body.text.startsWith(APPROVED_TEXT), 'Daniel\'s copy is still verbatim and unedited');
+  assert.match(body.text, /joined the Intake wait-list/, 'the footer says why the letter arrived');
+  assert.doesNotMatch(body.text, /Unsubscribe: /, 'no link is invented when the caller supplies none');
   assert.equal(body.template, undefined, 'dashboard aliases cannot replace the approved wait-list letter');
   assert.doesNotMatch(body.html, /required to keep your account secure|Welcome in|<script/);
   assert.match(body.html, /Founder, Intake/);

@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Intake emails — preview</title>
+<style>
+  :root { color-scheme: light }
+  * { box-sizing: border-box }
+  body { margin: 0; background: #e9e3d7; color: #0c0c0b; font: 15px/1.6 'Geist Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif }
+  .bar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: baseline; padding: 14px 26px; background: #0c0c0b; color: #f4efe6 }
+  .bar strong { font-size: 14px; letter-spacing: -.01em }
+  .bar a { color: #ffb08a; text-decoration: none; font-size: 13px }
+  .bar a:hover { color: #fff }
+  .bar span { font-size: 12px; color: #a8a29a }
+  .grid { display: grid; gap: 30px; padding: 30px 26px 60px; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); align-items: start }
+  .item { background: #f7f3ea; border: 1px solid #d9d0bf; border-radius: 10px; overflow: hidden }
+  .caption { padding: 16px 18px 14px; border-bottom: 1px solid #e2dacb; background: #fffdf9 }
+  .caption h2 { margin: 0 0 4px; font: 400 19px/1.3 'Fraunces Variable', Georgia, serif; letter-spacing: -.01em }
+  .caption p { margin: 0; font-size: 13px; color: #6f6a5f }
+  .inbox { display: grid; grid-template-columns: 150px 1fr; gap: 4px 14px; margin: 12px 0 0; font-size: 12.5px }
+  .inbox dt { font-family: ui-monospace, Menlo, monospace; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: #8a8478; padding-top: 2px }
+  .inbox dd { margin: 0; color: #24231f }
+  iframe { display: block; width: 100%; height: 1180px; border: 0; background: #f4efe6 }
+  details { border-top: 1px solid #e2dacb; background: #fffdf9 }
+  details summary { cursor: pointer; padding: 11px 18px; font: 600 11px/1.4 ui-monospace, Menlo, monospace; letter-spacing: .14em; text-transform: uppercase; color: #6f6a5f }
+  details pre { margin: 0; padding: 0 18px 18px; white-space: pre-wrap; font: 12.5px/1.6 ui-monospace, Menlo, monospace; color: #24231f }
+</style></head>
+<body><div class="bar">
+  <strong>Intake · email preview</strong>
+  <span>Rendered by <code>scripts/preview-emails.ts</code> — this is the exact HTML a mail client receives.</span>
+  <a href="./brand/intake-mark.png" target="_blank" rel="noreferrer">check the logo asset</a>
+</div>
+<div class="grid"><div class="item">
+  <div class="caption">
+    <h2>Email 1 — the launch announcement. From the team, not from Daniel, so it can speak for the product.</h2>
+    <dl class="inbox">
+      <dt>From</dt><dd>The Intake Team &lt;hello@intake.calder.click&gt;</dd>
+      <dt>Reply-to</dt><dd>hello@intake.calder.click</dd>
+      <dt>Subject</dt><dd><strong>Intake is live — a form from a sentence</strong></dd>
+      <dt>Preview</dt><dd>You joined the Intake wait-list a while ago, and I wanted you to hear this from us first: we are officially live.</dd>
+    </dl>
+  </div>
+  <iframe src="./01-intake-team-launch.html" title="Email 1 — the launch announcement. From the team, not from Daniel, so it can speak for the product." loading="lazy"></iframe>
+  <details><summary>Plaintext alternative</summary><pre>Hey there,
+
+You joined the Intake wait-list a while ago, and I wanted you to hear this from us first: we are officially live.
+
+Describe the form you need. It exists.
+
+Intake turns a sentence into a real form — the questions, the wording, the order — and creates it in your own account, ready to send. No blank builder, no assembling twenty fields by hand at midnight.
+
+It works today with Google Forms and Typeform. You keep the form, the responses and the account; Intake never hosts your data.
+
+It is built for people who need a form, not a form tool:
+
+  - A final-year student building a research questionnaire
+
+  - A researcher collecting data that has to be collected properly
+
+  - A founder asking for feedback and actually reading it
+
+  - Anyone organising an event who needs registrations by Friday
+
+Try Intake: https://intake.calder.click
+
+We are still early, and still building. If something is confusing, if a form comes out wrong, or if there is something you wish Intake did — reply to this email and tell us.
+
+Thanks for being here before we launched.
+
+The Intake Team
+
+—
+Intake · a form from a sentence
+Follow Intake on X: https://x.com/intake
+You are receiving this because you joined the Intake wait-list. Unsubscribe: https://intake.calder.click/api/waitlist/unsubscribe?token=preview-token</pre></details>
+</div>
+<div class="item">
+  <div class="caption">
+    <h2>Email 2 — the personal note. Replies land with Daniel; the X row is the invitation to follow along.</h2>
+    <dl class="inbox">
+      <dt>From</dt><dd>Daniel from Intake &lt;daniel@intake.calder.click&gt;</dd>
+      <dt>Reply-to</dt><dd>daniel@intake.calder.click</dd>
+      <dt>Subject</dt><dd><strong>Intake is live — and I wanted to tell you myself</strong></dd>
+      <dt>Preview</dt><dd>I'm Daniel — one of the people building Intake.</dd>
+    </dl>
+  </div>
+  <iframe src="./02-daniel-launch-note.html" title="Email 2 — the personal note. Replies land with Daniel; the X row is the invitation to follow along." loading="lazy"></iframe>
+  <details><summary>Plaintext alternative</summary><pre>Hey there,
+
+I'm Daniel — one of the people building Intake.
+
+You signed up for the wait-list a while back, and I didn't want the launch to pass without writing to you myself.
+
+We are live.
+
+The idea behind Intake is simple: you shouldn't have to spend an afternoon assembling questions in a builder to get one small form out into the world. You should be able to explain what you need, and have the thing made.
+
+That is what Intake does now, with Google Forms and Typeform.
+
+If you're finishing a project, collecting research data, organising an event, or building something that needs forms — I'd love for you to try it.
+
+Give Intake a try: https://intake.calder.click
+
+We're early, and there's a lot I still want to improve. If you try it and something feels confusing, or a form doesn't come out the way you pictured it, tell me. Reply straight to this email — it reaches me, not a ticket queue.
+
+And if you'd like to follow along as we build, I post it all on X — the link is under this email.
+
+Thank you for signing up before there was anything to see. I hope Intake earns that.
+
+Daniel
+Building Intake
+
+—
+Intake · a form from a sentence
+Follow Intake on X: https://x.com/intake
+You are receiving this because you joined the Intake wait-list. Unsubscribe: https://intake.calder.click/api/waitlist/unsubscribe?token=preview-token</pre></details>
+</div>
+<div class="item">
+  <div class="caption">
+    <h2>The existing signup letter, now wearing the same clothes: mark, card, X row, unsubscribe.</h2>
+    <dl class="inbox">
+      <dt>From</dt><dd>Daniel from Intake &lt;daniel@intake.calder.click&gt;</dd>
+      <dt>Reply-to</dt><dd>daniel@intake.calder.click</dd>
+      <dt>Subject</dt><dd><strong>You're on the Intake wait-list — a note from Daniel</strong></dd>
+      <dt>Preview</dt><dd>I'm Daniel, the person building Intake, and I'm glad you're here.</dd>
+    </dl>
+  </div>
+  <iframe src="./03-waitlist-welcome.html" title="The existing signup letter, now wearing the same clothes: mark, card, X row, unsubscribe." loading="lazy"></iframe>
+  <details><summary>Plaintext alternative</summary><pre>Hey there,
+
+I'm Daniel, the person building Intake, and I'm glad you're here.
+
+We're building Intake to make working with information simpler — from collecting the right information to managing it without all the unnecessary manual work.
+
+The idea is simple: you should be able to focus on what you need to get done, not spend so much time figuring out the tools you use to do it.
+
+We're starting with AI-assisted form creation and editing, but this is only the beginning. Our vision for Intake goes beyond forms. We want to keep finding better ways to help people collect, organize, and work with information.
+
+And we're just getting started.
+
+We'll continue shipping updates, improving what we've built, and exploring new ways to make Intake more useful. As an early member of our community, you'll be among the first to hear about what's coming next.
+
+We're building this to solve real problems, and your feedback can help shape what it becomes. If there's something you'd love Intake to help you do, just reply to this email. I'd genuinely love to hear from you.
+
+Thanks for being here early and giving us a chance to build something worthwhile.
+
+More soon!
+
+Daniel
+Founder, Intake
+https://intake.calder.click
+
+—
+Intake · a form from a sentence
+Follow Intake on X: https://x.com/intake
+You are receiving this because you joined the Intake wait-list. Unsubscribe: https://intake.calder.click/api/waitlist/unsubscribe?token=preview-token</pre></details>
+</div>
+<div class="item">
+  <div class="caption">
+    <h2>The account welcome, for comparison across the two footers (transactional vs. list).</h2>
+    <dl class="inbox">
+      <dt>From</dt><dd>Daniel from Intake &lt;daniel@intake.calder.click&gt;</dd>
+      <dt>Reply-to</dt><dd>daniel@intake.calder.click</dd>
+      <dt>Subject</dt><dd><strong>Ada, welcome to Intake — a note from Daniel</strong></dd>
+      <dt>Preview</dt><dd>Hi Ada,</dd>
+    </dl>
+  </div>
+  <iframe src="./04-welcome-signed-up.html" title="The account welcome, for comparison across the two footers (transactional vs. list)." loading="lazy"></iframe>
+  <details><summary>Plaintext alternative</summary><pre>Ada, welcome to Intake — a note from Daniel
+
+Hi Ada,
+
+I'm Daniel, the person building Intake, and I'm really glad you're here.
+
+Describe the form you need in plain English, review the questions, and confirm when it looks right. Intake creates it in your own Google account. Editing the forms you already have works the same way.
+
+Your Free account comes with 20 credits every day.
+
+Open Intake: https://intake.calder.click/app
+
+And this is just the beginning. We'll keep listening, improving, and shipping things that genuinely make your work easier.
+
+If something feels confusing, something breaks, or there's something you'd love Intake to help you do, just reply to this email. I'd genuinely love to hear from you.
+
+Thanks for being here early.
+
+— Daniel
+Founder &amp; Builder, Intake
+
+—
+Intake · a form from a sentence
+Follow Intake on X: https://x.com/intake
+Questions? Just reply, or write to support@intake.calder.click — a human reads everything.</pre></details>
+</div></div></body></html>

@@ -21,6 +21,8 @@ const VARIABLES = {
   password_reset: { resetUrl: 'https://intake.example/reset?token=abc', expiryMinutes: 60 },
   welcome: { userName: 'Ada', dashboardUrl: APP.dashboardUrl, dailyCredits: '20' },
   waitlist_welcome: {},
+  launch_announcement: { marketingUrl: 'https://intake.example' },
+  launch_note: { marketingUrl: 'https://intake.example' },
   security_password_changed: { timestamp: APP.timestamp, securityUrl: APP.securityUrl },
   security_email_changed: { timestamp: APP.timestamp, securityUrl: APP.securityUrl, newEmail: 'ada@new.test', previousEmail: 'ada@example.com' },
   security_new_sign_in: { timestamp: APP.timestamp, securityUrl: APP.securityUrl, method: 'Password · Chrome on macOS' },
@@ -108,7 +110,10 @@ test('links inside emails point at Intake, never at the provider', () => {
   for (const [type, variables] of Object.entries(VARIABLES)) {
     const rendered = renderEmail(type, { ...APP, ...variables });
     for (const href of rendered.html.matchAll(/href="([^"]+)"/g)) {
-      assert.ok(['intake.example', 'intake.calder.click'].includes(new URL(href[1]).hostname), `${type} links must point at Intake, not at the provider API`);
+      // The one intentional off-site link is the X profile in the footer. Anything else must stay on
+      // an Intake origin: a template that reaches for a provider's API is a bug, not a design choice.
+      const allowed = ['intake.example', 'intake.calder.click', 'x.com'];
+      assert.ok(allowed.includes(new URL(href[1]).hostname), `${type} links must point at Intake (or the X footer row), not at the provider API`);
     }
   }
 });
@@ -123,7 +128,9 @@ test('the welcome mail is personal and every footer carries support contact', ()
   assert.match(welcome.html, /20 credits every day/, 'launch allowance comes from the passed variable, never hardcoded');
 
   for (const [type, variables] of Object.entries(VARIABLES)) {
-    if (type === 'waitlist_welcome') continue; // No account/security footer on Daniel’s exact signup letter.
+    // List mail (signup letters, launch notes) is not about an account and must not carry account
+    // boilerplate. It has its own footer, asserted separately below.
+    if (templateFor(type).channel === 'list') continue;
     const rendered = renderEmail(type, { ...APP, ...variables });
     assert.match(rendered.html, /support@intake\.calder\.click/, `${type} footer names the support address`);
     assert.match(rendered.text, /support@intake\.calder\.click/, `${type} plaintext footer names the support address`);
@@ -188,4 +195,78 @@ test('maskEmail keeps an address recognisable to an operator and useless to a sc
   assert.equal(maskEmail('ada@example.com'), 'a**@example.com');
   assert.equal(maskEmail('a@example.com'), 'a*@example.com');
   assert.equal(maskEmail('not-an-email'), '***');
+});
+
+test('every email carries the mark, and every footer can invite the reader to follow along', () => {
+  const visuals = { assetBaseUrl: 'https://intake.example', xUrl: 'https://x.com/intake', xHandle: '@intake' };
+  for (const [type, variables] of Object.entries(VARIABLES)) {
+    const rendered = renderEmail(type, { ...APP, ...variables }, { visuals });
+    assert.match(rendered.html, /src="https:\/\/intake\.example\/brand\/intake-mark\.png"/, `${type} must show the Intake mark`);
+    assert.match(rendered.html, /alt="Intake"/, `${type} mark needs alt text for clients that block images`);
+    assert.match(rendered.html, /href="https:\/\/x\.com\/intake"/, `${type} must carry the X row`);
+    assert.match(rendered.html, /Follow @intake on X/, `${type} names the handle in words`);
+    assert.match(rendered.text, /https:\/\/x\.com\/intake/, `${type} plaintext carries the X link too`);
+  }
+});
+
+test('an unconfigured X account omits the social row instead of linking nowhere', () => {
+  const rendered = renderEmail('welcome', { ...APP, ...VARIABLES.welcome }, {
+    visuals: { assetBaseUrl: 'https://intake.example', xUrl: null, xHandle: null },
+  });
+  assert.doesNotMatch(rendered.html, /x\.com/, 'no handle configured means no social row');
+  assert.doesNotMatch(rendered.text, /x\.com/);
+  assert.match(rendered.html, /brand\/intake-mark\.png/, 'the mark is independent of the social row');
+});
+
+test('list mail always explains itself and offers a way off the list', () => {
+  for (const type of ['waitlist_welcome', 'launch_announcement', 'launch_note']) {
+    const rendered = renderEmail(type, { ...APP, ...VARIABLES[type] }, {
+      visuals: { assetBaseUrl: 'https://intake.example', xUrl: 'https://x.com/intake', xHandle: '@intake' },
+      unsubscribeUrl: 'https://intake.example/unsubscribe?token=t',
+    });
+    assert.match(rendered.html, /joined the Intake wait-list/, `${type} says why the reader is on the list`);
+    assert.match(rendered.html, /href="https:\/\/intake\.example\/unsubscribe\?token=t"/, `${type} carries a working unsubscribe link`);
+    assert.match(rendered.text, /Unsubscribe: https:\/\/intake\.example\/unsubscribe\?token=t/, `${type} plaintext carries it too`);
+    assert.doesNotMatch(rendered.html, /required to keep your account secure/, `${type} is not an account notice`);
+  }
+  // A transactional email is not a subscription and must not offer to unsubscribe from it.
+  const otp = renderEmail('otp', { ...APP, ...VARIABLES.otp }, {
+    visuals: { assetBaseUrl: 'https://intake.example', xUrl: null },
+    unsubscribeUrl: 'https://intake.example/unsubscribe?token=t',
+  });
+  assert.doesNotMatch(otp.html, /unsubscribe/i);
+  assert.match(otp.html, /required to keep your account secure/);
+});
+
+test('the two launch letters say different things in different voices', () => {
+  const team = renderEmail('launch_announcement', { ...APP, ...VARIABLES.launch_announcement });
+  const daniel = renderEmail('launch_note', { ...APP, ...VARIABLES.launch_note });
+
+  assert.match(team.subject, /Intake is live/);
+  assert.match(team.html, /The Intake Team/, 'the team letter signs as the team');
+  assert.match(team.html, /Google Forms/);
+  assert.match(team.html, /Typeform/);
+  assert.match(team.html, /href="https:\/\/intake\.example"/, 'the team letter links to the site it was sent from');
+
+  assert.match(daniel.subject, /I wanted to tell you myself/);
+  assert.match(daniel.html, /I'm Daniel/, 'the personal letter introduces a person');
+  assert.match(daniel.html, /reaches me, not a ticket queue/, 'replies are promised to a human');
+  assert.doesNotMatch(daniel.html, /The Intake Team/, 'Daniel does not sign as the team');
+
+  // Both name the same two providers, because both were true on the day they were written.
+  for (const rendered of [team, daniel]) {
+    assert.match(rendered.html, /Google Forms/);
+    assert.match(rendered.html, /Typeform/);
+    assert.ok(!rendered.text.includes('<'), 'plaintext stays plaintext');
+  }
+});
+
+test('the launch letters do not promise a plan, a price or a capability the product lacks', () => {
+  for (const type of ['launch_announcement', 'launch_note']) {
+    const rendered = renderEmail(type, { ...APP, ...VARIABLES[type] });
+    const blob = `${rendered.html} ${rendered.text}`.toLowerCase();
+    for (const claim of ['microsoft forms', 'unlimited', 'free forever', 'guaranteed', 'instant results', 'no coding']) {
+      assert.ok(!blob.includes(claim), `${type} must not claim "${claim}"`);
+    }
+  }
 });

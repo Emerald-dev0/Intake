@@ -8,6 +8,8 @@ export interface WaitlistDeliveryOptions {
   now?: () => Date;
   /** Event labels only; never recipients, payloads, or raw provider errors. */
   onError?: (label: string) => void;
+  /** Builds this subscriber's one-click removal link. Absent in tests that only assert copy. */
+  unsubscribe?: (waitlistId: string) => string;
 }
 
 /** At-least-once processing, with atomic SQL leases and a stable, provider-idempotent event id. */
@@ -27,7 +29,9 @@ export function createWaitlistDelivery(options: WaitlistDeliveryOptions) {
       try {
         outcome = await emails.send({
           type: 'waitlist_welcome', to: claim.email, eventId: `waitlist:${claim.id}`,
-          variables: {}, tags: [{ name: 'source', value: 'waitlist' }],
+          // A signup confirmation is still list mail: it explains itself and offers a real way off.
+          variables: options.unsubscribe ? { unsubscribeUrl: options.unsubscribe(claim.id) } : {},
+          tags: [{ name: 'source', value: 'waitlist' }],
         });
       } catch {
         // An unexpected failure still has a durable retry; it must never discard the signup.

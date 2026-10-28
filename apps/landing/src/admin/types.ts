@@ -334,7 +334,11 @@ export interface MailRecipientList {
   segments: Record<'all' | 'verified' | 'unverified', string>;
 }
 
+/** Who the note leaves from. `system` is the product address; the other two are people. */
+export type MailSender = 'system' | 'team' | 'personal';
+
 export interface MailDraft {
+  sender: MailSender;
   subject: string;
   heading: string;
   body: string;

@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { useAdminQuery } from './useAdminQuery';
 import { AdminApiError, adminApi, adminPost } from './api';
-import type { MailDraft, MailPreview, MailRecipientList, MailSendLog, MailSendResult, MailSegment } from './types';
+import type { MailDraft, MailPreview, MailRecipientList, MailSender, MailSendLog, MailSendResult, MailSegment } from './types';
 
 /**
  * Compose a note and send it to selected accounts, one message at a time.
@@ -12,7 +12,13 @@ import type { MailDraft, MailPreview, MailRecipientList, MailSendLog, MailSendRe
  * has not just previewed, because the send request carries the preview id it was rendered from.
  */
 
-const EMPTY_DRAFT: MailDraft = { subject: '', heading: '', body: '', buttonLabel: '', buttonUrl: '' };
+const EMPTY_DRAFT: MailDraft = { sender: 'system', subject: '', heading: '', body: '', buttonLabel: '', buttonUrl: '' };
+
+const SENDERS: Array<{ value: MailSender; label: string; hint: string }> = [
+  { value: 'system', label: 'Intake', hint: 'The product address. Right for account, billing and security notes.' },
+  { value: 'team', label: 'The Intake Team', hint: 'An announcement from the team. Replies go to a monitored inbox.' },
+  { value: 'personal', label: 'Daniel', hint: 'A personal letter. Replies land with Daniel, and he answers them.' },
+];
 const SUBJECT_MAX = 140;
 const HEADING_MAX = 140;
 const BODY_MAX = 6000;
@@ -276,6 +282,27 @@ export default function AdminMailPage() {
         <header className="admin-panel-header">
           <div><span className="admin-overline">THE MESSAGE</span><h2>Compose</h2><p>What you write is the whole email — no greeting is added for you. Two placeholders are understood: <code>{'{{name}}'}</code> and <code>{'{{email}}'}</code>.</p></div>
         </header>
+
+        <div className="admin-field">
+          <span>Send as</span>
+          <div className="admin-mail-senders" role="radiogroup" aria-label="Send as">
+            {SENDERS.map(option => (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={draft.sender === option.value}
+                className={`admin-mail-sender ${draft.sender === option.value ? 'selected' : ''}`}
+                onClick={() => { setDraft(current => ({ ...current, sender: option.value })); setPreview(null); }}
+                title={option.hint}
+              >
+                <strong>{option.label}</strong>
+                <small>{option.hint}</small>
+              </button>
+            ))}
+          </div>
+          <small>Reply-to always points at a person who reads it. The address comes from the server's configured identities, and the display name comes from the matching sender identity in the mail provider's dashboard — Intake cannot set it per message.</small>
+        </div>
 
         <div className="admin-field">
           <span>Subject · {draft.subject.length}/{SUBJECT_MAX}</span>

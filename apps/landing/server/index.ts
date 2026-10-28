@@ -29,6 +29,8 @@ import { createFormEditInterpreter, createFormInterpreter } from './forms/interp
 import { createFormDraftRouter } from './forms/interpretation/routes';
 import { createPostgresRateLimitStore } from './security/rate-limit';
 import { createWaitlistRouter } from './waitlist/routes';
+import { createPostgresLaunchStore, unsubscribeUrl } from './waitlist/launch';
+import { createUnsubscribeRouter } from './waitlist/unsubscribe';
 import { createPostgresWaitlistStore } from './waitlist/store';
 import { createWaitlistDelivery } from './waitlist/delivery';
 import { createSignInRouter } from './sign-in/routes';
@@ -116,9 +118,14 @@ const emailRuntime = createEmailRuntime({ pool, env: providerEnv, secret: server
 const waitlistStore = createPostgresWaitlistStore(pool);
 const waitlistDelivery = createWaitlistDelivery({
   store: waitlistStore, emails: emailRuntime.emails, onError: label => logSafe(label),
+  unsubscribe: id => unsubscribeUrl(emailRuntime.config.appOrigin, id, serverConfig.authSecret),
 });
 app.use('/api/waitlist', createWaitlistRouter({
   store: waitlistStore, rateLimiter: abuseLimiter, onJoin: () => { void waitlistDelivery.flush(); },
+}));
+// One-click removal from launch mail. Separate router so the signup contract above is untouched.
+app.use('/api/waitlist/unsubscribe', createUnsubscribeRouter({
+  store: createPostgresLaunchStore(pool), secret: serverConfig.authSecret,
 }));
 
 /**

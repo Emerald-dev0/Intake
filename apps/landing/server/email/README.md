@@ -215,8 +215,14 @@ rejection.
 | Forms provider connected / removed | `provider_connection_added` / `_removed` | one-shot |
 | Credits below 20 % | `credits_low` | `{userId}:{utc-day}` |
 
-Every template renders **both** an HTML and a plaintext part, links only ever point at Intake, and
-user-supplied values (names, account labels) are escaped. Security notices carry their action link in
+Two launch letters exist for the one-time "we are live" mail. They are not transactional and not
+interchangeable: `launch_announcement` signs as **The Intake Team** from `CALDER_ANNOUNCEMENT_FROM_EMAIL`;
+`launch_note` signs as **Daniel** from `CALDER_WELCOME_FROM_EMAIL` and promises that replies reach a
+person. Both carry the wait-list footer (why you received it, plus a signed unsubscribe link) and both
+are sent by `npm run launch:mail` — see §11.
+
+Every template renders **both** an HTML and a plaintext part, links only ever point at Intake (the one
+exception is the X profile in the footer), and user-supplied values (names, account labels) are escaped. Security notices carry their action link in
 the plaintext part too: telling a plaintext reader to "secure your account now" without a URL is not
 a notice.
 
@@ -224,12 +230,20 @@ a notice.
 
 ## 8. Environment
 
+Three senders, two addresses each. The address comes from Intake's environment; **the display name
+a recipient sees comes from the sender identity in the provider dashboard**, because Calder's send
+schema takes a bare address. Create both identities before advertising either one.
+
 ```env
 # Provider — server only. A CALDER_* variable must never carry a VITE_ prefix.
 EMAIL_PROVIDER=calder          # calder | memory (tests) | none
-CALDER_API_KEY=calder_sk_live_…
+CALDER_API_KEY=                # paste from Calder → API keys; never the webhook whsec_ secret
 CALDER_BASE_URL=https://api.calder.click
 CALDER_FROM_EMAIL=hello@intake.example   # required unless CALDER_SENDER_ID is set
+CALDER_ANNOUNCEMENT_FROM_EMAIL=          # launch mail only; falls back to CALDER_FROM_EMAIL
+CALDER_ANNOUNCEMENT_FROM_NAME=The Intake Team
+INTAKE_ASSET_BASE_URL=                  # origin serving /brand/intake-mark.png
+INTAKE_X_URL=https://x.com/intake       # footer social row; unset = no row
 CALDER_FROM_NAME=Intake
 CALDER_SENDER_ID=              # optional sender_… identity; wins over FROM_EMAIL
 CALDER_REPLY_TO=               # optional
@@ -251,7 +265,29 @@ send. `npm run preflight` names the exact variable that is wrong and never print
 
 ---
 
-## 9. Logging and secrets
+## 9. Design system
+
+Every message is built by `design.ts`, not by each template. One shell: paper ground, the mark, a
+card with an accent rule, a footer. The rules it exists to enforce:
+
+- **Tables for structure, inline styles only.** No flex, no grid, no CSS variables.
+- **The mark is a PNG** at `/brand/intake-mark.png` on `INTAKE_ASSET_BASE_URL`. Gmail and Outlook strip
+  SVG; a mail client has no page to resolve a relative path against, so the URL must be absolute.
+- **The wordmark stays text**, so it survives a client that blocks images.
+- **Dark mode is declared `light only`.** The card is cream by design; a client that inverts it produces
+  dark text on dark paper.
+- **The X row is in every footer** and is omitted entirely when `INTAKE_X_URL` is unset — a social row
+  pointing nowhere is worse than no social row.
+
+Two footers, never mixed: `transactional` carries the support address and the account disclaimer;
+`list` says why the recipient is on the list and offers an unsubscribe. Account boilerplate in a
+launch email reads like a phishing attempt.
+
+`npx tsx scripts/preview-emails.ts` renders every list/launch letter to `docs/email-preview/` with the
+inbox row it will produce. Look at it before changing copy: a template that has only been asserted
+against has not been designed.
+
+## 10. Logging and secrets
 
 - One logger, `logging.ts`. Keys matching `/token|secret|password|authorization|api_?key|otp|code|cookie|credential|key$/` are replaced with `[redacted]` **before formatting**.
 - Addresses are masked (`a***@example.com`) unless already masked.
@@ -262,7 +298,116 @@ send. `npm run preflight` names the exact variable that is wrong and never print
 
 ---
 
-## 10. Tests
+## 11. Sending launch mail
+
+```bash
+npm run launch:mail -- --campaign=launch_announcement            # dry run: prints who and how many
+npm run launch:mail -- --campaign=launch_note --send --limit=5   # first five, to read yourself
+npm run launch:mail -- --campaign=launch_note --send            # everyone still owed this letter
+```
+
+- **Dry run is the default.** The failure that actually happens is sending a launch twice.
+- `waitlist_launch_send` (migration `021`) makes each send idempotent per subscriber per campaign:
+  re-running the script cannot deliver a second copy.
+- `unsubscribed_at` is permanent and is honoured by the sender. The link is
+  `/api/waitlist/unsubscribe?id=…&token=…`, where the token is an HMAC of the row id (no address ever
+  appears in a URL) and a forged or truncated link answers 400 without revealing whether the address
+  is on the list.
+- Run against a real mailbox first. Nothing here has been exercised against Calder's live API from
+  this branch.
+
+## 12. When mail does not arrive
+
+Two failure shapes look identical to a user and are completely different underneath.
+
+**Calder refused the send.** `POST /v1/emails` answered 4xx/5xx, `mapCalderError` classified it, the
+delivery row says `failed` with an `error_code`, and the caller told the user. Fix the cause: an
+unverified sender, a plan limit, a suppressed address.
+
+**Calder accepted the send and failed it later.** The API answered 202 with an `em_…` id, so Intake
+recorded `queued` — correctly, because acceptance is not delivery. Then Calder's own transport gave up
+minutes later and the message shows `Exhausted: provider_error` in their dashboard. Intake learns about
+this only from a webhook, or by asking:
+
+```bash
+npm run email:doctor        # config, DNS (SPF/DMARC/DKIM/MX), last 14 days of statuses, open rows
+npm run email:reconcile     # ask Calder for every row still open, write what it says
+```
+
+`reconcile.ts` never guesses: an unrecognised provider state, a thrown call or a null answer leaves the
+row open rather than inventing a status. Settled rows are never reopened — a late `delivered` does not
+un-bounce an address.
+
+`email:reconcile` is the fallback path, not the good one. If `CALDER_WEBHOOK_SECRET` is unset, or the
+endpoint is misregistered, nothing tells Intake that a message failed and a row sits at `queued` for
+ever. The doctor flags both.
+
+**What Intake cannot do:** diagnose the transport. If the doctor reports clean configuration, aligned
+DNS and a `failed_remote` row, the message was accepted and then lost inside the provider. Take the
+`provider_message_id` from the doctor's failure list and read the provider's timeline for that id.
+
+### The one misconfiguration that never throws: a sender Calder does not know
+
+`resolveSender` (`apps/api/src/services/sender-service.ts`) resolves a bare `from` address against the
+project's sender identities. Pass a `sender_…` id and an unknown one is a 400; pass an **address** that
+no identity owns and Calder does nothing at all — it returns `senderIdentityId: null` and the message
+goes out unattributed, from the platform leg, with a display name nobody configured.
+
+Three consequences, and the first two look like success:
+
+- the send is accepted and can be delivered, so nothing looks broken;
+- it is **missing from that sender's counts** — a stream reading "5 sent" beside a sender card reading
+  "4 sent" is exactly this, one message sent from an address with no identity;
+- the recipient reads the display name registered in Calder, not `CALDER_*_FROM_NAME`, because the name
+  is not in the send request at all.
+
+`npm run email:doctor` now asks `GET /v1/senders` and prints one line per configured sender, failing on
+an address Calder does not have, failing on a sender that is `pending`/`disabled` (`sender_not_ready`
+before any provider call), and warning when the display names disagree. Register the address, or prefer
+`CALDER_SENDER_ID`, before wondering why delivery stats do not add up.
+
+### What `Transport: —` and `Exhausted: provider_error` actually mean
+
+Both are summaries, and it is easy to read more into them than they carry. Read against Calder's code:
+
+- **`Transport: —` does not mean "no transport was assigned."** The column is written *only on success*
+  (`apps/api/src/lib/drain.ts`: the `.set({ status: "sent", transport: transportName })` branch after a
+  leg accepts). A row that failed every leg keeps a null transport by construction. Empty here means
+  "nothing was delivered", not "nothing was routed".
+- **`provider_error` is the fallback, not a verdict.** `safeDeliveryReason`
+  (`packages/observability/src/safe-errors.ts`) returns an allowlisted code when the thrown error has
+  one and `provider_error` when it does not. A real SES rejection arrives with its own name —
+  `MessageRejected`, `MailFromDomainNotVerified`, `AccountSuspendedException`, `Throttling` — and is
+  preserved. So `provider_error` says the failure was *not* a named provider verdict: it happened
+  around the send, in a leg whose exception carried no classified code.
+- **"Provider-side reputation problem" is therefore not what this looks like.** Reputation shows up as
+  throttling or a named rejection. This shape is a pipeline failure whose detail lives in the server
+  log and in the row's `failed` drain event, not in the dashboard label.
+
+### The counter-evidence that matters: Calder's own login mail
+
+Calder's platform mail — signup verification and password reset — takes a different path on purpose.
+`apps/dashboard/lib/send-auth-email.ts` calls `sendCompanyEmailQuietly`, and `packages/notify/src/send.ts`
+sends it "straight to the provider, outside the customer pipeline": `defaultFrom()`, no queue, no
+per-project transport chain, `stream: "transactional"` hardcoded. It arriving proves the provider
+credential and outbound connectivity work. It says nothing about the Intake project's chain, and it is
+not evidence against a tenant-side failure either.
+
+Intake's own OTPs are *not* that path: they go through `POST /v1/emails` and the same queued pipeline as
+list mail, so "our OTP arrived" and "their login mail arrived" are two different claims.
+
+### So what to pull, in order
+
+1. The `failed` drain event for that email id in Calder (`recordDrainEvent`, `data.code`) — that is the
+   classified code, and the send leg it came from.
+2. The API/worker log line for the same id (`drain: chain refused, row failed` carries the code; the
+   thrown error itself is only in the log).
+3. Whether the row has a `sender_identity_id` at all, and whether that sender is `verified` with a
+   transport bound. A sender that is not ready fails the chain *before* any provider call, and it is
+   classified (`sender_not_ready`) rather than bare — so seeing that code instead is the whole answer.
+4. Only then the provider's timeline for `provider_message_id`, if there is one.
+
+## 12. Tests
 
 ```
 test/email-service.test.mjs        provider contract: retries, timeouts, idempotency, taxonomy

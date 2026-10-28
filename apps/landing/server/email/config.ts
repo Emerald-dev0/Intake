@@ -22,6 +22,21 @@ export interface EmailConfig {
   /** Personal sender for the welcome mail only. Defaults to Daniel. */
   welcomeFromEmail: string;
   welcomeFromName: string;
+  /** Team sender for the one-time launch announcement (`hello@…`). Falls back to the system sender. */
+  announcementFromEmail: string;
+  announcementFromName: string;
+  /** Public origin serving `/brand/intake-mark.png`. The mark must be fetchable by a mail client. */
+  assetBaseUrl: string;
+  /**
+   * True only when the provider actually has a broadcast/campaign route set up. Until it does,
+   * asking Calder for a `campaign` stream fails the send, so list mail rides `transactional` and
+   * this flag is what flips it over — no code change, no redeploy of the send path.
+   */
+  broadcastEnabled: boolean;
+  /** The Intake account on X. Null omits the social row rather than linking somewhere wrong. */
+  xUrl: string | null;
+  /** Human label for the X account, derived from the URL (`@intake`). */
+  xHandle: string | null;
   /** Replies to the welcome mail go here; defaults to the welcome sender so users reach a human. */
   welcomeReplyTo: string | null;
   /** Optional Calder sender identity (`sender_…`). When set, Calder resolves address + display name. */
@@ -65,6 +80,21 @@ function httpsUrl(value: string, name: string): string {
     throw new Error(`${name} must use https.`);
   }
   return url.origin;
+}
+
+/** Only X/Twitter profile URLs. A social row that points anywhere else is a phishing shape. */
+function readXUrl(value: string | undefined): string | null {
+  const raw = (value ?? '').trim();
+  if (!raw) return null;
+  let url: URL;
+  try { url = new URL(raw); } catch { throw new Error('INTAKE_X_URL must be an absolute URL.'); }
+  if (url.protocol !== 'https:') throw new Error('INTAKE_X_URL must use https.');
+  if (!['x.com', 'twitter.com', 'www.x.com', 'www.twitter.com'].includes(url.hostname)) {
+    throw new Error('INTAKE_X_URL must point at an x.com or twitter.com profile.');
+  }
+  const handle = url.pathname.replace(/\/+$/, '').replace(/^\/+/, '');
+  if (!handle || !/^[A-Za-z0-9_]{1,15}$/.test(handle)) throw new Error('INTAKE_X_URL must include a profile handle, e.g. https://x.com/intake.');
+  return `https://x.com/${handle}`;
 }
 
 function origin(value: string | undefined, fallback: string, name: string): string {
@@ -111,6 +141,8 @@ export function readEmailConfig(env: NodeJS.ProcessEnv = process.env): EmailConf
   const welcomeFromEmail = (env.CALDER_WELCOME_FROM_EMAIL ?? '').trim().toLowerCase() || DEFAULT_WELCOME_FROM_EMAIL;
   const welcomeFromName = (env.CALDER_WELCOME_FROM_NAME ?? '').trim() || DEFAULT_WELCOME_FROM_NAME;
   const welcomeReplyToRaw = (env.CALDER_WELCOME_REPLY_TO ?? '').trim().toLowerCase() || null;
+  const announcementFromEmail = (env.CALDER_ANNOUNCEMENT_FROM_EMAIL ?? '').trim().toLowerCase() || fromEmail;
+  const announcementFromName = (env.CALDER_ANNOUNCEMENT_FROM_NAME ?? '').trim() || 'The Intake Team';
   const baseUrl = (env.CALDER_BASE_URL ?? '').trim() || DEFAULT_BASE_URL;
   const senderIdRaw = (env.CALDER_SENDER_ID ?? '').trim();
 
@@ -125,6 +157,7 @@ export function readEmailConfig(env: NodeJS.ProcessEnv = process.env): EmailConf
     if (replyTo && !EMAIL.test(replyTo)) throw new Error('CALDER_REPLY_TO must be a valid email address.');
     if (!EMAIL.test(welcomeFromEmail)) throw new Error('CALDER_WELCOME_FROM_EMAIL must be a valid email address.');
     if (welcomeReplyToRaw && !EMAIL.test(welcomeReplyToRaw)) throw new Error('CALDER_WELCOME_REPLY_TO must be a valid email address.');
+    if (env.CALDER_ANNOUNCEMENT_FROM_EMAIL?.trim() && !EMAIL.test(announcementFromEmail)) throw new Error('CALDER_ANNOUNCEMENT_FROM_EMAIL must be a valid email address.');
     if (fromEmail && apiKey) httpsUrl(baseUrl, 'CALDER_BASE_URL');
   }
 
@@ -141,6 +174,14 @@ export function readEmailConfig(env: NodeJS.ProcessEnv = process.env): EmailConf
     welcomeFromEmail,
     welcomeFromName,
     welcomeReplyTo: welcomeReplyToRaw || welcomeFromEmail,
+    announcementFromEmail,
+    announcementFromName,
+    broadcastEnabled: (env.CALDER_BROADCAST_ENABLED ?? '').trim().toLowerCase() === 'true',
+    assetBaseUrl: origin(env.INTAKE_ASSET_BASE_URL ?? env.VITE_SITE_URL, env.BETTER_AUTH_URL ?? 'http://localhost:5173', 'INTAKE_ASSET_BASE_URL'),
+    xUrl: readXUrl(env.INTAKE_X_URL),
+    xHandle: (() => {
+      try { const handle = readXUrl(env.INTAKE_X_URL); return handle ? `@${new URL(handle).pathname.replace(/^\//, '')}` : null; } catch { return null; }
+    })(),
     senderId: senderIdRaw || null,
     timeoutMs: integer(env.EMAIL_TIMEOUT_MS, 10_000, 1_000, 30_000, 'EMAIL_TIMEOUT_MS'),
     maxAttempts: integer(env.EMAIL_MAX_ATTEMPTS, 3, 1, 5, 'EMAIL_MAX_ATTEMPTS'),

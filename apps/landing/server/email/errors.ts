@@ -65,54 +65,69 @@ export function emailUserMessage(code: EmailErrorCode): string {
 }
 
 /**
- * Maps a Calder error code into Intake's taxonomy. Unknown codes fail closed as unavailable so a
- * new provider error can never be mistaken for success.
+ * Maps a Calder failure onto Intake's taxonomy.
+ *
+ * This is the only copy. A second, slightly different mapper used to live inside the Calder adapter,
+ * which is exactly how a `not_found` ends up classified two ways depending on which file ran first.
+ *
+ * Order matters: a machine-readable code always outranks the bare HTTP status. A quota exhaustion or
+ * an unverified sender arriving on a 429/403 is a permanent condition; retrying it would burn the
+ * allowance and delay an honest failure. Only genuinely transient conditions come back retryable.
  */
-export function mapCalderError(
-  code: string | undefined,
-  status: number,
-  message: string,
-): EmailError {
+export function mapCalderError(status: number, code: string | undefined, message: string): EmailError {
   switch (code) {
-    case 'validation_error':
-      return new EmailError('email_validation_error', message, { providerStatus: status, providerCode: code });
+    case 'organization_sending_unavailable':
+      return new EmailError('email_provider_unavailable', message, { retryable: true, providerStatus: status, providerCode: code });
+    case 'plan_limit_reached':
+      return new EmailError('email_quota_exceeded', message, { providerStatus: status, providerCode: code });
+    case 'domain_not_verified':
+    case 'sender_not_ready':
+      return new EmailError('email_sender_not_verified', message, { providerStatus: status, providerCode: code });
+    case 'suppressed':
+      return new EmailError('email_suppressed', message, { providerStatus: status, providerCode: code });
+    case 'idempotency_conflict':
+    case 'conflict':
+      return new EmailError('email_idempotency_conflict', message, { retryable: true, providerStatus: status, providerCode: code });
     case 'authentication_error':
-      return new EmailError('email_provider_authentication_failed', message, { providerStatus: status, providerCode: code });
     case 'authorization_error':
       return new EmailError('email_provider_authentication_failed', message, { providerStatus: status, providerCode: code });
     case 'rate_limit_error':
       return new EmailError('email_provider_rate_limited', message, { retryable: true, providerStatus: status, providerCode: code });
-    case 'idempotency_conflict':
-      return new EmailError('email_idempotency_conflict', message, { retryable: true, providerStatus: status, providerCode: code });
-    case 'conflict':
-      return new EmailError('email_idempotency_conflict', message, { retryable: true, providerStatus: status, providerCode: code });
-    case 'suppressed':
-      return new EmailError('email_suppressed', message, { providerStatus: status, providerCode: code });
-    case 'domain_not_verified':
-    case 'sender_not_ready':
-      return new EmailError('email_sender_not_verified', message, { providerStatus: status, providerCode: code });
-    case 'plan_limit_reached':
-      return new EmailError('email_quota_exceeded', message, { providerStatus: status, providerCode: code });
-    case 'organization_sending_unavailable':
-      return new EmailError('email_provider_unavailable', message, { retryable: true, providerStatus: status, providerCode: code });
+    case 'validation_error':
+      return /recipient|to\b/i.test(message)
+        ? new EmailError('email_invalid_recipient', message, { providerStatus: status, providerCode: code })
+        : new EmailError('email_validation_error', message, { providerStatus: status, providerCode: code });
     case 'not_found':
-      return new EmailError('email_validation_error', message, { providerStatus: status, providerCode: code });
+      return new EmailError('email_template_error', message, { providerStatus: status, providerCode: code });
+    // A provider-side failure with no classification: retryable, because Calder's own transport may
+    // recover, but never silently treated as success.
     case 'provider_error':
     case 'internal_error':
       return new EmailError('email_provider_unavailable', message, { retryable: true, providerStatus: status, providerCode: code });
     default:
-      if (status === 401 || status === 403) {
-        return new EmailError('email_provider_authentication_failed', message, { providerStatus: status, providerCode: code ?? null });
-      }
-      if (status === 429) {
-        return new EmailError('email_provider_rate_limited', message, { retryable: true, providerStatus: status, providerCode: code ?? null });
-      }
-      if (status === 422) {
-        return new EmailError('email_validation_error', message, { providerStatus: status, providerCode: code ?? null });
-      }
-      if (status >= 500) {
-        return new EmailError('email_provider_unavailable', message, { retryable: true, providerStatus: status, providerCode: code ?? null });
-      }
-      return new EmailError('email_provider_unavailable', message, { providerStatus: status, providerCode: code ?? null });
+      break;
   }
+  if (status === 409) {
+    return new EmailError('email_idempotency_conflict', message, { retryable: true, providerStatus: status, providerCode: code ?? null });
+  }
+  if (status === 422) {
+    return new EmailError('email_validation_error', message, { providerStatus: status, providerCode: code ?? null });
+  }
+  if (status === 404) {
+    return new EmailError('email_template_error', message, { providerStatus: status, providerCode: code ?? null });
+  }
+  if (status === 429) {
+    return new EmailError('email_provider_rate_limited', message, { retryable: true, providerStatus: status, providerCode: code ?? null });
+  }
+  if (status === 400) {
+    return new EmailError('email_validation_error', message, { providerStatus: status, providerCode: code ?? null });
+  }
+  if (status === 401 || status === 403) {
+    return new EmailError('email_provider_authentication_failed', message, { providerStatus: status, providerCode: code ?? null });
+  }
+  if (status >= 500) {
+    return new EmailError('email_provider_unavailable', message, { retryable: true, providerStatus: status, providerCode: code ?? null });
+  }
+  // Fail closed: an unclassified failure is never success.
+  return new EmailError('email_provider_unavailable', message, { providerStatus: status, providerCode: code ?? null });
 }

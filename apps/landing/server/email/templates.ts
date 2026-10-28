@@ -1,5 +1,9 @@
 import type { EmailType } from './types';
 import { WAITLIST_WELCOME_TEXT } from './waitlist-welcome';
+import {
+  C, DEFAULT_VISUALS, shell, button as designButton, paragraph as designParagraph, statement as designStatement,
+  chips, tickList, signature, rule, muted, type FooterKind, type VisualOptions,
+} from './design';
 
 /**
  * Centralized email templates.
@@ -41,10 +45,14 @@ export interface RenderedEmail {
 
 export interface EmailTemplate {
   id: EmailType;
+  /** `list` mail reaches people who subscribed; it carries an unsubscribe line and no account boilerplate. */
+  channel?: FooterKind;
   /** Calder template alias. Only used when the deployment opts into dashboard-managed templates. */
   alias: string;
   subject(vars: EmailVariables): string;
   preheader(vars: EmailVariables): string;
+  /** Monospace label above the headline. Optional; list letters use it instead of a headline. */
+  eyebrow?(vars: EmailVariables): string;
   heading(vars: EmailVariables): string;
   body(vars: EmailVariables): string;
   text(vars: EmailVariables): string;
@@ -57,7 +65,6 @@ export const SUPPORT_EMAIL = 'support@intake.calder.click';
 // ── Palette (mirrors src/styles/base.css, hard-coded because email clients strip custom properties)
 const INK = '#0c0c0b';
 const PAPER = '#f4efe6';
-const CARD = '#fffdf9';
 const LINE = '#ded5c4';
 const BODY = '#24231f';
 const MUTED = '#6f6a5f';
@@ -81,15 +88,16 @@ function text_(value: string | number | undefined, fallback = ''): string {
 }
 
 function paragraph(content: string, style = ''): string {
-  return `<p style="margin:0 0 16px;font:16px/1.62 ${SANS};color:${BODY};${style}">${content}</p>`;
+  return designParagraph(content, style);
 }
 
 function button(href: string, label: string): string {
-  const safe = escapeHtml(href);
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:26px 0 8px"><tr><td align="center" bgcolor="${ACCENT}" style="border-radius:2px">
-    <a href="${safe}" style="display:inline-block;padding:14px 26px;font:600 15px/1 ${SANS};letter-spacing:.01em;color:#ffffff;text-decoration:none;border-radius:2px">${escapeHtml(label)}</a>
-  </td></tr></table>
-  <p style="margin:0 0 22px;font:12px/1.5 ${MONO};color:${MUTED};word-break:break-all">${escapeHtml(label === 'Reset my password' ? href : '')}</p>`;
+  // A reset link is the one action that must survive in a text-only client, so its URL is printed
+  // under the button rather than hidden behind it.
+  const printed = label === 'Reset my password'
+    ? `<p style="margin:0 0 22px;font:12px/1.5 ${MONO};color:${MUTED};word-break:break-all">${escapeHtml(href)}</p>`
+    : '';
+  return designButton(href, label) + printed;
 }
 
 function link(href: string, label: string): string {
@@ -118,43 +126,24 @@ function callout(content: string): string {
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:24px 0 6px"><tr><td style="padding:16px 18px;background:${PAPER};border-left:2px solid ${ACCENT};border-radius:0 2px 2px 0;font:14px/1.6 ${SANS};color:${BODY}">${content}</td></tr></table>`;
 }
 
-/** The one layout every Intake email shares. */
-function layout(preheader: string, heading: string, body: string, footerNote: string): string {
-  return `<!doctype html>
-<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<meta name="color-scheme" content="light dark" />
-<meta name="supported-color-schemes" content="light dark" />
-<title>${escapeHtml(heading)}</title>
-<!--[if mso]>
-<style>body,table,td,a{font-family:Helvetica,Arial,sans-serif !important;}</style>
-<![endif]-->
-</head>
-<body style="margin:0;padding:0;background:${PAPER};-webkit-font-smoothing:antialiased">
-<div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all">${escapeHtml(preheader)}</div>
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${PAPER}">
-<tr><td align="center" style="padding:36px 16px 48px">
-  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:560px">
-    <tr><td style="padding:0 0 18px">
-      <span style="display:inline-block;font:500 15px/1 ${SANS};letter-spacing:-.01em;color:${INK}">intake<span style="color:${ACCENT}">.</span></span>
-    </td></tr>
-    <tr><td bgcolor="${CARD}" style="background:${CARD};border:1px solid ${LINE};border-radius:4px;padding:38px 34px 30px">
-      <p style="margin:0 0 20px;font:11px/1 ${MONO};letter-spacing:.18em;text-transform:uppercase;color:${MUTED}">Intake</p>
-      <h1 style="margin:0 0 20px;font:400 27px/1.24 ${SERIF};letter-spacing:-.015em;color:${INK}">${heading}</h1>
-      ${body}
-    </td></tr>
-    <tr><td style="padding:22px 4px 0">
-      <p style="margin:0 0 8px;font:13px/1.6 ${SANS};color:${MUTED}">${footerNote}</p>
-      <p style="margin:0 0 8px;font:13px/1.6 ${SANS};color:${MUTED}">Questions, trouble, or a salty edge case? Just reply to this email, or write to ${SUPPORT_EMAIL} — a human being reads everything.</p>
-      <p style="margin:0;font:12px/1.6 ${SANS};color:${MUTED}">You are receiving this because it relates to activity on your Intake account. Transactional notices like this one are required to keep your account secure.</p>
-    </td></tr>
-  </table>
-</td></tr>
-</table>
-</body>
-</html>`;
+/** Options a caller can thread through that are not per-template copy. */
+export interface RenderOptions {
+  /** Logo host and X account. Deployments override these; see `server/email/config.ts`. */
+  visuals?: VisualOptions;
+  /** Per-recipient signed unsubscribe link. List mail should always carry one. */
+  unsubscribeUrl?: string;
+}
+
+/** Transactional mail: account, security, billing. Carries the account footer, never an unsubscribe. */
+function layout(preheaderText: string, headingText: string, body: string, _footerNote: string, options: RenderOptions = {}): string {
+  return shell({
+    preheaderText,
+    headingText,
+    body,
+    footerKind: 'transactional',
+    supportEmail: SUPPORT_EMAIL,
+    visuals: options.visuals,
+  });
 }
 
 // ── Helpers shared by several templates ────────────────────────────────────────────────────────
@@ -250,27 +239,143 @@ const passwordReset: EmailTemplate = {
 // it must not tell wait-list subscribers that they have an account, a password, or access already.
 const waitlistWelcome: EmailTemplate = {
   id: 'waitlist_welcome',
+  channel: 'list',
   alias: 'intake-waitlist-welcome',
   subject: () => "You're on the Intake wait-list — a note from Daniel",
   preheader: () => "I'm Daniel, the person building Intake, and I'm glad you're here.",
-  heading: () => 'A note from Daniel',
+  eyebrow: () => 'WELCOME',
+  heading: () => '',
   body: () => WAITLIST_WELCOME_TEXT.split('\n\n').map(part => paragraph(
     escapeHtml(part).replace(/\n/g, '<br />').replace('https://intake.calder.click', link('https://intake.calder.click', 'https://intake.calder.click')),
   )).join(''),
   text: () => WAITLIST_WELCOME_TEXT,
 };
 
-function letterLayout(subject: string, preheader: string, body: string): string {
-  return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>${escapeHtml(subject)}</title></head>
-<body style="margin:0;padding:0;background:${PAPER}">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all">${escapeHtml(preheader)}</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${PAPER}"><tr><td align="center" style="padding:32px 16px">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px">
-<tr><td style="padding:0 0 20px;font:500 20px/1.3 ${SERIF};color:${INK}">intake<span style="color:${ACCENT}">.</span></td></tr>
-<tr><td bgcolor="${CARD}" style="padding:28px 24px 12px;border:1px solid ${LINE};border-top:3px solid ${ACCENT};background:${CARD}">${body}</td></tr>
-</table></td></tr></table></body></html>`;
+/**
+ * List mail: a letter to people who subscribed. Same card as everything else, different footer — it
+ * explains why they are on the list and gives them a working way off it.
+ */
+function letterLayout(preheaderText: string, body: string, options: RenderOptions = {}, kind: { eyebrowText?: string; headingText?: string; reason?: string } = {}): string {
+  return shell({
+    preheaderText,
+    eyebrowText: kind.eyebrowText,
+    headingText: kind.headingText,
+    body,
+    footerKind: 'list',
+    footerReason: kind.reason,
+    unsubscribeUrl: options.unsubscribeUrl,
+    supportEmail: SUPPORT_EMAIL,
+    visuals: options.visuals,
+  });
 }
+
+
+// ── Launch mail ────────────────────────────────────────────────────────────────────────────────
+//
+// Two letters, sent once, to people who asked to hear from Intake before it existed. They are the
+// only emails in the catalogue written to be read by someone who is not yet a customer, so the rules
+// are different from the rest: no account language, no security boilerplate, no credits, and a
+// working unsubscribe in the footer. Everything either letter claims must be true of the product on
+// the day it is sent — which is why the providers are named from the same list the app offers, not
+// from marketing ambition.
+
+const LAUNCH_SITE = 'https://intake.calder.click';
+
+function launchUrl(vars: EmailVariables): string {
+  return escapeHtml(text_(vars.marketingUrl, LAUNCH_SITE));
+}
+
+const launchAnnouncement: EmailTemplate = {
+  id: 'launch_announcement',
+  channel: 'list',
+  alias: 'intake-launch-announcement',
+  subject: () => 'Intake is live — a form from a sentence',
+  preheader: () => 'Describe the form you need. Intake builds it in your own Google Forms or Typeform account.',
+  eyebrow: () => "WE'RE LIVE",
+  heading: () => 'Intake is live.',
+  body: vars => {
+    const site = launchUrl(vars);
+    return [
+      paragraph('Hey there,'),
+      paragraph(`You joined the Intake wait-list a while ago, and I wanted you to hear this from us first: <strong style="color:${C.ink}">we are officially live.</strong>`, `font-size:17px;line-height:1.6;color:${C.ink}`),
+      designStatement('Describe the form you need. It exists.'),
+      paragraph('Intake turns a sentence into a real form — the questions, the wording, the order — and creates it in your own account, ready to send. No blank builder, no assembling twenty fields by hand at midnight.'),
+      paragraph('It works today with <strong style="color:' + C.ink + '">Google Forms</strong> and <strong style="color:' + C.ink + '">Typeform</strong>. You keep the form, the responses and the account; Intake never hosts your data.'),
+      chips(['Google Forms', 'Typeform']),
+      paragraph('It is built for people who need a form, not a form tool:'),
+      tickList([
+        'A final-year student building a research questionnaire',
+        'A researcher collecting data that has to be collected properly',
+        'A founder asking for feedback and actually reading it',
+        'Anyone organising an event who needs registrations by Friday',
+      ]),
+      button(site, 'Try Intake →'),
+      muted(`Or paste this into your browser: <a href="${site}" style="color:${C.muted}">${escapeHtml(text_(vars.marketingUrl, LAUNCH_SITE))}</a>`),
+      rule(),
+      paragraph('We are still early, and still building. If something is confusing, if a form comes out wrong, or if there is something you wish Intake did — reply to this email and tell us. A person reads every reply, and more of what comes next will start with a message like yours.'),
+      paragraph('Thanks for being here before we launched.'),
+      signature('The Intake Team', 'Intake'),
+    ].join('');
+  },
+  text: vars => [
+    'Hey there,',
+    `You joined the Intake wait-list a while ago, and I wanted you to hear this from us first: we are officially live.`,
+    'Describe the form you need. It exists.',
+    'Intake turns a sentence into a real form — the questions, the wording, the order — and creates it in your own account, ready to send. No blank builder, no assembling twenty fields by hand at midnight.',
+    'It works today with Google Forms and Typeform. You keep the form, the responses and the account; Intake never hosts your data.',
+    'It is built for people who need a form, not a form tool:',
+    '  - A final-year student building a research questionnaire',
+    '  - A researcher collecting data that has to be collected properly',
+    '  - A founder asking for feedback and actually reading it',
+    '  - Anyone organising an event who needs registrations by Friday',
+    `Try Intake: ${text_(vars.marketingUrl, LAUNCH_SITE)}`,
+    'We are still early, and still building. If something is confusing, if a form comes out wrong, or if there is something you wish Intake did — reply to this email and tell us.',
+    'Thanks for being here before we launched.',
+    'The Intake Team',
+  ].join('\n\n'),
+};
+
+const launchNote: EmailTemplate = {
+  id: 'launch_note',
+  channel: 'list',
+  alias: 'intake-launch-note',
+  subject: () => 'Intake is live — and I wanted to tell you myself',
+  preheader: () => 'A short note from Daniel, who is building Intake, on the day it went live.',
+  eyebrow: () => 'A NOTE FROM DANIEL',
+  heading: () => '',
+  body: vars => {
+    const site = launchUrl(vars);
+    return [
+      paragraph('Hey there,'),
+      paragraph("I'm Daniel — one of the people building Intake."),
+      paragraph("You signed up for the wait-list a while back, and I didn't want the launch to pass without writing to you myself."),
+      designStatement('We are live. 🚀').replace('margin:26px 0', 'margin:22px 0'),
+      paragraph("The idea behind Intake is simple: you shouldn't have to spend an afternoon assembling questions in a builder to get one small form out into the world. You should be able to explain what you need, and have the thing made."),
+      paragraph(`That is what Intake does now, with <strong style="color:${C.ink}">Google Forms</strong> and <strong style="color:${C.ink}">Typeform</strong>.`),
+      paragraph("If you're finishing a project, collecting research data, organising an event, or building something that needs forms — I'd love for you to try it."),
+      button(site, 'Give Intake a try →'),
+      paragraph("We're early, and there's a lot I still want to improve. If you try it and something feels confusing, or a form doesn't come out the way you pictured it, tell me. Reply straight to this email — it reaches me, not a ticket queue."),
+      rule(),
+      paragraph("And if you'd like to follow along as we build — the things that break, the fixes, what's next — I post it all on X. There's a link under this email."),
+      paragraph('Thank you for signing up before there was anything to see. I hope Intake earns that.'),
+      signature('Daniel', 'Building Intake'),
+    ].join('');
+  },
+  text: vars => [
+    'Hey there,',
+    "I'm Daniel — one of the people building Intake.",
+    "You signed up for the wait-list a while back, and I didn't want the launch to pass without writing to you myself.",
+    'We are live.',
+    "The idea behind Intake is simple: you shouldn't have to spend an afternoon assembling questions in a builder to get one small form out into the world. You should be able to explain what you need, and have the thing made.",
+    'That is what Intake does now, with Google Forms and Typeform.',
+    "If you're finishing a project, collecting research data, organising an event, or building something that needs forms — I'd love for you to try it.",
+    `Give Intake a try: ${text_(vars.marketingUrl, LAUNCH_SITE)}`,
+    "We're early, and there's a lot I still want to improve. If you try it and something feels confusing, or a form doesn't come out the way you pictured it, tell me. Reply straight to this email — it reaches me, not a ticket queue.",
+    "And if you'd like to follow along as we build, I post it all on X — the link is under this email.",
+    'Thank you for signing up before there was anything to see. I hope Intake earns that.',
+    'Daniel\nBuilding Intake',
+  ].join('\n\n'),
+};
 
 const welcome: EmailTemplate = {
   id: 'welcome',
@@ -828,6 +933,8 @@ export const EMAIL_TEMPLATES: readonly EmailTemplate[] = [
   passwordReset,
   welcome,
   waitlistWelcome,
+  launchAnnouncement,
+  launchNote,
   securityPasswordChanged,
   securityEmailChanged,
   securityNewSignIn,
@@ -856,19 +963,48 @@ export function templateFor(type: EmailType): EmailTemplate {
   return template;
 }
 
+/** Why a stranger is on this list. Every bulk email says it; an unexplained one is a complaint. */
+const LIST_REASON = 'You are receiving this because you joined the Intake wait-list.';
+
+function listTextFooter(visuals: VisualOptions, unsubscribeUrl: string | undefined): string {
+  return [
+    '—',
+    'Intake · a form from a sentence',
+    ...(visuals.xUrl ? [`Follow Intake on X: ${visuals.xUrl}`] : []),
+    unsubscribeUrl ? `${LIST_REASON} Unsubscribe: ${unsubscribeUrl}` : LIST_REASON,
+  ].join('\n');
+}
+
+function transactionalTextFooter(visuals: VisualOptions): string {
+  return [
+    '—',
+    'Intake · a form from a sentence',
+    ...(visuals.xUrl ? [`Follow Intake on X: ${visuals.xUrl}`] : []),
+    `Questions? Just reply, or write to ${SUPPORT_EMAIL} — a human reads everything.`,
+  ].join('\n');
+}
+
 /** Renders one email. Pure: given the same variables it always produces the same bytes. */
-export function renderEmail(type: EmailType, variables: EmailVariables): RenderedEmail {
+export function renderEmail(type: EmailType, variables: EmailVariables, options: RenderOptions = {}): RenderedEmail {
   const template = templateFor(type);
   const subject = template.subject(variables);
   const heading = template.heading(variables);
-  if (type === 'waitlist_welcome') {
-    return { subject, html: letterLayout(subject, template.preheader(variables), template.body(variables)), text: template.text(variables) };
+  const visuals = options.visuals ?? DEFAULT_VISUALS;
+  const unsubscribeUrl = options.unsubscribeUrl ?? (text_(variables.unsubscribeUrl) || undefined);
+
+  if (template.channel === 'list') {
+    const html = letterLayout(template.preheader(variables), template.body(variables), { visuals, unsubscribeUrl }, {
+      eyebrowText: template.eyebrow?.(variables),
+      // A letter that opens with "Hey there," does not need a headline repeating who wrote it.
+      headingText: heading || undefined,
+      reason: LIST_REASON,
+    });
+    return { subject, html, text: `${template.text(variables)}\n\n${listTextFooter(visuals, unsubscribeUrl)}` };
   }
-  const footer = 'Intake · Google Forms from a sentence.';
-  const supportLine = `Questions? Just reply, or write to ${SUPPORT_EMAIL} — a human reads everything.`;
+
   return {
     subject,
-    html: layout(template.preheader(variables), heading, template.body(variables), footer),
-    text: `${subject}\n\n${template.text(variables)}\n\n—\nIntake · Google Forms from a sentence.\n${supportLine}`,
+    html: layout(template.preheader(variables), heading, template.body(variables), '', { visuals }),
+    text: `${subject}\n\n${template.text(variables)}\n\n${transactionalTextFooter(visuals)}`,
   };
 }

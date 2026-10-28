@@ -256,6 +256,18 @@
 .admin-mail-body textarea { min-height: 210px; padding: 10px 11px; border: 1px solid var(--line-2); border-radius: 6px; outline: none; background: var(--ink-1); color: var(--cream); font: 12px/1.65 var(--mono); resize: vertical; }
 .admin-mail-body textarea:focus { border-color: var(--accent-2); box-shadow: 0 0 0 2px #ff5a1f22; }
 .admin-mail-body textarea::placeholder { color: var(--cream-4); }
+.admin-mail-senders { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.admin-mail-sender { display: flex; flex-direction: column; gap: 3px; padding: 10px 11px; text-align: left; cursor: pointer;
+  background: transparent; border: 1px solid var(--line); border-radius: 3px; color: var(--cream-4); font: inherit;
+  transition: border-color 120ms ease, background-color 120ms ease; }
+.admin-mail-sender strong { color: var(--cream); font-size: 11px; letter-spacing: .01em; }
+.admin-mail-sender small { font-size: 9.5px; line-height: 1.45; color: var(--cream-4); }
+.admin-mail-sender:hover { border-color: var(--cream-4); }
+.admin-mail-sender.selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.admin-mail-sender.selected strong { color: var(--accent); }
+.admin-mail-sender:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 720px) { .admin-mail-senders { grid-template-columns: minmax(0, 1fr); } }
+
 .admin-mail-button-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
 .admin-mail-tokens { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
 .admin-mail-tokens small { flex: 1 1 100%; color: var(--cream-4); font-size: 10px; line-height: 1.5; }
