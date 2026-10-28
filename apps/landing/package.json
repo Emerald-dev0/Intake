@@ -20,7 +20,8 @@
     "pretest": "vite build",
     "preflight": "tsx server/preflight.ts",
     "verify:production": "node tools/verify-production.mjs",
-    "ai:ask": "tsx scripts/ask-intake.ts"
+    "ai:ask": "tsx scripts/ask-intake.ts",
+    "launch:mail": "tsx scripts/send-waitlist-launch.ts"
   },
   "dependencies": {
     "@fontsource-variable/fraunces": "^5.3.0",

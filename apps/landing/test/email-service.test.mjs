@@ -255,9 +255,11 @@ test('the OTP email states the code, the expiry and what to do if it was not you
 test('emails link to Intake, never to the provider', () => {
   const email = renderEmail('password_reset', { resetUrl: 'https://intake.test/auth/reset-password?token=abc' });
   assert.match(email.html, /https:\/\/intake\.test\/auth\/reset-password/);
-  // The support contact address is a feature, not infrastructure leakage: allow exactly it.
-  const scrubbedHtml = email.html.replaceAll('support@intake.calder.click', '');
-  const scrubbedText = email.text.replaceAll('support@intake.calder.click', '');
+  // Intake's own domain is a feature, not infrastructure leakage: the support address, the logo host
+  // and the site link all live on it. Allow exactly that origin and nothing else that says "Calder",
+  // whose API, key prefixes and dashboard must never appear in a message we send.
+  const scrubbedHtml = email.html.replaceAll('intake.calder.click', '');
+  const scrubbedText = email.text.replaceAll('intake.calder.click', '');
   assert.ok(!/calder/i.test(scrubbedHtml), 'Calder is infrastructure and never appears in the email');
   assert.ok(!/calder/i.test(scrubbedText));
 });
@@ -303,4 +305,36 @@ test('accepted events replay locally and a failed send retry updates one canonic
   const replay = await service.send(REQUEST);
   assert.equal(replay.replayed, true);
   assert.equal(responses.calls.length, 2, 'accepted events never need another provider call');
+});
+
+test('the social row is configured, validated, and never points somewhere unexpected', () => {
+  // Unset means "no social row" — better than a link to an account that is not ours.
+  assert.equal(config().xUrl, null);
+  assert.equal(config().xHandle, null);
+
+  const withX = config({ INTAKE_X_URL: 'https://x.com/intake' });
+  assert.equal(withX.xUrl, 'https://x.com/intake');
+  assert.equal(withX.xHandle, '@intake');
+  // The link is normalised to x.com even when twitter.com was used, and a trailing slash is dropped.
+  assert.equal(config({ INTAKE_X_URL: 'https://twitter.com/intake/' }).xUrl, 'https://x.com/intake');
+
+  for (const bad of ['https://example.com/intake', 'http://x.com/intake', 'https://x.com', 'https://x.com/a/b', 'not a url']) {
+    assert.throws(() => config({ INTAKE_X_URL: bad }), /INTAKE_X_URL/, `${bad} must be refused`);
+  }
+});
+
+test('the launch letters can go out under their own sender, defaulting to the system sender', () => {
+  assert.equal(config().announcementFromEmail, 'hello@intake.test', 'falls back rather than inventing an address');
+  assert.equal(config().announcementFromName, 'The Intake Team');
+
+  const own = config({ CALDER_ANNOUNCEMENT_FROM_EMAIL: 'hello@intake.calder.click', CALDER_ANNOUNCEMENT_FROM_NAME: 'Intake' });
+  assert.equal(own.announcementFromEmail, 'hello@intake.calder.click');
+  assert.equal(own.announcementFromName, 'Intake');
+
+  assert.throws(() => config({ CALDER_ANNOUNCEMENT_FROM_EMAIL: 'not-an-address' }), /CALDER_ANNOUNCEMENT_FROM_EMAIL/);
+});
+
+test('the logo is served from a configured origin, because a mail client has no page to resolve against', () => {
+  assert.equal(config({ INTAKE_ASSET_BASE_URL: 'https://intake.calder.click/brand/' }).assetBaseUrl, 'https://intake.calder.click');
+  assert.equal(config().assetBaseUrl, 'http://localhost:5173', 'falls back to the app origin in development');
 });

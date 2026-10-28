@@ -215,8 +215,14 @@ rejection.
 | Forms provider connected / removed | `provider_connection_added` / `_removed` | one-shot |
 | Credits below 20 % | `credits_low` | `{userId}:{utc-day}` |
 
-Every template renders **both** an HTML and a plaintext part, links only ever point at Intake, and
-user-supplied values (names, account labels) are escaped. Security notices carry their action link in
+Two launch letters exist for the one-time "we are live" mail. They are not transactional and not
+interchangeable: `launch_announcement` signs as **The Intake Team** from `CALDER_ANNOUNCEMENT_FROM_EMAIL`;
+`launch_note` signs as **Daniel** from `CALDER_WELCOME_FROM_EMAIL` and promises that replies reach a
+person. Both carry the wait-list footer (why you received it, plus a signed unsubscribe link) and both
+are sent by `npm run launch:mail` — see §11.
+
+Every template renders **both** an HTML and a plaintext part, links only ever point at Intake (the one
+exception is the X profile in the footer), and user-supplied values (names, account labels) are escaped. Security notices carry their action link in
 the plaintext part too: telling a plaintext reader to "secure your account now" without a URL is not
 a notice.
 
@@ -230,6 +236,10 @@ EMAIL_PROVIDER=calder          # calder | memory (tests) | none
 CALDER_API_KEY=calder_sk_live_…
 CALDER_BASE_URL=https://api.calder.click
 CALDER_FROM_EMAIL=hello@intake.example   # required unless CALDER_SENDER_ID is set
+CALDER_ANNOUNCEMENT_FROM_EMAIL=          # launch mail only; falls back to CALDER_FROM_EMAIL
+CALDER_ANNOUNCEMENT_FROM_NAME=The Intake Team
+INTAKE_ASSET_BASE_URL=                  # origin serving /brand/intake-mark.png
+INTAKE_X_URL=https://x.com/intake       # footer social row; unset = no row
 CALDER_FROM_NAME=Intake
 CALDER_SENDER_ID=              # optional sender_… identity; wins over FROM_EMAIL
 CALDER_REPLY_TO=               # optional
@@ -251,7 +261,29 @@ send. `npm run preflight` names the exact variable that is wrong and never print
 
 ---
 
-## 9. Logging and secrets
+## 9. Design system
+
+Every message is built by `design.ts`, not by each template. One shell: paper ground, the mark, a
+card with an accent rule, a footer. The rules it exists to enforce:
+
+- **Tables for structure, inline styles only.** No flex, no grid, no CSS variables.
+- **The mark is a PNG** at `/brand/intake-mark.png` on `INTAKE_ASSET_BASE_URL`. Gmail and Outlook strip
+  SVG; a mail client has no page to resolve a relative path against, so the URL must be absolute.
+- **The wordmark stays text**, so it survives a client that blocks images.
+- **Dark mode is declared `light only`.** The card is cream by design; a client that inverts it produces
+  dark text on dark paper.
+- **The X row is in every footer** and is omitted entirely when `INTAKE_X_URL` is unset — a social row
+  pointing nowhere is worse than no social row.
+
+Two footers, never mixed: `transactional` carries the support address and the account disclaimer;
+`list` says why the recipient is on the list and offers an unsubscribe. Account boilerplate in a
+launch email reads like a phishing attempt.
+
+`npx tsx scripts/preview-emails.ts` renders every list/launch letter to `docs/email-preview/` with the
+inbox row it will produce. Look at it before changing copy: a template that has only been asserted
+against has not been designed.
+
+## 10. Logging and secrets
 
 - One logger, `logging.ts`. Keys matching `/token|secret|password|authorization|api_?key|otp|code|cookie|credential|key$/` are replaced with `[redacted]` **before formatting**.
 - Addresses are masked (`a***@example.com`) unless already masked.
@@ -262,7 +294,25 @@ send. `npm run preflight` names the exact variable that is wrong and never print
 
 ---
 
-## 10. Tests
+## 11. Sending launch mail
+
+```bash
+npm run launch:mail -- --campaign=launch_announcement            # dry run: prints who and how many
+npm run launch:mail -- --campaign=launch_note --send --limit=5   # first five, to read yourself
+npm run launch:mail -- --campaign=launch_note --send            # everyone still owed this letter
+```
+
+- **Dry run is the default.** The failure that actually happens is sending a launch twice.
+- `waitlist_launch_send` (migration `021`) makes each send idempotent per subscriber per campaign:
+  re-running the script cannot deliver a second copy.
+- `unsubscribed_at` is permanent and is honoured by the sender. The link is
+  `/api/waitlist/unsubscribe?id=…&token=…`, where the token is an HMAC of the row id (no address ever
+  appears in a URL) and a forged or truncated link answers 400 without revealing whether the address
+  is on the list.
+- Run against a real mailbox first. Nothing here has been exercised against Calder's live API from
+  this branch.
+
+## 12. Tests
 
 ```
 test/email-service.test.mjs        provider contract: retries, timeouts, idempotency, taxonomy
