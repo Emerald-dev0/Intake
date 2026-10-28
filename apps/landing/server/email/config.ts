@@ -27,6 +27,12 @@ export interface EmailConfig {
   announcementFromName: string;
   /** Public origin serving `/brand/intake-mark.png`. The mark must be fetchable by a mail client. */
   assetBaseUrl: string;
+  /**
+   * True only when the provider actually has a broadcast/campaign route set up. Until it does,
+   * asking Calder for a `campaign` stream fails the send, so list mail rides `transactional` and
+   * this flag is what flips it over — no code change, no redeploy of the send path.
+   */
+  broadcastEnabled: boolean;
   /** The Intake account on X. Null omits the social row rather than linking somewhere wrong. */
   xUrl: string | null;
   /** Human label for the X account, derived from the URL (`@intake`). */
@@ -170,6 +176,7 @@ export function readEmailConfig(env: NodeJS.ProcessEnv = process.env): EmailConf
     welcomeReplyTo: welcomeReplyToRaw || welcomeFromEmail,
     announcementFromEmail,
     announcementFromName,
+    broadcastEnabled: (env.CALDER_BROADCAST_ENABLED ?? '').trim().toLowerCase() === 'true',
     assetBaseUrl: origin(env.INTAKE_ASSET_BASE_URL ?? env.VITE_SITE_URL, env.BETTER_AUTH_URL ?? 'http://localhost:5173', 'INTAKE_ASSET_BASE_URL'),
     xUrl: readXUrl(env.INTAKE_X_URL),
     xHandle: (() => {

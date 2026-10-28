@@ -55,6 +55,22 @@ export type MailSelection =
   | { kind: 'segment'; segment: MailSegment }
   | { kind: 'ids'; ids: string[] };
 
+/**
+ * Who the operator is writing as.
+ *
+ * The product decides the sender for everything it sends on its own. A hand-written note is
+ * different: it is either the team speaking or Daniel speaking, and that choice belongs to the person
+ * writing it. `system` stays available because a billing or account note should not pretend to be
+ * personal.
+ */
+export type MailSender = 'system' | 'team' | 'personal';
+export const MAIL_SENDERS: readonly MailSender[] = ['system', 'team', 'personal'];
+export const SENDER_LABEL: Record<MailSender, string> = {
+  system: 'Intake (product address)',
+  team: 'The Intake Team',
+  personal: 'Daniel, personally',
+};
+
 export interface ComposeDraft {
   subject: string;
   heading: string;
@@ -62,6 +78,8 @@ export interface ComposeDraft {
   buttonLabel: string;
   /** Absolute https URL, or a path starting with `/` that is resolved against the app origin. */
   buttonUrl: string;
+  /** Defaults to `system`: an operator who does not think about this gets the neutral identity. */
+  sender?: MailSender;
 }
 
 export type DraftField = keyof ComposeDraft;
@@ -168,6 +186,13 @@ export function parseComposeDraft(raw: unknown, appOrigin: string):
   const body = fieldText(input, 'body');
   const buttonLabel = fieldText(input, 'buttonLabel');
   const buttonUrl = fieldText(input, 'buttonUrl');
+  // Unknown senders are refused rather than defaulted: an operator who picked Daniel and got the
+  // system address would have sent the wrong letter without noticing.
+  const senderField = typeof input.sender === 'string' ? input.sender.trim() : '';
+  const sender = MAIL_SENDERS.includes(senderField as MailSender) ? senderField as MailSender : 'system';
+  if (senderField && !MAIL_SENDERS.includes(senderField as MailSender)) {
+    errors.sender = 'Choose one of the available senders.';
+  }
   if (subject === null) errors.subject = 'The subject contains characters that cannot be sent.';
   if (heading === null) errors.heading = 'The heading contains characters that cannot be sent.';
   if (body === null) errors.body = 'The message contains characters that cannot be sent.';
@@ -234,6 +259,7 @@ export function parseComposeDraft(raw: unknown, appOrigin: string):
   return {
     ok: true,
     draft: {
+      sender,
       subject: trimmed.subject,
       heading: trimmed.heading,
       body: trimmed.body,
@@ -428,6 +454,7 @@ export function createMailService(options: MailServiceOptions): MailService {
           const recipient = recipients[cursor++];
           const request: SendEmailRequest = {
             type: 'admin_message',
+            sender: draft.sender ?? 'system',
             to: recipient.email,
             eventId: `${previewId}:${recipient.id}`,
             userId: recipient.id,

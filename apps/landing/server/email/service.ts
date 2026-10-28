@@ -1,6 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import type { EmailConfig } from './config';
 import { EmailError } from './errors';
+import type { EmailSender } from './types';
+
+/**
+ * Types that are broadcast in principle. They still travel as `transactional` until the provider's
+ * broadcast route exists — see the `stream` decision below and CALDER_BROADCAST_ENABLED.
+ */
+const LIST_STREAM_TYPES: ReadonlySet<string> = new Set(['admin_message', 'launch_announcement', 'launch_note']);
 import { createEmailLogger, type EmailLogger } from './logging';
 import { renderEmail, type EmailVariables } from './templates';
 import { NULL_EMAIL_STORE } from './store';
@@ -135,16 +142,24 @@ export function createEmailService(options: EmailServiceOptions): EmailService {
       return { status: 'failed', deliveryId, errorCode: 'email_template_error', retryable: false };
     }
 
-    // The welcome mail is personal (from Daniel); everything else — OTPs, resets,
-    // security and product notices — goes out under the system sender.
-    // Three senders, one reason each: Daniel writes the personal letters, the team writes the
-    // launch announcement, and the system address carries anything the product itself decides to
-    // send. A recipient who hits reply must reach a human in every case.
-    const isPersonal = request.type === 'welcome' || request.type === 'waitlist_welcome' || request.type === 'launch_note';
-    const isAnnouncement = request.type === 'launch_announcement';
-    const fromEmail = isPersonal ? config.welcomeFromEmail : isAnnouncement ? (config.announcementFromEmail || config.fromEmail) : config.fromEmail;
-    const fromName = isPersonal ? config.welcomeFromName : isAnnouncement ? config.announcementFromName : config.fromName;
-    const replyTo = isPersonal ? config.welcomeReplyTo : isAnnouncement ? (config.welcomeReplyTo || config.replyTo) : config.replyTo;
+    // Which identity this leaves from. A caller may ask (an operator writing in the dashboard chooses
+    // Daniel or the team), and anything unasked falls back to what the type implies: the personal
+    // letters are Daniel, the announcement is the team, everything else is the product talking.
+    // Whoever the sender is, reply-to points at a human.
+    const implied: EmailSender =
+      request.type === 'welcome' || request.type === 'waitlist_welcome' || request.type === 'launch_note' ? 'personal'
+      : request.type === 'launch_announcement' ? 'team'
+      : 'system';
+    const sender = request.sender ?? implied;
+    const fromEmail = sender === 'personal' ? config.welcomeFromEmail
+      : sender === 'team' ? (config.announcementFromEmail || config.fromEmail)
+      : config.fromEmail;
+    const fromName = sender === 'personal' ? config.welcomeFromName
+      : sender === 'team' ? config.announcementFromName
+      : config.fromName;
+    const replyTo = sender === 'personal' ? config.welcomeReplyTo
+      : sender === 'team' ? (config.welcomeReplyTo || config.replyTo)
+      : config.replyTo;
     const message: EmailMessage = {
       to: recipient,
       subject: rendered.subject,
@@ -155,7 +170,12 @@ export function createEmailService(options: EmailServiceOptions): EmailService {
       replyTo: replyTo ?? undefined,
       // An operator-composed note travels on its own lane; everything the product decides to send
       // stays transactional. Both are one message per recipient (mission §24).
-      stream: (request.type === 'admin_message' || isAnnouncement || request.type === 'launch_note' ? 'campaign' : 'transactional') satisfies EmailStream,
+      // List mail wants `campaign` — different queue, different limits, and a broadcast address that
+      // recipients can legitimately mark as bulk. Until the provider actually has that route,
+      // asking for it fails the send outright, so this falls back to `transactional` and waits for
+      // CALDER_BROADCAST_ENABLED=true. A flag, not a guess: the wrong choice here is a send that
+      // looks accepted and lands nowhere.
+      stream: (LIST_STREAM_TYPES.has(request.type) && config.broadcastEnabled ? 'campaign' : 'transactional') satisfies EmailStream,
       tags: [{ name: 'email_type', value: request.type }, ...(request.tags ?? [])].slice(0, 20),
       metadata: request.metadata,
       idempotencyKey,

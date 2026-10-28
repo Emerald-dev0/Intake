@@ -23,6 +23,18 @@
  */
 export type EmailStream = 'transactional' | 'campaign' | 'marketing';
 
+/**
+ * Which configured identity a message should leave from.
+ *
+ * `system` is the product talking (security, billing, OTPs). `team` is The Intake Team announcing
+ * something. `personal` is Daniel, and its reply-to is a person who answers.
+ *
+ * This exists because "from" is a product decision, not a property of an email type: a note an
+ * operator writes in the dashboard should be able to go out as Daniel, and a launch announcement
+ * should never accidentally appear to come from the person who happened to press send.
+ */
+export type EmailSender = 'system' | 'team' | 'personal';
+
 /** Internal failure taxonomy (mission §21). Provider errors are mapped into this, never surfaced raw. */
 export type EmailErrorCode =
   | 'email_provider_not_configured'
@@ -215,6 +227,8 @@ export interface EmailStore {
 export interface SendEmailRequest {
   type: EmailType;
   to: string;
+  /** Overrides the sender the type would default to. Ignored when that identity is not configured. */
+  sender?: EmailSender;
   /** Deterministic business id; the idempotency key is derived from it (mission §8). */
   eventId: string;
   userId?: string | null;

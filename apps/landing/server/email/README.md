@@ -230,6 +230,10 @@ a notice.
 
 ## 8. Environment
 
+Three senders, two addresses each. The address comes from Intake's environment; **the display name
+a recipient sees comes from the sender identity in the provider dashboard**, because Calder's send
+schema takes a bare address. Create both identities before advertising either one.
+
 ```env
 # Provider — server only. A CALDER_* variable must never carry a VITE_ prefix.
 EMAIL_PROVIDER=calder          # calder | memory (tests) | none

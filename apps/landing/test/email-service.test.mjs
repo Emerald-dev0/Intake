@@ -338,3 +338,58 @@ test('the logo is served from a configured origin, because a mail client has no 
   assert.equal(config({ INTAKE_ASSET_BASE_URL: 'https://intake.calder.click/brand/' }).assetBaseUrl, 'https://intake.calder.click');
   assert.equal(config().assetBaseUrl, 'http://localhost:5173', 'falls back to the app origin in development');
 });
+
+test('list mail rides the transactional stream until the provider has a broadcast route', async () => {
+  // Calder has no broadcast route configured yet. Asking for `campaign` fails the send outright, so
+  // the honest choice is transactional — which works today — and a flag flips it when the route
+  // exists. A guessed stream here is a send that looks accepted and lands nowhere.
+  const send = async (overrides, request) => {
+    const calls = fakeFetch(json({ id: 'em_x', status: 'queued' }));
+    const { service } = serviceWith(providerWith(config(overrides), calls.impl), config(overrides));
+    const outcome = await service.send(request);
+    assert.equal(outcome.status, 'sent');
+    return JSON.parse(calls.calls[0].init.body);
+  };
+
+  const announcement = {
+    type: 'launch_announcement', to: 'ada@example.com', eventId: 'launch-1',
+    variables: { marketingUrl: 'https://intake.example' },
+  };
+  const adminNote = {
+    type: 'admin_message', to: 'ada@example.com', eventId: 'note-1',
+    variables: { adminSubject: 'A note', adminBody: 'Hello.' },
+  };
+
+  assert.equal((await send({}, announcement)).stream, 'transactional', 'no broadcast route yet');
+  assert.equal((await send({}, adminNote)).stream, 'transactional');
+  assert.equal(
+    (await send({ CALDER_BROADCAST_ENABLED: 'true' }, announcement)).stream,
+    'campaign',
+    'the flag is the only thing that changes the stream',
+  );
+  // An OTP is never bulk, whatever the flag says.
+  assert.equal((await send({ CALDER_BROADCAST_ENABLED: 'true' }, REQUEST)).stream, 'transactional');
+});
+
+test('an operator can choose who a hand-written note comes from', async () => {
+  const overrides = { CALDER_ANNOUNCEMENT_FROM_EMAIL: 'hello@intake.calder.click', CALDER_WELCOME_FROM_EMAIL: 'daniel@intake.calder.click' };
+  const sendAs = async sender => {
+    const calls = fakeFetch(json({ id: 'em_1', status: 'queued' }));
+    const { service } = serviceWith(providerWith(config(overrides), calls.impl), config(overrides));
+    await service.send({
+      type: 'admin_message', to: 'ada@example.com', eventId: `note-${sender ?? 'default'}`,
+      variables: { adminSubject: 'A note', adminBody: 'Hello.' },
+      ...(sender ? { sender } : {}),
+    });
+    return JSON.parse(calls.calls[0].init.body);
+  };
+
+  assert.equal((await sendAs()).from, 'hello@intake.test', 'the product address by default');
+  assert.equal((await sendAs('team')).from, 'hello@intake.calder.click');
+  assert.equal((await sendAs('personal')).from, 'daniel@intake.calder.click');
+  assert.equal((await sendAs('personal')).reply_to, 'daniel@intake.calder.click', 'replies reach Daniel, not a queue');
+  // Calder's send schema takes a bare address. The display name a recipient sees ("The Intake Team",
+  // "Daniel from Intake") is a property of the sender identity in Calder's dashboard, not of this
+  // request — so sending a name here would be a lie that never renders.
+  assert.equal('from_name' in (await sendAs('team')), false);
+});
