@@ -126,7 +126,10 @@ export function createEmailService(options: EmailServiceOptions): EmailService {
 
     let rendered;
     try {
-      rendered = renderEmail(request.type, variables);
+      rendered = renderEmail(request.type, variables, {
+        visuals: { assetBaseUrl: config.assetBaseUrl, xUrl: config.xUrl, xHandle: config.xHandle },
+        unsubscribeUrl: typeof variables.unsubscribeUrl === 'string' ? variables.unsubscribeUrl : undefined,
+      });
     } catch {
       log('email.send.failed', { emailType: request.type, eventId: request.eventId, errorCode: 'email_template_error' });
       return { status: 'failed', deliveryId, errorCode: 'email_template_error', retryable: false };
@@ -134,24 +137,33 @@ export function createEmailService(options: EmailServiceOptions): EmailService {
 
     // The welcome mail is personal (from Daniel); everything else — OTPs, resets,
     // security and product notices — goes out under the system sender.
-    const isWelcome = request.type === 'welcome' || request.type === 'waitlist_welcome';
+    // Three senders, one reason each: Daniel writes the personal letters, the team writes the
+    // launch announcement, and the system address carries anything the product itself decides to
+    // send. A recipient who hits reply must reach a human in every case.
+    const isPersonal = request.type === 'welcome' || request.type === 'waitlist_welcome' || request.type === 'launch_note';
+    const isAnnouncement = request.type === 'launch_announcement';
+    const fromEmail = isPersonal ? config.welcomeFromEmail : isAnnouncement ? (config.announcementFromEmail || config.fromEmail) : config.fromEmail;
+    const fromName = isPersonal ? config.welcomeFromName : isAnnouncement ? config.announcementFromName : config.fromName;
+    const replyTo = isPersonal ? config.welcomeReplyTo : isAnnouncement ? (config.welcomeReplyTo || config.replyTo) : config.replyTo;
     const message: EmailMessage = {
       to: recipient,
       subject: rendered.subject,
       html: rendered.html,
       text: rendered.text,
-      from: (isWelcome ? config.welcomeFromEmail : config.fromEmail) || undefined,
-      fromName: isWelcome ? config.welcomeFromName : config.fromName,
-      replyTo: (isWelcome ? config.welcomeReplyTo : config.replyTo) ?? undefined,
+      from: fromEmail || undefined,
+      fromName,
+      replyTo: replyTo ?? undefined,
       // An operator-composed note travels on its own lane; everything the product decides to send
       // stays transactional. Both are one message per recipient (mission §24).
-      stream: (request.type === 'admin_message' ? 'campaign' : 'transactional') satisfies EmailStream,
+      stream: (request.type === 'admin_message' || isAnnouncement || request.type === 'launch_note' ? 'campaign' : 'transactional') satisfies EmailStream,
       tags: [{ name: 'email_type', value: request.type }, ...(request.tags ?? [])].slice(0, 20),
       metadata: request.metadata,
       idempotencyKey,
     };
     // Opt-in only: dashboard-managed templates never become a hard dependency (mission §15).
-    const alias = request.type === 'waitlist_welcome' ? undefined : config.templateAliases[request.type.replace(/_/g, '-')];
+    const alias = request.type === 'waitlist_welcome' || request.type === 'launch_announcement' || request.type === 'launch_note'
+      ? undefined
+      : config.templateAliases[request.type.replace(/_/g, '-')];
     if (alias) {
       message.template = alias;
       // Only the variables this template needs, so a generic blob can never leak context.

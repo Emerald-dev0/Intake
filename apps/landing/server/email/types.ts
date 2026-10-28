@@ -45,6 +45,9 @@ export type EmailType =
   | 'password_reset'
   | 'welcome'
   | 'waitlist_welcome'
+  /** One-time launch letters to the wait-list: the team announcement, then a personal note. */
+  | 'launch_announcement'
+  | 'launch_note'
   | 'security_password_changed'
   | 'security_email_changed'
   | 'security_new_sign_in'
