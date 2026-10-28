@@ -21,7 +21,9 @@
     "preflight": "tsx server/preflight.ts",
     "verify:production": "node tools/verify-production.mjs",
     "ai:ask": "tsx scripts/ask-intake.ts",
-    "launch:mail": "tsx scripts/send-waitlist-launch.ts"
+    "launch:mail": "tsx scripts/send-waitlist-launch.ts",
+    "email:doctor": "tsx scripts/email-doctor.ts",
+    "email:reconcile": "tsx scripts/email-reconcile.ts"
   },
   "dependencies": {
     "@fontsource-variable/fraunces": "^5.3.0",

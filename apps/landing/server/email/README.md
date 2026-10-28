@@ -312,6 +312,40 @@ npm run launch:mail -- --campaign=launch_note --send            # everyone still
 - Run against a real mailbox first. Nothing here has been exercised against Calder's live API from
   this branch.
 
+## 12. When mail does not arrive
+
+Two failure shapes look identical to a user and are completely different underneath.
+
+**Calder refused the send.** `POST /v1/emails` answered 4xx/5xx, `mapCalderError` classified it, the
+delivery row says `failed` with an `error_code`, and the caller told the user. Fix the cause: an
+unverified sender, a plan limit, a suppressed address.
+
+**Calder accepted the send and failed it later.** The API answered 202 with an `em_…` id, so Intake
+recorded `queued` — correctly, because acceptance is not delivery. Then Calder's own transport gave up
+minutes later and the message shows `Exhausted: provider_error` in their dashboard. Intake learns about
+this only from a webhook, or by asking:
+
+```bash
+npm run email:doctor        # config, DNS (SPF/DMARC/DKIM/MX), last 14 days of statuses, open rows
+npm run email:reconcile     # ask Calder for every row still open, write what it says
+```
+
+`reconcile.ts` never guesses: an unrecognised provider state, a thrown call or a null answer leaves the
+row open rather than inventing a status. Settled rows are never reopened — a late `delivered` does not
+un-bounce an address.
+
+`email:reconcile` is the fallback path, not the good one. If `CALDER_WEBHOOK_SECRET` is unset, or the
+endpoint is misregistered, nothing tells Intake that a message failed and a row sits at `queued` for
+ever. The doctor flags both.
+
+**What Intake cannot do:** diagnose the transport. If the doctor reports clean configuration, aligned
+DNS and a `failed_remote` row, the message was accepted and then lost inside the provider. Take the
+`provider_message_id` from the doctor's failure list and read the provider's timeline for that id —
+`Transport: —` with `Exhausted: provider_error` means their sender never handed the message to an
+upstream mail server, which is a provider-side configuration or reputation problem, not a template
+problem. The HTML is not involved: OTP messages that failed in the same window are two paragraphs and
+a six-digit code.
+
 ## 12. Tests
 
 ```

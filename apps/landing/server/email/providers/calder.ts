@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { EmailError } from '../errors';
+import { EmailError, mapCalderError } from '../errors';
 import type { EmailConfig } from '../config';
 import type { EmailMessage, EmailProvider, EmailStatusSnapshot, ProviderSendResult } from '../types';
 
@@ -185,7 +185,7 @@ export function createCalderProvider(options: CalderProviderOptions): EmailProvi
       }
 
       const code = errorCode(parsed);
-      const mapped = mapStatusToError(response.status, code, errorMessage(parsed, `Calder returned HTTP ${response.status}`));
+      const mapped = mapCalderError(response.status, code, errorMessage(parsed, `Calder returned HTTP ${response.status}`));
       lastError = mapped;
       // Only transient failures are retried. Validation, authentication, suppression, quota and
       // sender problems are terminal: retrying them would just burn the quota and delay the truth.
@@ -219,65 +219,6 @@ export function createCalderProvider(options: CalderProviderOptions): EmailProvi
   }
 
   return { id: 'calder', send, getStatus };
-}
-
-/**
- * Maps a Calder failure onto Intake's taxonomy.
- *
- * Order matters: a machine-readable code always outranks the bare HTTP status. A quota exhaustion or
- * an unverified sender arriving on a 429/403 is a permanent condition; retrying it would burn the
- * allowance and delay an honest failure. Only genuinely transient conditions come back retryable.
- */
-function mapStatusToError(status: number, code: string | undefined, message: string): EmailError {
-  switch (code) {
-    case 'organization_sending_unavailable':
-      return new EmailError('email_provider_unavailable', message, { retryable: true, providerStatus: status, providerCode: code });
-    case 'plan_limit_reached':
-      return new EmailError('email_quota_exceeded', message, { providerStatus: status, providerCode: code });
-    case 'domain_not_verified':
-    case 'sender_not_ready':
-      return new EmailError('email_sender_not_verified', message, { providerStatus: status, providerCode: code });
-    case 'suppressed':
-      return new EmailError('email_suppressed', message, { providerStatus: status, providerCode: code });
-    case 'idempotency_conflict':
-    case 'conflict':
-      return new EmailError('email_idempotency_conflict', message, { retryable: true, providerStatus: status, providerCode: code });
-    case 'authentication_error':
-    case 'authorization_error':
-      return new EmailError('email_provider_authentication_failed', message, { providerStatus: status, providerCode: code });
-    case 'rate_limit_error':
-      return new EmailError('email_provider_rate_limited', message, { retryable: true, providerStatus: status, providerCode: code });
-    case 'validation_error':
-      return /recipient|to\b/i.test(message)
-        ? new EmailError('email_invalid_recipient', message, { providerStatus: status, providerCode: code })
-        : new EmailError('email_validation_error', message, { providerStatus: status, providerCode: code });
-    case 'not_found':
-      return new EmailError('email_template_error', message, { providerStatus: status, providerCode: code });
-    default:
-      break;
-  }
-  if (status === 409) {
-    return new EmailError('email_idempotency_conflict', message, { retryable: true, providerStatus: status, providerCode: code ?? null });
-  }
-  if (status === 422) {
-    return new EmailError('email_validation_error', message, { providerStatus: status, providerCode: code ?? null });
-  }
-  if (status === 404) {
-    return new EmailError('email_template_error', message, { providerStatus: status, providerCode: code ?? null });
-  }
-  if (status === 429) {
-    return new EmailError('email_provider_rate_limited', message, { retryable: true, providerStatus: status, providerCode: code ?? null });
-  }
-  if (status === 400) {
-    return new EmailError('email_validation_error', message, { providerStatus: status, providerCode: code ?? null });
-  }
-  if (status === 401 || status === 403) {
-    return new EmailError('email_provider_authentication_failed', message, { providerStatus: status, providerCode: code ?? null });
-  }
-  if (status >= 500) {
-    return new EmailError('email_provider_unavailable', message, { retryable: true, providerStatus: status, providerCode: code ?? null });
-  }
-  return new EmailError('email_provider_unavailable', message, { providerStatus: status, providerCode: code ?? null });
 }
 
 /** Test/local provider: records messages in memory and can simulate every failure class. */
