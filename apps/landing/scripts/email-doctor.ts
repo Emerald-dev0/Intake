@@ -162,6 +162,41 @@ if (rows.rows.length === 0) {
   }
 }
 
+// One question the delivery table cannot answer: has the provider ever called us back? A deployment
+// with a registered endpoint and zero rows here looks exactly like a deployment where nothing has
+// been delivered, and the difference decides whether you fix a secret or a mail server.
+section('Provider events (webhooks)');
+const webhookRows = await pool.query<{ event_type: string; count: string; last: Date }>(
+  `SELECT event_type, count(*)::text AS count, max(received_at) AS last
+     FROM email_webhook_event GROUP BY event_type ORDER BY count(*) DESC`,
+);
+const attempted = Number(
+  (await pool.query<{ count: string }>(
+    `SELECT count(*)::text AS count FROM email_delivery
+      WHERE created_at >= $1 AND status IN ('accepted', 'queued', 'sent', 'delivered', 'bounced', 'complained')`,
+    [since],
+  )).rows[0]?.count ?? 0,
+);
+if (webhookRows.rows.length === 0) {
+  if (attempted > 0) {
+    line('provider events', `none received, ${attempted} delivery row(s) in the window`, (failures++, 'fail'));
+    console.log('      The provider has never called this deployment back, so delivery, bounce and');
+    console.log('      complaint state are unknown — not zero. Check CALDER_WEBHOOK_SECRET, the');
+    console.log('      endpoint registered in Calder, and whether their dispatcher is running at all.');
+  } else {
+    line('provider events', 'none received — and nothing was sent in this window', 'info');
+  }
+} else {
+  const truthful = new Set(['email.delivered', 'email.bounced', 'email.complained', 'email.failed']);
+  for (const row of webhookRows.rows) {
+    const when = new Date(row.last).toISOString().slice(0, 16).replace('T', ' ');
+    line(row.event_type, `${row.count} · last ${when}`, truthful.has(row.event_type) ? 'pass' : 'info');
+  }
+  if (webhookRows.rows.every(row => !truthful.has(row.event_type))) {
+    line('delivery truth', 'queued/sent only — no delivered, bounced or failed event has ever arrived', 'warn');
+  }
+}
+
 const failures_ = await pool.query<{ email_type: string; recipient: string; provider_message_id: string | null; created_at: Date }>(
   `SELECT email_type, recipient, provider_message_id, created_at FROM email_delivery
     WHERE created_at >= $1 AND status IN ('failed', 'failed_remote', 'bounced', 'complained')
