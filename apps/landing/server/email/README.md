@@ -346,6 +346,26 @@ ever. The doctor flags both.
 DNS and a `failed_remote` row, the message was accepted and then lost inside the provider. Take the
 `provider_message_id` from the doctor's failure list and read the provider's timeline for that id.
 
+### The one misconfiguration that never throws: a sender Calder does not know
+
+`resolveSender` (`apps/api/src/services/sender-service.ts`) resolves a bare `from` address against the
+project's sender identities. Pass a `sender_…` id and an unknown one is a 400; pass an **address** that
+no identity owns and Calder does nothing at all — it returns `senderIdentityId: null` and the message
+goes out unattributed, from the platform leg, with a display name nobody configured.
+
+Three consequences, and the first two look like success:
+
+- the send is accepted and can be delivered, so nothing looks broken;
+- it is **missing from that sender's counts** — a stream reading "5 sent" beside a sender card reading
+  "4 sent" is exactly this, one message sent from an address with no identity;
+- the recipient reads the display name registered in Calder, not `CALDER_*_FROM_NAME`, because the name
+  is not in the send request at all.
+
+`npm run email:doctor` now asks `GET /v1/senders` and prints one line per configured sender, failing on
+an address Calder does not have, failing on a sender that is `pending`/`disabled` (`sender_not_ready`
+before any provider call), and warning when the display names disagree. Register the address, or prefer
+`CALDER_SENDER_ID`, before wondering why delivery stats do not add up.
+
 ### What `Transport: —` and `Exhausted: provider_error` actually mean
 
 Both are summaries, and it is easy to read more into them than they carry. Read against Calder's code:

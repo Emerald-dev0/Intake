@@ -14,6 +14,7 @@
 import 'dotenv/config';
 import { resolveMx, resolveTxt } from 'node:dns/promises';
 import { readEmailConfig } from '../server/email/config';
+import { configuredSenders, senderGaps, type RegisteredSender } from '../server/email/senders';
 import { pool } from '../server/auth';
 
 const days = Number(process.argv.find(value => value.startsWith('--days='))?.slice('--days='.length) ?? '14');
@@ -58,6 +59,62 @@ try {
   if (!response.ok) failures += 1;
 } catch {
   line('logo reachable', 'could not be fetched from this machine', 'warn');
+}
+
+// Sender identities are the one part of this pipeline where being wrong is silent: Calder resolves a
+// bare `from` address to an identity, and when there is none it sends the message unattributed rather
+// than refusing it. The result is mail that looks sent, a sender count that does not include it, and
+// a display name the recipient sees that nobody in this repo ever typed.
+const configured = configuredSenders(config);
+if (config.provider === 'calder' && config.apiKey) {
+  section('Senders in Calder');
+  type SenderRow = { email?: unknown; display_name?: unknown; status?: unknown };
+  let registered: RegisteredSender[] = [];
+  let listed = false;
+  try {
+    const response = await fetch(`${config.baseUrl.replace(/\/$/, '')}/v1/senders?limit=50`, {
+      headers: { authorization: `Bearer ${config.apiKey}`, 'user-agent': 'intake-email-doctor' },
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+    const body = (await response.json()) as { data?: SenderRow[] };
+    registered = (Array.isArray(body.data) ? body.data : [])
+      .filter((row): row is SenderRow & { email: string } => typeof row.email === 'string')
+      .map(row => ({
+        email: row.email,
+        displayName: typeof row.display_name === 'string' ? row.display_name : null,
+        status: typeof row.status === 'string' ? row.status : 'unknown',
+      }));
+    listed = true;
+  } catch (error) {
+    line('sender list', `could not be read (${error instanceof Error ? error.message : 'unknown error'})`, 'warn');
+  }
+
+  if (listed) {
+    const gaps = senderGaps(configured, registered);
+    const seen = new Set<string>();
+    for (const sender of configured) {
+      const email = sender.email.trim().toLowerCase();
+      if (!email || seen.has(email)) continue;
+      seen.add(email);
+      const gap = gaps.find(entry => entry.role === sender.role && entry.email === email);
+      if (!gap) {
+        line(`${sender.role} sender`, `${email} — "${sender.name}"`, 'pass');
+      } else if (gap.kind === 'unregistered') {
+        line(`${sender.role} sender`, `${email} — not registered`, 'fail');
+        console.log('      Calder accepts an address it does not know and sends it unattributed: the');
+        console.log('      recipient sees no Intake name, and the send is missing from every sender count.');
+        failures += 1;
+      } else if (gap.kind === 'not-ready') {
+        line(`${sender.role} sender`, `${email} is ${gap.status}`, 'fail');
+        console.log('      Sends from it fail with sender_not_ready, before any provider call.');
+        failures += 1;
+      } else {
+        line(`${sender.role} sender`, `${email}`, 'pass');
+        line('  display name', `Calder shows "${gap.providerName}", not "${gap.configuredName}"`, 'warn');
+      }
+    }
+  }
 }
 
 const domain = (config.fromEmail || config.welcomeFromEmail).split('@')[1];
