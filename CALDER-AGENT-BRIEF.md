@@ -221,7 +221,30 @@ reconciles is worth more than a chart.
 **Acceptance.** Query test: one row with `senderIdentityId null` and one attributed, in the same
 window, produces a total equal to the stream count.
 
-## Task 5 — Close the deployment loop (small, do it last)
+## Task 5 — Make a stuck queue something an operator can clear
+
+**Problem, observed.** After the credential outage the project held 47 rows in `queued`. There is no
+way to stop them: `apps/api/src/routes/emails.ts` exposes only `POST /`, `GET /`, `GET /:id` — no
+cancel, no bulk action, and the dashboard's deliveries screen can only filter. The rows are a live
+time bomb: repair the credentials and 47 messages flush at once, including three-day-old verification
+codes whose ten-minute TTL expired days ago.
+
+**Change.**
+
+- `POST /v1/emails/:id/cancel` — allowed only from `created`/`queued` (a `sending` row is mid-flight
+  and must not be reported as cancelled when it may already have left). Answers 409 with the current
+  state otherwise. Writes a `failed` event with `{ code: "cancelled_by_operator" }`, which is *not* a
+  provider error and must not be one of the codes `safeDeliveryReason` produces.
+- An expiry rule that runs without an operator: the drain claims `queued` rows forever, so a row from
+  a two-day outage is indistinguishable from one queued a second ago. Add a `expires_at` (or derive it
+  from `created_at` + a per-stream TTL) and have the drain mark expired rows `failed` with a stable
+  code before it attempts them. A verification code that cannot arrive in time must never be sent.
+
+**Acceptance.** A test that cancelling a `queued` row yields `failed` + a `cancelled_by_operator`
+event and that the drain then ignores it; a test that cancelling a `sending` row returns 409; a test
+that a row past its expiry is failed rather than attempted.
+
+## Task 6 — Close the deployment loop (small, do it last)
 
 `apps/api/vercel.json` no longer declares `functions` (correct — Vercel validates it before the build
 and `api/index.js` is generated and gitignored). Two follow-ups:
@@ -260,7 +283,7 @@ would have caught the "5 vs 4" and the false "Delivered 0", and anything you del
 
 ## Report back with
 
-1. Which of the five tasks landed, and the exact acceptance test names.
+1. Which of the six tasks landed, and the exact acceptance test names.
 2. Any place where the honest fix was to *remove* a number rather than compute it better.
 3. What a project owner must still do by hand (registering `hello@`, renaming a display name, setting
    the SNS topic allowlist) — because those are configuration, not code, and the product should say so
