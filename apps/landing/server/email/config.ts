@@ -33,10 +33,6 @@ export interface EmailConfig {
    * this flag is what flips it over — no code change, no redeploy of the send path.
    */
   broadcastEnabled: boolean;
-  /** The Intake account on X. Null omits the social row rather than linking somewhere wrong. */
-  xUrl: string | null;
-  /** Human label for the X account, derived from the URL (`@intake`). */
-  xHandle: string | null;
   /** Replies to the welcome mail go here; defaults to the welcome sender so users reach a human. */
   welcomeReplyTo: string | null;
   /** Optional Calder sender identity (`sender_…`). When set, Calder resolves address + display name. */
@@ -80,21 +76,6 @@ function httpsUrl(value: string, name: string): string {
     throw new Error(`${name} must use https.`);
   }
   return url.origin;
-}
-
-/** Only X/Twitter profile URLs. A social row that points anywhere else is a phishing shape. */
-function readXUrl(value: string | undefined): string | null {
-  const raw = (value ?? '').trim();
-  if (!raw) return null;
-  let url: URL;
-  try { url = new URL(raw); } catch { throw new Error('INTAKE_X_URL must be an absolute URL.'); }
-  if (url.protocol !== 'https:') throw new Error('INTAKE_X_URL must use https.');
-  if (!['x.com', 'twitter.com', 'www.x.com', 'www.twitter.com'].includes(url.hostname)) {
-    throw new Error('INTAKE_X_URL must point at an x.com or twitter.com profile.');
-  }
-  const handle = url.pathname.replace(/\/+$/, '').replace(/^\/+/, '');
-  if (!handle || !/^[A-Za-z0-9_]{1,15}$/.test(handle)) throw new Error('INTAKE_X_URL must include a profile handle, e.g. https://x.com/intake.');
-  return `https://x.com/${handle}`;
 }
 
 function origin(value: string | undefined, fallback: string, name: string): string {
@@ -178,10 +159,6 @@ export function readEmailConfig(env: NodeJS.ProcessEnv = process.env): EmailConf
     announcementFromName,
     broadcastEnabled: (env.CALDER_BROADCAST_ENABLED ?? '').trim().toLowerCase() === 'true',
     assetBaseUrl: origin(env.INTAKE_ASSET_BASE_URL ?? env.VITE_SITE_URL, env.BETTER_AUTH_URL ?? 'http://localhost:5173', 'INTAKE_ASSET_BASE_URL'),
-    xUrl: readXUrl(env.INTAKE_X_URL),
-    xHandle: (() => {
-      try { const handle = readXUrl(env.INTAKE_X_URL); return handle ? `@${new URL(handle).pathname.replace(/^\//, '')}` : null; } catch { return null; }
-    })(),
     senderId: senderIdRaw || null,
     timeoutMs: integer(env.EMAIL_TIMEOUT_MS, 10_000, 1_000, 30_000, 'EMAIL_TIMEOUT_MS'),
     maxAttempts: integer(env.EMAIL_MAX_ATTEMPTS, 3, 1, 5, 'EMAIL_MAX_ATTEMPTS'),

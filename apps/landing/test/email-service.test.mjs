@@ -341,19 +341,16 @@ test('accepted events replay locally and a failed send retry updates one canonic
   assert.equal(responses.calls.length, 2, 'accepted events never need another provider call');
 });
 
-test('the social row is configured, validated, and never points somewhere unexpected', () => {
-  // Unset means "no social row" — better than a link to an account that is not ours.
-  assert.equal(config().xUrl, null);
-  assert.equal(config().xHandle, null);
+test('the config carries no social account, and a leftover INTAKE_X_URL is inert', () => {
+  // The X row was removed from every email. The variable it used to read is gone from the type, and
+  // a deployment that still sets it must keep working rather than failing boot on an unknown value.
+  const bare = config();
+  assert.equal('xUrl' in bare, false);
+  assert.equal('xHandle' in bare, false);
 
-  const withX = config({ INTAKE_X_URL: 'https://x.com/intake' });
-  assert.equal(withX.xUrl, 'https://x.com/intake');
-  assert.equal(withX.xHandle, '@intake');
-  // The link is normalised to x.com even when twitter.com was used, and a trailing slash is dropped.
-  assert.equal(config({ INTAKE_X_URL: 'https://twitter.com/intake/' }).xUrl, 'https://x.com/intake');
-
-  for (const bad of ['https://example.com/intake', 'http://x.com/intake', 'https://x.com', 'https://x.com/a/b', 'not a url']) {
-    assert.throws(() => config({ INTAKE_X_URL: bad }), /INTAKE_X_URL/, `${bad} must be refused`);
+  // Historical values — including the malformed ones this config used to reject — are ignored now.
+  for (const leftover of ['https://x.com/intake', 'https://example.com/intake', 'not a url', '']) {
+    assert.doesNotThrow(() => config({ INTAKE_X_URL: leftover }), `${leftover || '(empty)'} must not fail boot`);
   }
 });
 

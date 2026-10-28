@@ -110,10 +110,10 @@ test('links inside emails point at Intake, never at the provider', () => {
   for (const [type, variables] of Object.entries(VARIABLES)) {
     const rendered = renderEmail(type, { ...APP, ...variables });
     for (const href of rendered.html.matchAll(/href="([^"]+)"/g)) {
-      // The one intentional off-site link is the X profile in the footer. Anything else must stay on
-      // an Intake origin: a template that reaches for a provider's API is a bug, not a design choice.
-      const allowed = ['intake.example', 'intake.calder.click', 'x.com'];
-      assert.ok(allowed.includes(new URL(href[1]).hostname), `${type} links must point at Intake (or the X footer row), not at the provider API`);
+      // Every link must stay on an Intake origin: a template that reaches for a provider's API is a
+      // bug, not a design choice. The footer's X profile used to be the single exception; it is gone.
+      const allowed = ['intake.example', 'intake.calder.click'];
+      assert.ok(allowed.includes(new URL(href[1]).hostname), `${type} links must point at Intake, not at a provider or a social site`);
     }
   }
 });
@@ -197,31 +197,32 @@ test('maskEmail keeps an address recognisable to an operator and useless to a sc
   assert.equal(maskEmail('not-an-email'), '***');
 });
 
-test('every email carries the mark, and every footer can invite the reader to follow along', () => {
-  const visuals = { assetBaseUrl: 'https://intake.example', xUrl: 'https://x.com/intake', xHandle: '@intake' };
+test('every email carries the mark', () => {
+  const visuals = { assetBaseUrl: 'https://intake.example' };
   for (const [type, variables] of Object.entries(VARIABLES)) {
     const rendered = renderEmail(type, { ...APP, ...variables }, { visuals });
     assert.match(rendered.html, /src="https:\/\/intake\.example\/brand\/intake-mark\.png"/, `${type} must show the Intake mark`);
     assert.match(rendered.html, /alt="Intake"/, `${type} mark needs alt text for clients that block images`);
-    assert.match(rendered.html, /href="https:\/\/x\.com\/intake"/, `${type} must carry the X row`);
-    assert.match(rendered.html, /Follow @intake on X/, `${type} names the handle in words`);
-    assert.match(rendered.text, /https:\/\/x\.com\/intake/, `${type} plaintext carries the X link too`);
   }
 });
 
-test('an unconfigured X account omits the social row instead of linking nowhere', () => {
-  const rendered = renderEmail('welcome', { ...APP, ...VARIABLES.welcome }, {
-    visuals: { assetBaseUrl: 'https://intake.example', xUrl: null, xHandle: null },
-  });
-  assert.doesNotMatch(rendered.html, /x\.com/, 'no handle configured means no social row');
-  assert.doesNotMatch(rendered.text, /x\.com/);
-  assert.match(rendered.html, /brand\/intake-mark\.png/, 'the mark is independent of the social row');
+test('no email points the reader at a social account', () => {
+  // Removed on request: the footer used to invite a follow in all fourteen templates, HTML and text.
+  // This test is the fence around that decision — reintroducing it anywhere fails here.
+  for (const [type, variables] of Object.entries(VARIABLES)) {
+    const rendered = renderEmail(type, { ...APP, ...variables }, { visuals: { assetBaseUrl: 'https://intake.example' } });
+    assert.doesNotMatch(rendered.html, /x\.com|twitter\.com/, `${type} HTML must not link to X`);
+    assert.doesNotMatch(rendered.text, /x\.com|twitter\.com/, `${type} plaintext must not link to X`);
+    assert.doesNotMatch(rendered.html, /follow/i, `${type} must not invite a follow`);
+    assert.doesNotMatch(rendered.text, /follow/i);
+    assert.doesNotMatch(rendered.html, /\u{1d54f}/u, `${type} must not carry the styled X glyph`);
+  }
 });
 
 test('list mail always explains itself and offers a way off the list', () => {
   for (const type of ['waitlist_welcome', 'launch_announcement', 'launch_note']) {
     const rendered = renderEmail(type, { ...APP, ...VARIABLES[type] }, {
-      visuals: { assetBaseUrl: 'https://intake.example', xUrl: 'https://x.com/intake', xHandle: '@intake' },
+      visuals: { assetBaseUrl: 'https://intake.example' },
       unsubscribeUrl: 'https://intake.example/unsubscribe?token=t',
     });
     assert.match(rendered.html, /joined the Intake wait-list/, `${type} says why the reader is on the list`);
@@ -231,7 +232,7 @@ test('list mail always explains itself and offers a way off the list', () => {
   }
   // A transactional email is not a subscription and must not offer to unsubscribe from it.
   const otp = renderEmail('otp', { ...APP, ...VARIABLES.otp }, {
-    visuals: { assetBaseUrl: 'https://intake.example', xUrl: null },
+    visuals: { assetBaseUrl: 'https://intake.example' },
     unsubscribeUrl: 'https://intake.example/unsubscribe?token=t',
   });
   assert.doesNotMatch(otp.html, /unsubscribe/i);
