@@ -26,6 +26,25 @@ import type { EmailMessage, EmailProvider, EmailStatusSnapshot, ProviderSendResu
 
 const USER_AGENT = 'Intake-Email/1.0 (+https://intake.calder.click)';
 
+/**
+ * Why a status lookup produced no answer.
+ *
+ * `getStatus` returns null by contract — "we could not learn anything" — and that contract is right,
+ * because reconciliation must never invent a delivery state. The problem is that null is also what a
+ * wrong API key, a wrong project, a deleted message and a network timeout all look like, so an
+ * operator reading "provider silent 54" cannot tell a typo from an outage.
+ *
+ * The reason is reported out of band through `onStatusFailure` instead of widening the return type,
+ * so nothing downstream starts branching on failure modes it has no business branching on.
+ */
+export interface StatusFailure {
+  providerMessageId: string;
+  /** Stable, log-safe discriminator — never a provider message. */
+  reason: 'not_a_provider_id' | 'request_failed' | 'unexpected_payload';
+  /** HTTP status when the provider answered at all. */
+  httpStatus?: number;
+}
+
 export interface CalderProviderOptions {
   config: EmailConfig;
   /** Injectable for tests; defaults to global fetch. */
@@ -34,6 +53,8 @@ export interface CalderProviderOptions {
   sleep?: (ms: number) => Promise<void>;
   /** Bounded jitter so retries never synchronise into a thundering herd. */
   random?: () => number;
+  /** Optional observer for why a status read came back empty. Never alters the result. */
+  onStatusFailure?: (failure: StatusFailure) => void;
 }
 
 interface CalderErrorBody {
@@ -199,18 +220,42 @@ export function createCalderProvider(options: CalderProviderOptions): EmailProvi
     throw lastError ?? new EmailError('email_provider_unavailable', 'Calder request did not complete.');
   }
 
+  /** Report why a status read produced nothing. Best-effort: a throwing observer cannot break a read. */
+  function noteStatusFailure(failure: StatusFailure): void {
+    try { options.onStatusFailure?.(failure); } catch { /* diagnostics never affect delivery */ }
+  }
+
   async function getStatus(providerMessageId: string): Promise<EmailStatusSnapshot | null> {
-    if (!providerMessageId.startsWith('em_')) return null;
+    if (!providerMessageId.startsWith('em_')) {
+      // Not a Calder id at all: a row written before the provider existed, or a hand-edited value.
+      noteStatusFailure({ providerMessageId, reason: 'not_a_provider_id' });
+      return null;
+    }
     const result = await request(
       `/v1/emails/${encodeURIComponent(providerMessageId)}`,
       { method: 'GET', headers: { authorization: `Bearer ${config.apiKey}`, 'user-agent': USER_AGENT } },
       config.timeoutMs,
     ).catch(() => null);
-    if (!result?.response.ok) return null;
+    if (!result) {
+      noteStatusFailure({ providerMessageId, reason: 'request_failed' });
+      return null;
+    }
+    if (!result.response.ok) {
+      // 401/403 = this key; 404 = this project (or the message really is gone); 429 = slow down.
+      // All three used to be the same null, which is why "provider silent" was unactionable.
+      noteStatusFailure({ providerMessageId, reason: 'request_failed', httpStatus: result.response.status });
+      return null;
+    }
     let payload: { data?: Record<string, unknown> } | null;
-    try { payload = JSON.parse(result.body) as typeof payload; } catch { return null; }
+    try { payload = JSON.parse(result.body) as typeof payload; } catch {
+      noteStatusFailure({ providerMessageId, reason: 'unexpected_payload', httpStatus: result.response.status });
+      return null;
+    }
     const data = payload?.data;
-    if (!data || typeof data.status !== 'string') return null;
+    if (!data || typeof data.status !== 'string') {
+      noteStatusFailure({ providerMessageId, reason: 'unexpected_payload', httpStatus: result.response.status });
+      return null;
+    }
     return {
       providerMessageId,
       status: data.status,

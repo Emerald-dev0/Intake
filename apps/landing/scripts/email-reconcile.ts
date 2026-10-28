@@ -10,10 +10,22 @@
 import 'dotenv/config';
 import { createEmailRuntime } from '../server/email/runtime';
 import { reconcileDeliveries } from '../server/email/reconcile';
+import type { StatusFailure } from '../server/email/providers/calder';
 import { pool } from '../server/auth';
 
 const dry = process.argv.includes('--dry');
-const runtime = createEmailRuntime({ pool, secret: process.env.BETTER_AUTH_SECRET ?? '', mode: 'live' });
+
+/**
+ * "Provider silent 54" is a true statement and a useless one: a revoked key, another project's id and
+ * a deleted message are the same null. Record why, so the advice can be specific.
+ */
+const failures: StatusFailure[] = [];
+const runtime = createEmailRuntime({
+  pool,
+  secret: process.env.BETTER_AUTH_SECRET ?? '',
+  mode: 'live',
+  onStatusFailure: failure => failures.push(failure),
+});
 
 if (!runtime.emails.configured) {
   console.error('\n  ✗ Email is not configured, so there is nothing to reconcile.\n');
@@ -35,8 +47,30 @@ if (dry && result.updated > 0) {
   console.log('  writes what the provider said. There is nothing to undo.\n');
 }
 if (result.unreachable > 0) {
-  console.log('\n  ! The provider could not answer for some messages. Either the API key cannot read them or');
-  console.log('    they were deleted provider-side. Those rows stay open rather than being guessed at.');
+  console.log('\n  ! The provider could not answer for some messages. Those rows stay open rather than');
+  console.log('    being guessed at. Why, by count:');
+  const grouped = new Map<string, number>();
+  for (const failure of failures) {
+    const key = failure.httpStatus ? `${failure.reason} (HTTP ${failure.httpStatus})` : failure.reason;
+    grouped.set(key, (grouped.get(key) ?? 0) + 1);
+  }
+  for (const [reason, count] of [...grouped].sort((a, b) => b[1] - a[1])) {
+    console.log(`      ${String(count).padStart(4)}  ${reason}`);
+  }
+  const codes = new Set(failures.map(failure => failure.httpStatus));
+  if (codes.has(401) || codes.has(403)) {
+    console.log('\n    HTTP 401/403: this CALDER_API_KEY is rejected. Check the key itself, not the messages.');
+  }
+  if (codes.has(404)) {
+    console.log('\n    HTTP 404: the key is valid but owns none of these messages. Calder scopes reads to the');
+    console.log('    key\'s own project, so a key from a different project answers 404 for every id.');
+  }
+  if (codes.has(429)) {
+    console.log('\n    HTTP 429: rate limited. Re-run with fewer rows (limit in reconcile.ts) and try again.');
+  }
+  if (failures.every(failure => failure.reason === 'request_failed' && !failure.httpStatus)) {
+    console.log('\n    No response at all: CALDER_BASE_URL is wrong or the host is unreachable from here.');
+  }
 }
 console.log('');
 await pool.end();

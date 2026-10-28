@@ -6,7 +6,9 @@ import {
   type EmailNotifier, type SignInMarkers, type UserDirectory,
 } from './notifications';
 import { createMemoryOtpStore, createOtpService, createPostgresOtpStore, type OtpService } from './otp';
-import { createCalderProvider, createMemoryEmailProvider, type MemoryEmailProvider } from './providers/calder';
+import {
+  createCalderProvider, createMemoryEmailProvider, type MemoryEmailProvider, type StatusFailure,
+} from './providers/calder';
 import { createEmailService, type EmailService } from './service';
 import { createMemoryEmailStore, createPostgresEmailStore } from './store';
 import type { EmailProvider, EmailStore } from './types';
@@ -26,6 +28,12 @@ export interface EmailRuntimeOptions {
   log?: EmailLogger;
   /** `test` uses memory stores and a memory provider. Never set it in a deployed environment. */
   mode?: 'live' | 'test';
+  /**
+   * Why a provider status read came back empty. The service deliberately returns null for every
+   * failure shape, so an operator tool that wants to tell a bad key from a deleted message needs
+   * this out-of-band signal. Optional by design: nothing in the delivery path depends on it.
+   */
+  onStatusFailure?: (failure: StatusFailure) => void;
 }
 
 export interface EmailUserStore {
@@ -58,7 +66,7 @@ export function createEmailRuntime(options: EmailRuntimeOptions): EmailRuntime {
   const store = live ? createPostgresEmailStore(options.pool!) : createMemoryEmailStore();
   const provider: EmailProvider | null = !config.configured
     ? (mode === 'test' ? createMemoryEmailProvider() : null)
-    : createCalderProvider({ config });
+    : createCalderProvider({ config, onStatusFailure: options.onStatusFailure });
   const emails = createEmailService({ provider, config, store, log });
   const otp = createOtpService({
     store: live ? createPostgresOtpStore(options.pool!) : createMemoryOtpStore(),
