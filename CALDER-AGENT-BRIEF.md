@@ -18,18 +18,43 @@ fix.
 
 ## The evidence this comes from
 
-One project (`Intake`, `proj_b38633656251`) showing this on `/senders`:
+Two views of one project (`Intake`), taken a few hours apart, which between them describe a real
+outage and a real reporting gap — keep them separate, they are not the same bug.
 
-- Stream card, transactional, 7 days: **Sent 5, Delivered 0, Bounced 0, Complaints 0.**
-- The only sender, `daniel@intake.calder.click`, verified: **4 sent**, and the operator never
-  registered `hello@intake.calder.click`, which the client sends as.
-- The display name reads **"Daniel from Calder"**, which no client configuration asked for.
-- Delivery does work: Calder's own signup/login codes arrive fine for that operator, and they take the
-  company-mail path, not this one.
+**`/senders`, transactional stream, 7 days:** Sent 5, Delivered 0, Bounced 0, Complaints 0. One
+verified sender, `daniel@intake.calder.click`, reading **"Daniel from Calder"** — a display name no
+client configuration asked for — showing 4 sent against the stream's 5.
 
-So: five messages were accepted by the provider, none has a delivery outcome, none bounced, and one of
-them is not attributed to any sender. Every one of those is explainable by Calder reporting less than
-it knows — or reporting a zero where "unknown" is the truth.
+**`/deliveries`:** 57 messages total, **1 delivered, 47 queued, 9 failed**. Ten consecutive days of
+`Sent` rows carrying `transport: ses` up to four days ago, then a mixed day, then nothing but failures.
+
+The failure detail for `em_eb4a95c4d9d1487497643254` (subject "Hey", operator-composed):
+
+| | |
+|---|---|
+| Sender identity | `Daniel from Intake <daniel@intake.calder.click>` — **resolved correctly** |
+| Provider | `aws-ses (eu-west-1)` |
+| Accepted | `2026-10-28T11:03:27.624Z` |
+| Failed | `2026-10-28T11:06:19.450Z` — **172 seconds later** |
+| Last provider message | `Exhausted: provider_error` |
+| Transport | *(empty)* |
+
+Read that table carefully; it rules things out as much as in:
+
+- **Not a sender problem.** The identity resolved, with the right display name, by address lookup. The
+  "unregistered sender" story is dead for this message, though the 5-vs-4 gap elsewhere is still real.
+- **Not a provider verdict.** 172 seconds is roughly five attempts against a slow leg — a hang or a
+  timeout, not a rejection. A rejection is fast and it keeps its name (`MessageRejected`,
+  `MailFromDomainNotVerified`, `Throttling`), none of which appear here.
+- **The empty transport proves nothing.** It is written only on success.
+- **47 queued is probably a symptom, not a second outage.** A worker that spends three minutes per
+  message cannot keep up; the backlog is what that looks like from outside.
+
+The leading hypothesis, for whoever debugs it: the AWS credentials are absent or unreadable in the
+deploying service, so the SDK falls through to the instance-metadata endpoint, hangs until each attempt
+times out, and throws an error with no `code` — which `safeDeliveryReason` classifies as
+`provider_error`. That explains the duration, the unclassified class, the intermittency at the boundary
+and the total failure afterwards. Confirm from the logs, do not assume.
 
 ## Established facts (verify, do not re-investigate from scratch)
 
@@ -106,10 +131,14 @@ state. No SQL that runs per render without an index — this is a cheap aggregat
 and dies there.
 
 **Change.** Persist a *safe, finite* discriminator alongside the allowlisted code: the transport leg
-that failed and the error's constructor name (e.g. `{ code: "provider_error", leg: "default",
-errorName: "TypeError" }`). Keep the existing rule absolutely: never persist provider messages, request
-ids, addresses, or credentials. Constructor names and leg names are from our own code, so they are safe
-by construction — add them to a comment so the next person does not widen it.
+that failed, the error's constructor name, and how long the attempt took (e.g.
+`{ code: "provider_error", leg: "default", errorName: "CredentialsProviderError", attemptMs: 31200 }`).
+Keep the existing rule absolutely: never persist provider messages, request ids, addresses, or
+credentials. Constructor names, leg names and durations are from our own code, so they are safe by
+construction — add them to a comment so the next person does not widen it.
+
+`attemptMs` matters more than it looks: a 30-second `provider_error` is a hang (credentials, egress,
+DNS), a 200-millisecond one is a logic bug. One number separates two investigations.
 
 **Acceptance.** A test asserting a thrown `TypeError` from the fallback leg yields that shape, and a
 test asserting an arbitrary provider message (containing an address) is **not** written to the row.
