@@ -344,11 +344,48 @@ ever. The doctor flags both.
 
 **What Intake cannot do:** diagnose the transport. If the doctor reports clean configuration, aligned
 DNS and a `failed_remote` row, the message was accepted and then lost inside the provider. Take the
-`provider_message_id` from the doctor's failure list and read the provider's timeline for that id —
-`Transport: —` with `Exhausted: provider_error` means their sender never handed the message to an
-upstream mail server, which is a provider-side configuration or reputation problem, not a template
-problem. The HTML is not involved: OTP messages that failed in the same window are two paragraphs and
-a six-digit code.
+`provider_message_id` from the doctor's failure list and read the provider's timeline for that id.
+
+### What `Transport: —` and `Exhausted: provider_error` actually mean
+
+Both are summaries, and it is easy to read more into them than they carry. Read against Calder's code:
+
+- **`Transport: —` does not mean "no transport was assigned."** The column is written *only on success*
+  (`apps/api/src/lib/drain.ts`: the `.set({ status: "sent", transport: transportName })` branch after a
+  leg accepts). A row that failed every leg keeps a null transport by construction. Empty here means
+  "nothing was delivered", not "nothing was routed".
+- **`provider_error` is the fallback, not a verdict.** `safeDeliveryReason`
+  (`packages/observability/src/safe-errors.ts`) returns an allowlisted code when the thrown error has
+  one and `provider_error` when it does not. A real SES rejection arrives with its own name —
+  `MessageRejected`, `MailFromDomainNotVerified`, `AccountSuspendedException`, `Throttling` — and is
+  preserved. So `provider_error` says the failure was *not* a named provider verdict: it happened
+  around the send, in a leg whose exception carried no classified code.
+- **"Provider-side reputation problem" is therefore not what this looks like.** Reputation shows up as
+  throttling or a named rejection. This shape is a pipeline failure whose detail lives in the server
+  log and in the row's `failed` drain event, not in the dashboard label.
+
+### The counter-evidence that matters: Calder's own login mail
+
+Calder's platform mail — signup verification and password reset — takes a different path on purpose.
+`apps/dashboard/lib/send-auth-email.ts` calls `sendCompanyEmailQuietly`, and `packages/notify/src/send.ts`
+sends it "straight to the provider, outside the customer pipeline": `defaultFrom()`, no queue, no
+per-project transport chain, `stream: "transactional"` hardcoded. It arriving proves the provider
+credential and outbound connectivity work. It says nothing about the Intake project's chain, and it is
+not evidence against a tenant-side failure either.
+
+Intake's own OTPs are *not* that path: they go through `POST /v1/emails` and the same queued pipeline as
+list mail, so "our OTP arrived" and "their login mail arrived" are two different claims.
+
+### So what to pull, in order
+
+1. The `failed` drain event for that email id in Calder (`recordDrainEvent`, `data.code`) — that is the
+   classified code, and the send leg it came from.
+2. The API/worker log line for the same id (`drain: chain refused, row failed` carries the code; the
+   thrown error itself is only in the log).
+3. Whether the row has a `sender_identity_id` at all, and whether that sender is `verified` with a
+   transport bound. A sender that is not ready fails the chain *before* any provider call, and it is
+   classified (`sender_not_ready`) rather than bare — so seeing that code instead is the whole answer.
+4. Only then the provider's timeline for `provider_message_id`, if there is one.
 
 ## 12. Tests
 
