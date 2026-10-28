@@ -82,6 +82,42 @@ and the total failure afterwards. Confirm from the logs, do not assume.
    mind, not something to unify.
 7. `packages/db/src/schema/senders.ts` — `isDefault` (transactional) and `isDefaultMarketing` are only
    consulted when a send omits a sender. A client that always names one never needs either.
+8. `packages/providers/src/resolve.ts` — `resolveEmailProvider` sets `driver: "ses"` when
+   `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are **non-empty strings**. It never calls AWS. So
+   `driver=ses` on `/ready` means "configured", not "reachable", and a health panel showing it is not
+   evidence that a send worked.
+
+## Runtime evidence (correction to the first hypothesis)
+
+`GET /ready` on the API a few hours later returned **503**:
+
+```jsonc
+"email_provider": { "state": "ok", "detail": "driver=ses" }
+"queue":          { "state": "degraded", "detail": "unexpected reply: -NOAUTH Authentication required." }
+"worker":         { "state": "degraded", "detail": "no live worker heartbeat (serverless drain may be the path)" }
+"required": ["email_provider", "database", "queue"]
+```
+
+Two corrections to the sections above, which the next agent must not undo:
+
+- **The credentials are present.** `driver=ses` proves the two AWS variables are set, so "missing
+  credentials" is out as the primary cause, and fact 8 explains why that is all it proves.
+- **Redis is unauthenticated**, which means the worker cannot connect at all. Webhook dispatch lives
+  in `apps/worker/src/webhook-consumer.ts`, so this — not a separate outage — is why zero webhook
+  deliveries were ever recorded. Fixing Redis is what turns webhook silence into data.
+
+What the 172-second failure still is: **unknown**, and `provider_error` is the reason. Task 3 is the
+fix that ends that ambiguity. Until then the log line for that message id is the only evidence.
+
+Two smaller findings from the same payload, both worth a line in `docs/DEPLOYMENT.md`:
+
+- `rate_limiter: "in-process limiter (development/test)"` alongside `queue` being *required* and
+  `WORKER_EXPECTED` being true. Hosted deployments should not be running the development limiter;
+  `NODE_ENV` looks unset or wrong, which also turns off `isProduction()` guards in the drain
+  (transport-resolution failures fall back to the development path instead of failing loudly) and
+  makes a missing provider silently resolve to the mock instead of throwing.
+- `/ready` reports `redactConnectionUrl(DATABASE_URL)`, which keeps the Neon host. No credentials, but
+  it publishes internal topology to an unauthenticated endpoint. Host and port only.
 
 ## Task 1 — An unattributed send must not look like a normal one
 
