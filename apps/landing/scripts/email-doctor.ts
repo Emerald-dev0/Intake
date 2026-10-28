@@ -49,15 +49,30 @@ line('reply-to', config.welcomeReplyTo ?? config.replyTo ?? '(none)', 'info');
 line('webhook secret', config.webhookSecret ? 'set' : 'missing — delivery failures are invisible without it', config.webhookSecret ? 'pass' : 'warn');
 line('logo origin', `${config.assetBaseUrl}/brand/intake-mark.png`, 'info');
 
+// Everything above is read from *this* environment. When that environment is a laptop, the values are
+// the laptop's, not the deployment's — and this file has already caused one goose chase by reporting
+// "logo unreachable" for a localhost origin while pointed at the production database. Say so before
+// anyone starts fixing a non-problem.
+const localOrigin = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)([:/]|$)/.test(config.assetBaseUrl);
+if (localOrigin) {
+  line('this run', 'local config — the deployment has its own values, so read the senders as advisory', 'warn');
+}
+
 // The mark is fetched by the recipient's client, not by us, so a broken URL fails silently in every
 // inbox at once. Ask the origin directly; a 200 is not proof the client will show it, but a 404 is
 // proof it will not.
-try {
-  const response = await fetch(`${config.assetBaseUrl.replace(/\/$/, '')}/brand/intake-mark.png`, { method: 'HEAD' });
-  line('logo reachable', `${response.status} ${response.headers.get('content-type') ?? ''}`.trim(), response.ok ? 'pass' : 'fail');
-  if (!response.ok) failures += 1;
-} catch {
-  line('logo reachable', 'could not be fetched from this machine', 'warn');
+// Skip the fetch when the origin is this machine: it proves nothing about the deployed site and a
+// failure here is about a dev server that is not running, not about anybody's inbox.
+if (localOrigin) {
+  line('logo reachable', 'not checked — local origin, so this says nothing about the deployed site', 'info');
+} else {
+  try {
+    const response = await fetch(`${config.assetBaseUrl.replace(/\/$/, '')}/brand/intake-mark.png`, { method: 'HEAD' });
+    line('logo reachable', `${response.status} ${response.headers.get('content-type') ?? ''}`.trim(), response.ok ? 'pass' : 'fail');
+    if (!response.ok) failures += 1;
+  } catch {
+    line('logo reachable', 'could not be fetched from this machine', 'warn');
+  }
 }
 
 // Sender identities are the one part of this pipeline where being wrong is silent: Calder resolves a
