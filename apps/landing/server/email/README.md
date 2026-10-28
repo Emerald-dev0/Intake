@@ -237,7 +237,7 @@ schema takes a bare address. Create both identities before advertising either on
 ```env
 # Provider — server only. A CALDER_* variable must never carry a VITE_ prefix.
 EMAIL_PROVIDER=calder          # calder | memory (tests) | none
-CALDER_API_KEY=calder_sk_live_…
+CALDER_API_KEY=                # paste from Calder → API keys; never the webhook whsec_ secret
 CALDER_BASE_URL=https://api.calder.click
 CALDER_FROM_EMAIL=hello@intake.example   # required unless CALDER_SENDER_ID is set
 CALDER_ANNOUNCEMENT_FROM_EMAIL=          # launch mail only; falls back to CALDER_FROM_EMAIL
