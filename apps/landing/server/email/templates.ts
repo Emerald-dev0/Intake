@@ -2,7 +2,7 @@ import type { EmailType } from './types';
 import { WAITLIST_WELCOME_TEXT } from './waitlist-welcome';
 import {
   C, DEFAULT_VISUALS, shell, button as designButton, paragraph as designParagraph, statement as designStatement,
-  chips, tickList, signature, textLink, rule, muted, type FooterKind, type VisualOptions,
+  chips, tickList, signature, rule, muted, type FooterKind, type VisualOptions,
 } from './design';
 
 /**
@@ -356,8 +356,7 @@ const launchNote: EmailTemplate = {
       button(site, 'Give Intake a try →'),
       paragraph("We're early, and there's a lot I still want to improve. If you try it and something feels confusing, or a form doesn't come out the way you pictured it, tell me. Reply straight to this email — it reaches me, not a ticket queue."),
       rule(),
-      paragraph(`And if you'd like to follow along as we build — the things that break, the fixes, what's next — I post it all on X.`),
-      textLink('https://x.com/intake', 'Follow Intake on X →'),
+      paragraph("And if you'd like to follow along as we build — the things that break, the fixes, what's next — I post it all on X. There's a link under this email."),
       paragraph('Thank you for signing up before there was anything to see. I hope Intake earns that.'),
       signature('Daniel', 'Building Intake'),
     ].join('');
@@ -372,7 +371,7 @@ const launchNote: EmailTemplate = {
     "If you're finishing a project, collecting research data, organising an event, or building something that needs forms — I'd love for you to try it.",
     `Give Intake a try: ${text_(vars.marketingUrl, LAUNCH_SITE)}`,
     "We're early, and there's a lot I still want to improve. If you try it and something feels confusing, or a form doesn't come out the way you pictured it, tell me. Reply straight to this email — it reaches me, not a ticket queue.",
-    "And if you'd like to follow along as we build, I post it all on X: https://x.com/intake",
+    "And if you'd like to follow along as we build, I post it all on X — the link is under this email.",
     'Thank you for signing up before there was anything to see. I hope Intake earns that.',
     'Daniel\nBuilding Intake',
   ].join('\n\n'),
