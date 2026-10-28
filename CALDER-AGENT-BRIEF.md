@@ -244,6 +244,38 @@ codes whose ten-minute TTL expired days ago.
 event and that the drain then ignores it; a test that cancelling a `sending` row returns 409; a test
 that a row past its expiry is failed rather than attempted.
 
+## Task 5b — A deployment that routes nothing must not look healthy
+
+**Observed.** `https://api.calder.click` answered **200 `text/html`** for `/health`, `/ready` *and*
+`/v1/emails` — the body being `apps/api/public/index.html` ("This host serves the HTTP API. Nothing is
+rendered here."). Twenty minutes earlier the same host had answered `/ready` with a JSON 503, so a
+deployment went live in between that contains **no Serverless Function at all**.
+
+The mechanism: `apps/api/.gitignore` ignores `api/index.js`, so the only function is produced by
+`pnpm --filter "@calder/api..." build` → `scripts/bundle-serverless.mjs`. If that build is skipped
+(ignored-build-step, cache restore, or a failed step that still publishes), the deployment has
+`outputDirectory: public` and nothing else — and Vercel serves `public/index.html` for every path,
+rewrites included, with **200**.
+
+Two consequences, both worse than an outage that announces itself:
+
+- Every route looks up. A probe that checks `status === 200` passes against a host that cannot send
+  mail. This is the same failure family as `driver=ses`: a green light that means "a string exists".
+- Clients that expect JSON get HTML. `POST /v1/emails` returns 200 with no `id`, and well-behaved
+  clients correctly call that `email_internal_error` — so the customer's sending is simply down, with
+  nothing on either dashboard saying why.
+
+**Change.**
+
+- Delete `public/index.html`, or replace it with a body that answers **503** and names the missing
+  function. `outputDirectory` needs to exist; it does not need to lie. A static file cannot know the
+  function is absent, so the honest version is a status code, not a greeting.
+- Add a post-deploy smoke check to the pipeline: `GET /health` must be `application/json` with
+  `service: "api"`, and the deploy must fail otherwise. One line, and it closes this entire class.
+- Make the build's function output observable: log `api/index.js` and its size after the esbuild step,
+  and fail the build when the file is absent. A build that forgets its artefact should not be a
+  successful deployment.
+
 ## Task 6 — Close the deployment loop (small, do it last)
 
 `apps/api/vercel.json` no longer declares `functions` (correct — Vercel validates it before the build
@@ -283,7 +315,7 @@ would have caught the "5 vs 4" and the false "Delivered 0", and anything you del
 
 ## Report back with
 
-1. Which of the six tasks landed, and the exact acceptance test names.
+1. Which of the seven tasks landed, and the exact acceptance test names.
 2. Any place where the honest fix was to *remove* a number rather than compute it better.
 3. What a project owner must still do by hand (registering `hello@`, renaming a display name, setting
    the SNS topic allowlist) — because those are configuration, not code, and the product should say so
