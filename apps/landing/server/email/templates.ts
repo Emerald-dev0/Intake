@@ -356,8 +356,7 @@ const launchNote: EmailTemplate = {
       button(site, 'Give Intake a try →'),
       paragraph("We're early, and there's a lot I still want to improve. If you try it and something feels confusing, or a form doesn't come out the way you pictured it, tell me. Reply straight to this email — it reaches me, not a ticket queue."),
       rule(),
-      paragraph("And if you'd like to follow along as we build — the things that break, the fixes, what's next — I post it all on X. There's a link under this email."),
-      paragraph('Thank you for signing up before there was anything to see. I hope Intake earns that.'),
+      paragraph("Thank you for signing up before there was anything to see. I hope Intake earns that."),
       signature('Daniel', 'Building Intake'),
     ].join('');
   },
@@ -371,7 +370,6 @@ const launchNote: EmailTemplate = {
     "If you're finishing a project, collecting research data, organising an event, or building something that needs forms — I'd love for you to try it.",
     `Give Intake a try: ${text_(vars.marketingUrl, LAUNCH_SITE)}`,
     "We're early, and there's a lot I still want to improve. If you try it and something feels confusing, or a form doesn't come out the way you pictured it, tell me. Reply straight to this email — it reaches me, not a ticket queue.",
-    "And if you'd like to follow along as we build, I post it all on X — the link is under this email.",
     'Thank you for signing up before there was anything to see. I hope Intake earns that.',
     'Daniel\nBuilding Intake',
   ].join('\n\n'),
@@ -966,20 +964,18 @@ export function templateFor(type: EmailType): EmailTemplate {
 /** Why a stranger is on this list. Every bulk email says it; an unexplained one is a complaint. */
 const LIST_REASON = 'You are receiving this because you joined the Intake wait-list.';
 
-function listTextFooter(visuals: VisualOptions, unsubscribeUrl: string | undefined): string {
+function listTextFooter(unsubscribeUrl: string | undefined): string {
   return [
     '—',
     'Intake · a form from a sentence',
-    ...(visuals.xUrl ? [`Follow Intake on X: ${visuals.xUrl}`] : []),
     unsubscribeUrl ? `${LIST_REASON} Unsubscribe: ${unsubscribeUrl}` : LIST_REASON,
   ].join('\n');
 }
 
-function transactionalTextFooter(visuals: VisualOptions): string {
+function transactionalTextFooter(): string {
   return [
     '—',
     'Intake · a form from a sentence',
-    ...(visuals.xUrl ? [`Follow Intake on X: ${visuals.xUrl}`] : []),
     `Questions? Just reply, or write to ${SUPPORT_EMAIL} — a human reads everything.`,
   ].join('\n');
 }
@@ -999,12 +995,12 @@ export function renderEmail(type: EmailType, variables: EmailVariables, options:
       headingText: heading || undefined,
       reason: LIST_REASON,
     });
-    return { subject, html, text: `${template.text(variables)}\n\n${listTextFooter(visuals, unsubscribeUrl)}` };
+    return { subject, html, text: `${template.text(variables)}\n\n${listTextFooter(unsubscribeUrl)}` };
   }
 
   return {
     subject,
     html: layout(template.preheader(variables), heading, template.body(variables), '', { visuals }),
-    text: `${subject}\n\n${template.text(variables)}\n\n${transactionalTextFooter(visuals)}`,
+    text: `${subject}\n\n${template.text(variables)}\n\n${transactionalTextFooter()}`,
   };
 }

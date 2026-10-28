@@ -18,18 +18,43 @@ fix.
 
 ## The evidence this comes from
 
-One project (`Intake`, `proj_b38633656251`) showing this on `/senders`:
+Two views of one project (`Intake`), taken a few hours apart, which between them describe a real
+outage and a real reporting gap — keep them separate, they are not the same bug.
 
-- Stream card, transactional, 7 days: **Sent 5, Delivered 0, Bounced 0, Complaints 0.**
-- The only sender, `daniel@intake.calder.click`, verified: **4 sent**, and the operator never
-  registered `hello@intake.calder.click`, which the client sends as.
-- The display name reads **"Daniel from Calder"**, which no client configuration asked for.
-- Delivery does work: Calder's own signup/login codes arrive fine for that operator, and they take the
-  company-mail path, not this one.
+**`/senders`, transactional stream, 7 days:** Sent 5, Delivered 0, Bounced 0, Complaints 0. One
+verified sender, `daniel@intake.calder.click`, reading **"Daniel from Calder"** — a display name no
+client configuration asked for — showing 4 sent against the stream's 5.
 
-So: five messages were accepted by the provider, none has a delivery outcome, none bounced, and one of
-them is not attributed to any sender. Every one of those is explainable by Calder reporting less than
-it knows — or reporting a zero where "unknown" is the truth.
+**`/deliveries`:** 57 messages total, **1 delivered, 47 queued, 9 failed**. Ten consecutive days of
+`Sent` rows carrying `transport: ses` up to four days ago, then a mixed day, then nothing but failures.
+
+The failure detail for `em_eb4a95c4d9d1487497643254` (subject "Hey", operator-composed):
+
+| | |
+|---|---|
+| Sender identity | `Daniel from Intake <daniel@intake.calder.click>` — **resolved correctly** |
+| Provider | `aws-ses (eu-west-1)` |
+| Accepted | `2026-10-28T11:03:27.624Z` |
+| Failed | `2026-10-28T11:06:19.450Z` — **172 seconds later** |
+| Last provider message | `Exhausted: provider_error` |
+| Transport | *(empty)* |
+
+Read that table carefully; it rules things out as much as in:
+
+- **Not a sender problem.** The identity resolved, with the right display name, by address lookup. The
+  "unregistered sender" story is dead for this message, though the 5-vs-4 gap elsewhere is still real.
+- **Not a provider verdict.** 172 seconds is roughly five attempts against a slow leg — a hang or a
+  timeout, not a rejection. A rejection is fast and it keeps its name (`MessageRejected`,
+  `MailFromDomainNotVerified`, `Throttling`), none of which appear here.
+- **The empty transport proves nothing.** It is written only on success.
+- **47 queued is probably a symptom, not a second outage.** A worker that spends three minutes per
+  message cannot keep up; the backlog is what that looks like from outside.
+
+The leading hypothesis, for whoever debugs it: the AWS credentials are absent or unreadable in the
+deploying service, so the SDK falls through to the instance-metadata endpoint, hangs until each attempt
+times out, and throws an error with no `code` — which `safeDeliveryReason` classifies as
+`provider_error`. That explains the duration, the unclassified class, the intermittency at the boundary
+and the total failure afterwards. Confirm from the logs, do not assume.
 
 ## Established facts (verify, do not re-investigate from scratch)
 
@@ -57,6 +82,72 @@ it knows — or reporting a zero where "unknown" is the truth.
    mind, not something to unify.
 7. `packages/db/src/schema/senders.ts` — `isDefault` (transactional) and `isDefaultMarketing` are only
    consulted when a send omits a sender. A client that always names one never needs either.
+8. `packages/providers/src/resolve.ts` — `resolveEmailProvider` sets `driver: "ses"` when
+   `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are **non-empty strings**. It never calls AWS. So
+   `driver=ses` on `/ready` means "configured", not "reachable", and a health panel showing it is not
+   evidence that a send worked.
+
+## Runtime evidence (correction to the first hypothesis)
+
+`GET /ready` on the API a few hours later returned **503**:
+
+```jsonc
+"email_provider": { "state": "ok", "detail": "driver=ses" }
+"queue":          { "state": "degraded", "detail": "unexpected reply: -NOAUTH Authentication required." }
+"worker":         { "state": "degraded", "detail": "no live worker heartbeat (serverless drain may be the path)" }
+"required": ["email_provider", "database", "queue"]
+```
+
+Two corrections to the sections above, which the next agent must not undo:
+
+- **The credentials are present.** `driver=ses` proves the two AWS variables are set, so "missing
+  credentials" is out as the primary cause, and fact 8 explains why that is all it proves.
+- **Redis is unauthenticated**, which means the worker cannot connect at all. Webhook dispatch lives
+  in `apps/worker/src/webhook-consumer.ts`, so this — not a separate outage — is why zero webhook
+  deliveries were ever recorded. Fixing Redis is what turns webhook silence into data.
+
+## Root cause, confirmed
+
+The API deployment was running with **wrong AWS credentials**. The variables were set, so
+`resolveEmailProvider` reported `driver=ses` and `/ready` called the provider `ok`; the keys themselves
+were invalid, so every SES call was rejected.
+
+That closes the investigation and it also exposes the defect that hid it. AWS returns a fast, named
+error for bad keys — `UnrecognizedClientException`, `InvalidClientTokenId`, `SignatureDoesNotMatch`,
+`ExpiredTokenException` — and **none of those names is in `SAFE_DELIVERY_CODES`**. They therefore
+collapse to the bare `provider_error`, which the dashboard renders as a cause. An authentication
+failure and an unclassified bug look identical, which is why this took a day to find.
+
+The 172 seconds is explained by scheduling, not by a hang: `DRAIN_MAX_ATTEMPTS` is 5, so a fast
+rejection repeated across several drain ticks with backoff spans roughly that window. No IMDS timeout
+is involved — that hypothesis is withdrawn.
+
+### Two fixes this makes obvious
+
+1. **Add the auth error names to the allowlist** in `packages/observability/src/safe-errors.ts`:
+   `UnrecognizedClientException`, `InvalidClientTokenId`, `SignatureDoesNotMatch`,
+   `ExpiredTokenException`, `InvalidSignatureException`, `AccessDenied`. Each is a stable AWS exception
+   name that carries no recipient, host or request detail — the same standard the existing entries meet.
+   A credentials problem must say "credentials", not "provider_error".
+2. **Make `/ready` prove the provider works, not that two strings are non-empty.** `driver=ses` is
+   `Boolean(env.AWS_ACCESS_KEY_ID)`, so a green `/ready` coexisted with total sending failure for days.
+   Either probe the credential (SESv2 `GetAccount`, cached ~5 minutes, cheap and side-effect free) and
+   report `degraded` on a rejected call, or stop describing the check as a health signal and rename the
+   detail to `configured=ses (unverified)`. The first is better; the second is honest.
+
+Acceptance for both: a test that a `UnrecognizedClientException` persists as its own code, and a test
+that an invalid credential turns `/ready` non-ready (or, for the rename variant, that the payload no
+longer implies verified).
+
+Two smaller findings from the same payload, both worth a line in `docs/DEPLOYMENT.md`:
+
+- `rate_limiter: "in-process limiter (development/test)"` alongside `queue` being *required* and
+  `WORKER_EXPECTED` being true. Hosted deployments should not be running the development limiter;
+  `NODE_ENV` looks unset or wrong, which also turns off `isProduction()` guards in the drain
+  (transport-resolution failures fall back to the development path instead of failing loudly) and
+  makes a missing provider silently resolve to the mock instead of throwing.
+- `/ready` reports `redactConnectionUrl(DATABASE_URL)`, which keeps the Neon host. No credentials, but
+  it publishes internal topology to an unauthenticated endpoint. Host and port only.
 
 ## Task 1 — An unattributed send must not look like a normal one
 
@@ -106,10 +197,14 @@ state. No SQL that runs per render without an index — this is a cheap aggregat
 and dies there.
 
 **Change.** Persist a *safe, finite* discriminator alongside the allowlisted code: the transport leg
-that failed and the error's constructor name (e.g. `{ code: "provider_error", leg: "default",
-errorName: "TypeError" }`). Keep the existing rule absolutely: never persist provider messages, request
-ids, addresses, or credentials. Constructor names and leg names are from our own code, so they are safe
-by construction — add them to a comment so the next person does not widen it.
+that failed, the error's constructor name, and how long the attempt took (e.g.
+`{ code: "provider_error", leg: "default", errorName: "CredentialsProviderError", attemptMs: 31200 }`).
+Keep the existing rule absolutely: never persist provider messages, request ids, addresses, or
+credentials. Constructor names, leg names and durations are from our own code, so they are safe by
+construction — add them to a comment so the next person does not widen it.
+
+`attemptMs` matters more than it looks: a 30-second `provider_error` is a hang (credentials, egress,
+DNS), a 200-millisecond one is a logic bug. One number separates two investigations.
 
 **Acceptance.** A test asserting a thrown `TypeError` from the fallback leg yields that shape, and a
 test asserting an arbitrary provider message (containing an address) is **not** written to the row.
@@ -126,7 +221,62 @@ reconciles is worth more than a chart.
 **Acceptance.** Query test: one row with `senderIdentityId null` and one attributed, in the same
 window, produces a total equal to the stream count.
 
-## Task 5 — Close the deployment loop (small, do it last)
+## Task 5 — Make a stuck queue something an operator can clear
+
+**Problem, observed.** After the credential outage the project held 47 rows in `queued`. There is no
+way to stop them: `apps/api/src/routes/emails.ts` exposes only `POST /`, `GET /`, `GET /:id` — no
+cancel, no bulk action, and the dashboard's deliveries screen can only filter. The rows are a live
+time bomb: repair the credentials and 47 messages flush at once, including three-day-old verification
+codes whose ten-minute TTL expired days ago.
+
+**Change.**
+
+- `POST /v1/emails/:id/cancel` — allowed only from `created`/`queued` (a `sending` row is mid-flight
+  and must not be reported as cancelled when it may already have left). Answers 409 with the current
+  state otherwise. Writes a `failed` event with `{ code: "cancelled_by_operator" }`, which is *not* a
+  provider error and must not be one of the codes `safeDeliveryReason` produces.
+- An expiry rule that runs without an operator: the drain claims `queued` rows forever, so a row from
+  a two-day outage is indistinguishable from one queued a second ago. Add a `expires_at` (or derive it
+  from `created_at` + a per-stream TTL) and have the drain mark expired rows `failed` with a stable
+  code before it attempts them. A verification code that cannot arrive in time must never be sent.
+
+**Acceptance.** A test that cancelling a `queued` row yields `failed` + a `cancelled_by_operator`
+event and that the drain then ignores it; a test that cancelling a `sending` row returns 409; a test
+that a row past its expiry is failed rather than attempted.
+
+## Task 5b — A deployment that routes nothing must not look healthy
+
+**Observed.** `https://api.calder.click` answered **200 `text/html`** for `/health`, `/ready` *and*
+`/v1/emails` — the body being `apps/api/public/index.html` ("This host serves the HTTP API. Nothing is
+rendered here."). Twenty minutes earlier the same host had answered `/ready` with a JSON 503, so a
+deployment went live in between that contains **no Serverless Function at all**.
+
+The mechanism: `apps/api/.gitignore` ignores `api/index.js`, so the only function is produced by
+`pnpm --filter "@calder/api..." build` → `scripts/bundle-serverless.mjs`. If that build is skipped
+(ignored-build-step, cache restore, or a failed step that still publishes), the deployment has
+`outputDirectory: public` and nothing else — and Vercel serves `public/index.html` for every path,
+rewrites included, with **200**.
+
+Two consequences, both worse than an outage that announces itself:
+
+- Every route looks up. A probe that checks `status === 200` passes against a host that cannot send
+  mail. This is the same failure family as `driver=ses`: a green light that means "a string exists".
+- Clients that expect JSON get HTML. `POST /v1/emails` returns 200 with no `id`, and well-behaved
+  clients correctly call that `email_internal_error` — so the customer's sending is simply down, with
+  nothing on either dashboard saying why.
+
+**Change.**
+
+- Delete `public/index.html`, or replace it with a body that answers **503** and names the missing
+  function. `outputDirectory` needs to exist; it does not need to lie. A static file cannot know the
+  function is absent, so the honest version is a status code, not a greeting.
+- Add a post-deploy smoke check to the pipeline: `GET /health` must be `application/json` with
+  `service: "api"`, and the deploy must fail otherwise. One line, and it closes this entire class.
+- Make the build's function output observable: log `api/index.js` and its size after the esbuild step,
+  and fail the build when the file is absent. A build that forgets its artefact should not be a
+  successful deployment.
+
+## Task 6 — Close the deployment loop (small, do it last)
 
 `apps/api/vercel.json` no longer declares `functions` (correct — Vercel validates it before the build
 and `api/index.js` is generated and gitignored). Two follow-ups:
@@ -165,7 +315,7 @@ would have caught the "5 vs 4" and the false "Delivered 0", and anything you del
 
 ## Report back with
 
-1. Which of the five tasks landed, and the exact acceptance test names.
+1. Which of the seven tasks landed, and the exact acceptance test names.
 2. Any place where the honest fix was to *remove* a number rather than compute it better.
 3. What a project owner must still do by hand (registering `hello@`, renaming a display name, setting
    the SNS topic allowlist) — because those are configuration, not code, and the product should say so

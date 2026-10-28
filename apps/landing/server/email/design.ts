@@ -14,6 +14,7 @@
  *   - no webfonts, because no client will load them. Fraunces and Geist are named first so the few
  *     clients that have them use them, and Georgia / system sans carry everyone else;
  *   - no CSS variables, because clients strip them; the palette is duplicated from base.css by hand;
+ *   - no social row: every footer used to link to X, and the ask was to remove it;
  *   - dark mode is declared `light only`: the card is cream by design, and letting a client invert it
  *     would produce dark text on dark paper.
  */
@@ -36,24 +37,23 @@ export const SANS = "'Geist Variable', -apple-system, BlinkMacSystemFont, 'Segoe
 export const MONO = "'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 
 /**
- * Where the mark is fetched from, and where the social row points.
+ * Where the mark is fetched from.
  *
- * Both are overridable per deployment (see `server/email/config.ts`): the logo must live on a public
- * origin the recipient's client can reach, and the X handle is not something to guess.
+ * Overridable per deployment (see `server/email/config.ts`): the logo must live on a public origin
+ * the recipient's client can reach, because a relative path resolves against nothing in a mailbox.
+ *
+ * There is deliberately no social row. It was removed at the operator's request: a link to a
+ * company's profile in every footer is an invitation to leave the message, and on a receipt or a
+ * security notice it reads as marketing. The footer now carries only what the reader needs — a human
+ * to reply to, why they received this, and (for list mail) a way off the list.
  */
 export interface VisualOptions {
   /** Origin that serves `/brand/intake-mark.png`. No trailing slash. */
   assetBaseUrl: string;
-  /** Absolute URL of the Intake account on X, or null to omit the social row entirely. */
-  xUrl: string | null;
-  /** Label shown beside the X row, e.g. `@intake`. Falls back to "Intake". */
-  xHandle?: string | null;
 }
 
 export const DEFAULT_VISUALS: VisualOptions = {
   assetBaseUrl: 'https://intake.calder.click',
-  xUrl: null,
-  xHandle: null,
 };
 
 /** `transactional` gets the account/security footer; `list` gets the wait-list footer and unsubscribe. */
@@ -170,27 +170,6 @@ export function signature(name: string, role: string): string {
 </td></tr></table>`;
 }
 
-/**
- * The X row, present in every Intake email from now on.
- *
- * The glyph is a styled table cell, not an image: every client can draw a letter, and a missing
- * icon image is the most common way a social row looks broken.
- */
-function socialRow(options: VisualOptions): string {
-  if (!options.xUrl) return '';
-  const handle = options.xHandle ? `Follow ${attr(options.xHandle)} on X` : 'Follow Intake on X';
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 20px"><tr>
-  <td width="34" valign="middle" style="padding:0 0 0 1px">
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-      <td width="30" height="30" align="center" valign="middle" bgcolor="${C.ink}" style="background:${C.ink};border-radius:7px;font:700 15px/30px ${SANS};color:${C.card};text-align:center">𝕏</td>
-    </tr></table>
-  </td>
-  <td valign="middle" style="padding:0 0 0 12px">
-    <a href="${attr(options.xUrl)}" style="font:600 14px/1.5 ${SANS};color:${C.ink};text-decoration:none">${handle}&nbsp;→</a>
-  </td>
-</tr></table>`;
-}
-
 export interface FooterOptions {
   kind: FooterKind;
   /** Why the reader is on this list. Required for `list`: an unexplained bulk email is a complaint. */
@@ -202,10 +181,8 @@ export interface FooterOptions {
 }
 
 function footer(options: FooterOptions): string {
-  const social = socialRow(options.visuals ?? DEFAULT_VISUALS);
   if (options.kind === 'transactional') {
     return `<tr><td style="padding:24px 4px 0">
-  ${social}
   <p style="margin:0 0 8px;font:13px/1.65 ${SANS};color:${C.muted}">Questions, trouble, or a salty edge case? Just reply to this email, or write to ${options.supportEmail} — a human being reads everything.</p>
   <p style="margin:0;font:12px/1.6 ${SANS};color:${C.muted}">You are receiving this because it relates to activity on your Intake account. Transactional notices like this one are required to keep your account secure.</p>
 </td></tr>`;
@@ -215,7 +192,6 @@ function footer(options: FooterOptions): string {
     ? `<a href="${attr(options.unsubscribeUrl)}" style="color:${C.muted};text-decoration:underline">Unsubscribe</a>`
     : `Reply to this email and ask to be removed.`;
   return `<tr><td style="padding:24px 4px 0">
-  ${social}
   <p style="margin:0 0 8px;font:13px/1.65 ${SANS};color:${C.muted}">${reason} ${out}.</p>
   <p style="margin:0;font:12px/1.6 ${SANS};color:${C.muted}">Intake · a form from a sentence · <a href="https://intake.calder.click" style="color:${C.muted}">intake.calder.click</a></p>
 </td></tr>`;

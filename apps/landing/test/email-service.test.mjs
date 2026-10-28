@@ -275,6 +275,40 @@ test('the service exposes reconciliation status without sending anything', async
   assert.equal(await service.status('not-a-provider-id'), null);
 });
 
+test('a refused status read still returns null, but says why', async () => {
+  // The shape that made "provider silent 54" unactionable: 401, 403, 404 and a timeout were all the
+  // same null. The answer must not change — reconciliation never invents a state — but the reason is
+  // reported separately so an operator can tell a wrong key from a wrong project.
+  const seen = [];
+  const { impl } = fakeFetch(() => json({ error: { code: 'not_found' } }, 404)());
+  const provider = providerWith(config(), impl, { onStatusFailure: failure => seen.push(failure) });
+  assert.equal(await provider.getStatus('em_abc'), null);
+  assert.deepEqual(seen, [{ providerMessageId: 'em_abc', reason: 'request_failed', httpStatus: 404 }]);
+});
+
+test('an id the provider never issued is labelled as such rather than as a network failure', async () => {
+  const seen = [];
+  const { impl, calls } = fakeFetch(() => json({ data: { status: 'delivered' } }, 200)());
+  const provider = providerWith(config(), impl, { onStatusFailure: failure => seen.push(failure) });
+  assert.equal(await provider.getStatus('local-123'), null);
+  assert.equal(calls.length, 0, 'nothing was asked of the network');
+  assert.deepEqual(seen, [{ providerMessageId: 'local-123', reason: 'not_a_provider_id' }]);
+});
+
+test('a 200 whose body is not the documented envelope is reported as a payload problem', async () => {
+  const seen = [];
+  const { impl } = fakeFetch(() => json({ id: 'em_abc', status: 'delivered' }, 200)());
+  const provider = providerWith(config(), impl, { onStatusFailure: failure => seen.push(failure) });
+  assert.equal(await provider.getStatus('em_abc'), null);
+  assert.deepEqual(seen, [{ providerMessageId: 'em_abc', reason: 'unexpected_payload', httpStatus: 200 }]);
+});
+
+test('a throwing diagnostics observer cannot change a status read', async () => {
+  const { impl } = fakeFetch(() => json({ error: { code: 'unauthorized' } }, 401)());
+  const provider = providerWith(config(), impl, { onStatusFailure: () => { throw new Error('observer blew up'); } });
+  assert.equal(await provider.getStatus('em_abc'), null);
+});
+
 test('the timeout includes a stalled response body, not just the HTTP headers', async () => {
   const config_ = { ...config(), timeoutMs: 20, maxAttempts: 2 };
   const { impl, calls } = fakeFetch(() => new Response(new ReadableStream({ start() {} }), { status: 202 }));
@@ -307,19 +341,16 @@ test('accepted events replay locally and a failed send retry updates one canonic
   assert.equal(responses.calls.length, 2, 'accepted events never need another provider call');
 });
 
-test('the social row is configured, validated, and never points somewhere unexpected', () => {
-  // Unset means "no social row" — better than a link to an account that is not ours.
-  assert.equal(config().xUrl, null);
-  assert.equal(config().xHandle, null);
+test('the config carries no social account, and a leftover INTAKE_X_URL is inert', () => {
+  // The X row was removed from every email. The variable it used to read is gone from the type, and
+  // a deployment that still sets it must keep working rather than failing boot on an unknown value.
+  const bare = config();
+  assert.equal('xUrl' in bare, false);
+  assert.equal('xHandle' in bare, false);
 
-  const withX = config({ INTAKE_X_URL: 'https://x.com/intake' });
-  assert.equal(withX.xUrl, 'https://x.com/intake');
-  assert.equal(withX.xHandle, '@intake');
-  // The link is normalised to x.com even when twitter.com was used, and a trailing slash is dropped.
-  assert.equal(config({ INTAKE_X_URL: 'https://twitter.com/intake/' }).xUrl, 'https://x.com/intake');
-
-  for (const bad of ['https://example.com/intake', 'http://x.com/intake', 'https://x.com', 'https://x.com/a/b', 'not a url']) {
-    assert.throws(() => config({ INTAKE_X_URL: bad }), /INTAKE_X_URL/, `${bad} must be refused`);
+  // Historical values — including the malformed ones this config used to reject — are ignored now.
+  for (const leftover of ['https://x.com/intake', 'https://example.com/intake', 'not a url', '']) {
+    assert.doesNotThrow(() => config({ INTAKE_X_URL: leftover }), `${leftover || '(empty)'} must not fail boot`);
   }
 });
 

@@ -18,16 +18,14 @@ import type { EmailType } from '../server/email/types';
 const OUT = join(import.meta.dirname, '..', 'docs', 'email-preview');
 
 /**
- * The handle is not guessed in production either — `INTAKE_X_URL` decides. This is the preview.
- *
  * `assetBaseUrl` is `./` only here: the preview frames are served from the same directory as the
  * copied logo, so the mark renders without reaching the public internet. Real mail always gets an
  * absolute origin, because a mail client has no page to resolve a relative path against.
+ *
+ * There is no social row to preview any more — see `server/email/design.ts`.
  */
 const VISUALS = {
   assetBaseUrl: '.',
-  xUrl: 'https://x.com/intake',
-  xHandle: '@intake',
 };
 
 const SITE = 'https://intake.calder.click';
