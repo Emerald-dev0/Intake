@@ -106,8 +106,38 @@ Two corrections to the sections above, which the next agent must not undo:
   in `apps/worker/src/webhook-consumer.ts`, so this — not a separate outage — is why zero webhook
   deliveries were ever recorded. Fixing Redis is what turns webhook silence into data.
 
-What the 172-second failure still is: **unknown**, and `provider_error` is the reason. Task 3 is the
-fix that ends that ambiguity. Until then the log line for that message id is the only evidence.
+## Root cause, confirmed
+
+The API deployment was running with **wrong AWS credentials**. The variables were set, so
+`resolveEmailProvider` reported `driver=ses` and `/ready` called the provider `ok`; the keys themselves
+were invalid, so every SES call was rejected.
+
+That closes the investigation and it also exposes the defect that hid it. AWS returns a fast, named
+error for bad keys — `UnrecognizedClientException`, `InvalidClientTokenId`, `SignatureDoesNotMatch`,
+`ExpiredTokenException` — and **none of those names is in `SAFE_DELIVERY_CODES`**. They therefore
+collapse to the bare `provider_error`, which the dashboard renders as a cause. An authentication
+failure and an unclassified bug look identical, which is why this took a day to find.
+
+The 172 seconds is explained by scheduling, not by a hang: `DRAIN_MAX_ATTEMPTS` is 5, so a fast
+rejection repeated across several drain ticks with backoff spans roughly that window. No IMDS timeout
+is involved — that hypothesis is withdrawn.
+
+### Two fixes this makes obvious
+
+1. **Add the auth error names to the allowlist** in `packages/observability/src/safe-errors.ts`:
+   `UnrecognizedClientException`, `InvalidClientTokenId`, `SignatureDoesNotMatch`,
+   `ExpiredTokenException`, `InvalidSignatureException`, `AccessDenied`. Each is a stable AWS exception
+   name that carries no recipient, host or request detail — the same standard the existing entries meet.
+   A credentials problem must say "credentials", not "provider_error".
+2. **Make `/ready` prove the provider works, not that two strings are non-empty.** `driver=ses` is
+   `Boolean(env.AWS_ACCESS_KEY_ID)`, so a green `/ready` coexisted with total sending failure for days.
+   Either probe the credential (SESv2 `GetAccount`, cached ~5 minutes, cheap and side-effect free) and
+   report `degraded` on a rejected call, or stop describing the check as a health signal and rename the
+   detail to `configured=ses (unverified)`. The first is better; the second is honest.
+
+Acceptance for both: a test that a `UnrecognizedClientException` persists as its own code, and a test
+that an invalid credential turns `/ready` non-ready (or, for the rename variant, that the payload no
+longer implies verified).
 
 Two smaller findings from the same payload, both worth a line in `docs/DEPLOYMENT.md`:
 
