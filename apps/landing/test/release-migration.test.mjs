@@ -113,6 +113,7 @@ test('the developer page entry is seeded with the rest of the shipped releases',
   await db.exec(await migration('033_release_usage_numbers.sql'));
   await db.exec(await migration('034_release_answer_notices.sql'));
   await db.exec(await migration('035_release_delete_a_form.sql'));
+  await db.exec(await migration('036_release_changelog_card.sql'));
   const { BUNDLED_RELEASES } = await import('../src/content/changelog.ts');
 
   // Every shipped release carries the current copy, not just the newest one.
