@@ -42,6 +42,15 @@ function deployment({ defects = {} } = {}) {
       }
       return json(200, { ok: true });
     }
+    if (url.pathname === '/api/og/changelog' || url.pathname.startsWith('/api/og/changelog/')) {
+      // The card: a real PNG, so the check sees what a link preview sees.
+      const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, ...new Array(2000).fill(0)]);
+      for (const [key, value] of Object.entries(defects.noApiHeaders ? {} : baseHeaders)) res.setHeader(key, value);
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Content-Length', String(png.length));
+      res.writeHead(200);
+      return res.end(png);
+    }
     if (url.pathname.startsWith('/api/')) {
       if (url.pathname === '/api/sign-in/config') return json(200, { providers: { google: defects.googleSignIn ?? false } });
       if (url.pathname === '/api/auth/sign-in/email' && req.method === 'POST') {
