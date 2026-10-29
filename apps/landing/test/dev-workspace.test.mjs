@@ -16,7 +16,7 @@ const STRANGER = 'user_stranger';
 function authedRouter(userId) {
   const service = new DevService({ store, now: () => new Date('2026-10-29T00:00:00.000Z') });
   const app = express();
-  app.use('/api/dev', createDevRouter({ service, getSession: async () => (userId ? { id: userId, email: `${userId}@example.com`, name: 'Test' } : null) }));
+  app.use('/api/dev', createDevRouter({ service, store, getSession: async () => (userId ? { id: userId, email: `${userId}@example.com`, name: 'Test' } : null) }));
   return app;
 }
 

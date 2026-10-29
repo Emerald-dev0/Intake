@@ -66,6 +66,16 @@ export function createPublicDevRouter(deps: PublicDevRouterDeps): Router {
     return { project, form, version };
   }
 
+  /** The counters. A failure to count never fails the request it was counting. */
+  async function count(projectId: string | undefined, delta: { accepted?: number; rejected?: number; bytes?: number }): Promise<void> {
+    if (!projectId) return;
+    try {
+      await deps.store.recordUsage({ projectId, ...delta, day: now() });
+    } catch {
+      /* metering is not worth failing an answer for */
+    }
+  }
+
   router.get('/forms/:projectSlug/:formSlug', async (req, res) => {
     if (!await allow(req, res, 'dev.public.read', READ_LIMIT)) return;
     try {
@@ -109,6 +119,7 @@ export function createPublicDevRouter(deps: PublicDevRouterDeps): Router {
 
       const validation = validateSubmission(found.version.definition, req.body);
       if (!validation.ok) {
+        await count(found.project.id, { rejected: 1 });
         res.status(400).json({
           error: 'invalid_submission',
           message: 'Some answers need another look.',
@@ -127,6 +138,7 @@ export function createPublicDevRouter(deps: PublicDevRouterDeps): Router {
         idempotencyKey,
         submittedAt: now(),
       });
+      await count(found.project.id, { accepted: 1, bytes: JSON.stringify(validation.answers).length });
       res.status(201).json({ submission: { id: submission.id, receivedAt: submission.submittedAt.toISOString() }, duplicate: false });
     } catch {
       res.status(503).json({ error: 'forms_unavailable', message: 'The form is temporarily unavailable. Try again shortly.' });

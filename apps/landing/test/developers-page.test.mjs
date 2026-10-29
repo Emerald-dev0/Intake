@@ -56,6 +56,7 @@ test('the developers page says what exists, what is being built, and what is not
     'Submissions validated on the server',
     'A response inbox with search, filters and CSV export',
     'Pause, close and reopen without a redeploy',
+    'AI summaries on the credits you already have',
   ]);
 
   // And the things that do not exist are still named as things that do not exist.

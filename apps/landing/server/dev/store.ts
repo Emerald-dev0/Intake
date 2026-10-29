@@ -9,7 +9,7 @@
 import type { Pool } from 'pg';
 import type {
   DevForm, DevFormDefinition, DevFormVersion, DevProject, DevStore, DevSubmission, DevSubmissionPage,
-  DevSubmissionQuery,
+  DevSubmissionQuery, DevUsageDay, DevUsageDelta,
 } from './contracts.js';
 
 type Queryable = Pick<Pool, 'query'>;
@@ -298,6 +298,55 @@ export function createPostgresDevStore(pool: Queryable): DevStore {
         ],
       );
       return mapSubmission((result.rows as DbRow[])[0]);
+    },
+
+    async recordUsage(delta: DevUsageDelta) {
+      await pool.query(
+        `INSERT INTO dev_usage_daily (project_id, day, accepted, rejected, bytes)
+         VALUES ($1, $2::date, $3, $4, $5)
+         ON CONFLICT (project_id, day) DO UPDATE
+           SET accepted = dev_usage_daily.accepted + EXCLUDED.accepted,
+               rejected = dev_usage_daily.rejected + EXCLUDED.rejected,
+               bytes = dev_usage_daily.bytes + EXCLUDED.bytes`,
+        [
+          delta.projectId,
+          delta.day.toISOString().slice(0, 10),
+          delta.accepted ?? 0,
+          delta.rejected ?? 0,
+          delta.bytes ?? 0,
+        ],
+      );
+    },
+
+    async listUsage(input: { projectId?: string; since?: Date; until?: Date }): Promise<DevUsageDay[]> {
+      const where: string[] = ['1 = 1'];
+      const values: unknown[] = [];
+      if (input.projectId) {
+        values.push(input.projectId);
+        where.push(`project_id = $${values.length}`);
+      }
+      if (input.since) {
+        values.push(input.since.toISOString().slice(0, 10));
+        where.push(`day >= $${values.length}::date`);
+      }
+      if (input.until) {
+        values.push(input.until.toISOString().slice(0, 10));
+        where.push(`day <= $${values.length}::date`);
+      }
+      const result = await pool.query(
+        `SELECT project_id, day::text AS day, accepted, rejected, bytes
+           FROM dev_usage_daily
+          WHERE ${where.join(' AND ')}
+          ORDER BY day DESC, project_id ASC`,
+        values,
+      );
+      return (result.rows as DbRow[]).map(row => ({
+        projectId: String(row.project_id),
+        day: String(row.day),
+        accepted: Number(row.accepted),
+        rejected: Number(row.rejected),
+        bytes: Number(row.bytes),
+      }));
     },
 
     async listSubmissions(query: DevSubmissionQuery): Promise<DevSubmissionPage> {

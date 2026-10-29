@@ -62,8 +62,8 @@ const CAPABILITIES: Capability[] = [
   },
   {
     name: 'AI summaries on the credits you already have',
-    status: 'building',
-    detail: 'Summarising a set of responses uses the same 20 daily credits as the rest of Intake. There is no second wallet and no separate currency.',
+    status: 'shipping',
+    detail: 'Summarising a set of responses uses the same 20 daily credits as the rest of Intake, at three credits a summary. There is no second wallet and no separate currency, and the cost is shown before you run it.',
   },
   {
     name: 'Per-project usage you can look at',

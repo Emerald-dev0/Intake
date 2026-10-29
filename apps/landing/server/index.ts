@@ -253,6 +253,7 @@ const aiOperations = createAiOperationRunner({ credits: creditService, onError: 
 // the charge goes through the one credit service the rest of Intake uses.
 app.use('/api/dev', createDevRouter({
   service: devService,
+  store: devStore,
   getSession,
   insights: { runner: aiOperations, model: devInsightModel, cost: DEV_INSIGHTS_COST },
 }));

@@ -8,11 +8,12 @@
 
 import type {
   DevForm, DevFormVersion, DevProject, DevStore, DevSubmission, DevSubmissionPage, DevSubmissionQuery,
+  DevUsageDay, DevUsageDelta,
 } from './contracts.js';
 
 export interface MemoryDevStore extends DevStore {
   /** Test helper: every row the store holds. */
-  dump(): { projects: DevProject[]; forms: DevForm[]; versions: DevFormVersion[]; submissions: DevSubmission[] };
+  dump(): { projects: DevProject[]; forms: DevForm[]; versions: DevFormVersion[]; submissions: DevSubmission[]; usage: DevUsageDay[] };
 }
 
 export function createMemoryDevStore(): MemoryDevStore {
@@ -20,6 +21,7 @@ export function createMemoryDevStore(): MemoryDevStore {
   const forms: DevForm[] = [];
   const versions: DevFormVersion[] = [];
   const submissions: DevSubmission[] = [];
+  const usage: DevUsageDay[] = [];
 
   // A structured clone keeps the dates as dates. A JSON round trip would turn them into strings
   // and quietly break anything that calls toISOString().
@@ -119,6 +121,33 @@ export function createMemoryDevStore(): MemoryDevStore {
       return copy(submission);
     },
 
+    async recordUsage(delta: DevUsageDelta) {
+      const day = delta.day.toISOString().slice(0, 10);
+      const row = usage.find(entry => entry.projectId === delta.projectId && entry.day === day);
+      if (row) {
+        row.accepted += delta.accepted ?? 0;
+        row.rejected += delta.rejected ?? 0;
+        row.bytes += delta.bytes ?? 0;
+        return;
+      }
+      usage.push({
+        projectId: delta.projectId,
+        day,
+        accepted: delta.accepted ?? 0,
+        rejected: delta.rejected ?? 0,
+        bytes: delta.bytes ?? 0,
+      });
+    },
+
+    async listUsage(input: { projectId?: string; since?: Date; until?: Date }): Promise<DevUsageDay[]> {
+      return usage
+        .filter(entry => !input.projectId || entry.projectId === input.projectId)
+        .filter(entry => !input.since || entry.day >= input.since.toISOString().slice(0, 10))
+        .filter(entry => !input.until || entry.day <= input.until.toISOString().slice(0, 10))
+        .sort((a, b) => b.day.localeCompare(a.day) || a.projectId.localeCompare(b.projectId))
+        .map(copy);
+    },
+
     async listSubmissions(query: DevSubmissionQuery): Promise<DevSubmissionPage> {
       const matching = submissions.filter(entry => {
         if (entry.projectId !== query.projectId) return false;
@@ -158,7 +187,7 @@ export function createMemoryDevStore(): MemoryDevStore {
     },
 
     dump() {
-      return { projects: copy(projects), forms: copy(forms), versions: copy(versions), submissions: copy(submissions) };
+      return { projects: copy(projects), forms: copy(forms), versions: copy(versions), submissions: copy(submissions), usage: copy(usage) };
     },
   };
 }

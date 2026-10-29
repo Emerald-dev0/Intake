@@ -135,6 +135,24 @@ export interface DevSubmission {
   submittedAt: Date;
 }
 
+/** The counters for one project on one day. */
+export interface DevUsageDay {
+  projectId: string;
+  day: string;
+  accepted: number;
+  rejected: number;
+  bytes: number;
+}
+
+/** The counters an operation adds. */
+export interface DevUsageDelta {
+  projectId: string;
+  accepted?: number;
+  rejected?: number;
+  bytes?: number;
+  day: Date;
+}
+
 export interface DevStore {
   listProjects(userId: string): Promise<DevProject[]>;
   getProject(userId: string, projectId: string): Promise<DevProject | null>;
@@ -158,6 +176,11 @@ export interface DevStore {
 
   createSubmission(submission: DevSubmission): Promise<DevSubmission>;
   getSubmissionByIdempotencyKey(formId: string, key: string): Promise<DevSubmission | null>;
+
+  /** Adds to a project's daily counters. */
+  recordUsage(delta: DevUsageDelta): Promise<void>;
+  /** The counters for a project, or for every project when none is named. */
+  listUsage(input: { projectId?: string; since?: Date; until?: Date }): Promise<DevUsageDay[]>;
 
   /** The answers to a form, newest first, with the exact total counted in SQL. */
   listSubmissions(input: DevSubmissionQuery): Promise<DevSubmissionPage>;

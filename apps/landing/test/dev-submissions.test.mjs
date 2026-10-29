@@ -154,6 +154,28 @@ test('the same idempotency key is the same answer, not a second one', async () =
   assert.equal(store.dump().submissions.length, before + 1, 'only one row was written');
 });
 
+test('the counters move when an answer is accepted and when one is refused', async () => {
+  const before = store.dump().usage.reduce((sum, row) => sum + row.accepted, 0);
+  const refusedBefore = store.dump().usage.reduce((sum, row) => sum + row.rejected, 0);
+
+  const accepted = await call('/forms/checkout-app/waitlist/submissions', {
+    method: 'POST',
+    body: { answers: { email: 'counted@example.com' } },
+  });
+  assert.equal(accepted.status, 201);
+
+  const refused = await call('/forms/checkout-app/waitlist/submissions', {
+    method: 'POST',
+    body: { answers: { email: 'not-an-email' } },
+  });
+  assert.equal(refused.status, 400);
+
+  const usage = store.dump().usage;
+  assert.equal(usage.reduce((sum, row) => sum + row.accepted, 0), before + 1, 'the accepted answer was counted');
+  assert.equal(usage.reduce((sum, row) => sum + row.rejected, 0), refusedBefore + 1, 'the refused request was counted as refused');
+  assert.ok(usage.some(row => row.bytes > 0), 'the bytes stored are counted');
+});
+
 test('a submission to a draft form is a 404', async () => {
   const response = await call('/forms/draft-project/secret-form/submissions', {
     method: 'POST',

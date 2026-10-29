@@ -13,13 +13,15 @@
 import express, { Router, type Request, type Response } from 'express';
 import { createHash } from 'node:crypto';
 import { DevError, type DevService } from './service.ts';
-import { DEV_FORM_ACTIONS, type DevFormAction } from './contracts.ts';
+import { DEV_FORM_ACTIONS, type DevFormAction, type DevStore } from './contracts.ts';
 import { summarizeResponses, type InsightQuestion } from '../forms/insights/summary.ts';
 import { MAX_ANSWERS_READ, type DevInsightModel } from './insights.ts';
 import type { AiOperationRunner } from '../ai/operations.ts';
 
 export interface DevRouterDeps {
   service: DevService;
+  /** The counters, read directly from the store. */
+  store: DevStore;
   /** Resolves the signed-in person, or null when there is no session. */
   getSession: (req: Request) => Promise<{ id: string; email: string; name: string } | null>;
   /** The AI summary of a form's answers. Absent when the server has no model configured. */
@@ -73,6 +75,7 @@ export function createDevRouter(deps: DevRouterDeps): Router {
   });
 
   const userId = (res: Response): string => (res.locals.user as { id: string }).id;
+  const now = (): Date => new Date();
 
   // Any failure inside a handler becomes a status code that says what actually happened.
   const handle = (error: unknown, res: Response): void => {
@@ -84,6 +87,47 @@ export function createDevRouter(deps: DevRouterDeps): Router {
   };
 
   // ── projects ────────────────────────────────────────────────────────────────
+
+  /**
+   * The usage of every project the person owns.
+   *
+   * The counters are ours, counted from the rows: answers accepted, requests refused, and the
+   * bytes of answers stored. They are here so a developer can see their own project; an operator
+   * compares them with what Render, Neon, Vercel and the model provider report, and the two
+   * should agree.
+   */
+  router.get('/usage', async (_req, res) => {
+    try {
+      const projects = await deps.service.listProjects(userId(res));
+      const since = new Date(now().getTime() - 30 * 24 * 60 * 60 * 1000);
+      const days = await deps.store.listUsage({ since });
+      const byProject = new Map<string, { accepted: number; rejected: number; bytes: number }>();
+      for (const day of days) {
+        const current = byProject.get(day.projectId) ?? { accepted: 0, rejected: 0, bytes: 0 };
+        current.accepted += day.accepted;
+        current.rejected += day.rejected;
+        current.bytes += day.bytes;
+        byProject.set(day.projectId, current);
+      }
+      const rows = projects.map(project => ({
+        projectId: project.id,
+        name: project.name,
+        slug: project.slug,
+        ...(byProject.get(project.id) ?? { accepted: 0, rejected: 0, bytes: 0 }),
+      }));
+      res.json({
+        windowDays: 30,
+        projects: rows,
+        totals: rows.reduce((sum, row) => ({
+          accepted: sum.accepted + row.accepted,
+          rejected: sum.rejected + row.rejected,
+          bytes: sum.bytes + row.bytes,
+        }), { accepted: 0, rejected: 0, bytes: 0 }),
+      });
+    } catch (error) {
+      handle(error, res);
+    }
+  });
 
   router.get('/projects', async (_req, res) => {
     try {

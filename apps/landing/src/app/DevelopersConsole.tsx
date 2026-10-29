@@ -82,6 +82,46 @@ function ErrorNote({ message, onRetry }: { message: string; onRetry?: () => void
   );
 }
 
+/**
+ * The usage of the last thirty days.
+ *
+ * The numbers are ours, counted from the rows: answers accepted, requests refused, and the bytes
+ * of answers stored. An operator compares them with what Render, Neon, Vercel and the model
+ * provider report; the two should agree.
+ */
+function UsagePanel() {
+  const usage = useAsync(() => devApi.usage(), []);
+  if (usage.state.status === 'loading') return <p className="dev-note" role="status">Counting the last thirty days…</p>;
+  if (usage.state.status === 'failed') return <ErrorNote message={usage.state.message} onRetry={usage.reload} />;
+  const { totals, windowDays } = usage.state.value;
+  if (totals.accepted === 0 && totals.rejected === 0) {
+    return (
+      <section className="dev-section" aria-labelledby="dev-usage">
+        <h2 id="dev-usage" className="dev-section__title">Usage</h2>
+        <p className="dev-section__note">
+          Nothing has been sent to your forms in the last {windowDays} days. When there is, the
+          counters here will say how many answers were accepted, how many requests were refused,
+          and how much was stored.
+        </p>
+      </section>
+    );
+  }
+  return (
+    <section className="dev-section" aria-labelledby="dev-usage">
+      <h2 id="dev-usage" className="dev-section__title">Usage, last {windowDays} days</h2>
+      <ul className="dev-usage">
+        <li><span>Answers accepted</span><strong>{totals.accepted}</strong></li>
+        <li><span>Requests refused</span><strong>{totals.rejected}</strong></li>
+        <li><span>Bytes of answers stored</span><strong>{totals.bytes.toLocaleString('en-GB')}</strong></li>
+      </ul>
+      <p className="dev-section__note">
+        Counted from the answers themselves. These are the same numbers an operator sees on the
+        platform side, so the two can be compared rather than believed.
+      </p>
+    </section>
+  );
+}
+
 /** The workspace: every project, and the forms inside it. */
 export function DevelopersWorkspacePage() {
   const navigate = useNavigate();
@@ -193,6 +233,8 @@ export function DevelopersWorkspacePage() {
           </p>
         </div>
       )}
+
+      <UsagePanel />
 
       {projects.state.status === 'ready' && projects.state.value.map((project: DevProject) => (
         <section className="dev-section" key={project.id} aria-labelledby={`dev-project-${project.id}`}>

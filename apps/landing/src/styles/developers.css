@@ -270,3 +270,18 @@
 .dev-insight__cost { margin: 0; font: 12px var(--mono); color: var(--cream-3); }
 .dev-insight__counts summary { cursor: pointer; font-size: 13px; color: var(--cream-2); }
 .dev-insight__counts ul { margin: 10px 0 0; padding-left: 18px; color: var(--cream-2); font-size: 13px; line-height: 1.7; }
+
+.dev-usage { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+.dev-usage li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--ink-1);
+  font-size: 13.5px;
+  color: var(--cream-2);
+}
+.dev-usage strong { font-size: 17px; font-weight: 550; color: var(--cream); }

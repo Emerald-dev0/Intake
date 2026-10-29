@@ -66,9 +66,13 @@ before(async () => {
     });
   }
 
+  // The counters are written by the public endpoint when an answer is accepted or refused.
+  await store.recordUsage({ projectId: project.id, accepted: 3, bytes: 240, day: new Date('2026-10-29T00:00:00.000Z') });
+
   const app = express();
   app.use('/api/dev', createDevRouter({
     service,
+    store,
     // The session is resolved per request, the way the real one is.
     getSession: async req => {
       const id = req.headers['x-test-user'];
@@ -141,4 +145,23 @@ test('an answer cannot be read by another account', async () => {
   const id = list.body.items[0].id;
   const response = await call(`/submissions/${id}`, { userId: STRANGER });
   assert.equal(response.status, 404);
+});
+
+test('the usage counters count what was accepted and what was refused', async () => {
+  const response = await call('/usage');
+  assert.equal(response.status, 200);
+  assert.equal(response.body.windowDays, 30);
+  const row = response.body.projects.find(project => project.slug === 'checkout-app');
+  assert.ok(row, 'the project is in the usage');
+  assert.equal(row.accepted, 3, 'three answers were accepted');
+  assert.equal(row.rejected, 0);
+  assert.ok(row.bytes > 0, 'the bytes stored are counted');
+  assert.equal(response.body.totals.accepted, 3);
+});
+
+test('the usage of one account does not include another account', async () => {
+  const response = await call('/usage', { userId: STRANGER });
+  assert.equal(response.status, 200);
+  assert.equal(response.body.projects.length, 0);
+  assert.equal(response.body.totals.accepted, 0);
 });

@@ -114,6 +114,13 @@ export interface DevInsights {
   cost: { credits: number; status: string };
 }
 
+/** The counters for the last thirty days. */
+export interface DevUsage {
+  windowDays: number;
+  projects: Array<{ projectId: string; name: string; slug: string; accepted: number; rejected: number; bytes: number }>;
+  totals: { accepted: number; rejected: number; bytes: number };
+}
+
 export interface DevProjectDetail {
   project: DevProject;
   forms: DevForm[];
@@ -170,6 +177,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const devApi = {
   listProjects: () => request<{ projects: DevProject[] }>('/projects').then(result => result.projects),
+
+  usage: () => request<DevUsage>('/usage'),
 
   createProject: (input: { name: string; slug?: string; description?: string }) =>
     request<{ project: DevProject }>('/projects', { method: 'POST', body: JSON.stringify(input) }).then(result => result.project),

@@ -297,6 +297,38 @@ export const BUNDLED_RELEASES: BundledRelease[] = [
     ],
     heroImageUrl: null,
   },
+  {
+    slug: 'summarise-the-answers',
+    title: 'What the answers sound like',
+    releaseDate: '2026-10-29',
+    publishedAt: '2026-10-29T00:00:00.000Z',
+    categories: ['feature'],
+    summary: 'The answers to a hosted form can now be summarised — in three of the credits you already have, with the exact counts counted beside the interpretation.',
+    highlights: [
+      'Three credits, from the same balance as everything else. There is no second wallet.',
+      'The counts are counted from the rows; the model is never asked for a number.',
+      'A failed summary costs nothing, and the same answers are never summarised twice on your dime.',
+    ],
+    audience: 'For developers who have a hundred answers and do not want to read all of them.',
+    body: [
+      '## A summary, not a statistic',
+      'Press the button and Intake reads the answers and says what they sound like: the themes, the things people keep mentioning, the tone. It is labelled as an interpretation, because that is what it is.',
+      'The counts sit next to it and are exact, because they are counted from the rows rather than written by a model. Ask for a summary of two hundred answers and the table above it still says how many answers there were.',
+      '## It costs three credits, from the balance you have',
+      'A summary is an operation like any other: the same 20 daily credits, the same buckets, the same price list, the same rules about what happens when the balance runs out. There is no developer wallet and no developer currency, and the page shows the cost before you ask and the receipt after.',
+      'If the model does not answer, you pay nothing. The charge happens when there is a usable summary, not when the request is made.',
+      '## Asking again is free',
+      'The key of the operation is worked out from the answers themselves, so asking for a summary of the same answers twice does not take a second three credits — it says that you have already paid for it. When new answers arrive, the next summary is a new operation, and it costs again.',
+      '## What the model is allowed to see',
+      'The answers to that form, and nothing else: no account details, no other form, no other customer. The number of answers read is capped, each answer is trimmed, and the whole prompt has a size limit, so a form with a great many answers cannot become a great many credits.',
+      'The model is also told not to write a number. “Most people mention pricing” is allowed; “42% mention pricing” is not, because it would be a guess sitting next to a count that is not.',
+    ].join('\n'),
+    links: [
+      { label: 'Developers', url: '/developers' },
+      { label: 'Changelog', url: '/changelog' },
+    ],
+    heroImageUrl: null,
+  },
 ];
 
 export function bundledReleaseBySlug(slug: string): BundledRelease | null {
