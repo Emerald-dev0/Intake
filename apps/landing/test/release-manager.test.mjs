@@ -8,13 +8,14 @@ import { createReleaseService } from '../server/releases/service.ts';
 import { createMemoryReleaseStore } from '../server/releases/memory-store.ts';
 import { createReleaseAdminRouter } from '../server/releases/routes.ts';
 import { createPublicReleaseRouter } from '../server/releases/public-routes.ts';
-import { handleGitHubWebhook } from '../server/releases/webhooks.ts';
+import { handleGitHubWebhook, githubWebhookHandler } from '../server/releases/webhooks.ts';
 import { verifyGitHubSignature, parsePullRequestReference } from '../server/releases/github.ts';
 import { buildDraft, categoriesFromLabels } from '../server/releases/drafting.ts';
 import { buildShareCopy, buildShareCopyWithinLimit } from '../server/releases/share.ts';
 import { evaluateChecklist } from '../server/releases/checklist.ts';
 
 const ORIGIN = 'https://intake.test';
+const WEBHOOK_SECRET = 'whsec_test';
 const ADMIN = { id: 'admin-1', name: 'Operator', email: 'operator@intake.test' };
 
 function sign(body, secret) {
@@ -39,15 +40,25 @@ async function boot(options = {}) {
     env: {},
   }));
   app.use(createPublicReleaseRouter({ store }));
+  app.post('/api/webhooks/github', githubWebhookHandler({
+    store,
+    service,
+    secret: options.webhookSecret ?? WEBHOOK_SECRET,
+    autoPublish: false,
+    onError: options.onError,
+  }));
   const server = createServer(app);
   openServers.push(server);
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
-  async function call(method, path, body) {
+  async function call(method, path, body, extraHeaders = {}) {
+    // A string body is sent verbatim: the webhook signs raw bytes, not a re-encoded object.
+    const payload = body === undefined ? {} : { body: typeof body === 'string' ? body : JSON.stringify(body) };
+    const headers = { ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...extraHeaders };
     const response = await fetch(base + path, {
       method,
-      headers: body === undefined ? {} : { 'content-type': 'application/json' },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      headers,
+      ...payload,
     });
     const text = await response.text();
     let json = null;
@@ -380,4 +391,44 @@ test('the migration seeds exactly the releases the site bundles', async () => {
   const seeded = [...sql.matchAll(/^\s*\(\s*'rel_[a-z0-9_]+',\s*'([a-z0-9-]+)'/gm)].map(match => match[1]);
   assert.deepEqual(seeded.sort(), bundled.BUNDLED_RELEASES.map(release => release.slug).sort(),
     'the seeded releases and the bundled releases are the same set');
+});
+
+test('the webhook answers even when the store fails, instead of leaving GitHub waiting', async t => {
+  const errors = [];
+  const store = createMemoryReleaseStore();
+  const failing = {
+    ...store,
+    // What a missing migration looks like: the delivery id cannot be recorded.
+    recordWebhookDelivery: async () => { throw new Error('relation "release_webhook_event" does not exist'); },
+  };
+  const { server, call } = await boot({ store: failing, onError: (label, error) => errors.push([label, error]) });
+  t.after(() => server.close());
+
+  const body = JSON.stringify({ action: 'closed', pull_request: { number: 21, title: 'A pull request', body: '', state: 'closed', merged: true, labels: [] } });
+  const response = await call('POST', '/api/webhooks/github', body, {
+    'content-type': 'application/json',
+    'x-github-event': 'pull_request',
+    'x-github-delivery': 'delivery-fail',
+    'x-hub-signature-256': sign(body, WEBHOOK_SECRET),
+  });
+  // A hang would leave GitHub with a timeout and no way to tell a broken URL from a broken server.
+  assert.equal(response.status, 500);
+  assert.equal(response.json.ok, false);
+  assert.equal(errors.length, 1, 'the failure is logged, not swallowed');
+  assert.match(errors[0][0], /webhook/i);
+});
+
+test('the migration creates no index expression PostgreSQL would refuse', async () => {
+  const sql = await readFile('db/migrations/022_release_manager.sql', 'utf8');
+  const statements = [...sql.matchAll(/CREATE INDEX[^;]+;/gi)].map(match => match[0]);
+  assert.ok(statements.length >= 5, 'the migration creates the release indexes');
+  for (const statement of statements) {
+    // Mixing a date column with a timestamptz column needs the timestamp normalised first: the
+    // direct date -> timestamptz cast is STABLE, and PostgreSQL refuses a non-immutable function
+    // in an index expression ("functions in index expression must be marked IMMUTABLE").
+    if (/release_date/.test(statement) && /published_at/.test(statement)) {
+      assert.match(statement, /published_at AT TIME ZONE 'UTC'/,
+        'a timestamptz column in a date expression is normalised to UTC before it is cast');
+    }
+  }
 });

@@ -213,29 +213,39 @@ async function publishApprovedRelease(deps: GitHubWebhookDeps, releaseId: string
 /** Express handler. Mounted on a raw-body route: the signature covers bytes, not a parsed object. */
 export function githubWebhookHandler(deps: GitHubWebhookDeps) {
   return async (req: Request, res: Response): Promise<void> => {
-    const chunks: Buffer[] = [];
-    let size = 0;
-    let aborted = false;
-    for await (const chunk of req) {
-      const buffer = chunk as Buffer;
-      size += buffer.length;
-      if (size > MAX_BODY_BYTES) {
-        aborted = true;
-        break;
+    try {
+      const chunks: Buffer[] = [];
+      let size = 0;
+      let aborted = false;
+      for await (const chunk of req) {
+        const buffer = chunk as Buffer;
+        size += buffer.length;
+        if (size > MAX_BODY_BYTES) {
+          aborted = true;
+          break;
+        }
+        chunks.push(buffer);
       }
-      chunks.push(buffer);
+      if (aborted) {
+        res.status(413).json({ ok: false, error: 'Webhook payload is too large.' });
+        return;
+      }
+      const raw = Buffer.concat(chunks).toString('utf8');
+      const result = await handleGitHubWebhook(deps, raw, {
+        event: req.get('x-github-event') ?? undefined,
+        delivery: req.get('x-github-delivery') ?? undefined,
+        signature: req.get('x-hub-signature-256') ?? undefined,
+      });
+      res.status(result.status).json(result.body);
+    } catch (error) {
+      // The webhook must always answer. A handler that throws without answering leaves GitHub
+      // waiting until it gives up, which is indistinguishable from an unreachable server — and it
+      // hides the real error. A failure here is reported as a 500 and logged.
+      deps.onError?.('GitHub release webhook failed', error);
+      if (!res.headersSent) {
+        res.status(500).json({ ok: false, error: 'The webhook could not be applied.' });
+      }
     }
-    if (aborted) {
-      res.status(413).json({ ok: false, error: 'Webhook payload is too large.' });
-      return;
-    }
-    const raw = Buffer.concat(chunks).toString('utf8');
-    const result = await handleGitHubWebhook(deps, raw, {
-      event: req.get('x-github-event') ?? undefined,
-      delivery: req.get('x-github-delivery') ?? undefined,
-      signature: req.get('x-hub-signature-256') ?? undefined,
-    });
-    res.status(result.status).json(result.body);
   };
 }
 

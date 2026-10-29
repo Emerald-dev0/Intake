@@ -36,7 +36,13 @@ CREATE TABLE IF NOT EXISTS release (
 );
 
 CREATE INDEX IF NOT EXISTS release_status_idx ON release (status, updated_at DESC);
-CREATE INDEX IF NOT EXISTS release_published_idx ON release (COALESCE(release_date, published_at) DESC) WHERE status = 'published';
+-- The public list is ordered by the date the reader sees: the date an operator set, falling back
+-- to the publication timestamp. The fallback is normalised to UTC and cast to a date, because the
+-- direct date -> timestamptz cast is STABLE (it depends on the session time zone) and PostgreSQL
+-- refuses a non-immutable function in an index expression.
+CREATE INDEX IF NOT EXISTS release_published_idx
+  ON release (COALESCE(release_date, (published_at AT TIME ZONE 'UTC')::date) DESC)
+  WHERE status = 'published';
 CREATE INDEX IF NOT EXISTS release_author_idx ON release (author_user_id);
 
 -- Where a release came from: a pull request, a commit, a GitHub release or a deployment.
