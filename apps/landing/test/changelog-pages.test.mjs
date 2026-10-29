@@ -1,6 +1,7 @@
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
+import { readFile } from 'node:fs/promises';
 
 const dom = new JSDOM('<div id="root"></div>', { url: 'https://intake.test/changelog', pretendToBeVisual: true });
 globalThis.window = dom.window;
@@ -161,4 +162,37 @@ test('the bundled releases are the shipped history: dated, categorised and each 
     assert.ok(release.categories.length > 0, `${release.slug} is categorised`);
     assert.match(release.body, /## What changed/);
   }
+});
+
+test('the release pages are styled for both widths and keep their focus ring', async () => {
+  const [marketing, admin] = await Promise.all([
+    readFile('src/styles/marketing.css', 'utf8'),
+    readFile('src/styles/admin.css', 'utf8'),
+  ]);
+  // The release article wraps rather than overflows, and the console grid collapses on a narrow
+  // screen; the public pages keep the shared focus treatment.
+  assert.match(marketing, /\.mk-release__share \{/);
+  assert.match(marketing, /flex-wrap: wrap/);
+  assert.match(marketing, /\.marketing-page :focus-visible/);
+  assert.match(admin, /@media \(max-width: 1080px\)/);
+  assert.match(admin, /\.admin-release__grid/);
+});
+
+test('the release notes renderer refuses to turn an unsafe link into a target', async () => {
+  const { ReleaseMarkdown } = await import('../src/lib/release-markdown.tsx');
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const React = await import('react');
+  const { createRoot } = await import('react-dom/client');
+  const { act } = React;
+  const root = createRoot(container);
+  await act(async () => root.render(React.createElement(ReleaseMarkdown, {
+    body: '## What changed\nA [safe link](/guides) and an [unsafe one](javascript:alert(1)).',
+  })));
+  const links = [...container.querySelectorAll('a')];
+  assert.equal(links.length, 1, 'only the safe link becomes an anchor');
+  assert.equal(links[0].getAttribute('href'), '/guides');
+  assert.match(container.textContent, /unsafe one/, 'the unsafe link is still readable as text');
+  await act(async () => root.unmount());
+  container.remove();
 });

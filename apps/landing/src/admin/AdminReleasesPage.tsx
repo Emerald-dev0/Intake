@@ -436,6 +436,16 @@ export function AdminReleaseDetailPage() {
                   );
                 })}
               </fieldset>
+              <label className="admin-field" htmlFor="release-hero">
+                <span>Screenshot image URL · optional</span>
+                <input
+                  id="release-hero"
+                  value={value('heroImageUrl', '') ?? ''}
+                  placeholder="https://…"
+                  onChange={event => setDraft(current => ({ ...current, heroImageUrl: event.target.value || null }))}
+                />
+                <small className="admin-muted">An absolute https image. It is shown above the notes, with the release title as its alt text.</small>
+              </label>
               <label className="admin-field" htmlFor="release-body">
                 <span>Release notes</span>
                 <textarea id="release-body" rows={14} value={value('body', '')} onChange={event => setDraft(current => ({ ...current, body: event.target.value }))} />
