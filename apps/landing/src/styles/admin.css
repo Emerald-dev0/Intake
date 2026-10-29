@@ -343,3 +343,14 @@
   .admin-release__grid { grid-template-columns: minmax(0, 1fr); }
   .admin-release__link-row { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* The release preview: the public page, inside the operator console. */
+.admin-release__preview { margin: 0; }
+.admin-release__preview-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+  margin-bottom: 13px; padding: 10px 12px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--ink-1);
+}
+.admin-release__preview-bar .admin-muted { flex: 1 1 240px; font-size: 10.5px; }
+.admin-release__preview .marketing-page { border: 1px solid var(--line-2); border-radius: 8px; }
+.marketing-page .mk-release__media { margin: 0 0 22px; }
+.marketing-page .mk-release__media img { display: block; width: 100%; height: auto; border: 1px solid var(--mk-line); border-radius: var(--mk-r-md); }

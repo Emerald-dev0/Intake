@@ -193,7 +193,7 @@ app.use('/api/admin', createAdminRouter({
   },
 }));
 // The public changelog. Published releases only: a draft is answered with 404, not 403.
-app.use(createPublicReleaseRouter({ store: releaseStore }));
+app.use(createPublicReleaseRouter({ store: releaseStore, rateLimiter: abuseLimiter }));
 /**
  * GitHub webhook deliveries for the Release Manager. Mounted on an unparsed route because the
  * signature covers the raw bytes, and it is refused outright when no signing secret is set.

@@ -13,6 +13,7 @@ const { act } = React;
 const { createRoot } = await import('react-dom/client');
 const { createMemoryRouter, RouterProvider } = await import('react-router-dom');
 const { AdminReleasesPage, AdminReleaseDetailPage } = await import('../src/admin/AdminReleasesPage.tsx');
+const { AdminReleasePreviewPage } = await import('../src/admin/AdminReleasePreviewPage.tsx');
 
 after(() => dom.window.close());
 
@@ -65,6 +66,7 @@ async function mount({ path = '/admin/releases', handler }) {
   const router = createMemoryRouter([
     { path: '/admin/releases', element: React.createElement(AdminReleasesPage) },
     { path: '/admin/releases/:releaseId', element: React.createElement(AdminReleaseDetailPage) },
+    { path: '/admin/releases/:releaseId/preview', element: React.createElement(AdminReleasePreviewPage) },
   ], { initialEntries: [path] });
   // One container per mount: two roots on the same node make React refuse the second render.
   const container = document.createElement('div');
@@ -174,4 +176,35 @@ test('a GitHub integration that is not configured is stated plainly, with the ma
   assert.match(view.text(), /GitHub integration is not configured/);
   assert.match(view.text(), /GITHUB_TOKEN/);
   assert.ok(view.find('Link'), 'a source can still be linked by hand');
+});
+
+test('the preview shows the public page for an unpublished release, and says it is not published', async t => {
+  const view = await mount({
+    path: '/admin/releases/rel-1/preview',
+    handler: path => {
+      if (path === '/api/admin/releases/rel-1/preview') {
+        return json({
+          release: {
+            slug: 'every-release-has-a-page',
+            title: 'Every release now has its own page',
+            summary: 'The changelog is no longer one long list.',
+            body: '## What changed\nEach release now has its own address.',
+            categories: ['improvement'],
+            releaseDate: '2026-10-29',
+            publishedAt: null,
+            links: [{ label: 'Changelog', url: '/changelog' }],
+            heroImageUrl: null,
+          },
+          url: 'https://intake.test/changelog/every-release-has-a-page',
+        });
+      }
+      return json({ error: 'not found' }, 404);
+    },
+  });
+  t.after(view.restore);
+
+  assert.match(view.text(), /Preview · not published/);
+  assert.match(view.text(), /Every release now has its own page/);
+  assert.match(view.text(), /What changed/);
+  assert.match(view.text(), /https:\/\/intake\.test\/changelog\/every-release-has-a-page/);
 });

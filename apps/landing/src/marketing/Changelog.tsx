@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { BUNDLED_RELEASES, bundledReleaseBySlug, mergeReleases } from '../content/changelog';
-import { categoryLabel, formatReleaseDate, loadPublishedRelease, loadPublishedReleases, type PublicRelease } from '../lib/releases';
-import { ReleaseMarkdown } from '../lib/release-markdown';
+import { formatReleaseDate, loadPublishedRelease, loadPublishedReleases, type PublicRelease } from '../lib/releases';
+import { ReleaseArticle, ReleaseCategories } from './ReleaseArticle';
 import { HubShell } from './HubShell';
 import { releaseSchema } from './usePageMeta';
 
@@ -13,15 +13,6 @@ import { releaseSchema } from './usePageMeta';
  * rendered from the API when it answers and from the bundled notes when it does not, and the page
  * says which of the two happened rather than quietly showing a shorter list.
  */
-
-function ReleaseCategories({ categories }: { categories: PublicRelease['categories'] }) {
-  if (!categories.length) return null;
-  return (
-    <ul className="mk-release__categories" aria-label="Categories">
-      {categories.map(category => <li key={category}>{categoryLabel(category)}</li>)}
-    </ul>
-  );
-}
 
 /** Copy a link. The button only claims success when the clipboard actually accepted the text. */
 function CopyLinkButton({ url }: { url: string }) {
@@ -198,32 +189,11 @@ export function ReleaseDetailPage() {
       })}
     >
       <section className="mk-section" aria-label="Release">
-        <div className="mk-container mk-release">
-          <div className="mk-release__meta">
-            <span className="mk-release__date">{formatReleaseDate(release.releaseDate)}</span>
-            <ReleaseCategories categories={release.categories} />
-          </div>
-          {!state.live && (
-            <p className="mk-changelog__notice" role="status">
-              This release is shown from the notes bundled with the site because the live changelog could not be reached.
-            </p>
-          )}
-          <ReleaseMarkdown body={release.body} className="mk-release__body" />
-          {release.links.length > 0 && (
-            <nav className="mk-release__links" aria-label="Links for this release">
-              <h2>Links</h2>
-              <ul>
-                {release.links.map(link => {
-                  const external = !link.url.startsWith('/');
-                  return (
-                    <li key={link.url}>
-                      <a href={link.url} {...(external ? { target: '_blank', rel: 'noreferrer noopener' } : {})}>{link.label}</a>
-                    </li>
-                  );
-                })}
-              </ul>
-            </nav>
-          )}
+        <div className="mk-container">
+          <ReleaseArticle
+            release={release}
+            notice={state.live ? null : 'This release is shown from the notes bundled with the site because the live changelog could not be reached.'}
+          />
           <CopyLinkButton url={canonicalUrl} />
           <p className="mk-release__back"><Link to="/changelog">← Back to the changelog</Link></p>
         </div>

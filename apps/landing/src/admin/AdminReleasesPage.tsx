@@ -391,7 +391,7 @@ export function AdminReleaseDetailPage() {
         <span className="admin-muted">
           {release.publishedAt ? `Published ${dateTime(release.publishedAt)}` : `Updated ${dateTime(release.updatedAt)}`}
         </span>
-        <a className="admin-muted" href={data.previewUrl} target="_blank" rel="noreferrer">Open public preview ↗</a>
+        <Link className="admin-muted" to={`/admin/releases/${release.id}/preview`} target="_blank" rel="noreferrer">Preview the public page ↗</Link>
       </div>
       {message && <p className={message.tone === 'ok' ? 'admin-release__message' : 'admin-inline-error'} role="status">{message.text}</p>}
 
@@ -574,6 +574,7 @@ export function AdminReleaseDetailPage() {
               <button className="admin-button" onClick={() => void generateShare()} disabled={busyAction !== ''}>Write copy</button>
               <button className="admin-button primary" onClick={() => void copyShare()} disabled={!shareText || busyAction !== ''}>Copy</button>
               <a className="admin-button" href={data.previewUrl} target="_blank" rel="noreferrer">Permanent link ↗</a>
+              <Link className="admin-button" to={`/admin/releases/${release.id}/preview`} target="_blank" rel="noreferrer">Preview ↗</Link>
             </div>
             <p className="admin-note">The link is permanent once published. Intake does not post anywhere; this only prepares the text.</p>
           </Panel>
