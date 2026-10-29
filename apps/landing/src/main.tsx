@@ -19,6 +19,7 @@ import './styles/pricing.css';
 import './styles/privacy.css';
 import './styles/billing.css';
 import './styles/developers.css';
+import './styles/hosted-form.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

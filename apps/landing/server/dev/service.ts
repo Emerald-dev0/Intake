@@ -82,11 +82,30 @@ export class DevService {
     const slug = validateSlug(input.slug, name.value);
     if (!slug.ok) throw new DevError(400, 'invalid_project', 'The project address is not usable.', slug.errors);
 
-    const existing = await this.store.getProjectBySlug(userId, slug.value);
-    if (existing) {
-      throw new DevError(409, 'slug_taken', 'You already have a project with that address.', [
-        { path: 'slug', message: 'Pick another address.' },
-      ]);
+    // The public address is shared by everybody, not namespaced by account: two people's projects
+    // cannot both live at /forms/checkout. An address the developer chose themselves is refused so
+    // they can pick another; one derived from the name gets a short suffix instead.
+    const supplied = typeof input.slug === 'string' && input.slug.trim() !== '';
+    let address = slug.value;
+    const taken = await this.store.getProjectBySlug(address);
+    if (taken) {
+      if (supplied) {
+        throw new DevError(409, 'slug_taken', 'That address is already in use by another project.', [
+          { path: 'slug', message: 'Pick another address.' },
+        ]);
+      }
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        const candidate = `${slug.value.slice(0, 54).replace(/-+$/, '')}-${randomUUID().slice(0, 4)}`;
+        if (!await this.store.getProjectBySlug(candidate)) {
+          address = candidate;
+          break;
+        }
+      }
+      if (address === slug.value) {
+        throw new DevError(409, 'slug_taken', 'That address is already in use by another project.', [
+          { path: 'slug', message: 'Pick another address.' },
+        ]);
+      }
     }
 
     const timestamp = this.now();
@@ -94,7 +113,7 @@ export class DevService {
       id: this.id(),
       userId,
       name: name.value,
-      slug: slug.value,
+      slug: address,
       description: typeof input.description === 'string' ? input.description.trim().slice(0, 400) || null : null,
       status: 'active',
       createdAt: timestamp,

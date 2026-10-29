@@ -123,10 +123,23 @@ export interface DevProjectDetail {
 export const DEV_FORM_ACTIONS = ['publish', 'pause', 'resume', 'close', 'reopen', 'archive', 'restore'] as const;
 export type DevFormAction = typeof DEV_FORM_ACTIONS[number];
 
+/** A response to a hosted form. */
+export interface DevSubmission {
+  id: string;
+  formId: string;
+  formVersionId: string;
+  projectId: string;
+  answers: Record<string, string | number | boolean | string[]>;
+  source: { referrer?: string; userAgent?: string };
+  idempotencyKey: string | null;
+  submittedAt: Date;
+}
+
 export interface DevStore {
   listProjects(userId: string): Promise<DevProject[]>;
   getProject(userId: string, projectId: string): Promise<DevProject | null>;
-  getProjectBySlug(userId: string, slug: string): Promise<DevProject | null>;
+  /** The public address of a project. Unique across every account, not per person. */
+  getProjectBySlug(slug: string): Promise<DevProject | null>;
   createProject(project: DevProject): Promise<DevProject>;
   updateProject(projectId: string, patch: Partial<DevProject>): Promise<DevProject | null>;
 
@@ -142,4 +155,7 @@ export interface DevStore {
   getDraftVersion(formId: string): Promise<DevFormVersion | null>;
   createVersion(version: DevFormVersion): Promise<DevFormVersion>;
   updateVersion(versionId: string, patch: Partial<DevFormVersion>): Promise<DevFormVersion | null>;
+
+  createSubmission(submission: DevSubmission): Promise<DevSubmission>;
+  getSubmissionByIdempotencyKey(formId: string, key: string): Promise<DevSubmission | null>;
 }

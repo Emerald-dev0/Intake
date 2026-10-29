@@ -38,7 +38,7 @@ test('the developer workspace migration applies to a real PostgreSQL', async () 
   );
 });
 
-test('a project belongs to one person, and one address inside that account', async () => {
+test('a project belongs to one person, and its public address is unique', async () => {
   await db.exec(`INSERT INTO "user" (id) VALUES ('user_a'), ('user_b')`);
 
   await db.exec(`
@@ -46,18 +46,14 @@ test('a project belongs to one person, and one address inside that account', asy
     VALUES ('dev_proj_one', 'user_a', 'Checkout', 'checkout', 'A project', 'active', now(), now())
   `);
 
-  // The same address may exist under a different account: two people may both have a "Checkout".
-  await db.exec(`
-    INSERT INTO dev_project (id, user_id, name, slug, description, status, created_at, updated_at)
-    VALUES ('dev_proj_two', 'user_b', 'Checkout', 'checkout', NULL, 'active', now(), now())
-  `);
-
+  // The public address is not namespaced by a person: two people's projects cannot both live at
+  // /forms/checkout, or the hosted form at that address would be ambiguous.
   await assert.rejects(
     db.exec(`
       INSERT INTO dev_project (id, user_id, name, slug, description, status, created_at, updated_at)
-      VALUES ('dev_proj_three', 'user_a', 'Checkout again', 'checkout', NULL, 'active', now(), now())
+      VALUES ('dev_proj_two', 'user_b', 'Checkout', 'checkout', NULL, 'active', now(), now())
     `),
-    'the same account cannot have two projects with the same address',
+    'the public address belongs to one project',
   );
 });
 

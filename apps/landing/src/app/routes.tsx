@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import { type RouteObject } from 'react-router-dom';
+import { type RouteObject, useParams } from 'react-router-dom';
 import { ProtectedLayout } from './layouts/ProtectedLayout';
 import { WorkspaceLayout } from './layouts/WorkspaceLayout';
 
@@ -24,6 +24,7 @@ const PrivacyPage = lazy(() => import('./pages/PrivacyPage').then(m => ({ defaul
 const TermsPage = lazy(() => import('./pages/TermsPage').then(m => ({ default: m.TermsPage })));
 const BillingPage = lazy(() => import('./pages/BillingPage').then(m => ({ default: m.BillingPage })));
 const DevelopersWorkspacePage = lazy(() => import('../app/DevelopersConsole').then(m => ({ default: m.DevelopersWorkspacePage })));
+const HostedFormPage = lazy(() => import('../marketing/HostedFormPage').then(m => ({ default: m.HostedFormPage })));
 const DeveloperFormPage = lazy(() => import('../app/DevelopersConsole').then(m => ({ default: m.DeveloperFormPage })));
 const AdminGate = lazy(() => import('../admin/AdminGate').then(m => ({ default: m.AdminGate })));
 const AdminShell = lazy(() => import('../admin/AdminShell').then(m => ({ default: m.AdminShell })));
@@ -47,6 +48,12 @@ function NotFoundPage() {
   return <main className="workspace-status"><h1>Page not found</h1><a href="/">Back to Intake</a></main>;
 }
 
+/** Reads the address of a hosted form out of the route and renders it. */
+function HostedFormRoute({ variant }: { variant: 'page' | 'embed' }) {
+  const { projectSlug = '', formSlug = '' } = useParams();
+  return <HostedFormPage projectSlug={projectSlug} formSlug={formSlug} variant={variant} />;
+}
+
 export const routes: RouteObject[] = [
   { path: '/', element: <LandingPage /> },
   { path: '/pricing', element: <PricingPage /> },
@@ -56,6 +63,9 @@ export const routes: RouteObject[] = [
   { path: '/trust', element: <TrustPage /> },
   { path: '/changelog', element: <ChangelogPage /> },
   { path: '/developers', element: <DevelopersPage /> },
+  // A hosted form, and the bare version that goes in somebody else's page.
+  { path: '/forms/:projectSlug/:formSlug', element: <HostedFormRoute variant="page" /> },
+  { path: '/embed/forms/:projectSlug/:formSlug', element: <HostedFormRoute variant="embed" /> },
   { path: '/changelog/:slug', element: <ReleaseDetailPage /> },
   { path: '/privacy', element: <PrivacyPage /> },
   { path: '/terms', element: <TermsPage /> },

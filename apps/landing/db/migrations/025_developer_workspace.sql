@@ -21,14 +21,15 @@ CREATE TABLE IF NOT EXISTS dev_project (
   -- The account that owns this project. Deleting the account deletes the project with it.
   user_id text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
   name text NOT NULL CHECK (char_length(name) BETWEEN 1 AND 80),
-  -- Readable, stable, and unique per account rather than globally: two people may both have a
-  -- project called "Website".
-  slug text NOT NULL CHECK (char_length(slug) BETWEEN 3 AND 60 AND slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+  -- The public address of the project's forms: /forms/<slug>/<form>. It has to be unique across
+  -- every account, not just inside one, because the address is not namespaced by a person — two
+  -- people's "Website" projects cannot both live at /forms/website.
+  -- When the name is taken, a short suffix is added rather than the second person being refused.
+  slug text NOT NULL UNIQUE CHECK (char_length(slug) BETWEEN 3 AND 60 AND slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
   description text CHECK (description IS NULL OR char_length(description) <= 400),
   status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (user_id, slug)
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS dev_project_user_idx ON dev_project (user_id, updated_at DESC);

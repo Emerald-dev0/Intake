@@ -17,6 +17,7 @@ import { createFormEditRouter } from './forms/edit-routes';
 import { createInterpretationLimiter } from './forms/interpretation/routes';
 import { createFormsRouter } from './forms/routes';
 import { createDevRouter } from './dev/routes';
+import { createPublicDevRouter } from './dev/public-routes';
 import { DevService } from './dev/service';
 import { createPostgresDevStore } from './dev/store';
 import { createInsightsRouter } from './forms/insights/routes';
@@ -200,7 +201,11 @@ app.use('/api/admin', createAdminRouter({
  * same session: the service checks ownership on every call, so the console is a convenience rather
  * than the boundary.
  */
-const devService = new DevService({ store: createPostgresDevStore(pool) });
+const devStore = createPostgresDevStore(pool);
+const devService = new DevService({ store: devStore });
+// The public side of a hosted form comes first: it is mounted before the workspace router, whose
+// session check would otherwise answer 401 to a form somebody published on purpose.
+app.use('/api/dev/public', createPublicDevRouter({ store: devStore, rateLimiter: abuseLimiter }));
 app.use('/api/dev', createDevRouter({ service: devService, getSession }));
 // The public changelog. Published releases only: a draft is answered with 404, not 403.
 app.use(createPublicReleaseRouter({ store: releaseStore, rateLimiter: abuseLimiter }));

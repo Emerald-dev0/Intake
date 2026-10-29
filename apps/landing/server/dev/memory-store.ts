@@ -7,20 +7,23 @@
  */
 
 import type {
-  DevForm, DevFormVersion, DevProject, DevStore,
+  DevForm, DevFormVersion, DevProject, DevStore, DevSubmission,
 } from './contracts.js';
 
 export interface MemoryDevStore extends DevStore {
   /** Test helper: every row the store holds. */
-  dump(): { projects: DevProject[]; forms: DevForm[]; versions: DevFormVersion[] };
+  dump(): { projects: DevProject[]; forms: DevForm[]; versions: DevFormVersion[]; submissions: DevSubmission[] };
 }
 
 export function createMemoryDevStore(): MemoryDevStore {
   const projects: DevProject[] = [];
   const forms: DevForm[] = [];
   const versions: DevFormVersion[] = [];
+  const submissions: DevSubmission[] = [];
 
-  const copy = <T>(value: T): T => (value ? (JSON.parse(JSON.stringify(value)) as T) : value);
+  // A structured clone keeps the dates as dates. A JSON round trip would turn them into strings
+  // and quietly break anything that calls toISOString().
+  const copy = <T>(value: T): T => (value === undefined || value === null ? value : structuredClone(value));
 
   return {
     async listProjects(userId: string) {
@@ -32,8 +35,8 @@ export function createMemoryDevStore(): MemoryDevStore {
       return project ? copy(project) : null;
     },
 
-    async getProjectBySlug(userId: string, slug: string) {
-      const project = projects.find(entry => entry.userId === userId && entry.slug === slug);
+    async getProjectBySlug(slug: string) {
+      const project = projects.find(entry => entry.slug === slug);
       return project ? copy(project) : null;
     },
 
@@ -111,8 +114,18 @@ export function createMemoryDevStore(): MemoryDevStore {
       return copy(version);
     },
 
+    async createSubmission(submission: DevSubmission) {
+      submissions.push(copy(submission));
+      return copy(submission);
+    },
+
+    async getSubmissionByIdempotencyKey(formId: string, key: string) {
+      const submission = submissions.find(entry => entry.formId === formId && entry.idempotencyKey === key);
+      return submission ? copy(submission) : null;
+    },
+
     dump() {
-      return { projects: copy(projects), forms: copy(forms), versions: copy(versions) };
+      return { projects: copy(projects), forms: copy(forms), versions: copy(versions), submissions: copy(submissions) };
     },
   };
 }

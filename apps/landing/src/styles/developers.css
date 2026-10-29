@@ -162,3 +162,22 @@
   .dev-section { padding: 20px 16px; }
   .dev-badge { margin-left: 0; }
 }
+
+.dev-code {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--ink-1);
+}
+.dev-code--wrap code { white-space: pre-wrap; word-break: break-all; }
+.dev-code code {
+  font: 12.5px var(--mono);
+  color: var(--cream);
+  flex: 1 1 260px;
+  min-width: 0;
+}

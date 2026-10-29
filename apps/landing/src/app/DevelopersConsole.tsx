@@ -50,6 +50,28 @@ function StatusBadge({ status }: { status: DevFormStatus }) {
   return <span className={`dev-badge dev-badge--${status}`}>{FORM_STATUS_LABEL[status]}</span>;
 }
 
+/** Copies something and says so only when the clipboard really took it. */
+function CopyButton({ value, label = 'Copy' }: { value: string; label?: string }) {
+  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  return (
+    <button
+      type="button"
+      className="dev-button dev-button--quiet"
+      onClick={async () => {
+        try {
+          if (!navigator.clipboard?.writeText) throw new Error('no clipboard');
+          await navigator.clipboard.writeText(value);
+          setState('copied');
+        } catch {
+          setState('failed');
+        }
+      }}
+    >
+      {state === 'copied' ? 'Copied' : state === 'failed' ? 'Copy failed — select it' : label}
+    </button>
+  );
+}
+
 function ErrorNote({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <div className="dev-note dev-note--error" role="alert">
@@ -265,6 +287,9 @@ export function DeveloperFormPage() {
 
   const { form, project, draftVersion, publishedVersion, versions } = value as DevFormDetail;
   const fields = draftVersion?.definition.fields ?? publishedVersion?.definition.fields ?? [];
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const hostedUrl = `${origin}/forms/${project.slug}/${form.slug}`;
+  const embedSnippet = `<iframe src="${origin}/embed/forms/${project.slug}/${form.slug}" title="${form.name}" style="width:100%;height:640px;border:0" loading="lazy"></iframe>`;
 
   return (
     <div className="dev-console">
@@ -307,12 +332,39 @@ export function DeveloperFormPage() {
         </p>
       </section>
 
+      <section className="dev-section" aria-labelledby="dev-form-address">
+        <h2 id="dev-form-address" className="dev-section__title">Where it lives</h2>
+        {form.status === 'published' ? (
+          <>
+            <p className="dev-section__note">
+              This form has a permanent address. It does not change when you edit the form, so a
+              snippet pasted into a page keeps working.
+            </p>
+            <div className="dev-code">
+              <code>{hostedUrl}</code>
+              <CopyButton value={hostedUrl} />
+            </div>
+            <p className="dev-section__note">Or put it in your page:</p>
+            <div className="dev-code dev-code--wrap">
+              <code>{embedSnippet}</code>
+              <CopyButton value={embedSnippet} label="Copy snippet" />
+            </div>
+          </>
+        ) : (
+          <p className="dev-section__note">
+            A form gets its address when it is published. Until then there is nothing to paste into
+            a page.
+          </p>
+        )}
+      </section>
+
       <section className="dev-section" aria-labelledby="dev-form-fields">
         <h2 id="dev-form-fields" className="dev-section__title">Fields</h2>
         {fields.length === 0 ? (
           <p className="dev-note">
-            This form has no fields yet. The builder arrives with the hosted form — until then, a
-            form with no fields cannot be published, and the server says so.
+            This form has no fields yet. The builder — where you add and edit questions — is the
+            next piece. Until then a form with no fields cannot be published, and the server says
+            so rather than letting it out empty.
           </p>
         ) : (
           <ul className="dev-list dev-list--fields">

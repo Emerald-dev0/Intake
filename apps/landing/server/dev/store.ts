@@ -8,7 +8,7 @@
 
 import type { Pool } from 'pg';
 import type {
-  DevForm, DevFormDefinition, DevFormVersion, DevProject, DevStore,
+  DevForm, DevFormDefinition, DevFormVersion, DevProject, DevStore, DevSubmission,
 } from './contracts.js';
 
 type Queryable = Pick<Pool, 'query'>;
@@ -68,6 +68,21 @@ function mapForm(row: DbRow): DevForm {
   };
 }
 
+function mapSubmission(row: DbRow): DevSubmission {
+  const answers = (typeof row.answers === 'object' && row.answers !== null ? row.answers : {}) as DevSubmission['answers'];
+  const source = (typeof row.source === 'object' && row.source !== null ? row.source : {}) as DevSubmission['source'];
+  return {
+    id: String(row.id),
+    formId: String(row.form_id),
+    formVersionId: String(row.form_version_id),
+    projectId: String(row.project_id),
+    answers,
+    source,
+    idempotencyKey: row.idempotency_key === null || row.idempotency_key === undefined ? null : String(row.idempotency_key),
+    submittedAt: toDate(row.submitted_at),
+  };
+}
+
 function mapVersion(row: DbRow): DevFormVersion {
   return {
     id: String(row.id),
@@ -104,12 +119,12 @@ export function createPostgresDevStore(pool: Queryable): DevStore {
       return row ? mapProject(row) : null;
     },
 
-    async getProjectBySlug(userId: string, slug: string) {
+    async getProjectBySlug(slug: string) {
       const result = await pool.query(
         `SELECT id, user_id, name, slug, description, status, created_at, updated_at
            FROM dev_project
-          WHERE user_id = $1 AND slug = $2`,
-        [userId, slug],
+          WHERE slug = $1`,
+        [slug],
       );
       const row = (result.rows as DbRow[])[0];
       return row ? mapProject(row) : null;
@@ -263,6 +278,36 @@ export function createPostgresDevStore(pool: Queryable): DevStore {
         ],
       );
       return mapVersion((result.rows as DbRow[])[0]);
+    },
+
+    async createSubmission(submission: DevSubmission) {
+      const result = await pool.query(
+        `INSERT INTO dev_submission (id, form_id, form_version_id, project_id, answers, source, idempotency_key, submitted_at, created_at)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $8)
+         RETURNING id, form_id, form_version_id, project_id, answers, source, idempotency_key, submitted_at`,
+        [
+          submission.id,
+          submission.formId,
+          submission.formVersionId,
+          submission.projectId,
+          JSON.stringify(submission.answers),
+          JSON.stringify(submission.source),
+          submission.idempotencyKey,
+          submission.submittedAt,
+        ],
+      );
+      return mapSubmission((result.rows as DbRow[])[0]);
+    },
+
+    async getSubmissionByIdempotencyKey(formId: string, key: string) {
+      const result = await pool.query(
+        `SELECT id, form_id, form_version_id, project_id, answers, source, idempotency_key, submitted_at
+           FROM dev_submission
+          WHERE form_id = $1 AND idempotency_key = $2`,
+        [formId, key],
+      );
+      const row = (result.rows as DbRow[])[0];
+      return row ? mapSubmission(row) : null;
     },
 
     async updateVersion(versionId: string, patch: Partial<DevFormVersion>) {
