@@ -31,6 +31,9 @@ const MAIN_LINKS = [
   ['Providers', '#providers'],
   ['Pricing', '#pricing'],
   ['FAQ', '#faq'],
+  // The changelog is its own page, with a permanent page per release — so it is a link and not
+  // a section of this one.
+  ['Changelog', '/changelog'],
   ['Developers', '/developers'],
 ] as const;
 
