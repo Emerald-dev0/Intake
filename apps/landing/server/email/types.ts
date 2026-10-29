@@ -68,6 +68,8 @@ export type EmailType =
   | 'provider_connection_added'
   | 'provider_connection_removed'
   | 'credits_low'
+  /** A developer's own form has new answers. Opt-in, and never written to a respondent. */
+  | 'dev_answers_received'
   | 'billing_subscription_started'
   | 'billing_subscription_renewed'
   | 'billing_subscription_canceled'

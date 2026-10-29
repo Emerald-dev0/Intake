@@ -14,8 +14,8 @@ Do these in order. Do not start design work until Stage 0 is verified.
 2. **Install.** `cd apps/landing && npm ci` (there is no lockfile drift expected; if `npm ci` fails,
    stop and report rather than switching to `npm install`).
 3. **Migrations.** Better Auth first, then Intake:
-   `npm run db:migrate` → `npm run db:migrate:intake`. Expect `020_admin_mail.sql` to be the last one
-   applied. If any migration fails, **stop** — do not "fix" it by deleting rows.
+   `npm run db:migrate` → `npm run db:migrate:intake`. Expect `035_release_delete_a_form.sql` to be
+   the last one applied. If any migration fails, **stop** — do not "fix" it by deleting rows.
 4. **Preflight.** `npm run preflight -- --db`. Every check must pass, including the new
    `composed mail` check. A `warn` there means the send log did not apply; fix the migration before
    continuing.

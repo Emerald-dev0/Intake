@@ -7,7 +7,8 @@
  */
 
 import {
-  RELEASE_CATEGORIES, RELEASE_LINK_LABEL_LIMIT, RELEASE_LINK_URL_LIMIT, RELEASE_SOURCE_KINDS, RELEASE_STATUSES,
+  RELEASE_AUDIENCE_LIMIT, RELEASE_CATEGORIES, RELEASE_HIGHLIGHT_LIMIT, RELEASE_HIGHLIGHT_TEXT_LIMIT,
+  RELEASE_LINK_LABEL_LIMIT, RELEASE_LINK_URL_LIMIT, RELEASE_SOURCE_KINDS, RELEASE_STATUSES,
   type ReleaseCategory, type ReleaseLink, type ReleaseSourceKind, type ReleaseStatus,
 } from './contracts.ts';
 
@@ -110,6 +111,42 @@ export function isSafeLink(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * The highlights of a release: a handful of short lines, one per line in the console.
+ *
+ * They are the "what changed" a reader sees before the full notes, so they are trimmed, capped and
+ * never allowed to become a second copy of the summary.
+ */
+export function parseHighlights(raw: unknown): ParseResult<string[]> {
+  if (raw === undefined || raw === null) return { ok: true, value: [] };
+  if (!Array.isArray(raw)) return { ok: false, errors: { highlights: 'Use one highlight per line.' } };
+  if (raw.length > RELEASE_HIGHLIGHT_LIMIT) {
+    return { ok: false, errors: { highlights: `Keep it to ${RELEASE_HIGHLIGHT_LIMIT} highlights or fewer.` } };
+  }
+  const value: string[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== 'string') return { ok: false, errors: { highlights: 'Use one highlight per line.' } };
+    const text = entry.trim();
+    if (!text) continue;
+    if (text.length > RELEASE_HIGHLIGHT_TEXT_LIMIT) {
+      return { ok: false, errors: { highlights: `Keep each highlight under ${RELEASE_HIGHLIGHT_TEXT_LIMIT} characters.` } };
+    }
+    if (!value.includes(text)) value.push(text);
+  }
+  return { ok: true, value };
+}
+
+/** One line naming who a release is for. */
+export function parseAudience(raw: unknown): ParseResult<string | null> {
+  if (raw === undefined || raw === null || raw === '') return { ok: true, value: null };
+  if (typeof raw !== 'string') return { ok: false, errors: { audience: 'Write one line about who this is for.' } };
+  const value = raw.trim();
+  if (value.length > RELEASE_AUDIENCE_LIMIT) {
+    return { ok: false, errors: { audience: `Keep this under ${RELEASE_AUDIENCE_LIMIT} characters.` } };
+  }
+  return { ok: true, value: value || null };
 }
 
 export function parseHeroImageUrl(raw: unknown): ParseResult<string | null> {

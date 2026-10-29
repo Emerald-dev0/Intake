@@ -294,7 +294,7 @@ function robotsDocument(siteUrl: string): string {
  * built. Drafts are never in this list — only published releases are.
  */
 const SITEMAP_PATHS = [
-  '/', '/pricing', '/privacy', '/terms', '/vs', '/templates', '/guides', '/trust', '/changelog',
+  '/', '/pricing', '/privacy', '/terms', '/vs', '/templates', '/guides', '/trust', '/changelog', '/developers',
   ...BUNDLED_RELEASES.map(release => `/changelog/${release.slug}`),
 ];
 
@@ -326,6 +326,7 @@ function llmsDocument(siteUrl: string): string {
     `- Guides: ${siteUrl}/guides — how to create a form with AI in five steps`,
     `- Trust: ${siteUrl}/trust — what Intake asks each provider for and what it never does`,
     `- Changelog: ${siteUrl}/changelog — every Intake release, each with its own permanent page`,
+    `- Developers: ${siteUrl}/developers — Intake for Developers: what exists today, what is being built, and what is not promised`,
     ...BUNDLED_RELEASES.map(release => `- Release: ${siteUrl}/changelog/${release.slug} — ${release.title}`),
     `- Pricing: ${siteUrl}/pricing — Free forever, Pro later, no card needed`,
     `- Privacy: ${siteUrl}/privacy — written against Google's API Services User Data Policy`,

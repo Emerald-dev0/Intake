@@ -1,0 +1,325 @@
+/* The developer console: projects, forms and the states a form can be in. */
+
+.dev-console { display: grid; gap: 34px; }
+
+.dev-section {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 24px clamp(18px, 3vw, 28px);
+  background: var(--ink-2);
+}
+.dev-section__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.dev-section__title {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 550;
+  letter-spacing: -.02em;
+}
+.dev-section__note {
+  margin: 14px 0 0;
+  color: var(--cream-2);
+  font-size: 13.5px;
+  line-height: 1.6;
+  max-width: 64ch;
+}
+
+.dev-slug {
+  font: 12px var(--mono);
+  color: var(--cream-3);
+  word-break: break-all;
+}
+
+.dev-note {
+  margin: 12px 0 0;
+  color: var(--cream-2);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.dev-note--error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 90, 31, .38);
+  border-radius: 8px;
+  background: rgba(255, 90, 31, .08);
+  color: var(--accent-2);
+}
+.dev-note--error button {
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cream);
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.dev-empty {
+  border: 1px dashed var(--line-2);
+  border-radius: 12px;
+  padding: 34px clamp(18px, 3vw, 28px);
+}
+.dev-empty h2 { margin: 0 0 8px; font-size: 19px; font-weight: 550; }
+.dev-empty p { margin: 0; color: var(--cream-2); font-size: 14px; line-height: 1.65; max-width: 58ch; }
+
+.dev-inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: 14px;
+}
+.dev-field { display: grid; gap: 7px; min-width: 220px; }
+.dev-field > span { font: 11px var(--mono); letter-spacing: .08em; color: var(--cream-3); }
+.dev-field input {
+  background: var(--ink-1);
+  border: 1px solid var(--line-2);
+  border-radius: 7px;
+  padding: 11px 13px;
+  color: var(--cream);
+  font: 400 14px var(--sans);
+  outline: none;
+}
+.dev-field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 90, 31, .16); }
+
+.dev-button {
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: var(--accent);
+  color: #fff;
+  font: 550 13.5px var(--sans);
+  padding: 11px 16px;
+  cursor: pointer;
+}
+.dev-button:hover:not(:disabled) { background: var(--accent-2); }
+.dev-button:disabled { opacity: .5; cursor: not-allowed; }
+.dev-button--quiet {
+  background: transparent;
+  border-color: var(--line-2);
+  color: var(--cream);
+}
+.dev-button--quiet:hover:not(:disabled) { background: var(--ink-3); color: var(--cream); }
+
+.dev-list { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 8px; }
+.dev-list li {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--ink-1);
+}
+.dev-list__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 15px;
+  color: inherit;
+  text-decoration: none;
+}
+.dev-list__row:hover { border-color: var(--line-2); background: var(--ink-3); }
+.dev-list__name { font-size: 14.5px; font-weight: 500; }
+.dev-list--fields li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 15px;
+}
+.dev-required { color: var(--accent); }
+.dev-field-type { font: 11px var(--mono); letter-spacing: .06em; color: var(--cream-3); text-transform: uppercase; }
+.dev-options { color: var(--cream-2); font-size: 13px; }
+
+.dev-badge {
+  margin-left: auto;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  font: 10px var(--mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--cream-2);
+  white-space: nowrap;
+}
+.dev-badge--published { border-color: rgba(143, 217, 182, .4); color: #8fd9b6; }
+.dev-badge--paused { border-color: rgba(211, 178, 145, .4); color: #d3b291; }
+.dev-badge--closed { border-color: rgba(255, 90, 31, .38); color: var(--accent-2); }
+.dev-badge--draft, .dev-badge--superseded { border-style: dashed; color: var(--cream-3); }
+.dev-badge--archived { border-style: dashed; color: var(--cream-4); }
+
+.dev-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.dev-back { color: var(--cream-2); font-size: 13px; text-decoration: none; }
+.dev-back:hover { color: var(--accent); }
+
+@media (max-width: 640px) {
+  .dev-section { padding: 20px 16px; }
+  .dev-badge { margin-left: 0; }
+}
+
+.dev-code {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--ink-1);
+}
+.dev-code--wrap code { white-space: pre-wrap; word-break: break-all; }
+.dev-code code {
+  font: 12.5px var(--mono);
+  color: var(--cream);
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.dev-builder { display: grid; gap: 16px; margin-top: 14px; }
+.dev-builder__toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.dev-select, .dev-textarea {
+  background: var(--ink-1);
+  border: 1px solid var(--line-2);
+  border-radius: 7px;
+  padding: 11px 13px;
+  color: var(--cream);
+  font: 400 14px var(--sans);
+  outline: none;
+}
+.dev-textarea { resize: vertical; min-height: 90px; font-family: var(--mono); font-size: 13px; }
+.dev-select:focus, .dev-textarea:focus { border-color: var(--accent); }
+.dev-saved { color: #8fd9b6; font-size: 13px; }
+
+.dev-list--builder li { display: grid; }
+.dev-list--builder li.is-selected { border-color: var(--accent); }
+.dev-list__row--button {
+  background: transparent;
+  border: 0;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+  font: inherit;
+}
+.dev-list__empty { padding: 14px 16px; color: var(--cream-3); font-size: 13.5px; }
+.dev-field-actions { display: flex; gap: 8px; padding: 0 15px 13px; }
+.dev-field-actions button {
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cream-2);
+  font-size: 12px;
+  padding: 4px 9px;
+  cursor: pointer;
+}
+.dev-field-actions button:hover:not(:disabled) { color: var(--cream); border-color: var(--cream-4); }
+.dev-field-actions button:disabled { opacity: .35; cursor: not-allowed; }
+.dev-field-error { margin: 0; padding: 0 15px 13px; color: var(--accent-2); font-size: 12.5px; }
+
+.dev-editor {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px;
+  background: var(--ink-1);
+  display: grid;
+  gap: 14px;
+}
+.dev-editor__title { margin: 0; font-size: 15px; font-weight: 550; }
+.dev-editor__note { margin: 0; color: var(--cream-2); font-size: 13px; line-height: 1.6; max-width: 62ch; }
+.dev-check { display: flex; align-items: center; gap: 9px; font-size: 13.5px; }
+.dev-check input { accent-color: var(--accent); width: 16px; height: 16px; }
+.dev-theme-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+
+.dev-responses { display: grid; gap: 14px; margin-top: 14px; }
+.dev-responses__toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.dev-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 9px; }
+.dev-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.dev-table th, .dev-table td {
+  text-align: left;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  max-width: 320px;
+  overflow-wrap: anywhere;
+}
+.dev-table th { font: 11px var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--cream-3); font-weight: 400; }
+.dev-table tbody tr:last-child td { border-bottom: 0; }
+.dev-table__when { white-space: nowrap; color: var(--cream-2); font-family: var(--mono); font-size: 12px; }
+.dev-pager { display: flex; align-items: center; gap: 12px; }
+.dev-pager .dev-note { margin: 0; }
+
+.dev-insight {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 9px;
+  padding: 16px 18px;
+  background: var(--ink-1);
+  display: grid;
+  gap: 10px;
+}
+.dev-insight__label { margin: 0; font: 11px var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--cream-3); }
+.dev-insight__summary { margin: 0; font-size: 14.5px; line-height: 1.65; color: var(--cream); }
+.dev-insight__list { margin: 0; padding-left: 18px; color: var(--cream-2); font-size: 13.5px; line-height: 1.6; }
+.dev-insight__caveats { margin: 0; padding-left: 18px; color: var(--cream-3); font-size: 13px; line-height: 1.6; }
+.dev-insight__cost { margin: 0; font: 12px var(--mono); color: var(--cream-3); }
+.dev-insight__counts summary { cursor: pointer; font-size: 13px; color: var(--cream-2); }
+.dev-insight__counts ul { margin: 10px 0 0; padding-left: 18px; color: var(--cream-2); font-size: 13px; line-height: 1.7; }
+
+.dev-usage { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+.dev-usage li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--ink-1);
+  font-size: 13.5px;
+  color: var(--cream-2);
+}
+.dev-usage strong { font-size: 17px; font-weight: 550; color: var(--cream); }
+
+.dev-notify { margin-top: 16px; display: grid; gap: 10px; }
+.dev-notify__detail { display: flex; flex-wrap: wrap; gap: 12px; }
+.dev-notify__detail .dev-field { min-width: 160px; }
+
+/* The delete panel: the one destructive thing in the console, so it looks like it. */
+.dev-section--danger {
+  border-color: color-mix(in srgb, var(--dev-danger, #b42318) 35%, transparent);
+}
+
+.dev-button--danger {
+  border-color: var(--dev-danger, #b42318);
+  color: var(--dev-danger, #b42318);
+  background: transparent;
+}
+
+.dev-button--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--dev-danger, #b42318) 10%, transparent);
+}
+
+.dev-danger {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.dev-danger code {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.9em;
+}
+
+/* A filter that sits in the toolbar beside the search box. */
+.dev-field--inline {
+  flex: 0 0 auto;
+}
+
+.dev-field--inline input {
+  min-width: 9.5rem;
+}

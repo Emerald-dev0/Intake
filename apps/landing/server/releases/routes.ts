@@ -27,8 +27,9 @@ import {
   type GitHubConfig,
 } from './github.ts';
 import {
-  parseBody, parseCategories, parseHeroImageUrl, parseLinks, parseReleaseDate, parseShareText,
-  parseSlug, parseSourceKind, parseSummary, parseTitle, parseNote, type FieldErrors, type ParseResult,
+  parseAudience, parseBody, parseCategories, parseHeroImageUrl, parseHighlights, parseLinks,
+  parseReleaseDate, parseShareText, parseSlug, parseSourceKind, parseSummary, parseTitle, parseNote,
+  type FieldErrors, type ParseResult,
 } from './validation.ts';
 
 const RATE_RULES = {
@@ -213,6 +214,10 @@ export function createReleaseAdminRouter(deps: ReleaseAdminRouterDeps): Router {
     if (heroImageUrl !== undefined) patch.heroImageUrl = heroImageUrl;
     const shareText = readField<string | null>(body.shareText, parseShareText, errors, 'shareText');
     if (shareText !== undefined) patch.shareText = shareText;
+    const highlights = readField<string[]>(body.highlights, parseHighlights, errors, 'highlights');
+    if (highlights !== undefined) patch.highlights = highlights;
+    const audience = readField<string | null>(body.audience, parseAudience, errors, 'audience');
+    if (audience !== undefined) patch.audience = audience;
     const slug = readField<string>(body.slug, parseSlug, errors, 'slug');
     if (slug !== undefined) patch.slug = slug;
     if (Object.keys(errors).length > 0) return fieldError(res, errors, 'The release could not be saved.');

@@ -62,3 +62,22 @@ export async function adminPost<T>(path: `/api/admin${string}`, body: unknown): 
   if (!response.ok) throw await failure(response, 'The admin service could not complete this request.');
   return response.json() as Promise<T>;
 }
+
+/**
+ * An update.
+ *
+ * A few admin resources are updated rather than replaced, and the server exposes those as PUT.
+ * The body is validated from scratch exactly as a POST body is — the method says what the request
+ * means, not how much the server trusts it.
+ */
+export async function adminPut<T>(path: `/api/admin${string}`, body: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method: 'PUT',
+    credentials: 'same-origin',
+    cache: 'no-store',
+    headers: { accept: 'application/json', 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw await failure(response, 'The admin service could not complete this request.');
+  return response.json() as Promise<T>;
+}

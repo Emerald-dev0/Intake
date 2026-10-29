@@ -35,6 +35,8 @@ export function createMemoryReleaseStore(releases: ReleaseRecord[] = []): Memory
     publishedAt: release.publishedAt ? release.publishedAt.toISOString() : null,
     links: release.links,
     heroImageUrl: release.heroImageUrl,
+    highlights: release.highlights,
+    audience: release.audience,
   });
 
   const toListItem = (release: ReleaseRecord): ReleaseListItem => {

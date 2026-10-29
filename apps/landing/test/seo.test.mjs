@@ -130,11 +130,11 @@ test('robots, sitemap and private document expose only intended public indexable
   assert.deepEqual(locations, [
     `${SITE_ORIGIN}/`, `${SITE_ORIGIN}/pricing`, `${SITE_ORIGIN}/privacy`, `${SITE_ORIGIN}/terms`,
     `${SITE_ORIGIN}/vs`, `${SITE_ORIGIN}/templates`, `${SITE_ORIGIN}/guides`, `${SITE_ORIGIN}/trust`,
-    `${SITE_ORIGIN}/changelog`,
+    `${SITE_ORIGIN}/changelog`, `${SITE_ORIGIN}/developers`,
     // Every shipped release has its own permanent page, and the sitemap lists them.
     ...BUNDLED_RELEASES.map(release => `${SITE_ORIGIN}/changelog/${release.slug}`),
   ]);
-  for (const path of ['/vs', '/templates', '/guides', '/trust', '/changelog']) {
+  for (const path of ['/vs', '/templates', '/guides', '/trust', '/changelog', '/developers']) {
     assert.ok(llms.includes(`${SITE_ORIGIN}${path}`), `llms.txt must link ${path}`);
   }
   for (const release of BUNDLED_RELEASES) {

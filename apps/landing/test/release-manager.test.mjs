@@ -379,18 +379,61 @@ test('the share endpoint refuses to invent copy for a release that does not exis
   assert.equal(missing.status, 404);
 });
 
-test('the migration seeds exactly the releases the site bundles', async () => {
+/**
+ * Every migration that seeds a release entry, read together.
+ *
+ * The first release migration seeds the shipped history; each release after it brings its own
+ * entry. Reading them as one document is what lets the tests below compare the seeded set with
+ * the set the site bundles.
+ */
+const RELEASE_MIGRATIONS = [
+  '022_release_manager.sql',
+  '023_release_depth.sql',
+  '024_release_developers_page.sql',
+  '027_release_hosted_forms.sql',
+  '028_release_response_inbox.sql',
+  '030_release_summaries.sql',
+  '033_release_usage_numbers.sql',
+  '034_release_answer_notices.sql',
+  '035_release_delete_a_form.sql',
+];
+
+async function readReleaseMigrations() {
+  const parts = await Promise.all(RELEASE_MIGRATIONS.map(file => readFile(`db/migrations/${file}`, 'utf8')));
+  return parts.join('\n');
+}
+
+test('the migrations seed exactly the releases the site bundles', async () => {
   const [sql, bundled] = await Promise.all([
-    readFile('db/migrations/022_release_manager.sql', 'utf8'),
+    readReleaseMigrations(),
     import('../src/content/changelog.ts'),
   ]);
   for (const release of bundled.BUNDLED_RELEASES) {
-    assert.match(sql, new RegExp(`'${release.slug}'`), `${release.slug} is seeded in the migration`);
-    assert.ok(sql.includes(release.title), `${release.title} is seeded in the migration`);
+    assert.match(sql, new RegExp(`'${release.slug}'`), `${release.slug} is seeded in a migration`);
   }
-  const seeded = [...sql.matchAll(/^\s*\(\s*'rel_[a-z0-9_]+',\s*'([a-z0-9-]+)'/gm)].map(match => match[1]);
-  assert.deepEqual(seeded.sort(), bundled.BUNDLED_RELEASES.map(release => release.slug).sort(),
+  const seeded = [...sql.matchAll(/'rel_[a-z0-9_]+',\s*'([a-z0-9-]+)'/g)].map(match => match[1]);
+  assert.deepEqual([...new Set(seeded)].sort(), bundled.BUNDLED_RELEASES.map(release => release.slug).sort(),
     'the seeded releases and the bundled releases are the same set');
+});
+
+test('the deeper migration carries exactly the copy the site bundles', async () => {
+  // The public changelog reads the database first, so the two copies must not drift: a release
+  // note that reads one way on the site and another way in the database is a release note nobody
+  // can trust.
+  const [sql, bundled] = await Promise.all([
+    readReleaseMigrations(),
+    import('../src/content/changelog.ts'),
+  ]);
+  const escaped = value => value.replace(/'/g, "''");
+  for (const release of bundled.BUNDLED_RELEASES) {
+    assert.ok(sql.includes(escaped(release.title)), `${release.slug} carries the current title`);
+    assert.ok(sql.includes(escaped(release.summary)), `${release.slug} carries the current summary`);
+    assert.ok(sql.includes(release.body), `${release.slug} carries the current notes`);
+    for (const highlight of release.highlights) {
+      assert.ok(sql.includes(escaped(highlight)), `${release.slug} carries the highlight "${highlight.slice(0, 32)}…"`);
+    }
+    assert.ok(sql.includes(escaped(release.audience ?? '')), `${release.slug} carries its audience line`);
+  }
 });
 
 test('the webhook answers even when the store fails, instead of leaving GitHub waiting', async t => {

@@ -618,6 +618,39 @@ const creditsLow: EmailTemplate = {
   ].join('\n'),
 };
 
+
+const devAnswersReceived: EmailTemplate = {
+  id: 'dev_answers_received',
+  alias: 'intake-dev-answers-received',
+  subject: vars => `${text_(vars.answerCount)} new ${text_(vars.answerCount) === '1' ? 'answer' : 'answers'} on ${text_(vars.projectName)}`,
+  preheader: vars => `${text_(vars.answerCount)} new answers on ${text_(vars.projectName)}.`,
+  heading: () => 'Your form has new answers',
+  body: vars => [
+    paragraph(greeting(vars)),
+    paragraph(`Your form <strong style="font-weight:600;color:${INK}">${escapeHtml(text_(vars.projectName))}</strong> has <strong style="font-weight:600;color:${INK}">${escapeHtml(text_(vars.answerCount))}</strong> new ${text_(vars.answerCount) === '1' ? 'answer' : 'answers'} waiting.`),
+    detailsTable([
+      detailRow('Form', text_(vars.formName)),
+      detailRow('New answers', text_(vars.answerCount)),
+      ...(text_(vars.sinceLast) ? [detailRow('Since the last notice', text_(vars.sinceLast))] : []),
+    ].join('')),
+    button(text_(vars.dashboardUrl), 'Read the answers'),
+    callout('This is your own form, and these are answers to your own form. Nobody else is written to from it.'),
+  ].join(''),
+  text: vars => [
+    greeting(vars),
+    '',
+    `Your form ${text_(vars.projectName)} has ${text_(vars.answerCount)} new ${text_(vars.answerCount) === '1' ? 'answer' : 'answers'} waiting.`,
+    '',
+    `Form: ${text_(vars.formName)}`,
+    `New answers: ${text_(vars.answerCount)}`,
+    ...(text_(vars.sinceLast) ? [`Since the last notice: ${text_(vars.sinceLast)}`] : []),
+    '',
+    `Read the answers: ${text_(vars.dashboardUrl)}`,
+  ].join('\n'),
+};
+
+// ── Developer workspace templates ────────────────────────────────────────────────────────────────
+
 // ── Billing templates ──────────────────────────────────────────────────────────────────────────
 
 const billingSubscriptionStarted: EmailTemplate = {
@@ -943,6 +976,7 @@ export const EMAIL_TEMPLATES: readonly EmailTemplate[] = [
   providerConnectionAdded,
   providerConnectionRemoved,
   creditsLow,
+  devAnswersReceived,
   billingSubscriptionStarted,
   billingSubscriptionRenewed,
   billingSubscriptionCanceled,

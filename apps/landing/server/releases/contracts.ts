@@ -45,6 +45,11 @@ export type ReleaseSourceProvider = typeof RELEASE_SOURCE_PROVIDERS[number];
 export const DEPLOYMENT_STATES = ['success', 'failure', 'error', 'in_progress', 'queued', 'pending', 'unknown'] as const;
 export type DeploymentState = typeof DEPLOYMENT_STATES[number];
 
+/** How many highlights a release may carry, and how long each one may be. */
+export const RELEASE_HIGHLIGHT_LIMIT = 6;
+export const RELEASE_HIGHLIGHT_TEXT_LIMIT = 200;
+export const RELEASE_AUDIENCE_LIMIT = 240;
+
 export const RELEASE_LINK_LIMIT = 12;
 export const RELEASE_LINK_LABEL_LIMIT = 80;
 export const RELEASE_LINK_URL_LIMIT = 500;
@@ -67,6 +72,10 @@ export interface ReleaseRecord {
   links: ReleaseLink[];
   heroImageUrl: string | null;
   shareText: string | null;
+  /** The short version of the announcement: what changed, in a few lines. */
+  highlights: string[];
+  /** One line naming who the release is for. */
+  audience: string | null;
   authorUserId: string | null;
   authorName: string | null;
   authorEmail: string | null;
@@ -175,6 +184,8 @@ export interface PublicRelease {
   publishedAt: string | null;
   links: ReleaseLink[];
   heroImageUrl: string | null;
+  highlights: string[];
+  audience: string | null;
 }
 
 export interface ReleaseListItem {
@@ -211,6 +222,8 @@ export interface ReleaseDraftInput {
   links?: ReleaseLink[];
   heroImageUrl?: string | null;
   shareText?: string | null;
+  highlights?: string[];
+  audience?: string | null;
 }
 
 export interface ReleaseStore {

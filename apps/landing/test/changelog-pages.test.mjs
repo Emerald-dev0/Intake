@@ -68,14 +68,14 @@ test('the changelog index lists every published release and links to its permane
   assert.ok(link, 'each release links to its own permanent page');
   assert.equal(link.textContent, 'A live release');
   // The bundled releases are still there, so the index is a history and not a single entry.
-  assert.match(view.text(), /Launch/);
+  assert.match(view.text(), /Intake opens/);
 });
 
 test('when the live changelog cannot be loaded, the page says so and still shows the recorded history', async t => {
   const view = await mount({ handler: () => json({ error: 'The changelog is temporarily unavailable.' }, 503) });
   t.after(view.restore);
   assert.match(view.text(), /Live releases could not be loaded/);
-  assert.match(view.text(), /Launch/);
+  assert.match(view.text(), /Intake opens/);
   assert.doesNotMatch(view.text(), /No releases have been published/);
 });
 
@@ -131,6 +131,57 @@ test('a release with a screenshot uses it for the social card', async t => {
   assert.equal(image.getAttribute('alt'), 'Screenshot for A live release');
 });
 
+test('a release page shows the highlights, who it is for, and a table of contents that reaches each section', async t => {
+  const view = await mount({
+    path: '/changelog/a-live-release',
+    handler: path => {
+      if (path === '/api/releases/a-live-release') {
+        return json({
+          release: {
+            ...LIVE_RELEASE,
+            audience: 'For teams that already live in Typeform.',
+            highlights: ['One sentence in, a question list out.', 'Nothing is created until you approve it.'],
+            body: [
+              '## What changed',
+              'The composer grew a second target.',
+              '',
+              '## Why it matters',
+              'One flow, two providers.',
+              '',
+              '## How to use it',
+              'Pick the provider first.',
+              '',
+              '## What is not there yet',
+              'Editing a Typeform in place.',
+            ].join('\n'),
+          },
+        });
+      }
+      return json({ error: 'not found' }, 404);
+    },
+  });
+  t.after(view.restore);
+
+  // The short version, above the notes.
+  assert.match(view.text(), /One sentence in, a question list out\./);
+  assert.match(view.text(), /Nothing is created until you approve it\./);
+  assert.match(view.text(), /For teams that already live in Typeform\./);
+  assert.match(view.text(), /Who this is for/);
+
+  // The table of contents, and every link in it reaches a heading that exists.
+  assert.match(view.text(), /In this release/);
+  const contents = view.container.querySelectorAll('.mk-release__contents a');
+  assert.equal(contents.length, 4);
+  const headings = [...view.container.querySelectorAll('.mk-release__body h2')];
+  for (const link of contents) {
+    const id = link.getAttribute('href')?.slice(1) ?? '';
+    assert.ok(id, 'every entry points at a section');
+    const heading = headings.find(node => node.id === id);
+    assert.ok(heading, `the section "${id}" exists on the page`);
+    assert.equal(heading.tagName, 'H2');
+  }
+});
+
 test('a release that was never published is a not-found page, not a blank one', async t => {
   const view = await mount({
     path: '/changelog/not-a-release',
@@ -181,7 +232,28 @@ test('the bundled releases are the shipped history: dated, categorised and each 
     assert.ok(release.title.length > 0);
     assert.ok(release.summary.length > 0);
     assert.ok(release.categories.length > 0, `${release.slug} is categorised`);
-    assert.match(release.body, /## What changed/);
+    // Every release says what changed in a few lines, and names who it is for.
+    assert.ok(release.highlights.length >= 3, `${release.slug} has highlights`);
+    assert.ok(release.audience && release.audience.length > 10, `${release.slug} names its audience`);
+    // The notes are written as sections, and they are not all the same sections: a release that
+    // repeated one template would read like a form letter.
+    const headings = [...release.body.matchAll(/^## (.+)$/gm)].map(match => match[1]);
+    assert.ok(headings.length >= 3, `${release.slug} has sections`);
+    // The headings are the release's own, not a fixed template: the page turns them into a
+    // table of contents, so they have to read like something a person wrote.
+    assert.ok(headings.every(heading => heading.length > 3 && heading.length < 60), `${release.slug} has readable headings`);
+  }
+  const allHeadings = new Set(BUNDLED_RELEASES.flatMap(release => [...release.body.matchAll(/^## (.+)$/gm)].map(match => match[1])));
+  assert.ok(allHeadings.size >= 15, 'the releases do not all share the same headings');
+});
+
+test('the release notes are written in a plain voice, not marketing filler', () => {
+  const banned = [/seamlessly/i, /revolution/i, /game[- ]changer/i, /cutting[- ]edge/i, /unlock/i, /delve/i, /robust/i];
+  for (const release of BUNDLED_RELEASES) {
+    const text = `${release.title} ${release.summary} ${release.audience ?? ''} ${release.body}`;
+    for (const pattern of banned) {
+      assert.doesNotMatch(text, pattern, `${release.slug} does not say "${pattern.source}"`);
+    }
   }
 });
 
