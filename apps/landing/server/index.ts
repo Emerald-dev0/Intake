@@ -62,6 +62,7 @@ import { createPostgresUpdatesStore } from './updates/store';
 import { createReleaseService } from './releases/service';
 import { createPostgresReleaseStore } from './releases/store';
 import { createPublicReleaseRouter } from './releases/public-routes';
+import { createChangelogCardRouter } from './og/routes';
 import { githubWebhookHandler } from './releases/webhooks';
 import { readGitHubConfig } from './releases/github';
 const app = express();
@@ -227,6 +228,22 @@ const devNotifier = createDevNotifier({
 app.use('/api/dev/public', createPublicDevRouter({ store: devStore, rateLimiter: abuseLimiter, notify: input => devNotifier.answersReceived(input) }));
 // The public changelog. Published releases only: a draft is answered with 404, not 403.
 app.use(createPublicReleaseRouter({ store: releaseStore, rateLimiter: abuseLimiter }));
+/**
+ * Share cards for the changelog, drawn on the API so a pasted link shows the release rather
+ * than the product's homepage screenshot. No browser, no image library, no secrets.
+ */
+app.use(createChangelogCardRouter({
+  listPublished: async () => {
+    const result = await releaseStore.listPublished({ limit: 200, offset: 0 });
+    return result.items.map(release => ({
+      slug: release.slug,
+      title: release.title,
+      summary: release.summary,
+      releaseDate: release.releaseDate,
+      categories: release.categories,
+    }));
+  },
+}));
 /**
  * GitHub webhook deliveries for the Release Manager. Mounted on an unparsed route because the
  * signature covers the raw bytes, and it is refused outright when no signing secret is set.

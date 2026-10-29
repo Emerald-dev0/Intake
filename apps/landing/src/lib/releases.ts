@@ -10,6 +10,8 @@
  * category vocabulary lives here and nowhere else.
  */
 
+import { SITE_URL } from '../content/site';
+
 export const RELEASE_CATEGORIES = ['feature', 'improvement', 'fix', 'security'] as const;
 export type ReleaseCategory = typeof RELEASE_CATEGORIES[number];
 
@@ -56,6 +58,18 @@ export function formatReleaseDate(value: string | null): string {
   const parsed = new Date(`${value.slice(0, 10)}T00:00:00.000Z`);
   if (Number.isNaN(parsed.getTime())) return value;
   return new Intl.DateTimeFormat('en', { timeZone: 'UTC', year: 'numeric', month: 'long', day: 'numeric' }).format(parsed);
+}
+
+/**
+ * The share card for a release, or for the changelog itself.
+ *
+ * A pasted link shows a preview, and the preview should show the release rather than the
+ * product's homepage. The card is drawn by the API from the release's own title, date and
+ * summary, so it stays right when a release is corrected.
+ */
+export function changelogCardUrl(slug?: string | null): string {
+  const path = slug ? `/api/og/changelog/${slug}` : '/api/og/changelog';
+  return `${SITE_URL}${path}`;
 }
 
 /**

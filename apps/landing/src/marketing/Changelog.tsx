@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { BUNDLED_RELEASES, bundledReleaseBySlug, mergeReleases } from '../content/changelog';
-import { formatReleaseDate, loadPublishedRelease, loadPublishedReleases, type PublicRelease } from '../lib/releases';
+import { changelogCardUrl, formatReleaseDate, loadPublishedRelease, loadPublishedReleases, type PublicRelease } from '../lib/releases';
 import { ReleaseArticle, ReleaseCategories } from './ReleaseArticle';
 import { HubShell } from './HubShell';
 import { releaseSchema } from './usePageMeta';
@@ -63,6 +63,7 @@ export function ChangelogPage() {
       heading={<>What shipped, and what is next.</>}
       lede="New capabilities land every week. This page is the record — and the update list hears about each one first."
       analyticsPath="/changelog"
+      image={changelogCardUrl()}
     >
       <section className="mk-section" aria-label="Releases">
         <div className="mk-container">
@@ -181,7 +182,7 @@ export function ReleaseDetailPage() {
       heading={<>{release.title}</>}
       lede={release.summary}
       article={{ publishedTime: release.publishedAt }}
-      image={release.heroImageUrl}
+      image={release.heroImageUrl ?? changelogCardUrl(release.slug)}
       schema={releaseSchema({
         path,
         name: release.title,
