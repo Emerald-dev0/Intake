@@ -13,9 +13,19 @@
 import express, { Router, type Request, type Response } from 'express';
 import { createHash } from 'node:crypto';
 import { DevError, type DevService } from './service.ts';
+import type { DevFormDetail } from './contracts.ts';
 import { DEV_FORM_ACTIONS, type DevFormAction, type DevStore } from './contracts.ts';
 import { summarizeResponses, type InsightQuestion } from '../forms/insights/summary.ts';
 import { MAX_ANSWERS_READ, type DevInsightModel } from './insights.ts';
+import {
+  DevProposalError,
+  MAX_PROPOSAL_CLARIFICATION,
+  MAX_PROPOSAL_REQUEST,
+  proposalToFields,
+  type DevFormComposer,
+} from './compose.ts';
+import { emptyDefinition, slugify, validateDefinition } from './validation.ts';
+import { costForFormCreation } from '../credits/pricing.ts';
 import type { AiOperationRunner } from '../ai/operations.ts';
 
 export interface DevRouterDeps {
@@ -30,6 +40,11 @@ export interface DevRouterDeps {
     model: DevInsightModel;
     /** What one summary costs, in the credits the customer already has. */
     cost: number;
+  };
+  /** Writing the questions of a hosted form from one sentence. Absent when no model is configured. */
+  compose?: {
+    runner: AiOperationRunner;
+    model: DevFormComposer;
   };
 }
 
@@ -49,6 +64,12 @@ function insightsOperationKey(formId: string, total: number, latest: string | un
 
 /** The JSON body a definition is allowed to be. A form is small; a megabyte is not one. */
 const DEFINITION_LIMIT = '128kb';
+
+/** What one proposal can be: a question to answer, an honest no, or a form that was written. */
+type ProposalOutcome =
+  | { status: 'needs_clarification'; question: string }
+  | { status: 'unsupported'; explanation: string }
+  | { status: 'ready'; form: DevFormDetail; reply: string; description: string };
 
 /**
  * A day from the query string, as the start of that day in UTC.
@@ -88,6 +109,21 @@ export function createDevRouter(deps: DevRouterDeps): Router {
 
   const userId = (res: Response): string => (res.locals.user as { id: string }).id;
   const now = (): Date => new Date();
+
+  /**
+   * An address for a form the AI named. Two forms may be called the same thing, so a free address
+   * is picked from the ones this project already uses.
+   */
+  const freeSlug = async (person: string, projectId: string, title: string): Promise<string> => {
+    const base = slugify(title) || 'form';
+    const taken = new Set((await deps.service.listForms(person, projectId)).map(form => form.slug));
+    if (!taken.has(base)) return base;
+    for (let suffix = 2; suffix < 100; suffix += 1) {
+      const candidate = `${base.slice(0, 54)}-${suffix}`;
+      if (!taken.has(candidate)) return candidate;
+    }
+    return `${base.slice(0, 50)}-${Date.now().toString(36)}`;
+  };
 
   // Any failure inside a handler becomes a status code that says what actually happened.
   const handle = (error: unknown, res: Response): void => {
@@ -214,6 +250,130 @@ export function createDevRouter(deps: DevRouterDeps): Router {
         slug: req.body?.slug,
       });
       res.status(201).json(detail);
+    } catch (error) {
+      handle(error, res);
+    }
+  });
+
+  /**
+   * Write the questions of a hosted form from one sentence.
+   *
+   * This is the same AI the rest of Intake uses: one operation through the canonical runner, the
+   * same credits, the same rules. Nothing is charged when the model fails, when the model asks a
+   * clarifying question, or when the words it wrote cannot become a valid form. When it succeeds,
+   * the form is created as a draft — the developer reviews and edits the questions before
+   * anything is published, and the AI never publishes anything itself.
+   */
+  router.post('/projects/:projectId/forms/propose', express.json({ limit: '16kb', strict: true }), async (req, res) => {
+    if (!deps.compose) {
+      res.status(503).json({ error: 'proposal_unavailable', message: 'Writing questions is not available on this server right now.' });
+      return;
+    }
+    const request = typeof req.body?.request === 'string' ? req.body.request.trim() : '';
+    const clarification = typeof req.body?.clarification === 'string' ? req.body.clarification.trim() : '';
+    if (!request || request.length > MAX_PROPOSAL_REQUEST) {
+      res.status(400).json({ error: 'invalid_request', message: `Describe the form in up to ${MAX_PROPOSAL_REQUEST} characters.` });
+      return;
+    }
+    if (clarification.length > MAX_PROPOSAL_CLARIFICATION) {
+      res.status(400).json({ error: 'invalid_request', message: `That answer is longer than ${MAX_PROPOSAL_CLARIFICATION} characters.` });
+      return;
+    }
+
+    try {
+      // The project has to exist and belong to this person before a model call is paid for.
+      const project = (await deps.service.getProjectDetail(userId(res), req.params.projectId)).project;
+
+      const key = deps.compose.runner.operationKey(req.body?.operationId);
+
+      // A browser that retries the same proposal gets the same form, not a second copy of it.
+      const existing = (await deps.service.listForms(userId(res), project.id)).find(
+        form => form.sourceOperationKey === key,
+      );
+      if (existing) {
+        const detail = await deps.service.getFormDetail(userId(res), existing.id);
+        const written = detail.draftVersion?.definition.fields.length ?? 0;
+        res.status(200).json({
+          status: 'ready',
+          form: detail,
+          reply: '',
+          description: '',
+          cost: {
+            credits: costForFormCreation({ questionCount: written, conditionalCount: 0 }),
+            status: 'already_charged',
+          },
+        });
+        return;
+      }
+
+      const outcome = await deps.compose.runner.run<ProposalOutcome>({
+        userId: userId(res),
+        operationType: 'form_create',
+        operationKey: key,
+        execute: async () => {
+          const proposal = await deps.compose!.model.propose({
+            request,
+            ...(clarification ? { clarification } : {}),
+          });
+          // A clarifying question and an honest "not possible" are not results, so nothing is
+          // charged for them.
+          if (proposal.status !== 'ready') return { kind: 'no_result' as const, value: proposal };
+
+          const fields = proposalToFields(proposal.fields);
+          const base = emptyDefinition();
+          const validated = validateDefinition(
+            { ...base, fields, submitLabel: 'Submit' },
+            { requireFields: true },
+          );
+          if (!validated.ok) {
+            throw new DevProposalError('model_invalid_output', 'Intake could not turn the model’s questions into a form. No credits were spent.');
+          }
+
+          const slug = await freeSlug(userId(res), project.id, proposal.title);
+          const created = await deps.service.createForm(userId(res), project.id, {
+            name: proposal.title,
+            slug,
+            sourceOperationKey: key,
+          });
+          await deps.service.saveDefinition(userId(res), created.form.id, validated.value);
+          const detail = await deps.service.getFormDetail(userId(res), created.form.id);
+          return {
+            kind: 'usable' as const,
+            value: { status: 'ready' as const, form: detail, reply: proposal.reply, description: proposal.description },
+            // The same price list as every other form creation: a small form costs 2 credits.
+            cost: costForFormCreation({ questionCount: fields.length, conditionalCount: 0 }),
+          };
+        },
+      });
+
+      if (!outcome.ok) {
+        const code = (outcome.error as { code?: string } | null)?.code ?? 'model_unavailable';
+        res.status(code === 'insufficient_credits' ? 402 : 502).json({
+          error: code,
+          message: code === 'insufficient_credits'
+            ? 'You do not have enough credits to write these questions right now.'
+            : 'The questions could not be written. No credits were spent.',
+        });
+        return;
+      }
+
+      const value = outcome.value;
+      if (value.status !== 'ready') {
+        res.status(200).json({
+          status: value.status,
+          ...(value.status === 'needs_clarification' ? { question: value.question } : { explanation: value.explanation }),
+          cost: { credits: outcome.charge.cost, status: outcome.charge.status },
+        });
+        return;
+      }
+
+      res.status(201).json({
+        status: 'ready',
+        form: value.form,
+        reply: value.reply,
+        description: value.description,
+        cost: { credits: outcome.charge.cost, status: outcome.charge.status },
+      });
     } catch (error) {
       handle(error, res);
     }

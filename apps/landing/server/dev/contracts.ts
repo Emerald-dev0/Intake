@@ -87,6 +87,11 @@ export interface DevForm {
   name: string;
   slug: string;
   status: DevFormStatus;
+  /**
+   * The AI operation that wrote this form, when one did. It makes a retried proposal land on the
+   * same form instead of a second copy of it.
+   */
+  sourceOperationKey: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
