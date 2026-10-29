@@ -679,13 +679,7 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
 .mk-guide a:hover, .mk-trust-page a:hover { color: var(--mk-accent-2); }
 .mk-trust-page { display: grid; gap: 26px; max-width: 78ch; }
 .mk-trust-page h2 { margin: 0 0 12px; font-size: 22px; font-weight: 550; letter-spacing: -.02em; }
-.mk-changelog { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; max-width: 78ch; }
-.mk-changelog li { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 16px; border: 1px solid var(--mk-line); border-radius: var(--mk-r-md); padding: 18px 20px; background: rgba(var(--mk-text-rgb), .02); }
-.mk-changelog__date { color: var(--mk-dim); font: 12px var(--mono); padding-top: 4px; }
-.mk-changelog h2 { margin: 0 0 6px; font-size: 17px; font-weight: 550; }
-.mk-changelog p { margin: 0; color: var(--mk-muted); font-size: 14px; line-height: 1.65; }
 @media (max-width: 700px) {
-  .mk-changelog li { grid-template-columns: minmax(0, 1fr); gap: 6px; }
 }
 
 /* Repeated calls to action after how-it-works and the FAQ. */
@@ -2154,9 +2148,123 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
 
 /* ── Changelog: index and release pages ─────────────────────────────────────────────────────── */
 
-.marketing-page .mk-changelog li h2 a { color: var(--mk-text); }
-.marketing-page .mk-changelog li h2 a:hover { color: var(--mk-accent-2); }
-.marketing-page .mk-changelog li h2 a:focus-visible { outline: 2px solid var(--mk-accent); outline-offset: 3px; }
+.marketing-page .mk-visually-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* The newest release, on its own. The panel is the one place on the page that is allowed to be
+   loud: it is what a reader came for when they opened the changelog at all. */
+.mk-changes-hero {
+  position: relative;
+  display: grid;
+  gap: clamp(24px, 3vw, 40px);
+  padding: clamp(26px, 3.4vw, 46px);
+  border: 1px solid var(--mk-line-strong);
+  border-radius: var(--mk-r-lg);
+  background: linear-gradient(180deg, rgba(255, 90, 31, .09), rgba(255, 90, 31, 0) 62%), var(--mk-bg-raised);
+  overflow: hidden;
+}
+.mk-changes-hero::before {
+  position: absolute; inset: 0 0 auto; height: 2px;
+  background: linear-gradient(90deg, var(--mk-accent), rgba(255, 90, 31, 0));
+  content: '';
+}
+.mk-changes-hero__body { min-width: 0; }
+.mk-changes-hero__label {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  margin: 0 0 14px; color: var(--mk-dim); font: 11px/1.5 var(--mono); letter-spacing: .1em; text-transform: uppercase;
+}
+.mk-changes-hero__flag {
+  padding: 3px 9px; border: 1px solid rgba(255, 90, 31, .45); border-radius: var(--mk-pill);
+  color: var(--mk-accent-2); font-size: 10px; letter-spacing: .12em;
+}
+.mk-changes-hero__title { margin: 0 0 12px; font-size: clamp(28px, 3.6vw, 46px); font-weight: 480; letter-spacing: -.045em; line-height: 1.05; text-wrap: balance; }
+.mk-changes-hero__title a { color: var(--mk-text); text-decoration: none; }
+.mk-changes-hero__title a:hover { color: var(--mk-accent-2); }
+.mk-changes-hero__title a:focus-visible { outline: 2px solid var(--mk-accent); outline-offset: 4px; border-radius: 4px; }
+.mk-changes-hero__summary { margin: 0 0 18px; max-width: 62ch; color: var(--mk-muted); font-size: 16px; line-height: 1.65; }
+.mk-changes-hero__highlights { margin: 0 0 24px; padding: 0; list-style: none; display: grid; gap: 9px; max-width: 62ch; }
+.mk-changes-hero__highlights li { position: relative; padding-left: 20px; color: var(--mk-muted); font-size: 14.5px; line-height: 1.6; }
+.mk-changes-hero__highlights li::before {
+  position: absolute; left: 2px; top: .62em; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--mk-accent); content: '';
+}
+.mk-changes-hero__cta { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 18px; margin: 0; }
+.mk-changes-hero__cta .mk-button { min-height: 42px; color: #1d0c03; background: var(--mk-accent); }
+.mk-changes-hero__cta .mk-button:hover { background: var(--mk-accent-2); }
+.mk-changes-hero__media { margin: 0; }
+.mk-changes-hero__media img {
+  display: block; width: 100%; height: auto; border: 1px solid var(--mk-line-strong);
+  border-radius: var(--mk-r-md); background: var(--mk-bg-soft);
+}
+.mk-changes-hero--loading { display: grid; gap: 14px; }
+
+/* The tools: a search box and the kind of release. */
+.mk-changes-tools {
+  display: flex; flex-wrap: wrap; gap: 14px 18px; align-items: center; justify-content: space-between;
+  margin: 0 0 26px; padding-bottom: 20px; border-bottom: 1px solid var(--mk-line);
+}
+.mk-changes-search { flex: 1 1 320px; min-width: 0; }
+.mk-changes-search__input {
+  width: 100%; min-height: 46px; padding: 0 16px;
+  border: 1px solid var(--mk-line-strong); border-radius: var(--mk-pill);
+  background: var(--mk-bg-raised); color: var(--mk-text);
+  font-family: var(--sans); font-size: 14.5px;
+  transition: border-color .2s var(--mk-ease-soft), box-shadow .2s var(--mk-ease-soft);
+}
+.mk-changes-search__input::placeholder { color: var(--mk-dim); }
+.mk-changes-search__input:focus { outline: none; border-color: var(--mk-accent); box-shadow: 0 0 0 3px rgba(255, 90, 31, .16); }
+.mk-changes-filters { display: flex; flex-wrap: wrap; gap: 8px; }
+.mk-changes-filter {
+  min-height: 36px; padding: 0 14px;
+  border: 1px solid var(--mk-line-strong); border-radius: var(--mk-pill);
+  background: transparent; color: var(--mk-muted);
+  font-family: var(--sans); font-size: 12.5px; letter-spacing: .01em; text-transform: capitalize;
+  cursor: pointer;
+  transition: color .2s var(--mk-ease-soft), border-color .2s var(--mk-ease-soft), background-color .2s var(--mk-ease-soft);
+}
+.mk-changes-filter:hover { color: var(--mk-text); border-color: rgba(var(--mk-text-rgb), .4); }
+.mk-changes-filter[aria-pressed='true'] { color: #1d0c03; border-color: var(--mk-accent); background: var(--mk-accent); }
+.mk-changes-filter:focus-visible { outline: 2px solid var(--mk-accent); outline-offset: 3px; }
+
+.mk-changes-count { margin: 0 0 22px; color: var(--mk-dim); font: 11px/1.5 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+
+/* The diary: what shipped, and when. */
+.mk-changes-group { margin: 0 0 44px; }
+.mk-changes-group__date {
+  margin: 0 0 16px; padding-bottom: 10px; border-bottom: 1px solid var(--mk-line);
+  color: var(--mk-dim); font: 11px/1.5 var(--mono); letter-spacing: .14em; text-transform: uppercase;
+}
+.mk-changes-list { position: relative; margin: 0; padding: 0 0 0 26px; list-style: none; }
+.mk-changes-list::before {
+  position: absolute; left: 4px; top: 6px; bottom: 6px; width: 1px; background: var(--mk-line); content: '';
+}
+.mk-changes-item { position: relative; padding: 0 0 26px; }
+.mk-changes-item:last-child { padding-bottom: 0; }
+.mk-changes-item__dot {
+  position: absolute; left: -26px; top: 6px; width: 9px; height: 9px; border-radius: 50%;
+  border: 2px solid var(--mk-accent); background: var(--mk-bg);
+}
+.mk-changes-item__date { margin: 0 0 4px; color: var(--mk-dim); font: 11px/1.5 var(--mono); letter-spacing: .06em; }
+.mk-changes-item__title { margin: 0 0 6px; font-size: 19px; font-weight: 520; letter-spacing: -.02em; }
+.mk-changes-item__title a { color: var(--mk-text); text-decoration: none; }
+.mk-changes-item__title a:hover { color: var(--mk-accent-2); }
+.mk-changes-item__title a:focus-visible { outline: 2px solid var(--mk-accent); outline-offset: 3px; border-radius: 3px; }
+.mk-changes-item__summary { margin: 0 0 10px; max-width: 68ch; color: var(--mk-muted); font-size: 14.5px; line-height: 1.65; }
+.mk-changes-item .mk-release__categories { margin-top: 0; }
+.mk-changes-item--loading { display: grid; gap: 10px; padding-bottom: 30px; }
+
+@media (max-width: 720px) {
+  .mk-changes-tools { align-items: stretch; }
+  .mk-changes-filters { width: 100%; }
+  .mk-changes-filter { flex: 1 1 auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mk-changes-filter, .mk-changes-search__input, .mk-changes-hero__cta .mk-button { transition: none; }
+}
+
 
 .marketing-page .mk-changelog__notice {
   max-width: 78ch; margin: 0 0 16px; padding: 10px 14px;

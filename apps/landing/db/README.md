@@ -23,6 +23,7 @@ From `apps/landing`, with a real `DATABASE_URL` and the other required auth vari
    - `025`–`026` create the developer workspace: `dev_project`, `dev_form`, `dev_form_version` and `dev_submission`, with the ownership, the published version and the submission limits the server enforces. `027`–`030` add the form builder, the response inbox and the release summaries. `031`–`035` add the usage counters, the notification preferences and the remaining changelog entries.
    - `036_release_changelog_card.sql` seeds the changelog entry for the changelog cards and documents, so the page and the changelog agree from the first request.
    - `037_release_the_mail_reads.sql` seeds the changelog entry for the email changes — no social row, a provider notice that names the provider, and a card whose details line up.
+   - `038_release_intake_for_developers.sql` seeds the single release that covers the whole developer platform shipped today: the problem, the solution and how to use it.
 
 `npm run db:generate` writes a reviewable Better Auth SQL snapshot to `db/auth.sql`. It does not apply it, and it does not include Intake provider tables. Do not point Better Auth at the provider tables.
 

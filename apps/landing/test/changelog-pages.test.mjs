@@ -51,6 +51,7 @@ async function mount({ path = '/changelog', handler }) {
   return {
     calls,
     container,
+    router,
     text: () => container.textContent ?? '',
     restore: async () => { await act(async () => root.unmount()); container.remove(); globalThis.fetch = original; },
   };
@@ -77,6 +78,85 @@ test('when the live changelog cannot be loaded, the page says so and still shows
   assert.match(view.text(), /Live releases could not be loaded/);
   assert.match(view.text(), /Intake opens/);
   assert.doesNotMatch(view.text(), /No releases have been published/);
+});
+
+test('the newest release is shown on its own, with the card a pasted link shows', async t => {
+  const newest = { ...LIVE_RELEASE, slug: 'the-newest-release', title: 'The newest release', releaseDate: '2026-10-30', publishedAt: '2026-10-30T09:00:00.000Z' };
+  const view = await mount({ handler: path => {
+    if (path === '/api/releases') return json({ releases: [newest], total: 1 });
+    return json({ error: 'not found' }, 404);
+  } });
+  t.after(view.restore);
+
+  const hero = view.container.querySelector('.mk-changes-hero');
+  assert.ok(hero, 'the latest release has a panel of its own');
+  // The newest release is the one in the panel, whatever else has shipped.
+  assert.match(hero.textContent ?? '', /The newest release/);
+  assert.ok(hero.querySelector('a[href="/changelog/the-newest-release"]'), 'the panel links to the release');
+  const card = hero.querySelector('.mk-changes-hero__media img');
+  assert.ok(card, 'the panel shows the card');
+  assert.match(card.getAttribute('src') ?? '', /\/api\/og\/changelog\/the-newest-release/);
+});
+
+test('a reader can search the releases, and the search is written into the address', async t => {
+  const view = await mount({ handler: path => {
+    if (path === '/api/releases') return json({ releases: [LIVE_RELEASE], total: 1 });
+    return json({ error: 'not found' }, 404);
+  } });
+  t.after(view.restore);
+
+  const input = view.container.querySelector('#mk-changes-search-input');
+  assert.ok(input, 'there is a search box');
+  assert.equal(input.getAttribute('type'), 'search');
+  // A reader who remembers one word finds the release that mentions it.
+  const type = (value) => {
+    const setter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set;
+    setter.call(input, value);
+    input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  };
+  await act(async () => { type('inbox'); });
+
+  assert.match(view.text(), /The inbox, and a number you can trust/, 'the release that mentions it is shown');
+  assert.doesNotMatch(view.text(), /Typeform is now a creation target/, 'the rest are filtered out');
+  assert.match(view.text(), /\d+ of \d+ releases/, 'the count says what was found');
+  assert.equal(view.router.state.location.pathname + view.router.state.location.search, '/changelog?q=inbox', 'the search is in the address, so it can be shared');
+});
+
+test('a search that matches nothing says so instead of showing an empty page', async t => {
+  const view = await mount({ handler: path => {
+    if (path === '/api/releases') return json({ releases: [LIVE_RELEASE], total: 1 });
+    return json({ error: 'not found' }, 404);
+  } });
+  t.after(view.restore);
+
+  const input = view.container.querySelector('#mk-changes-search-input');
+  const setter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set;
+  await act(async () => {
+    setter.call(input, 'xylophone');
+    input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  });
+
+  assert.match(view.text(), /Nothing matched/);
+  assert.match(view.text(), /Show every release/);
+});
+
+test('the kind of release can be filtered, and the filter is in the address too', async t => {
+  const view = await mount({ handler: path => {
+    if (path === '/api/releases') return json({ releases: [LIVE_RELEASE], total: 1 });
+    return json({ error: 'not found' }, 404);
+  } });
+  t.after(view.restore);
+
+  const button = [...view.container.querySelectorAll('.mk-changes-filter')]
+    .find(node => node.textContent === 'improvement');
+  assert.ok(button, 'there is a filter for each kind of release');
+  assert.equal(button.getAttribute('aria-pressed'), 'false');
+  await act(async () => { button.click(); });
+
+  assert.equal(button.getAttribute('aria-pressed'), 'true', 'the chosen filter says so');
+  assert.match(view.text(), /The mail reads properly now/, 'the improvement is shown');
+  assert.doesNotMatch(view.text(), /Typeform is now a creation target/, 'the features are not');
+  assert.equal(view.router.state.location.pathname + view.router.state.location.search, '/changelog?c=improvement');
 });
 
 test('a release page shows the announcement and carries its own canonical and social metadata', async t => {
@@ -259,6 +339,21 @@ test('the bundled releases are the shipped history: dated, categorised and each 
   }
   const allHeadings = new Set(BUNDLED_RELEASES.flatMap(release => [...release.body.matchAll(/^## (.+)$/gm)].map(match => match[1])));
   assert.ok(allHeadings.size >= 15, 'the releases do not all share the same headings');
+});
+
+test('the developer release tells the whole story: the problem, the solution, and how to use it', () => {
+  const release = BUNDLED_RELEASES.find(entry => entry.slug === 'intake-for-developers');
+  assert.ok(release, 'the developer platform has a release of its own');
+  // The reader is told what was wrong, what was built, how to use it, and what is still missing.
+  assert.match(release.body, /The problem we kept hearing/);
+  assert.match(release.body, /What is there now/);
+  assert.match(release.body, /How to use it/);
+  assert.match(release.body, /What it does not do yet/);
+  // And the limits are named rather than glossed over.
+  assert.match(release.body, /no webhooks/i);
+  assert.match(release.body, /no SDK/i);
+  assert.ok(release.highlights.length >= 4, 'the short version says what changed');
+  assert.ok(release.audience, 'it says who it is for');
 });
 
 test('the release notes are written in a plain voice, not marketing filler', () => {
