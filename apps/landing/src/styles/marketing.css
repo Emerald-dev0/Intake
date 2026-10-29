@@ -679,13 +679,7 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
 .mk-guide a:hover, .mk-trust-page a:hover { color: var(--mk-accent-2); }
 .mk-trust-page { display: grid; gap: 26px; max-width: 78ch; }
 .mk-trust-page h2 { margin: 0 0 12px; font-size: 22px; font-weight: 550; letter-spacing: -.02em; }
-.mk-changelog { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; max-width: 78ch; }
-.mk-changelog li { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 16px; border: 1px solid var(--mk-line); border-radius: var(--mk-r-md); padding: 18px 20px; background: rgba(var(--mk-text-rgb), .02); }
-.mk-changelog__date { color: var(--mk-dim); font: 12px var(--mono); padding-top: 4px; }
-.mk-changelog h2 { margin: 0 0 6px; font-size: 17px; font-weight: 550; }
-.mk-changelog p { margin: 0; color: var(--mk-muted); font-size: 14px; line-height: 1.65; }
 @media (max-width: 700px) {
-  .mk-changelog li { grid-template-columns: minmax(0, 1fr); gap: 6px; }
 }
 
 /* Repeated calls to action after how-it-works and the FAQ. */
@@ -2271,10 +2265,6 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
   .mk-changes-filter, .mk-changes-search__input, .mk-changes-hero__cta .mk-button { transition: none; }
 }
 
-
-.marketing-page .mk-changelog li h2 a { color: var(--mk-text); }
-.marketing-page .mk-changelog li h2 a:hover { color: var(--mk-accent-2); }
-.marketing-page .mk-changelog li h2 a:focus-visible { outline: 2px solid var(--mk-accent); outline-offset: 3px; }
 
 .marketing-page .mk-changelog__notice {
   max-width: 78ch; margin: 0 0 16px; padding: 10px 14px;
