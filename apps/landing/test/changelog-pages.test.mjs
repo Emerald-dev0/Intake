@@ -341,6 +341,21 @@ test('the bundled releases are the shipped history: dated, categorised and each 
   assert.ok(allHeadings.size >= 15, 'the releases do not all share the same headings');
 });
 
+test('the developer release tells the whole story: the problem, the solution, and how to use it', () => {
+  const release = BUNDLED_RELEASES.find(entry => entry.slug === 'intake-for-developers');
+  assert.ok(release, 'the developer platform has a release of its own');
+  // The reader is told what was wrong, what was built, how to use it, and what is still missing.
+  assert.match(release.body, /The problem we kept hearing/);
+  assert.match(release.body, /What is there now/);
+  assert.match(release.body, /How to use it/);
+  assert.match(release.body, /What it does not do yet/);
+  // And the limits are named rather than glossed over.
+  assert.match(release.body, /no webhooks/i);
+  assert.match(release.body, /no SDK/i);
+  assert.ok(release.highlights.length >= 4, 'the short version says what changed');
+  assert.ok(release.audience, 'it says who it is for');
+});
+
 test('the release notes are written in a plain voice, not marketing filler', () => {
   const banned = [/seamlessly/i, /revolution/i, /game[- ]changer/i, /cutting[- ]edge/i, /unlock/i, /delve/i, /robust/i];
   for (const release of BUNDLED_RELEASES) {
