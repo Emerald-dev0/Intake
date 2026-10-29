@@ -48,6 +48,15 @@ function fakeFetch({ projects = [PROJECT], forms = [FORM], detail, calls = [] } 
     if (url.includes('/api/dev/projects/')) return respond({ project: PROJECT, forms });
     if (url.endsWith('/api/dev/forms/dev_form_1/publish')) return respond(detail ?? { form: FORM, project: PROJECT, publishedVersion: null, draftVersion: null, versions: [] });
     if (url.endsWith('/api/dev/forms/dev_form_1/state')) return respond(detail ?? { form: FORM, project: PROJECT, publishedVersion: null, draftVersion: null, versions: [] });
+    if (url.includes('/api/dev/forms/dev_form_1/submissions')) {
+      return respond({
+        items: [
+          { id: 'sub_1', formId: 'dev_form_1', formVersionId: 'dev_ver_1', projectId: 'dev_proj_1', answers: { email: 'ada@example.com' }, source: {}, idempotencyKey: null, submittedAt: '2026-10-29T10:00:00.000Z' },
+        ],
+        total: 1,
+        perDay: [{ day: '2026-10-29', count: 1 }],
+      });
+    }
     if (url.endsWith('/api/dev/forms/dev_form_1')) {
       return respond(detail ?? {
         form: FORM,
@@ -165,6 +174,16 @@ test('a draft cannot be paused, and says why', async t => {
 
   assert.equal(view.container.querySelectorAll('.dev-actions button').length, 0);
   assert.match(view.text(), /not public yet/);
+});
+
+test('the answers are listed with an exact count and a way to export them', async t => {
+  const view = await mount(React.createElement(DeveloperFormPage), { path: '/app/developers/forms/dev_form_1' });
+  t.after(view.restore);
+
+  assert.match(view.text(), /1 answer/);
+  assert.match(view.text(), /ada@example\.com/);
+  assert.ok(view.container.querySelector('a[download]'), 'the CSV can be downloaded');
+  assert.match(view.container.querySelector('a[download]').getAttribute('href'), /submissions\.csv$/);
 });
 
 test('creating a project goes through the server and refreshes the list', async t => {

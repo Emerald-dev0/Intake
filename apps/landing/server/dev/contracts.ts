@@ -158,4 +158,32 @@ export interface DevStore {
 
   createSubmission(submission: DevSubmission): Promise<DevSubmission>;
   getSubmissionByIdempotencyKey(formId: string, key: string): Promise<DevSubmission | null>;
+
+  /** The answers to a form, newest first, with the exact total counted in SQL. */
+  listSubmissions(input: DevSubmissionQuery): Promise<DevSubmissionPage>;
+  getSubmission(submissionId: string): Promise<DevSubmission | null>;
+}
+
+/** How the inbox reads the answers. */
+export interface DevSubmissionQuery {
+  /** The project the answers belong to — the ownership boundary for every read. */
+  projectId: string;
+  /** Only this form, when one is named. */
+  formId?: string;
+  /** A word to look for anywhere in the answers. */
+  search?: string;
+  /** Only answers from this date onwards. */
+  since?: Date;
+  /** Only answers from this date until. */
+  until?: Date;
+  limit: number;
+  offset: number;
+}
+
+export interface DevSubmissionPage {
+  items: DevSubmission[];
+  /** The exact number of answers that match, counted by the database. */
+  total: number;
+  /** The number of answers per day, oldest first. */
+  perDay: Array<{ day: string; count: number }>;
 }

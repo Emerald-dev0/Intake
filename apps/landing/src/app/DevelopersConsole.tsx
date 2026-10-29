@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DevFormBuilder } from './DevFormBuilder';
+import { DevResponses } from './DevResponses';
 import {
   ACTION_LABEL,
   availableActions,
@@ -360,6 +361,14 @@ export function DeveloperFormPage() {
       <section className="dev-section" aria-labelledby="dev-form-fields">
         <h2 id="dev-form-fields" className="dev-section__title">Questions</h2>
         <DevFormBuilder detail={value as DevFormDetail} onSaved={() => detail.reload()} />
+      </section>
+
+      <section className="dev-section" aria-labelledby="dev-form-responses">
+        <h2 id="dev-form-responses" className="dev-section__title">Answers</h2>
+        <DevResponses
+          formId={form.id}
+          fields={(value as DevFormDetail).draftVersion?.definition.fields ?? (value as DevFormDetail).publishedVersion?.definition.fields ?? []}
+        />
       </section>
 
       <section className="dev-section" aria-labelledby="dev-form-versions">

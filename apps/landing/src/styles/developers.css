@@ -235,3 +235,21 @@
 .dev-check { display: flex; align-items: center; gap: 9px; font-size: 13.5px; }
 .dev-check input { accent-color: var(--accent); width: 16px; height: 16px; }
 .dev-theme-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+
+.dev-responses { display: grid; gap: 14px; margin-top: 14px; }
+.dev-responses__toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.dev-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 9px; }
+.dev-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.dev-table th, .dev-table td {
+  text-align: left;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  max-width: 320px;
+  overflow-wrap: anywhere;
+}
+.dev-table th { font: 11px var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--cream-3); font-weight: 400; }
+.dev-table tbody tr:last-child td { border-bottom: 0; }
+.dev-table__when { white-space: nowrap; color: var(--cream-2); font-family: var(--mono); font-size: 12px; }
+.dev-pager { display: flex; align-items: center; gap: 12px; }
+.dev-pager .dev-note { margin: 0; }

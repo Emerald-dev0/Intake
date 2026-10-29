@@ -7,7 +7,7 @@
  */
 
 import type {
-  DevForm, DevFormVersion, DevProject, DevStore, DevSubmission,
+  DevForm, DevFormVersion, DevProject, DevStore, DevSubmission, DevSubmissionPage, DevSubmissionQuery,
 } from './contracts.js';
 
 export interface MemoryDevStore extends DevStore {
@@ -117,6 +117,39 @@ export function createMemoryDevStore(): MemoryDevStore {
     async createSubmission(submission: DevSubmission) {
       submissions.push(copy(submission));
       return copy(submission);
+    },
+
+    async listSubmissions(query: DevSubmissionQuery): Promise<DevSubmissionPage> {
+      const matching = submissions.filter(entry => {
+        if (entry.projectId !== query.projectId) return false;
+        if (query.formId && entry.formId !== query.formId) return false;
+        if (query.since && entry.submittedAt < query.since) return false;
+        if (query.until && entry.submittedAt >= query.until) return false;
+        if (query.search) {
+          const haystack = JSON.stringify(entry.answers).toLowerCase();
+          if (!haystack.includes(query.search.toLowerCase())) return false;
+        }
+        return true;
+      });
+      const perDay = new Map<string, number>();
+      for (const entry of matching) {
+        const day = entry.submittedAt.toISOString().slice(0, 10);
+        perDay.set(day, (perDay.get(day) ?? 0) + 1);
+      }
+      return {
+        items: matching
+          .slice()
+          .sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime() || b.id.localeCompare(a.id))
+          .slice(query.offset, query.offset + query.limit)
+          .map(copy),
+        total: matching.length,
+        perDay: [...perDay.entries()].map(([day, count]) => ({ day, count })).sort((a, b) => a.day.localeCompare(b.day)),
+      };
+    },
+
+    async getSubmission(submissionId: string) {
+      const submission = submissions.find(entry => entry.id === submissionId);
+      return submission ? copy(submission) : null;
     },
 
     async getSubmissionByIdempotencyKey(formId: string, key: string) {

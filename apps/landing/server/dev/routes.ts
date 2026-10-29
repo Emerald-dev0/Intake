@@ -144,6 +144,42 @@ export function createDevRouter(deps: DevRouterDeps): Router {
     }
   });
 
+  // ── the answers ─────────────────────────────────────────────────────────────
+
+  router.get('/forms/:formId/submissions', async (req, res) => {
+    try {
+      const page = await deps.service.listSubmissions(userId(res), req.params.formId, {
+        search: typeof req.query.q === 'string' ? req.query.q : undefined,
+        limit: typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined,
+        offset: typeof req.query.offset === 'string' ? Number(req.query.offset) : undefined,
+      });
+      res.json(page);
+    } catch (error) {
+      handle(error, res);
+    }
+  });
+
+  router.get('/forms/:formId/submissions.csv', async (req, res) => {
+    try {
+      const { filename, csv } = await deps.service.exportSubmissionsCsv(userId(res), req.params.formId);
+      res.set('Content-Type', 'text/csv; charset=utf-8');
+      res.set('Content-Disposition', `attachment; filename="${filename}"`);
+      res.set('Cache-Control', 'no-store');
+      res.send(csv);
+    } catch (error) {
+      handle(error, res);
+    }
+  });
+
+  router.get('/submissions/:submissionId', async (req, res) => {
+    try {
+      const detail = await deps.service.getSubmission(userId(res), req.params.submissionId);
+      res.json(detail);
+    } catch (error) {
+      handle(error, res);
+    }
+  });
+
   router.post('/forms/:formId/state', express.json({ limit: '8kb', strict: true }), async (req, res) => {
     const action = req.body?.action as DevFormAction | undefined;
     if (!action || !DEV_FORM_ACTIONS.includes(action)) {

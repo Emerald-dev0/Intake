@@ -54,6 +54,7 @@ test('the developers page says what exists, what is being built, and what is not
     'A hosted form page and an embed snippet',
     'The field types developers actually use',
     'Submissions validated on the server',
+    'A response inbox with search, filters and CSV export',
     'Pause, close and reopen without a redeploy',
   ]);
 

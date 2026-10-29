@@ -71,6 +71,25 @@ export interface DevFormVersion {
   publishedAt: string | null;
 }
 
+/** One answer to a hosted form. */
+export interface DevSubmission {
+  id: string;
+  formId: string;
+  formVersionId: string;
+  projectId: string;
+  answers: Record<string, string | number | boolean | string[]>;
+  source: { referrer?: string; userAgent?: string };
+  idempotencyKey: string | null;
+  submittedAt: string;
+}
+
+export interface DevSubmissionPage {
+  items: DevSubmission[];
+  /** The exact number of answers that match, counted by the database. */
+  total: number;
+  perDay: Array<{ day: string; count: number }>;
+}
+
 export interface DevProjectDetail {
   project: DevProject;
   forms: DevForm[];
@@ -152,6 +171,18 @@ export const devApi = {
 
   applyAction: (formId: string, action: DevFormAction) =>
     request<DevFormDetail>(`/forms/${encodeURIComponent(formId)}/state`, { method: 'POST', body: JSON.stringify({ action }) }),
+
+  listSubmissions: (formId: string, options: { q?: string; limit?: number; offset?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (options.q) query.set('q', options.q);
+    if (options.limit) query.set('limit', String(options.limit));
+    if (options.offset) query.set('offset', String(options.offset));
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return request<DevSubmissionPage>(`/forms/${encodeURIComponent(formId)}/submissions${suffix}`);
+  },
+
+  /** The address of the CSV file. The browser downloads it; the server builds it. */
+  submissionsCsvUrl: (formId: string) => `/api/dev/forms/${encodeURIComponent(formId)}/submissions.csv`,
 };
 
 /** The wording the console shows for each state of a form. */

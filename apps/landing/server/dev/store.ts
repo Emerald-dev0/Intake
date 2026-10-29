@@ -8,7 +8,8 @@
 
 import type { Pool } from 'pg';
 import type {
-  DevForm, DevFormDefinition, DevFormVersion, DevProject, DevStore, DevSubmission,
+  DevForm, DevFormDefinition, DevFormVersion, DevProject, DevStore, DevSubmission, DevSubmissionPage,
+  DevSubmissionQuery,
 } from './contracts.js';
 
 type Queryable = Pick<Pool, 'query'>;
@@ -297,6 +298,61 @@ export function createPostgresDevStore(pool: Queryable): DevStore {
         ],
       );
       return mapSubmission((result.rows as DbRow[])[0]);
+    },
+
+    async listSubmissions(query: DevSubmissionQuery): Promise<DevSubmissionPage> {
+      const where: string[] = ['project_id = $1'];
+      const values: unknown[] = [query.projectId];
+      if (query.formId) {
+        values.push(query.formId);
+        where.push(`form_id = $${values.length}`);
+      }
+      if (query.search) {
+        values.push(`%${query.search}%`);
+        where.push(`answers::text ILIKE $${values.length}`);
+      }
+      if (query.since) {
+        values.push(query.since);
+        where.push(`submitted_at >= $${values.length}`);
+      }
+      if (query.until) {
+        values.push(query.until);
+        where.push(`submitted_at < $${values.length}`);
+      }
+      const clause = where.join(' AND ');
+
+      const rows = await pool.query(
+        `SELECT id, form_id, form_version_id, project_id, answers, source, idempotency_key, submitted_at
+           FROM dev_submission
+          WHERE ${clause}
+          ORDER BY submitted_at DESC, id DESC
+          LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+        [...values, query.limit, query.offset],
+      );
+      const total = await pool.query(`SELECT count(*)::int AS count FROM dev_submission WHERE ${clause}`, values);
+      const perDay = await pool.query(
+        `SELECT to_char(submitted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day, count(*)::int AS count
+           FROM dev_submission
+          WHERE ${clause}
+          GROUP BY day
+          ORDER BY day ASC`,
+        values,
+      );
+      return {
+        items: (rows.rows as DbRow[]).map(mapSubmission),
+        total: Number((total.rows as DbRow[])[0]?.count ?? 0),
+        perDay: (perDay.rows as DbRow[]).map(row => ({ day: String(row.day), count: Number(row.count) })),
+      };
+    },
+
+    async getSubmission(submissionId: string) {
+      const result = await pool.query(
+        `SELECT id, form_id, form_version_id, project_id, answers, source, idempotency_key, submitted_at
+           FROM dev_submission WHERE id = $1`,
+        [submissionId],
+      );
+      const row = (result.rows as DbRow[])[0];
+      return row ? mapSubmission(row) : null;
     },
 
     async getSubmissionByIdempotencyKey(formId: string, key: string) {

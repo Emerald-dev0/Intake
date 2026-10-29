@@ -23,6 +23,13 @@ import {
 } from './contracts.js';
 import { emptyDefinition, validateDefinition, validateFormName, validateProjectName, validateSlug } from './validation.js';
 
+/** One cell of a CSV file: quoted when it has to be, and never a formula a spreadsheet would run. */
+function csvCell(value: string): string {
+  const text = value.replace(/\r?\n/g, ' ');
+  const guarded = /^[=+\-@]/.test(text) ? `'${text}` : text;
+  return /[",]/.test(guarded) ? `"${guarded.replace(/"/g, '""')}"` : guarded;
+}
+
 export class DevError extends Error {
   constructor(
     public readonly status: number,
@@ -280,6 +287,71 @@ export class DevService {
     const timestamp = this.now();
     await this.store.updateForm(detail.form.id, { status: rule.to, updatedAt: timestamp });
     return this.getFormDetail(userId, formId);
+  }
+
+  // ── the answers ─────────────────────────────────────────────────────────────
+
+  /**
+   * The answers to a form.
+   *
+   * The form is checked for ownership first, and the query is made against the project as well,
+   * so an answer can never be read by anyone but the account that owns the form it belongs to.
+   */
+  async listSubmissions(userId: string, formId: string, options: { search?: string; since?: Date; until?: Date; limit?: number; offset?: number } = {}) {
+    const detail = await this.getFormDetail(userId, formId);
+    const limit = Math.min(Math.max(options.limit ?? 50, 1), 200);
+    const offset = Math.max(options.offset ?? 0, 0);
+    const search = typeof options.search === 'string' ? options.search.trim().slice(0, 120) : '';
+    return this.store.listSubmissions({
+      projectId: detail.project.id,
+      formId: detail.form.id,
+      search: search || undefined,
+      since: options.since,
+      until: options.until,
+      limit,
+      offset,
+    });
+  }
+
+  /** One answer, read through the same ownership chain. */
+  async getSubmission(userId: string, submissionId: string) {
+    const submission = await this.store.getSubmission(submissionId);
+    if (!submission) throw notFound('answer');
+    const project = await this.store.getProject(userId, submission.projectId);
+    if (!project) throw notFound('answer');
+    const form = await this.store.getForm(submission.formId);
+    return { submission, form, project };
+  }
+
+  /**
+   * The answers as a CSV file.
+   *
+   * The columns are the questions of the form, in order, so the file reads like the form does.
+   * Values are quoted the way a spreadsheet expects, and a value that starts with a character a
+   * spreadsheet would treat as a formula is neutralised before it lands in the file.
+   */
+  async exportSubmissionsCsv(userId: string, formId: string): Promise<{ filename: string; csv: string }> {
+    const detail = await this.getFormDetail(userId, formId);
+    const definition = detail.publishedVersion?.definition ?? detail.draftVersion?.definition ?? null;
+    const fields = definition?.fields ?? [];
+    const page = await this.store.listSubmissions({
+      projectId: detail.project.id,
+      formId: detail.form.id,
+      limit: 10000,
+      offset: 0,
+    });
+
+    const header = ['Submitted at', ...fields.map(field => field.label)];
+    const lines = [header.map(cell => csvCell(cell)).join(',')];
+    for (const submission of page.items) {
+      const row: string[] = [submission.submittedAt.toISOString()];
+      for (const field of fields) {
+        const value = submission.answers[field.id];
+        row.push(value === undefined ? '' : Array.isArray(value) ? value.join(', ') : String(value));
+      }
+      lines.push(row.map(cell => csvCell(cell)).join(','));
+    }
+    return { filename: `${detail.form.slug}-responses.csv`, csv: `${lines.join('\r\n')}\r\n` };
   }
 
   /** The definition the public endpoint serves. Only a published form has one. */

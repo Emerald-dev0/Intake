@@ -52,8 +52,8 @@ const CAPABILITIES: Capability[] = [
   },
   {
     name: 'A response inbox with search, filters and CSV export',
-    status: 'building',
-    detail: 'Read responses without building an admin panel. Counts and summaries come from the database, not from a model.',
+    status: 'shipping',
+    detail: 'Read responses without building an admin panel. The count comes from the database, not from a model, and the export has the same columns as the table.',
   },
   {
     name: 'Pause, close and reopen without a redeploy',
