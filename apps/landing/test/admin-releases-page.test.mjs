@@ -208,3 +208,29 @@ test('the preview shows the public page for an unpublished release, and says it 
   assert.match(view.text(), /What changed/);
   assert.match(view.text(), /https:\/\/intake\.test\/changelog\/every-release-has-a-page/);
 });
+
+test('the console saves a release with the method the server exposes', async t => {
+  const calls = [];
+  const view = await mount({
+    path: '/admin/releases/rel-1',
+    handler: (path, init) => {
+      calls.push({ path, method: init?.method ?? 'GET' });
+      if (path === '/api/admin/releases/rel-1' && (init?.method ?? 'GET') === 'GET') return json(DETAIL);
+      if (path === '/api/admin/releases/rel-1' && init?.method === 'PUT') return json({ release: RELEASE });
+      return json({ error: 'not found' }, 404);
+    },
+  });
+  t.after(view.restore);
+
+  const form = view.container.querySelector('form');
+  await act(async () => {
+    form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+  });
+
+  // The server exposes the update as a PUT. A POST would answer 404 and the operator would be
+  // told the release could not be saved.
+  assert.ok(calls.some(call => call.method === 'PUT' && call.path === '/api/admin/releases/rel-1'),
+    'the release is saved with a PUT');
+  assert.ok(!calls.some(call => call.method === 'POST' && call.path === '/api/admin/releases/rel-1'),
+    'the release is not saved with a POST');
+});

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { adminPost, AdminApiError } from './api';
+import { adminPost, adminPut, AdminApiError } from './api';
 import { useAdminQuery, type QueryState } from './useAdminQuery';
 import type {
   ReleaseCategory, ReleaseChecklistItem, ReleaseDetailData, ReleaseListItem, ReleaseRecord, ReleaseSource,
@@ -297,7 +297,7 @@ export function AdminReleaseDetailPage() {
     setSaving(true);
     setMessage(null);
     try {
-      const response = await adminPost<{ release: ReleaseRecord }>(`/api/admin/releases/${releaseId}`, {
+      const response = await adminPut<{ release: ReleaseRecord }>(`/api/admin/releases/${releaseId}`, {
         title: draft.title,
         summary: draft.summary,
         body: draft.body,
@@ -464,7 +464,7 @@ export function AdminReleaseDetailPage() {
               <label className="admin-field" htmlFor="release-body">
                 <span>Release notes</span>
                 <textarea id="release-body" rows={14} value={value('body', '')} onChange={event => setDraft(current => ({ ...current, body: event.target.value }))} />
-                <small className="admin-muted">Sections: “## What changed”, “## Why it matters”, “## How to use it”, “## Limitations and availability”. TODO markers block publication.</small>
+                <small className="admin-muted">Use “## Heading” for each section — the page turns them into a table of contents. TODO markers block publication.</small>
               </label>
               <div className="admin-form-actions">
                 <button className="admin-button primary" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
