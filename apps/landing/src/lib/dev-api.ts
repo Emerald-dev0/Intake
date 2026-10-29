@@ -231,9 +231,11 @@ export const devApi = {
   deleteForm: (formId: string, confirmation: string) =>
     request<{ deleted: true }>(`/forms/${encodeURIComponent(formId)}`, { method: 'DELETE', body: JSON.stringify({ confirm: confirmation }) }),
 
-  listSubmissions: (formId: string, options: { q?: string; limit?: number; offset?: number } = {}) => {
+  listSubmissions: (formId: string, options: { q?: string; since?: string; until?: string; limit?: number; offset?: number } = {}) => {
     const query = new URLSearchParams();
     if (options.q) query.set('q', options.q);
+    if (options.since) query.set('since', options.since);
+    if (options.until) query.set('until', options.until);
     if (options.limit) query.set('limit', String(options.limit));
     if (options.offset) query.set('offset', String(options.offset));
     const suffix = query.toString() ? `?${query.toString()}` : '';

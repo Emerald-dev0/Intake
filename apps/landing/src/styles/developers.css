@@ -314,3 +314,12 @@
   font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 0.9em;
 }
+
+/* A filter that sits in the toolbar beside the search box. */
+.dev-field--inline {
+  flex: 0 0 auto;
+}
+
+.dev-field--inline input {
+  min-width: 9.5rem;
+}

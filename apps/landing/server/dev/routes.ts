@@ -50,6 +50,18 @@ function insightsOperationKey(formId: string, total: number, latest: string | un
 /** The JSON body a definition is allowed to be. A form is small; a megabyte is not one. */
 const DEFINITION_LIMIT = '128kb';
 
+/**
+ * A day from the query string, as the start of that day in UTC.
+ *
+ * A value that is not a date is ignored rather than refused: a filter that is slightly wrong
+ * should still show the answers, not hide them.
+ */
+function readDay(value: unknown): Date | undefined {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
 export function createDevRouter(deps: DevRouterDeps): Router {
   const router = Router();
 
@@ -332,6 +344,8 @@ export function createDevRouter(deps: DevRouterDeps): Router {
     try {
       const page = await deps.service.listSubmissions(userId(res), req.params.formId, {
         search: typeof req.query.q === 'string' ? req.query.q : undefined,
+        since: readDay(req.query.since),
+        until: readDay(req.query.until),
         limit: typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined,
         offset: typeof req.query.offset === 'string' ? Number(req.query.offset) : undefined,
       });

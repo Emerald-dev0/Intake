@@ -49,11 +49,12 @@ before(async () => {
   await service.publish(OWNER, formId);
 
   const submissions = [
-    { email: 'ada@example.com', note: 'we use it for checkout' },
-    { email: 'grace@example.com', note: '=cmd|calc' },
-    { email: 'alan@example.com', note: 'nothing to say' },
+    { email: 'ada@example.com', note: 'we use it for checkout', at: '2026-10-27T09:00:00.000Z' },
+    { email: 'grace@example.com', note: '=cmd|calc', at: '2026-10-29T09:00:00.000Z' },
+    { email: 'alan@example.com', note: 'nothing to say', at: '2026-10-29T18:00:00.000Z' },
   ];
-  for (const answers of submissions) {
+  for (const entry of submissions) {
+    const { at, ...answers } = entry;
     await store.createSubmission({
       id: `sub_${answers.email.split('@')[0]}`,
       formId,
@@ -62,7 +63,7 @@ before(async () => {
       answers,
       source: {},
       idempotencyKey: null,
-      submittedAt: new Date('2026-10-29T00:00:00.000Z'),
+      submittedAt: new Date(at),
     });
   }
 
@@ -92,8 +93,11 @@ test('the owner sees every answer, and the count is exact', async () => {
   assert.equal(response.status, 200);
   assert.equal(response.body.total, 3);
   assert.equal(response.body.items.length, 3);
-  assert.ok(response.body.perDay.length >= 1, 'the answers are counted per day');
-  assert.equal(response.body.perDay[0].count, 3);
+  assert.equal(response.body.perDay.length, 2, 'the answers are counted per day');
+  assert.deepEqual(response.body.perDay.map(day => [day.day, day.count]), [
+    ['2026-10-27', 1],
+    ['2026-10-29', 2],
+  ]);
 });
 
 test('somebody else gets nothing, and is not told the answers exist', async () => {
@@ -117,6 +121,21 @@ test('a search finds the answer that mentions the word', async () => {
   const response = await call(`/forms/${formId}/submissions?q=grace`);
   assert.equal(response.body.total, 1);
   assert.equal(response.body.items[0].answers.email, 'grace@example.com');
+});
+
+test('the answers can be narrowed to a date window', async () => {
+  // The window is applied by the database, so the count is the count of the window.
+  const window = await call(`/forms/${formId}/submissions?since=2026-10-29`);
+  assert.equal(window.status, 200);
+  assert.equal(window.body.total, 2, 'the answer from the 27th is outside the window');
+
+  const all = await call(`/forms/${formId}/submissions`);
+  assert.equal(all.body.total, 3);
+
+  // A date that is not a date is ignored rather than refused: the answers still show.
+  const nonsense = await call(`/forms/${formId}/submissions?since=not-a-date`);
+  assert.equal(nonsense.status, 200);
+  assert.equal(nonsense.body.total, 3);
 });
 
 test('the export has the questions as its columns and one row per answer', async () => {

@@ -32,6 +32,7 @@ export function DevResponses({ formId, fields }: { formId: string; fields: DevFi
   const [page, setPage] = useState<DevSubmissionPage | null>(null);
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
+  const [since, setSince] = useState('');
   const [offset, setOffset] = useState(0);
   const [state, setState] = useState<'loading' | 'ready' | 'failed'>('loading');
   const [error, setError] = useState('');
@@ -39,7 +40,7 @@ export function DevResponses({ formId, fields }: { formId: string; fields: DevFi
   const load = useCallback(async () => {
     setState('loading');
     try {
-      const result = await devApi.listSubmissions(formId, { q: query, limit: PAGE_SIZE, offset });
+      const result = await devApi.listSubmissions(formId, { q: query, since: since || undefined, limit: PAGE_SIZE, offset });
       setPage(result);
       setState('ready');
       setError('');
@@ -47,7 +48,7 @@ export function DevResponses({ formId, fields }: { formId: string; fields: DevFi
       setError(caught instanceof DevApiError ? caught.message : 'The answers could not be loaded.');
       setState('failed');
     }
-  }, [formId, query, offset]);
+  }, [formId, query, since, offset]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -88,6 +89,19 @@ export function DevResponses({ formId, fields }: { formId: string; fields: DevFi
             onChange={event => setSearch(event.target.value)}
           />
         </label>
+        <label className="dev-field dev-field--inline">
+          <span>Since</span>
+          <input
+            type="date"
+            value={since}
+            onChange={event => { setSince(event.target.value); setOffset(0); }}
+          />
+        </label>
+        {since && (
+          <button type="button" className="dev-button dev-button--quiet" onClick={() => { setSince(''); setOffset(0); }}>
+            Any date
+          </button>
+        )}
         <a className="dev-button dev-button--quiet" href={devApi.submissionsCsvUrl(formId)} download>Export CSV</a>
         <button type="button" className="dev-button" onClick={() => void summarise()} disabled={summarising || total === 0}>
           {summarising ? 'Reading the answers…' : 'Summarise the answers'}
@@ -142,7 +156,7 @@ export function DevResponses({ formId, fields }: { formId: string; fields: DevFi
           <p className="dev-note">
             {total === 0
               ? 'No answers yet.'
-              : `${total} ${total === 1 ? 'answer' : 'answers'}${query ? ' matching your search' : ''}.`}
+              : `${total} ${total === 1 ? 'answer' : 'answers'}${query ? ' matching your search' : ''}${since ? ' since ' + since : ''}.`}
           </p>
 
           {total > 0 && (
