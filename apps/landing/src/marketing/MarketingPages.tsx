@@ -1,56 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CHANGELOG, COMPARISON_ROWS, USE_CASES, WORKFLOW_STEPS } from '../content/site';
-import { MarketingFooter, MarketingNav, StartLink } from './MarketingChrome';
-import { Arrow, Check, Reveal, SectionIntro } from './MarketingSections';
-import { MobileActionBar } from './MobileActionBar';
-import { usePageMeta, webPageSchema } from './usePageMeta';
+import { COMPARISON_ROWS, USE_CASES, WORKFLOW_STEPS } from '../content/site';
+import { HubShell } from './HubShell';
 import { usePublicSession } from './usePublicSession';
-import { useSiteAnalytics } from '../lib/analytics';
+import { Arrow, Check, Reveal, SectionIntro } from './MarketingSections';
 import { EDIT_LIMITS } from '../lib/edit-limits';
-import type { AnalyticsPath } from '../lib/analytics';
-
-/** Shared shell for the content hubs: nav, page head, footer, action bar, metadata. */
-function HubShell({ path, title, description, eyebrow, heading, lede, children }: {
-  path: AnalyticsPath;
-  title: string;
-  description: string;
-  eyebrow: string;
-  heading: React.ReactNode;
-  lede: string;
-  children: React.ReactNode;
-}) {
-  const authenticated = usePublicSession();
-  useSiteAnalytics(path);
-  usePageMeta({ title, description, path, schema: webPageSchema(path, title, description) });
-  return (
-    <div className="marketing-page">
-      <a className="skip-link" href="#main-content">Skip to main content</a>
-      <MarketingNav authenticated={authenticated} />
-      <main id="main-content" tabIndex={-1}>
-        <section className="mk-section mk-hub-head" aria-labelledby="mk-hub-title">
-          <div className="mk-container">
-            <span className="mk-eyebrow">{eyebrow}</span>
-            <h1 id="mk-hub-title">{heading}</h1>
-            <p className="mk-hub-lede">{lede}</p>
-          </div>
-        </section>
-        {children}
-        <section className="mk-section mk-hub-cta" aria-label="Get started">
-          <div className="mk-container">
-            <Reveal variant="rise">
-              <h2>Your first form is one sentence away.</h2>
-              <p>Free during launch · 20 credits daily · No card needed</p>
-              <StartLink authenticated={authenticated} />
-            </Reveal>
-          </div>
-        </section>
-      </main>
-      <MarketingFooter authenticated={authenticated} />
-      <MobileActionBar authenticated={authenticated} />
-    </div>
-  );
-}
 
 function CompareTable() {
   return (
@@ -273,28 +227,3 @@ export function TrustPage() {
   );
 }
 
-export function ChangelogPage() {
-  return (
-    <HubShell
-      path="/changelog"
-      title="Changelog — what Intake shipped | Intake"
-      description="Every Intake release: launch, welcome mail, traffic analytics, and what's next. New capabilities ship weekly."
-      eyebrow="CHANGELOG"
-      heading={<>What shipped, and what is next.</>}
-      lede="New capabilities land every week. This page is the record — and the update list hears about each one first."
-    >
-      <section className="mk-section" aria-label="Releases">
-        <div className="mk-container">
-          <ol className="mk-changelog">
-            {CHANGELOG.map(entry => (
-              <Reveal as="li" key={entry.date + entry.title} variant="fade">
-                <span className="mk-changelog__date">{entry.date}</span>
-                <div><h2>{entry.title}</h2><p>{entry.body}</p></div>
-              </Reveal>
-            ))}
-          </ol>
-        </div>
-      </section>
-    </HubShell>
-  );
-}

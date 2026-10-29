@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { BUNDLED_RELEASES } from '../src/content/changelog.ts';
 
 const SITE_ORIGIN = 'https://intake-six-blue.vercel.app';
 const CREATOR_NAME = 'Oluwadare Daniel — Emerald';
@@ -126,9 +127,22 @@ test('robots, sitemap and private document expose only intended public indexable
   }
   assert.ok(robots.split(/\r?\n/).includes(`Sitemap: ${SITE_ORIGIN}/sitemap.xml`));
   const locations = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(([, location]) => location);
-  assert.deepEqual(locations, [`${SITE_ORIGIN}/`, `${SITE_ORIGIN}/pricing`, `${SITE_ORIGIN}/privacy`, `${SITE_ORIGIN}/terms`, `${SITE_ORIGIN}/vs`, `${SITE_ORIGIN}/templates`, `${SITE_ORIGIN}/guides`, `${SITE_ORIGIN}/trust`, `${SITE_ORIGIN}/changelog`]);
+  assert.deepEqual(locations, [
+    `${SITE_ORIGIN}/`, `${SITE_ORIGIN}/pricing`, `${SITE_ORIGIN}/privacy`, `${SITE_ORIGIN}/terms`,
+    `${SITE_ORIGIN}/vs`, `${SITE_ORIGIN}/templates`, `${SITE_ORIGIN}/guides`, `${SITE_ORIGIN}/trust`,
+    `${SITE_ORIGIN}/changelog`,
+    // Every shipped release has its own permanent page, and the sitemap lists them.
+    ...BUNDLED_RELEASES.map(release => `${SITE_ORIGIN}/changelog/${release.slug}`),
+  ]);
   for (const path of ['/vs', '/templates', '/guides', '/trust', '/changelog']) {
     assert.ok(llms.includes(`${SITE_ORIGIN}${path}`), `llms.txt must link ${path}`);
+  }
+  for (const release of BUNDLED_RELEASES) {
+    assert.ok(llms.includes(`${SITE_ORIGIN}/changelog/${release.slug}`), `llms.txt must link the ${release.slug} release`);
+  }
+  // No unpublished route may appear in the sitemap.
+  for (const path of ['/app', '/admin', '/auth', '/api', '/private']) {
+    assert.ok(!locations.some(location => location.includes(path)), `${path} must not be in the sitemap`);
   }
   assert.match(privateHtml, /<meta name="robots" content="noindex, nofollow"\s*\/>/);
 });
