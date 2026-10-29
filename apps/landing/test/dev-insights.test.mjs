@@ -188,6 +188,42 @@ test('the same answers are not charged twice', async () => {
   assert.equal(second.body.cost.credits, DEV_INSIGHTS_COST);
 });
 
+test('a developer with no credits is told, and nothing is spent', async () => {
+  // The runner refuses before the model is called, so no credits are spent and no model call is made.
+  const brokeCredits = {
+    balance: async () => ({ daily: 0, monthly: 0, subscription: 0, purchased: 0, promotion: 0 }),
+    entitlement: async () => ({ plan: 'free', dailyCredits: 20, subscriptionCredits: 0, monthlyCredits: 0, purchasedCredits: 0, promotionCredits: 0, subscriptionStatus: 'none', periodStart: null, periodEnd: null }),
+    assertCanAfford: async () => { throw Object.assign(new Error('You do not have enough credits for this operation.'), { code: 'insufficient_credits' }); },
+    charge: async () => { throw new Error('charge should not be reached'); },
+    recordUsage: async () => undefined,
+    setPlan: async () => { throw new Error('not used'); },
+  };
+  const calls = [];
+  const app = express();
+  app.use('/api/dev', createDevRouter({
+    service,
+    store,
+    getSession: async () => ({ id: 'user_owner', email: 'user_owner@example.com', name: 'Test' }),
+    insights: {
+      runner: createAiOperationRunner({ credits: brokeCredits }),
+      model: { async summarize(input) { calls.push(input); return { summary: 'x', highlights: [], caveats: [] }; } },
+      cost: DEV_INSIGHTS_COST,
+    },
+  }));
+  const local = await new Promise(resolve => { const listener = app.listen(0, '127.0.0.1', () => resolve(listener)); });
+  const response = await fetch(`http://127.0.0.1:${local.address().port}/api/dev/forms/${formId}/insights`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  const body = await response.json();
+  await new Promise(resolve => local.close(resolve));
+
+  assert.equal(response.status, 402);
+  assert.equal(body.error, 'insufficient_credits');
+  assert.match(body.message, /not have enough credits/);
+  assert.equal(calls.length, 0, 'the model was not called');
+});
+
 test('somebody else cannot summarise your answers', async () => {
   const response = await call(`/forms/${formId}/insights`, { userId: 'user_stranger' });
   assert.equal(response.status, 404);

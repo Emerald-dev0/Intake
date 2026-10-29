@@ -142,6 +142,22 @@ export interface BillingServiceOptions {
   onError?: (label: string, error: unknown) => void;
 }
 
+
+/** A date from a webhook payload, or null when it is not one. */
+function readDate(value: unknown): Date | null {
+  if (typeof value !== 'string' && !(value instanceof Date)) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** The end of a billing period that starts at `start`. */
+function addInterval(start: Date, interval: 'month' | 'year'): Date {
+  const end = new Date(start.getTime());
+  if (interval === 'year') end.setUTCFullYear(end.getUTCFullYear() + 1);
+  else end.setUTCMonth(end.getUTCMonth() + 1);
+  return end;
+}
+
 export function createBillingService(options: BillingServiceOptions): BillingService {
   const now = options.now ?? (() => new Date());
   const report = options.onError ?? (() => undefined);
@@ -573,7 +589,33 @@ export function createBillingService(options: BillingServiceOptions): BillingSer
       }
 
       try {
-        if (event.status === 'succeeded') {
+        // The lifecycle is driven by the webhook and by nothing else. A customer returning from
+        // the checkout page proves nothing; these events, with their signature verified, are the
+        // authority for a renewal, a cancellation and an expiry.
+        const lifecycle = event.type.toLowerCase();
+        if (lifecycle === 'subscription.renewed' || lifecycle === 'subscription.charged' || lifecycle === 'invoice.paid') {
+          const subscription = await options.store.getSubscription(userId);
+          const periodStart = readDate(metadata.periodStart) ?? subscription?.currentPeriodEnd ?? now();
+          const periodEnd = readDate(metadata.periodEnd) ?? addInterval(periodStart, subscription?.interval ?? 'month');
+          await this.renewSubscription({
+            userId,
+            providerSubscriptionId: typeof metadata.subscriptionId === 'string' ? metadata.subscriptionId : (event.transactionId ?? ''),
+            providerTransactionId: event.transactionId,
+            newPeriodStart: periodStart,
+            newPeriodEnd: periodEnd,
+            amountCents: event.amountCents ?? 0,
+            webhookEventId: event.id,
+          });
+        } else if (lifecycle === 'subscription.canceled' || lifecycle === 'subscription.cancelled') {
+          await this.cancelSubscription({
+            userId,
+            providerSubscriptionId: typeof metadata.subscriptionId === 'string' ? metadata.subscriptionId : undefined,
+            cancelAtPeriodEnd: metadata.cancelAtPeriodEnd !== false,
+            webhookEventId: event.id,
+          });
+        } else if (lifecycle === 'subscription.expired' || lifecycle === 'subscription.ended') {
+          await this.expireSubscription({ userId, webhookEventId: event.id });
+        } else if (event.status === 'succeeded') {
           const purpose = metadata.purpose;
           if (purpose === 'subscription') {
             // Activate subscription
