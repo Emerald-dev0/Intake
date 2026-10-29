@@ -393,3 +393,96 @@ export interface MailSendRecord {
   failed: number;
   createdAt: string;
 }
+
+// ── Release Manager ────────────────────────────────────────────────────────────────────────────
+
+export type ReleaseStatus = 'draft' | 'in_review' | 'approved' | 'awaiting_deployment' | 'published' | 'cancelled';
+export type ReleaseCategory = 'feature' | 'improvement' | 'fix' | 'security';
+export type ReleaseSourceKind = 'pull_request' | 'commit' | 'release' | 'deployment';
+export type DeploymentState = 'success' | 'failure' | 'error' | 'in_progress' | 'queued' | 'pending' | 'unknown';
+export type ChecklistStatus = 'verified' | 'confirmed' | 'unconfirmed' | 'not_applicable' | 'unknown' | 'blocked';
+
+export interface ReleaseListItem {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string;
+  status: ReleaseStatus;
+  categories: ReleaseCategory[];
+  releaseDate: string | null;
+  publishedAt: string | null;
+  updatedAt: string;
+  authorName: string | null;
+  sourceCount: number;
+  hasDeployment: boolean;
+  deploymentState: DeploymentState | null;
+}
+
+export interface ReleaseSource {
+  id: string;
+  releaseId: string;
+  kind: ReleaseSourceKind;
+  provider: 'github' | 'manual';
+  externalId: string | null;
+  url: string | null;
+  title: string | null;
+  detail: string | null;
+  labels: string[];
+  state: string | null;
+  deploymentState: DeploymentState | null;
+  deploymentEnvironment: string | null;
+  deploymentRef: string | null;
+  deploymentSha: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReleaseAuditEntry {
+  id: string;
+  releaseId: string;
+  action: string;
+  actorUserId: string | null;
+  actorName: string | null;
+  actorEmail: string | null;
+  detail: string | null;
+  createdAt: string;
+}
+
+export interface ReleaseChecklistItem {
+  key: string;
+  label: string;
+  kind: 'automatic' | 'manual';
+  status: ChecklistStatus;
+  detail: string;
+  notApplicable: boolean;
+}
+
+export interface ReleaseRecord {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string;
+  body: string;
+  categories: ReleaseCategory[];
+  status: ReleaseStatus;
+  releaseDate: string | null;
+  links: Array<{ label: string; url: string }>;
+  heroImageUrl: string | null;
+  shareText: string | null;
+  authorName: string | null;
+  authorEmail: string | null;
+  approvedAt: string | null;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReleaseDetailData {
+  release: ReleaseRecord;
+  sources: ReleaseSource[];
+  audit: ReleaseAuditEntry[];
+  checklist: ReleaseChecklistItem[];
+  readiness: { ready: boolean; blockers: ReleaseChecklistItem[] };
+  github: { configured: boolean; repository: string | null };
+  previewUrl: string;
+}

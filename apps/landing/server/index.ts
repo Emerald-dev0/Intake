@@ -51,6 +51,11 @@ import { createAnalyticsRouter } from './analytics/routes';
 import { createPostgresAnalyticsStore } from './analytics/store';
 import { createUpdatesRouter } from './updates/routes';
 import { createPostgresUpdatesStore } from './updates/store';
+import { createReleaseService } from './releases/service';
+import { createPostgresReleaseStore } from './releases/store';
+import { createPublicReleaseRouter } from './releases/public-routes';
+import { githubWebhookHandler } from './releases/webhooks';
+import { readGitHubConfig } from './releases/github';
 const app = express();
 app.disable('x-powered-by');
 if (serverConfig.trustProxyHops > 0) app.set('trust proxy', serverConfig.trustProxyHops);
@@ -168,9 +173,38 @@ const adminMail = createMailService({
   send: request => emailRuntime.emails.send(request),
   log: (label, detail) => logSafe(label, undefined, detail ? JSON.stringify(detail) : ''),
 });
+/**
+ * The Release Manager. One store, one service, one GitHub configuration: the admin routes write
+ * through the service (which owns the state machine and the audit trail) and the public routes
+ * only ever read published releases.
+ */
+const releaseStore = createPostgresReleaseStore(pool);
+const releaseService = createReleaseService({ store: releaseStore });
+const githubConfig = readGitHubConfig(providerEnv);
 app.use('/api/admin', createAdminRouter({
   store: adminStore, getSession, rateLimiter: abuseLimiter, env: providerEnv,
   settings: billingSettings, waitlist: waitlistStore, mail: adminMail,
+  releases: {
+    service: releaseService,
+    rateLimiter: abuseLimiter,
+    env: providerEnv,
+    publicOrigin: serverConfig.publicOrigin,
+    github: githubConfig,
+  },
+}));
+// The public changelog. Published releases only: a draft is answered with 404, not 403.
+app.use(createPublicReleaseRouter({ store: releaseStore }));
+/**
+ * GitHub webhook deliveries for the Release Manager. Mounted on an unparsed route because the
+ * signature covers the raw bytes, and it is refused outright when no signing secret is set.
+ */
+app.post('/api/webhooks/github', githubWebhookHandler({
+  store: releaseStore,
+  service: releaseService,
+  secret: githubConfig.webhookSecret,
+  // Automatic publication stays off until an operator turns it on deliberately.
+  autoPublish: (providerEnv.RELEASE_AUTO_PUBLISH_AFTER_DEPLOYMENT ?? '').trim().toLowerCase() === 'true',
+  onError: (label, error) => logSafe(label, error),
 }));
 // Public, privacy-first engagement ingress. No auth, no cookies, no identifiers: the payload
 // carries only an allowlisted path, a click label, a referrer hostname and UTM tags.
@@ -319,6 +353,7 @@ console.log('Form creation: google and typeform enabled');
 console.log(`Form interpretation: ${aiProviderLabel(providerEnv)}`);
 console.log(`Transactional email: ${emailRuntime.config.configured ? `calder (${isTestCredential(emailRuntime.config) ? 'test key' : 'live key'}, ${emailRuntime.config.fromEmail || emailRuntime.config.senderId || 'sender id'})` : 'not configured'}`);
 console.log(`Billing: ${billingRuntime.config.configured ? 'bachs configured' : 'not configured (checkout disabled)'}`);
+console.log(`Release Manager: ${githubConfig.configured ? `github linked (${githubConfig.repository})` : 'github integration not configured (manual drafting only)'}`);
 
 app.get('/api/me', async (req, res) => {
   res.set('Cache-Control', 'no-store');

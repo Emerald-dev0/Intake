@@ -14,6 +14,7 @@ const NAVIGATION = [
   { to: '/admin/email', label: 'Email', icon: '✉' },
   { to: '/admin/mail', label: 'Compose mail', icon: '✎' },
   { to: '/admin/waitlist', label: 'Wait-list', icon: '☷' },
+  { to: '/admin/releases', label: 'Releases', icon: '◫' },
   { to: '/admin/analytics', label: 'Traffic', icon: '◔' },
   { to: '/admin/system', label: 'System', icon: '⌁' },
   { to: '/admin/activity', label: 'Activity', icon: '≋' },
@@ -29,6 +30,7 @@ const TITLES: Record<string, string> = {
   '/admin/email': 'Transactional email',
   '/admin/mail': 'Compose mail',
   '/admin/waitlist': 'Wait-list subscribers',
+  '/admin/releases': 'Release Manager',
   '/admin/analytics': 'Site traffic',
   '/admin/system': 'System health',
   '/admin/activity': 'Product activity',
@@ -78,8 +80,8 @@ export function AdminShell() {
         </div>
         <div className="admin-sidebar-footer">
           <span className="admin-scope-dot" /> OPERATOR CONSOLE
-          <p>Two things here change customer-visible state: plan allowances and prices, and the mail you
-            compose and send. Everything else is read-only.</p>
+          <p>Three things here change customer-visible state: plan allowances and prices, the mail you
+            compose and send, and the releases you publish. Everything else is read-only.</p>
         </div>
       </aside>
       {mobileOpen && <button className="admin-mobile-shade" onClick={closeNavigation} aria-label="Close admin navigation" />}
@@ -96,7 +98,7 @@ export function AdminShell() {
           </div>
         </header>
         <main className="admin-content"><Outlet /></main>
-        <footer className="admin-footer"><span>INTAKE / INTERNAL OPERATIONS</span><span>Private · Read-only, except settings and composed mail</span></footer>
+        <footer className="admin-footer"><span>INTAKE / INTERNAL OPERATIONS</span><span>Private · Read-only, except settings, composed mail and published releases</span></footer>
       </div>
     </div>
   );
