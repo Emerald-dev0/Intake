@@ -6,6 +6,7 @@ import type { SessionUser } from '../providers/service';
 import { createBillingSettingsService, type BillingSettingsService } from '../billing/settings';
 import type { WaitlistStore } from '../waitlist/store';
 import { MAIL_RECIPIENT_CAP, MAIL_SEGMENTS, MailError, SEGMENT_LABEL, parseComposeDraft, parseSelection, type MailService } from './mail';
+import { createReleaseAdminRouter, type ReleaseAdminRouterDeps } from '../releases/routes';
 
 const RANGE_DEFAULT: AdminRange = '7d';
 const EMAIL = /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/;
@@ -35,6 +36,11 @@ export interface AdminRouterDeps {
    * than inventing an "email sent" response.
    */
   mail?: MailService;
+  /**
+   * The Release Manager. Absent in tests and minimal harnesses: the release routes are then not
+   * mounted at all, so the console cannot pretend they exist.
+   */
+  releases?: ReleaseAdminRouterDeps;
 }
 
 function asyncRoute(handler: AdminHandler) {
@@ -381,6 +387,10 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
       res.status(503).json({ error: 'mail_unavailable', message: 'Send history is temporarily unavailable.' });
     }
   }));
+
+  // The Release Manager lives inside this router on purpose: it inherits the allowlist, the
+  // verified-session gate and the rate limiter above, and there is no second authentication path.
+  if (deps.releases) router.use('/releases', createReleaseAdminRouter(deps.releases));
 
   router.use((_req, res) => res.status(404).json({ error: 'Admin API route not found.' }));
   return router;

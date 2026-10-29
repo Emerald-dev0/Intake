@@ -10,6 +10,7 @@ import {
   WORKFLOW_STEPS,
 } from './src/content/site.ts';
 import { DEFAULT_SITE_URL, isNonPublicHost, normalizeSiteUrl } from './src/lib/site-url.ts';
+import { BUNDLED_RELEASES } from './src/content/changelog.ts';
 import { PLAN_CATALOG, formatUsd, proPriceComparison } from './src/lib/plans.ts';
 import { PRICING_DESCRIPTION, PRICING_FAQS, PRICING_TITLE } from './src/content/pricing.ts';
 
@@ -286,7 +287,16 @@ function robotsDocument(siteUrl: string): string {
   ].join('\n');
 }
 
-const SITEMAP_PATHS = ['/', '/pricing', '/privacy', '/terms', '/vs', '/templates', '/guides', '/trust', '/changelog'];
+/**
+ * The sitemap is generated at build time, so it can only list the releases that are known when the
+ * site is built. Those are the bundled ones; a release published later is still reachable from the
+ * changelog index and from its own permanent link, and it is added here the next time the site is
+ * built. Drafts are never in this list — only published releases are.
+ */
+const SITEMAP_PATHS = [
+  '/', '/pricing', '/privacy', '/terms', '/vs', '/templates', '/guides', '/trust', '/changelog',
+  ...BUNDLED_RELEASES.map(release => `/changelog/${release.slug}`),
+];
 
 function sitemapDocument(siteUrl: string): string {
   const urls = SITEMAP_PATHS.map(path => [
@@ -315,7 +325,8 @@ function llmsDocument(siteUrl: string): string {
     `- Templates: ${siteUrl}/templates — stealable prompts for teachers, events, HR, clinics, student orgs`,
     `- Guides: ${siteUrl}/guides — how to create a form with AI in five steps`,
     `- Trust: ${siteUrl}/trust — what Intake asks each provider for and what it never does`,
-    `- Changelog: ${siteUrl}/changelog — what shipped and what is next`,
+    `- Changelog: ${siteUrl}/changelog — every Intake release, each with its own permanent page`,
+    ...BUNDLED_RELEASES.map(release => `- Release: ${siteUrl}/changelog/${release.slug} — ${release.title}`),
     `- Pricing: ${siteUrl}/pricing — Free forever, Pro later, no card needed`,
     `- Privacy: ${siteUrl}/privacy — written against Google's API Services User Data Policy`,
     `- Terms: ${siteUrl}/terms`,

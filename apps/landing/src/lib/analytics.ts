@@ -84,8 +84,14 @@ function clickLabel(anchor: HTMLAnchorElement): string | null {
   return text ? text.slice(0, 120) : href.slice(0, 120);
 }
 
-export function useSiteAnalytics(path: AnalyticsPath): void {
+/**
+ * Record one pageview for the given path. A null path means the page is not part of the tracked
+ * set — the release detail pages, for example, are individually addressable and are not sent to
+ * the aggregate store as separate paths.
+ */
+export function useSiteAnalytics(path: AnalyticsPath | null): void {
   useEffect(() => {
+    if (!path) return undefined;
     send('pageview', path, '');
     const onClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;

@@ -17,7 +17,8 @@ const VsPage = lazy(() => import('../marketing/MarketingPages').then(m => ({ def
 const TemplatesPage = lazy(() => import('../marketing/MarketingPages').then(m => ({ default: m.TemplatesPage })));
 const GuidesPage = lazy(() => import('../marketing/MarketingPages').then(m => ({ default: m.GuidesPage })));
 const TrustPage = lazy(() => import('../marketing/MarketingPages').then(m => ({ default: m.TrustPage })));
-const ChangelogPage = lazy(() => import('../marketing/MarketingPages').then(m => ({ default: m.ChangelogPage })));
+const ChangelogPage = lazy(() => import('../marketing/Changelog').then(m => ({ default: m.ChangelogPage })));
+const ReleaseDetailPage = lazy(() => import('../marketing/Changelog').then(m => ({ default: m.ReleaseDetailPage })));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage').then(m => ({ default: m.PrivacyPage })));
 const TermsPage = lazy(() => import('./pages/TermsPage').then(m => ({ default: m.TermsPage })));
 const BillingPage = lazy(() => import('./pages/BillingPage').then(m => ({ default: m.BillingPage })));
@@ -35,6 +36,9 @@ const AdminSystemPage = lazy(() => import('../admin/AdminPages').then(m => ({ de
 const AdminActivityPage = lazy(() => import('../admin/AdminPages').then(m => ({ default: m.AdminActivityPage })));
 const AdminAnalyticsPage = lazy(() => import('../admin/AdminPages').then(m => ({ default: m.AdminAnalyticsPage })));
 const AdminWaitlistPage = lazy(() => import('../admin/AdminWaitlistPage'));
+const AdminReleasesPage = lazy(() => import('../admin/AdminReleasesPage').then(m => ({ default: m.AdminReleasesPage })));
+const AdminReleaseDetailPage = lazy(() => import('../admin/AdminReleasesPage').then(m => ({ default: m.AdminReleaseDetailPage })));
+const AdminReleasePreviewPage = lazy(() => import('../admin/AdminReleasePreviewPage').then(m => ({ default: m.AdminReleasePreviewPage })));
 const AdminMailPage = lazy(() => import('../admin/AdminMailPage'));
 function NotFoundPage() {
   return <main className="workspace-status"><h1>Page not found</h1><a href="/">Back to Intake</a></main>;
@@ -48,6 +52,7 @@ export const routes: RouteObject[] = [
   { path: '/guides', element: <GuidesPage /> },
   { path: '/trust', element: <TrustPage /> },
   { path: '/changelog', element: <ChangelogPage /> },
+  { path: '/changelog/:slug', element: <ReleaseDetailPage /> },
   { path: '/privacy', element: <PrivacyPage /> },
   { path: '/terms', element: <TermsPage /> },
   { path: '/auth/sign-in', element: <AuthPage key="sign-in" /> },
@@ -66,6 +71,9 @@ export const routes: RouteObject[] = [
       { path: 'email', element: <AdminEmailPage /> },
       { path: 'mail', element: <AdminMailPage /> },
       { path: 'waitlist', element: <AdminWaitlistPage /> },
+      { path: 'releases', element: <AdminReleasesPage /> },
+      { path: 'releases/:releaseId', element: <AdminReleaseDetailPage /> },
+      { path: 'releases/:releaseId/preview', element: <AdminReleasePreviewPage /> },
       { path: 'system', element: <AdminSystemPage /> },
       { path: 'activity', element: <AdminActivityPage /> },
       { path: 'analytics', element: <AdminAnalyticsPage /> },
