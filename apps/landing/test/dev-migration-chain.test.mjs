@@ -23,6 +23,7 @@ const CHAIN = [
   '029_dev_insights_operation.sql',
   '031_dev_usage_daily.sql',
   '032_dev_notification_preferences.sql',
+  '039_dev_form_source_operation_key.sql',
 ];
 
 let db;
@@ -77,6 +78,29 @@ test('the developer migrations apply in order, on a database that has the produc
   for (const expected of ['dev_form', 'dev_form_version', 'dev_project', 'dev_submission', 'dev_usage_daily', 'dev_notification_preference']) {
     assert.ok(names.includes(expected), `${expected} exists after the chain runs`);
   }
+});
+
+test('a form can remember the operation that wrote it', async () => {
+  // The AI writes a form once, even when the browser sends the same request twice.
+  await db.exec(`INSERT INTO "user" (id) VALUES ('user_ai') ON CONFLICT DO NOTHING`);
+  await db.exec(`
+    INSERT INTO dev_project (id, user_id, name, slug, description, status, created_at, updated_at)
+    VALUES ('dev_proj_ai', 'user_ai', 'Checkout', 'checkout-ai', 'A project', 'active', now(), now())
+  `);
+  await db.exec(`
+    INSERT INTO dev_form (id, project_id, name, slug, status, source_operation_key, created_at, updated_at)
+    VALUES ('dev_form_ai', 'dev_proj_ai', 'Waitlist', 'waitlist', 'draft', 'op_key_one', now(), now())
+  `);
+  const row = await db.query(`SELECT source_operation_key FROM dev_form WHERE id = 'dev_form_ai'`);
+  assert.equal(row.rows[0].source_operation_key, 'op_key_one');
+
+  // A form made by hand has no operation behind it, and that is fine.
+  await db.exec(`
+    INSERT INTO dev_form (id, project_id, name, slug, status, created_at, updated_at)
+    VALUES ('dev_form_hand', 'dev_proj_ai', 'Manual', 'manual', 'draft', now(), now())
+  `);
+  const manual = await db.query(`SELECT source_operation_key FROM dev_form WHERE id = 'dev_form_hand'`);
+  assert.equal(manual.rows[0].source_operation_key, null);
 });
 
 test('the summary operation is a name the credit ledger now accepts', async () => {

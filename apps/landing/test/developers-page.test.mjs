@@ -52,6 +52,7 @@ test('the developers page says what exists, what is being built, and what is not
   assert.deepEqual(shipping, [
     'Projects, forms and versions',
     'A hosted form page and an embed snippet',
+    'Describe the form in a sentence',
     'The field types developers actually use',
     'Submissions validated on the server',
     'A response inbox with search, filters and CSV export',
