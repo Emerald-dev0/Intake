@@ -181,3 +181,57 @@
   flex: 1 1 260px;
   min-width: 0;
 }
+
+.dev-builder { display: grid; gap: 16px; margin-top: 14px; }
+.dev-builder__toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.dev-select, .dev-textarea {
+  background: var(--ink-1);
+  border: 1px solid var(--line-2);
+  border-radius: 7px;
+  padding: 11px 13px;
+  color: var(--cream);
+  font: 400 14px var(--sans);
+  outline: none;
+}
+.dev-textarea { resize: vertical; min-height: 90px; font-family: var(--mono); font-size: 13px; }
+.dev-select:focus, .dev-textarea:focus { border-color: var(--accent); }
+.dev-saved { color: #8fd9b6; font-size: 13px; }
+
+.dev-list--builder li { display: grid; }
+.dev-list--builder li.is-selected { border-color: var(--accent); }
+.dev-list__row--button {
+  background: transparent;
+  border: 0;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+  font: inherit;
+}
+.dev-list__empty { padding: 14px 16px; color: var(--cream-3); font-size: 13.5px; }
+.dev-field-actions { display: flex; gap: 8px; padding: 0 15px 13px; }
+.dev-field-actions button {
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cream-2);
+  font-size: 12px;
+  padding: 4px 9px;
+  cursor: pointer;
+}
+.dev-field-actions button:hover:not(:disabled) { color: var(--cream); border-color: var(--cream-4); }
+.dev-field-actions button:disabled { opacity: .35; cursor: not-allowed; }
+.dev-field-error { margin: 0; padding: 0 15px 13px; color: var(--accent-2); font-size: 12.5px; }
+
+.dev-editor {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px;
+  background: var(--ink-1);
+  display: grid;
+  gap: 14px;
+}
+.dev-editor__title { margin: 0; font-size: 15px; font-weight: 550; }
+.dev-editor__note { margin: 0; color: var(--cream-2); font-size: 13px; line-height: 1.6; max-width: 62ch; }
+.dev-check { display: flex; align-items: center; gap: 9px; font-size: 13.5px; }
+.dev-check input { accent-color: var(--accent); width: 16px; height: 16px; }
+.dev-theme-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }

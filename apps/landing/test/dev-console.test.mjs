@@ -110,19 +110,43 @@ test('a server failure is written in a sentence, with a way to try again', async
   assert.ok([...view.container.querySelectorAll('button')].some(button => button.textContent === 'Try again'));
 });
 
-test('a form shows its fields, its versions and the moves it can make', async t => {
+test('a form shows its questions, its versions and the moves it can make', async t => {
   const view = await mount(React.createElement(DeveloperFormPage), { path: '/app/developers/forms/dev_form_1' });
   t.after(view.restore);
 
   assert.match(view.text(), /Email/);
   assert.match(view.text(), /Team size/);
-  assert.match(view.text(), /1-10 · 11-50/);
   assert.match(view.text(), /Version 1/);
   assert.match(view.text(), /Version 2/);
 
   // A published form may be paused, closed or archived — and nothing else.
   const labels = [...view.container.querySelectorAll('.dev-actions button')].map(button => button.textContent);
   assert.deepEqual(labels.sort(), ['Archive', 'Close', 'Pause']);
+});
+
+test('a published form shows its permanent address and a snippet to copy', async t => {
+  const view = await mount(React.createElement(DeveloperFormPage), { path: '/app/developers/forms/dev_form_1' });
+  t.after(view.restore);
+
+  const text = view.text();
+  assert.match(text, /\/forms\/checkout-app\/waitlist/);
+  assert.match(text, /<iframe src="https:\/\/intake.test\/embed\/forms\/checkout-app\/waitlist"/);
+  // The copy button must not claim success before it has succeeded.
+  assert.ok([...view.container.querySelectorAll('button')].some(button => button.textContent === 'Copy'));
+  assert.ok(![...view.container.querySelectorAll('button')].some(button => button.textContent === 'Copied'));
+});
+
+test('the builder lists the questions and opens the one you pick', async t => {
+  const view = await mount(React.createElement(DeveloperFormPage), { path: '/app/developers/forms/dev_form_1' });
+  t.after(view.restore);
+
+  const rows = [...view.container.querySelectorAll('.dev-list--builder .dev-list__row')];
+  assert.equal(rows.length, 2, 'both questions are listed');
+  assert.match(rows[0].textContent, /Email/);
+
+  await act(async () => { rows[1].dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); });
+  assert.match(view.text(), /Edit: Team size/);
+  assert.ok(view.container.querySelector('.dev-editor .dev-textarea'), 'the options of a choice field can be edited');
 });
 
 test('a draft cannot be paused, and says why', async t => {

@@ -44,9 +44,24 @@ test('the developers page says what exists, what is being built, and what is not
   assert.ok(labels.includes('Building'), 'the capabilities being built are marked as such');
   assert.ok(labels.includes('Not promised'), 'the things nobody should plan around are marked as such');
 
-  // Nothing may claim to be shipping that is not. The product does not exist yet, so a "Shipping"
-  // badge on this page would be a promise the code has not kept.
-  assert.ok(!labels.includes('Shipping'), 'no capability claims to be shipping before it is');
+  // The board is pinned exactly. A capability moves to "Shipping" when it works, and the badge is
+  // the promise — so the list of what claims to work is a test, not a promise in a comment.
+  const shipping = [...view.container.querySelectorAll('.mk-dev__capabilities li')]
+    .filter(node => node.querySelector('.mk-dev__status--shipping'))
+    .map(node => node.querySelector('h3')?.textContent);
+  assert.deepEqual(shipping, [
+    'Projects, forms and versions',
+    'A hosted form page and an embed snippet',
+    'The field types developers actually use',
+    'Submissions validated on the server',
+    'Pause, close and reopen without a redeploy',
+  ]);
+
+  // And the things that do not exist are still named as things that do not exist.
+  const notPromised = [...view.container.querySelectorAll('.mk-dev__capabilities li')]
+    .filter(node => node.querySelector('.mk-dev__status--not-promised'))
+    .map(node => node.querySelector('h3')?.textContent);
+  assert.deepEqual(notPromised, ['Webhooks to your own backend', 'A JavaScript SDK and API keys']);
 
   // The page is honest about the two things developers ask about first.
   assert.match(view.text(), /cannot read your page/);

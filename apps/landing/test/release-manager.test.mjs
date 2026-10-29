@@ -386,7 +386,8 @@ test('the migrations seed exactly the releases the site bundles', async () => {
     readFile('db/migrations/022_release_manager.sql', 'utf8')
       .then(first => readFile('db/migrations/023_release_depth.sql', 'utf8')
         .then(second => readFile('db/migrations/024_release_developers_page.sql', 'utf8')
-          .then(third => `${first}\n${second}\n${third}`))),
+          .then(third => readFile('db/migrations/027_release_hosted_forms.sql', 'utf8')
+            .then(fourth => `${first}\n${second}\n${third}\n${fourth}`)))),
     import('../src/content/changelog.ts'),
   ]);
   for (const release of bundled.BUNDLED_RELEASES) {
@@ -404,7 +405,9 @@ test('the deeper migration carries exactly the copy the site bundles', async () 
   const [sql, bundled] = await Promise.all([
     // Every migration is scanned: each release's copy lands in the migration that introduced it.
     readFile('db/migrations/023_release_depth.sql', 'utf8')
-      .then(first => readFile('db/migrations/024_release_developers_page.sql', 'utf8').then(second => `${first}\n${second}`)),
+      .then(first => readFile('db/migrations/024_release_developers_page.sql', 'utf8')
+        .then(second => readFile('db/migrations/027_release_hosted_forms.sql', 'utf8')
+          .then(third => `${first}\n${second}\n${third}`))),
     import('../src/content/changelog.ts'),
   ]);
   const escaped = value => value.replace(/'/g, "''");

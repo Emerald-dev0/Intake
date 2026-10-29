@@ -1,6 +1,7 @@
 -- Phase: the Developers page.
 --
--- A public page is a public announcement, so it ships with a changelog entry like everything else.
+-- A feature developers can use is a public announcement, so it ships with a changelog entry like
+-- everything else.
 -- The entry is seeded here so the page and the changelog agree from the first request: the public
 -- changelog reads the database first and the bundled notes second.
 --
@@ -8,7 +9,7 @@
 
 INSERT INTO release (id, slug, title, summary, body, categories, status, release_date, links, highlights, audience, published_at, created_at, updated_at)
 VALUES (
-  'rel_developers_2026_10_29', 'intake-for-developers-page', 'The developer page, and what it does not promise',
+  'rel_intake_for_developers_page', 'intake-for-developers-page', 'The developer page, and what it does not promise',
   'There is now a Developers page, and every capability on it says whether it ships today, is being built, or is not promised.',
   $notes$## A page before the product
 Intake for Developers is being built. Rather than keep that quiet, the developer page says so on its face: every capability carries a state, and the states are shipping, being built, and not promised.

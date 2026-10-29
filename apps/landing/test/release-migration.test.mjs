@@ -107,6 +107,7 @@ test('the deeper migration applies and brings the shipped copy with it', async (
 
 test('the developer page entry is seeded with the rest of the shipped releases', async () => {
   await db.exec(await migration('024_release_developers_page.sql'));
+  await db.exec(await migration('027_release_hosted_forms.sql'));
   const { BUNDLED_RELEASES } = await import('../src/content/changelog.ts');
 
   // Every shipped release carries the current copy, not just the newest one.

@@ -9,9 +9,13 @@
 export type DevFormStatus = 'draft' | 'published' | 'paused' | 'closed' | 'archived';
 export type DevFormAction = 'publish' | 'pause' | 'resume' | 'close' | 'reopen' | 'archive' | 'restore';
 
+export type DevFieldType =
+  | 'short_text' | 'long_text' | 'email' | 'number'
+  | 'dropdown' | 'single_choice' | 'multiple_choice' | 'checkbox' | 'date';
+
 export interface DevField {
   id: string;
-  type: string;
+  type: DevFieldType;
   label: string;
   description: string | null;
   required: boolean;

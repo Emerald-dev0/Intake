@@ -32,23 +32,23 @@ const STATUS_LABEL: Record<CapabilityStatus, string> = {
 const CAPABILITIES: Capability[] = [
   {
     name: 'Projects, forms and versions',
-    status: 'building',
+    status: 'shipping',
     detail: 'A project holds forms; a form holds versions. Editing a published form never rewrites the form your respondents already answered.',
   },
   {
     name: 'A hosted form page and an embed snippet',
-    status: 'building',
+    status: 'shipping',
     detail: 'Every published form gets a stable URL and a snippet you paste into your page. The form renders on its own, so it does not inherit anything from your CSS by accident.',
   },
   {
     name: 'The field types developers actually use',
-    status: 'building',
+    status: 'shipping',
     detail: 'Short and long text, email, number, dropdown, single and multiple choice, checkbox and date — with required flags, descriptions and sensible validation.',
   },
   {
     name: 'Submissions validated on the server',
-    status: 'building',
-    detail: 'Values are checked against the published version of the form, payloads are size-limited, requests are rate-limited, and a retry does not create a second response.',
+    status: 'shipping',
+    detail: 'Values are checked against the published version of the form, payloads are size-limited, requests are rate-limited, and a retry does not create a second response. The answers are stored; reading them comes with the inbox.',
   },
   {
     name: 'A response inbox with search, filters and CSV export',
@@ -57,7 +57,7 @@ const CAPABILITIES: Capability[] = [
   },
   {
     name: 'Pause, close and reopen without a redeploy',
-    status: 'building',
+    status: 'shipping',
     detail: 'The public endpoint enforces the state of the form, so you can stop collecting answers from the console and leave your site untouched.',
   },
   {

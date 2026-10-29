@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { DevFormBuilder } from './DevFormBuilder';
 import {
   ACTION_LABEL,
   availableActions,
   DevApiError,
   devApi,
-  FIELD_LABEL,
   FORM_STATUS_LABEL,
   type DevForm,
   type DevFormDetail,
@@ -285,8 +285,7 @@ export function DeveloperFormPage() {
     );
   }
 
-  const { form, project, draftVersion, publishedVersion, versions } = value as DevFormDetail;
-  const fields = draftVersion?.definition.fields ?? publishedVersion?.definition.fields ?? [];
+  const { form, project, versions } = value as DevFormDetail;
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const hostedUrl = `${origin}/forms/${project.slug}/${form.slug}`;
   const embedSnippet = `<iframe src="${origin}/embed/forms/${project.slug}/${form.slug}" title="${form.name}" style="width:100%;height:640px;border:0" loading="lazy"></iframe>`;
@@ -359,29 +358,8 @@ export function DeveloperFormPage() {
       </section>
 
       <section className="dev-section" aria-labelledby="dev-form-fields">
-        <h2 id="dev-form-fields" className="dev-section__title">Fields</h2>
-        {fields.length === 0 ? (
-          <p className="dev-note">
-            This form has no fields yet. The builder — where you add and edit questions — is the
-            next piece. Until then a form with no fields cannot be published, and the server says
-            so rather than letting it out empty.
-          </p>
-        ) : (
-          <ul className="dev-list dev-list--fields">
-            {fields.map(field => (
-              <li key={field.id}>
-                <span className="dev-list__name">
-                  {field.label}
-                  {field.required && <span className="dev-required" aria-label="required"> *</span>}
-                </span>
-                <span className="dev-field-type">{FIELD_LABEL[field.type] ?? field.type}</span>
-                {field.options.length > 0 && (
-                  <span className="dev-options">{field.options.join(' · ')}</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+        <h2 id="dev-form-fields" className="dev-section__title">Questions</h2>
+        <DevFormBuilder detail={value as DevFormDetail} onSaved={() => detail.reload()} />
       </section>
 
       <section className="dev-section" aria-labelledby="dev-form-versions">
