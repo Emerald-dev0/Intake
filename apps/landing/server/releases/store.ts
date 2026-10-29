@@ -69,6 +69,8 @@ function mapRelease(row: DbRow): ReleaseRecord {
     links: toLinks(row.links),
     heroImageUrl: row.hero_image_url === null || row.hero_image_url === undefined ? null : String(row.hero_image_url),
     shareText: row.share_text === null || row.share_text === undefined ? null : String(row.share_text),
+    highlights: toStringArray(row.highlights).map(entry => entry.trim()).filter(Boolean),
+    audience: row.audience === null || row.audience === undefined ? null : String(row.audience),
     authorUserId: row.author_user_id === null || row.author_user_id === undefined ? null : String(row.author_user_id),
     authorName: row.author_name === null || row.author_name === undefined ? null : String(row.author_name),
     authorEmail: row.author_email === null || row.author_email === undefined ? null : String(row.author_email),
@@ -103,7 +105,7 @@ function mapSource(row: DbRow): ReleaseSource {
 }
 
 const RELEASE_COLUMNS = `id, slug, title, summary, body, categories, status, to_char(release_date, 'YYYY-MM-DD') AS release_date,
-  links, hero_image_url, share_text, author_user_id, author_name, author_email,
+  links, hero_image_url, share_text, highlights, audience, author_user_id, author_name, author_email,
   approved_by_user_id, approved_at, published_at, published_by_user_id, created_at, updated_at`;
 
 const SOURCE_COLUMNS = `id, release_id, kind, provider, external_id, url, title, detail, labels, state,
@@ -163,13 +165,14 @@ export function createPostgresReleaseStore(pool: Queryable): ReleaseStore {
       const release = input.release;
       const result = await pool.query(
         `INSERT INTO release (id, slug, title, summary, body, categories, status, release_date, links, hero_image_url,
-            share_text, author_user_id, author_name, author_email, approved_by_user_id, approved_at, published_at,
+            share_text, highlights, audience, author_user_id, author_name, author_email, approved_by_user_id, approved_at, published_at,
             published_by_user_id, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
          RETURNING ${RELEASE_COLUMNS}`,
         [
           release.id, release.slug, release.title, release.summary, release.body, release.categories, release.status,
           release.releaseDate, JSON.stringify(release.links), release.heroImageUrl, release.shareText,
+          release.highlights, release.audience,
           release.authorUserId, release.authorName, release.authorEmail, release.approvedByUserId, release.approvedAt,
           release.publishedAt, release.publishedByUserId, release.createdAt, release.updatedAt,
         ],
@@ -181,6 +184,7 @@ export function createPostgresReleaseStore(pool: Queryable): ReleaseStore {
       const columns: Record<string, string> = {
         title: 'title', summary: 'summary', body: 'body', slug: 'slug', status: 'status',
         releaseDate: 'release_date', heroImageUrl: 'hero_image_url', shareText: 'share_text',
+        audience: 'audience',
         authorUserId: 'author_user_id', authorName: 'author_name', authorEmail: 'author_email',
         approvedByUserId: 'approved_by_user_id', approvedAt: 'approved_at', publishedAt: 'published_at',
         publishedByUserId: 'published_by_user_id', updatedAt: 'updated_at',
@@ -200,6 +204,10 @@ export function createPostgresReleaseStore(pool: Queryable): ReleaseStore {
       if (patch.links !== undefined) {
         values.push(JSON.stringify(patch.links));
         assignments.push(`links = $${values.length}::jsonb`);
+      }
+      if (patch.highlights !== undefined) {
+        values.push(patch.highlights);
+        assignments.push(`highlights = $${values.length}`);
       }
       if (assignments.length === 0) return this.get(id);
       values.push(id);
@@ -230,6 +238,8 @@ export function createPostgresReleaseStore(pool: Queryable): ReleaseStore {
           publishedAt: release.publishedAt ? release.publishedAt.toISOString() : null,
           links: release.links,
           heroImageUrl: release.heroImageUrl,
+          highlights: release.highlights,
+          audience: release.audience,
         };
       });
       return { items, total: Number(total.rows[0]?.total ?? 0) };
@@ -252,6 +262,8 @@ export function createPostgresReleaseStore(pool: Queryable): ReleaseStore {
         publishedAt: release.publishedAt ? release.publishedAt.toISOString() : null,
         links: release.links,
         heroImageUrl: release.heroImageUrl,
+        highlights: release.highlights,
+        audience: release.audience,
       };
     },
 

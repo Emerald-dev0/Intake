@@ -135,6 +135,8 @@ export function createReleaseService(options: ReleaseServiceOptions) {
         links: input.links ?? [],
         heroImageUrl: input.heroImageUrl ?? null,
         shareText: input.shareText ?? null,
+        highlights: input.highlights ?? [],
+        audience: input.audience ?? null,
         authorUserId: actor.id,
         authorName: actor.name,
         authorEmail: actor.email,
@@ -169,6 +171,8 @@ export function createReleaseService(options: ReleaseServiceOptions) {
       if (patch.links !== undefined) next.links = patch.links;
       if (patch.heroImageUrl !== undefined) next.heroImageUrl = patch.heroImageUrl;
       if (patch.shareText !== undefined) next.shareText = patch.shareText;
+      if (patch.highlights !== undefined) next.highlights = patch.highlights;
+      if (patch.audience !== undefined) next.audience = patch.audience;
       if (patch.slug !== undefined) {
         const requested = patch.slug.trim();
         // Sending the same slug again is not a change: a published entry can still be corrected in

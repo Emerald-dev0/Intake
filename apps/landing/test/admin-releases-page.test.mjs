@@ -31,6 +31,8 @@ const RELEASE = {
   links: [{ label: 'Changelog', url: '/changelog' }],
   heroImageUrl: null,
   shareText: null,
+  highlights: ['Every release now has its own page.', 'The link never breaks.'],
+  audience: 'For anyone who wants to point at one change.',
   authorName: 'Operator',
   authorEmail: 'operator@intake.test',
   approvedAt: null,
@@ -209,28 +211,36 @@ test('the preview shows the public page for an unpublished release, and says it 
   assert.match(view.text(), /https:\/\/intake\.test\/changelog\/every-release-has-a-page/);
 });
 
-test('the console saves a release with the method the server exposes', async t => {
-  const calls = [];
+test('the console edits the highlights and the audience line, and sends them with the release', async t => {
+  const saved = [];
   const view = await mount({
     path: '/admin/releases/rel-1',
     handler: (path, init) => {
-      calls.push({ path, method: init?.method ?? 'GET' });
-      if (path === '/api/admin/releases/rel-1' && (init?.method ?? 'GET') === 'GET') return json(DETAIL);
-      if (path === '/api/admin/releases/rel-1' && init?.method === 'PUT') return json({ release: RELEASE });
+      if (path === '/api/admin/releases/rel-1' && (!init || !init.method || init.method === 'GET')) return json(DETAIL);
+      if (path === '/api/admin/releases/rel-1' && init?.method === 'PUT') {
+        saved.push(JSON.parse(init.body));
+        return json({ release: { ...RELEASE, ...JSON.parse(init.body) } });
+      }
       return json({ error: 'not found' }, 404);
     },
   });
   t.after(view.restore);
+
+  // The fields are seeded from the record, so the console opens on what is stored.
+  const highlights = view.container.querySelector('#release-highlights');
+  assert.ok(highlights, 'the highlights field is there');
+  assert.equal(highlights.value, 'Every release now has its own page.\nThe link never breaks.');
+  const audience = view.container.querySelector('#release-audience');
+  assert.equal(audience.value, 'For anyone who wants to point at one change.');
 
   const form = view.container.querySelector('form');
   await act(async () => {
     form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
   });
 
-  // The server exposes the update as a PUT. A POST would answer 404 and the operator would be
-  // told the release could not be saved.
-  assert.ok(calls.some(call => call.method === 'PUT' && call.path === '/api/admin/releases/rel-1'),
-    'the release is saved with a PUT');
-  assert.ok(!calls.some(call => call.method === 'POST' && call.path === '/api/admin/releases/rel-1'),
-    'the release is not saved with a POST');
+  assert.equal(saved.length, 1, 'the release was saved once');
+  assert.equal(view.calls.find(call => call.init?.method === 'PUT')?.path, '/api/admin/releases/rel-1',
+    'the update is sent as a PUT, which is the route the server exposes');
+  assert.deepEqual(saved[0].highlights, ['Every release now has its own page.', 'The link never breaks.']);
+  assert.equal(saved[0].audience, 'For anyone who wants to point at one change.');
 });

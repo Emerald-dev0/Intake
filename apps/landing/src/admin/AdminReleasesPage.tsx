@@ -270,6 +270,8 @@ export function AdminReleaseDetailPage() {
       links: release.links,
       heroImageUrl: release.heroImageUrl,
       shareText: release.shareText,
+      highlights: release.highlights ?? [],
+      audience: release.audience,
     });
     setShareText(release.shareText ?? '');
   }, [release?.id]);
@@ -307,6 +309,8 @@ export function AdminReleaseDetailPage() {
         links: draft.links,
         heroImageUrl: draft.heroImageUrl,
         shareText: draft.shareText,
+        highlights: draft.highlights ?? [],
+        audience: draft.audience ?? null,
       });
       setMessage({ tone: 'ok', text: 'Saved.' });
       // Take the saved record back into the form, so the fields show exactly what the server stored.
@@ -321,6 +325,8 @@ export function AdminReleaseDetailPage() {
         links: saved.links,
         heroImageUrl: saved.heroImageUrl,
         shareText: saved.shareText,
+        highlights: saved.highlights ?? [],
+        audience: saved.audience,
       });
       query.refresh();
     } catch (error) {
@@ -426,6 +432,26 @@ export function AdminReleaseDetailPage() {
               <label className="admin-field" htmlFor="release-summary">
                 <span>Summary</span>
                 <textarea id="release-summary" rows={3} value={value('summary', '')} onChange={event => setDraft(current => ({ ...current, summary: event.target.value }))} />
+              </label>
+              <label className="admin-field" htmlFor="release-audience">
+                <span>Who this is for · optional</span>
+                <input
+                  id="release-audience"
+                  value={value('audience', '') ?? ''}
+                  placeholder="For teams that already live in Typeform."
+                  onChange={event => setDraft(current => ({ ...current, audience: event.target.value || null }))}
+                />
+                <small className="admin-muted">One line. It sits under the summary, so a reader knows whether the release is for them before reading the notes.</small>
+              </label>
+              <label className="admin-field" htmlFor="release-highlights">
+                <span>Highlights · optional</span>
+                <textarea
+                  id="release-highlights"
+                  rows={4}
+                  value={(value('highlights', []) as string[]).join('\n')}
+                  onChange={event => setDraft(current => ({ ...current, highlights: event.target.value.split('\n') }))}
+                />
+                <small className="admin-muted">One per line, up to six. These are the “what changed” a reader sees before the full notes.</small>
               </label>
               <label className="admin-field" htmlFor="release-date">
                 <span>Publication date</span>

@@ -29,6 +29,13 @@ export interface PublicRelease {
   publishedAt: string | null;
   links: ReleaseLink[];
   heroImageUrl: string | null;
+  /**
+   * The short version: what actually changed, in a few lines. A reader who stops here should still
+   * know whether the release affects them.
+   */
+  highlights: string[];
+  /** One line naming who the release is for. */
+  audience: string | null;
 }
 
 export function categoryLabel(category: ReleaseCategory): string {
@@ -40,6 +47,9 @@ export function categoryLabel(category: ReleaseCategory): string {
     default: return category;
   }
 }
+
+/** The maximum number of highlights a release may carry. */
+export const RELEASE_HIGHLIGHT_LIMIT = 6;
 
 export function formatReleaseDate(value: string | null): string {
   if (!value) return 'Undated';

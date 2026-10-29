@@ -2223,3 +2223,77 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
 .marketing-page .mk-release__back { margin: 18px 0 0; font-size: 14px; }
 .marketing-page .mk-release__back a { color: var(--mk-muted); }
 .marketing-page .mk-release__back a:hover { color: var(--mk-accent-2); }
+
+/* Release pages: highlights, who it is for, and the table of contents. */
+.mk-release__audience {
+  margin: 18px 0 0;
+  color: var(--mk-ink-2);
+  font-size: 15px;
+  line-height: 1.6;
+}
+.mk-release__audience-label {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--mk-line);
+  border-radius: 999px;
+  color: var(--mk-ink-2);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: 2px;
+}
+.mk-release__highlights { margin: 28px 0 0; }
+.mk-release__highlights h2,
+.mk-release__contents h2 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mk-ink-2);
+}
+.mk-release__highlights ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+.mk-release__highlights li {
+  position: relative;
+  padding-left: 24px;
+  color: var(--mk-ink-1);
+  font-size: 16px;
+  line-height: 1.6;
+}
+.mk-release__highlights li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0.55em;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--mk-accent);
+}
+.mk-release__contents {
+  margin: 30px 0 0;
+  padding: 16px 18px;
+  border: 1px solid var(--mk-line);
+  border-radius: var(--mk-r-md);
+  background: var(--mk-surface);
+}
+.mk-release__contents ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 7px;
+}
+.mk-release__contents a { color: var(--mk-ink-1); font-size: 14.5px; }
+.mk-release__contents a:hover { color: var(--mk-accent); }
+.mk-release__body h2 { scroll-margin-top: 90px; }
+@media (max-width: 640px) {
+  .mk-release__highlights li { font-size: 15px; }
+  .mk-release__contents { padding: 14px 15px; }
+}

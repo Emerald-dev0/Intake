@@ -469,6 +469,8 @@ export interface ReleaseRecord {
   links: Array<{ label: string; url: string }>;
   heroImageUrl: string | null;
   shareText: string | null;
+  highlights: string[];
+  audience: string | null;
   authorName: string | null;
   authorEmail: string | null;
   approvedAt: string | null;

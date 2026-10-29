@@ -386,11 +386,30 @@ test('the migration seeds exactly the releases the site bundles', async () => {
   ]);
   for (const release of bundled.BUNDLED_RELEASES) {
     assert.match(sql, new RegExp(`'${release.slug}'`), `${release.slug} is seeded in the migration`);
-    assert.ok(sql.includes(release.title), `${release.title} is seeded in the migration`);
   }
   const seeded = [...sql.matchAll(/^\s*\(\s*'rel_[a-z0-9_]+',\s*'([a-z0-9-]+)'/gm)].map(match => match[1]);
   assert.deepEqual(seeded.sort(), bundled.BUNDLED_RELEASES.map(release => release.slug).sort(),
     'the seeded releases and the bundled releases are the same set');
+});
+
+test('the deeper migration carries exactly the copy the site bundles', async () => {
+  // The public changelog reads the database first, so the two copies must not drift: a release
+  // note that reads one way on the site and another way in the database is a release note nobody
+  // can trust.
+  const [sql, bundled] = await Promise.all([
+    readFile('db/migrations/023_release_depth.sql', 'utf8'),
+    import('../src/content/changelog.ts'),
+  ]);
+  const escaped = value => value.replace(/'/g, "''");
+  for (const release of bundled.BUNDLED_RELEASES) {
+    assert.ok(sql.includes(escaped(release.title)), `${release.slug} carries the current title`);
+    assert.ok(sql.includes(escaped(release.summary)), `${release.slug} carries the current summary`);
+    assert.ok(sql.includes(release.body), `${release.slug} carries the current notes`);
+    for (const highlight of release.highlights) {
+      assert.ok(sql.includes(escaped(highlight)), `${release.slug} carries the highlight "${highlight.slice(0, 32)}…"`);
+    }
+    assert.ok(sql.includes(escaped(release.audience ?? '')), `${release.slug} carries its audience line`);
+  }
 });
 
 test('the webhook answers even when the store fails, instead of leaving GitHub waiting', async t => {
