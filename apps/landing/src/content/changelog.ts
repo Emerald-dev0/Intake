@@ -329,6 +329,62 @@ export const BUNDLED_RELEASES: BundledRelease[] = [
     ],
     heroImageUrl: null,
   },
+  {
+    slug: 'your-usage-numbers',
+    title: 'What your forms did, in three numbers',
+    releaseDate: '2026-10-29',
+    publishedAt: '2026-10-29T00:00:00.000Z',
+    categories: ['feature'],
+    summary: 'Every project now reports the answers it accepted, the requests it refused and the bytes it stored — over the last thirty days, per project and in total.',
+    highlights: [
+      'Three counters, counted as they happen: answers accepted, requests refused, bytes stored.',
+      'Per project and in total, over thirty days.',
+      'The same numbers an operator sees, so the two can be compared rather than believed.',
+    ],
+    audience: 'For developers who want to know what a form is doing without reading every answer.',
+    body: [
+      '## Three numbers',
+      'The workspace now reports what your projects did: how many answers were accepted, how many requests were refused, and how much was stored. Thirty days at a time, per project and in total.',
+      '## Refused counts as refused',
+      'A request that did not become an answer is counted as refused — a bad answer, a question the form does not have, a value of the wrong shape. That is the number you want when something is being sent at you, and it is counted only for a project that exists, so a request for an address that does not is not quietly put on somebody else.',
+      '## Where the numbers come from',
+      'They are counted by Intake, as the answers arrive. An operator can compare them with what the hosting, the database and the model provider report, and the two should agree — which is the point of counting them here rather than estimating them somewhere else.',
+      'They are deliberately plain: a number of answers, a number of refusals, a number of bytes. No addresses, no user agents, no notes.',
+    ].join('\n'),
+    links: [
+      { label: 'Developers', url: '/developers' },
+      { label: 'Changelog', url: '/changelog' },
+    ],
+    heroImageUrl: null,
+  },
+  {
+    slug: 'be-told-about-new-answers',
+    title: 'Ask to hear about new answers',
+    releaseDate: '2026-10-29',
+    publishedAt: '2026-10-29T00:00:00.000Z',
+    categories: ['feature'],
+    summary: 'A developer can now ask to be emailed when one of their forms has new answers — every N answers, or a daily digest. Off until you turn it on.',
+    highlights: [
+      'Off by default. Nobody is told anything until you say so.',
+      'Every N answers, or a daily digest — never one email per answer.',
+      'The notice goes to you, about your own form. Nobody who filled it in is ever written to.',
+    ],
+    audience: 'For developers who want to know that something came in without watching the inbox.',
+    body: [
+      '## Off until you ask',
+      'There is a setting per project: email me when this project has new answers. It is off until you turn it on, and there is no version of this that is on by default.',
+      '## One note, not one per answer',
+      'You can choose every N answers — ten, say — or a daily digest. The point of a threshold is that three answers make one note rather than three, so a busy form does not become a flood.',
+      'The notice goes through the same mail system as every other message from Intake: the same delivery log, the same suppression list, and the same rule that the same notice is never sent twice. If a notice cannot be sent, the count is left alone and the next answer tries again.',
+      '## Your form, your answers',
+      'The notice is about your own form and goes to you. Nobody who filled the form in is ever written to from this — there is no way to make that happen, and no setting that would.',
+    ].join('\n'),
+    links: [
+      { label: 'Developers', url: '/developers' },
+      { label: 'Changelog', url: '/changelog' },
+    ],
+    heroImageUrl: null,
+  },
 ];
 
 export function bundledReleaseBySlug(slug: string): BundledRelease | null {

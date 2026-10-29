@@ -379,17 +379,32 @@ test('the share endpoint refuses to invent copy for a release that does not exis
   assert.equal(missing.status, 404);
 });
 
+/**
+ * Every migration that seeds a release entry, read together.
+ *
+ * The first release migration seeds the shipped history; each release after it brings its own
+ * entry. Reading them as one document is what lets the tests below compare the seeded set with
+ * the set the site bundles.
+ */
+const RELEASE_MIGRATIONS = [
+  '022_release_manager.sql',
+  '023_release_depth.sql',
+  '024_release_developers_page.sql',
+  '027_release_hosted_forms.sql',
+  '028_release_response_inbox.sql',
+  '030_release_summaries.sql',
+  '033_release_usage_numbers.sql',
+  '034_release_answer_notices.sql',
+];
+
+async function readReleaseMigrations() {
+  const parts = await Promise.all(RELEASE_MIGRATIONS.map(file => readFile(`db/migrations/${file}`, 'utf8')));
+  return parts.join('\n');
+}
+
 test('the migrations seed exactly the releases the site bundles', async () => {
   const [sql, bundled] = await Promise.all([
-    // Every migration is scanned: the first release migration seeds the shipped history, and each
-    // later release brings its own entry.
-    readFile('db/migrations/022_release_manager.sql', 'utf8')
-      .then(first => readFile('db/migrations/023_release_depth.sql', 'utf8')
-        .then(second => readFile('db/migrations/024_release_developers_page.sql', 'utf8')
-          .then(third => readFile('db/migrations/027_release_hosted_forms.sql', 'utf8')
-            .then(fourth => readFile('db/migrations/028_release_response_inbox.sql', 'utf8')
-              .then(fifth => readFile('db/migrations/030_release_summaries.sql', 'utf8')
-              .then(sixth => `${first}\n${second}\n${third}\n${fourth}\n${fifth}\n${sixth}`)))))),
+    readReleaseMigrations(),
     import('../src/content/changelog.ts'),
   ]);
   for (const release of bundled.BUNDLED_RELEASES) {
@@ -405,13 +420,7 @@ test('the deeper migration carries exactly the copy the site bundles', async () 
   // note that reads one way on the site and another way in the database is a release note nobody
   // can trust.
   const [sql, bundled] = await Promise.all([
-    // Every migration is scanned: each release's copy lands in the migration that introduced it.
-    readFile('db/migrations/023_release_depth.sql', 'utf8')
-      .then(first => readFile('db/migrations/024_release_developers_page.sql', 'utf8')
-        .then(second => readFile('db/migrations/027_release_hosted_forms.sql', 'utf8')
-          .then(third => readFile('db/migrations/028_release_response_inbox.sql', 'utf8')
-            .then(fourth => readFile('db/migrations/030_release_summaries.sql', 'utf8')
-              .then(fifth => `${first}\n${second}\n${third}\n${fourth}\n${fifth}`))))),
+    readReleaseMigrations(),
     import('../src/content/changelog.ts'),
   ]);
   const escaped = value => value.replace(/'/g, "''");

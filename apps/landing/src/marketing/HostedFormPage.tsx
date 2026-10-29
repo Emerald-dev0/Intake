@@ -95,6 +95,37 @@ export function HostedFormPage({
     return () => { document.title = previous; };
   }, [payload, variant]);
 
+  // The hosted page is a real page: it has a canonical address, a description and a social card.
+  useEffect(() => {
+    if (!payload || variant !== 'page') return;
+    const url = `${window.location.origin}/forms/${payload.form.projectSlug}/${payload.form.slug}`;
+    const description = `${payload.form.name} — a form hosted by Intake.`;
+    const setMeta = (selector: string, attribute: string, value: string) => {
+      let node = document.head.querySelector<HTMLMetaElement>(selector);
+      if (!node) {
+        node = document.createElement('meta');
+        document.head.appendChild(node);
+      }
+      node.setAttribute(attribute, value);
+      if (selector.startsWith('meta[name="')) node.name = selector.slice(11, -2);
+      if (selector.startsWith('meta[property="')) node.setAttribute('property', selector.slice(15, -2));
+    };
+    setMeta('meta[name="description"]', 'content', description);
+    setMeta('meta[property="og:title"]', 'content', payload.form.name);
+    setMeta('meta[property="og:description"]', 'content', description);
+    setMeta('meta[property="og:url"]', 'content', url);
+    setMeta('meta[property="og:type"]', 'content', 'website');
+    setMeta('meta[name="twitter:card"]', 'content', 'summary');
+    let canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement('link');
+      canonical.rel = 'canonical';
+      document.head.appendChild(canonical);
+    }
+    canonical.href = url;
+    return () => { canonical?.remove(); };
+  }, [payload, variant]);
+
   useEffect(() => {
     let active = true;
     setState('loading');

@@ -33,15 +33,15 @@ is a place in the console, beside Chat, Library and Connections.
 | 1 | Public changelog: index, permanent per-release URLs, canonical/OG, verified history only, 404/error/loading states, release-notes discipline | done (PR #23, #24) |
 | 2 | Public Developers page | done |
 | 3 | Authenticated developer workspace: projects, forms, responses, insights, integrations, settings — no fake nav | done (projects and forms) |
-| 4 | Hosted form builder, renderer and embed | next |
-| 5 | Lifecycle: publish, pause, close, reopen, archive, delete, enforced by the server | partly done (state machine; delete and reopen details to finish) |
-| 6 | Submissions: validation against the published version, size and time limits, rate limiting, idempotency, safe persistence, timestamps and source metadata, isolation | not started |
-| 7 | Response inbox: pagination, search, filters, detail, CSV export, deterministic counts and summaries, permissions | not started |
-| 8 | AI insights on the existing 20-credit system: canonical deduction, no double charge, no charge on provider error, cost shown, limits, no unrelated data, token and cost tracking, SQL for exact statistics | not started |
-| 9 | Usage metering: per project and platform-wide, reconciled against the Render, Neon, Vercel and AI dashboards, no secrets exposed | not started |
-| 10 | Payments and subscriptions through the existing Bachs merchant account: server-verified webhooks as the authority, signature verification, idempotency, the full lifecycle, quota behaviour, sandbox and live separation, sandbox-tested, live gated | not started |
-| 11 | Notification preferences and email events through the existing email system: opt-in, digest and threshold, idempotency, delivery logs, a preference screen, no respondent email by default | not started |
-| 12 | Public AEO and technical SEO: crawlable accurate content, metadata, canonical, OG, sitemap and robots, structured data only where accurate, internal links, no fabricated claims | not started |
+| 4 | Hosted form builder, renderer and embed | done |
+| 5 | Lifecycle: publish, pause, close, reopen, archive, delete, enforced by the server | done |
+| 6 | Submissions: validation against the published version, size and time limits, rate limiting, idempotency, safe persistence, timestamps and source metadata, isolation | done |
+| 7 | Response inbox: pagination, search, filters, detail, CSV export, deterministic counts and summaries, permissions | done |
+| 8 | AI insights on the existing 20-credit system: canonical deduction, no double charge, no charge on provider error, cost shown, limits, no unrelated data, token and cost tracking, SQL for exact statistics | done |
+| 9 | Usage metering: per project and platform-wide, reconciled against the Render, Neon, Vercel and AI dashboards, no secrets exposed | done |
+| 10 | Payments and subscriptions through the existing Bachs merchant account: server-verified webhooks as the authority, signature verification, idempotency, the full lifecycle, quota behaviour, sandbox and live separation, sandbox-tested, live gated | built and gated — the live tier is still switched off |
+| 11 | Notification preferences and email events through the existing email system: opt-in, digest and threshold, idempotency, delivery logs, a preference screen, no respondent email by default | done |
+| 12 | Public AEO and technical SEO: crawlable accurate content, metadata, canonical, OG, sitemap and robots, structured data only where accurate, internal links, no fabricated claims | done |
 | 13 | Quality: tests across every area above, typecheck, lint, production build, safe migrations, no data loss | ongoing |
 | 14 | Release Manager: private, admin-only, GitHub-linked, separate from the public changelog | done (PR #23) |
 
@@ -73,34 +73,69 @@ draft ──publish──▶ published ──pause──▶ paused ──resume�
 The API (`server/dev/routes.ts`, mounted at `/api/dev`) is behind the same session as the rest of
 the signed-in area. There is no second authentication system for developers.
 
-## Phase 4, next: the hosted form
+## Phases 4–7, as built: the form, the answers, the inbox
 
-What has to exist before a developer can put a form in their product:
-
-1. **A builder.** Add, remove and reorder fields; set the label, the description, whether it is
-   required, and the options for a choice field. Edit a draft; a published version is never
-   rewritten.
-2. **A public renderer.** A hosted page at a permanent address, plus an embeddable form. Field
-   types: short and long text, email, number, dropdown, single and multiple choice, checkbox, date.
-3. **Theming as tokens, not inheritance.** An iframe pointing at another origin cannot read the
-   host page's stylesheet, variables or fonts. The theme is therefore configuration: primary
-   colour, background, text, border, typeface, corner radius, light/dark/system, and a transparent
-   background option.
-4. **Graceful states.** Loading, a validation error, a closed form, a form that does not exist and a
-   network failure each get their own state. An embedded form never shows an empty box.
-5. **A copyable snippet** and the permanent hosted URL, both shown in the console.
-
-## Phase 6, next after that: submissions
-
-The rules are fixed before the table is written:
-
-- A submission is validated against the **published version** that was live, not the current draft.
-- A payload limit and a request timeout, both enforced by the server.
-- Rate limiting per form and per caller, reusing the existing abuse limiter.
-- An idempotency key, so a retry never creates a second response.
-- A submission stores the form version it was accepted under, the timestamps, and the source
+- **The builder** (`src/app/DevFormBuilder.tsx`) edits a draft. A published version is never
+  rewritten: editing creates the next draft, and publishing makes it the one the public endpoint
+  validates against.
+- **The public renderer** (`src/marketing/HostedFormPage.tsx`) serves both the hosted page at a
+  permanent address and the embed. Field types: short and long text, email, number, dropdown,
+  single and multiple choice, checkbox, date.
+- **Theming is configuration, not inheritance.** An iframe pointing at another origin cannot read
+  the host page's stylesheet, variables or fonts. The theme is tokens — primary colour, background,
+  text, border, typeface, corner radius, light/dark/system, and a transparent background.
+- **Graceful states.** Loading, a validation error, a closed form, a form that does not exist and a
+  network failure each get their own state. An embedded form never shows an empty box.
+- **Submissions** (`server/dev/submissions.ts`) are validated against the published version that was
+  live, limited in size, rate-limited per form and per caller, and deduplicated by an idempotency
+  key. A submission stores the version it was accepted under, the timestamps and the source
   metadata — nothing from the respondent that was not asked for.
-- A submission can only be read by the account that owns the project it belongs to.
+- **The inbox** (`server/dev/routes.ts`, `src/app/DevResponses.tsx`) paginates, searches, filters and
+  exports CSV with the same columns as the table.
+
+## Phase 8, as built: the summary
+
+`server/dev/insights.ts` runs a bounded prompt through the canonical AI runner and charges
+`DEV_INSIGHTS_COST = 3` credits through `creditService.charge`. The operation key is derived from
+the form and the answers, so the same answers are never charged for twice. A provider failure is
+not charged. The exact counts in the panel come from SQL, not from the model.
+
+## Phase 9, as built: the counters
+
+`dev_usage_daily` counts accepted submissions, refused requests and stored bytes per project per
+day. The console shows thirty days, per project and in total, so an operator can compare the
+numbers with what Render, Neon, Vercel and the model provider report. No secrets are exposed and
+nothing is estimated.
+
+## Phase 10, as built: the billing path
+
+Bachs is the merchant of record, and the webhook is the authority:
+
+- `POST /api/webhooks/bachs` verifies the signature before the body is parsed, and refuses
+  anything that does not verify.
+- The delivery id makes a retry one payment, not two.
+- The lifecycle — activation, renewal, cancellation, expiry — is driven by the webhook and by
+  nothing else. A customer returning from the checkout page proves nothing.
+- `PAID_BILLING_ENABLED = false`: no checkout is created, and the refusal says why. The live tier
+  stays off until it is deliberately switched on.
+- Sandbox and live are separated by configuration: the base URL, the key and the signing secret
+  are read from the environment, and nothing is sent to a live endpoint from a sandbox run.
+
+## Phase 11, as built: the notice
+
+`server/dev/notifications.ts` sends one notice per threshold or per digest, never one per answer.
+It is opt-in, it notices the owner of the project and never a respondent, and the event id means
+the same notice cannot be sent twice. The counter only resets after a real send, so a failed
+delivery is retried rather than lost.
+
+## Phase 12, as built: what a crawler sees
+
+The developer page carries a `FAQPage` graph built from the same array the page renders, so the
+two cannot drift. The hosted form page carries a canonical address, a description and a social
+card; the embed is `noindex`. The sitemap and `llms.txt` are generated at build time and list
+every release page. Nothing is claimed that is not true, and the Developers page carries a status
+for every capability — shipping, being built, not promised — with a test that fails if a badge
+lies.
 
 ## What is deliberately not planned
 
@@ -116,7 +151,7 @@ The rules are fixed before the table is written:
 ```bash
 cd apps/landing
 npm ci
-npm run db:migrate:intake     # needs DATABASE_URL; applies 022, 023, 024, 025
+npm run db:migrate:intake     # needs DATABASE_URL; applies 022 through 034
 npm run dev                   # API + Vite
 npm test                      # the whole suite
 ```

@@ -57,6 +57,8 @@ test('the developers page says what exists, what is being built, and what is not
     'A response inbox with search, filters and CSV export',
     'Pause, close and reopen without a redeploy',
     'AI summaries on the credits you already have',
+    'Per-project usage you can look at',
+    'Answer notices on your terms',
   ]);
 
   // And the things that do not exist are still named as things that do not exist.
@@ -80,6 +82,19 @@ test('the developers page carries its own metadata', async t => {
   const meta = name => document.head.querySelector(`meta[property="${name}"], meta[name="${name}"]`)?.getAttribute('content');
   assert.equal(meta('og:url'), `${SITE_URL}/developers`);
   assert.ok(meta('description')?.length > 60, 'the description says something');
+});
+
+test('the developer page carries structured data that matches the questions it shows', async t => {
+  const view = await mount();
+  t.after(view.restore);
+
+  const script = document.head.querySelector('script[type="application/ld+json"]');
+  assert.ok(script, 'the page carries structured data');
+  const parsed = JSON.parse(script.textContent);
+  assert.equal(parsed['@type'], 'FAQPage');
+  const questions = parsed.mainEntity.map(entry => entry.name);
+  const shown = [...view.container.querySelectorAll('.mk-faq-item h3 button span:first-child')].map(node => node.textContent);
+  assert.deepEqual(questions, shown, 'the structured data is the same questions the page shows');
 });
 
 test('the developer questions open and close', async t => {

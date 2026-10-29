@@ -3,6 +3,7 @@ import { HubShell } from './HubShell';
 import { NotifyForm } from './NotifyForm';
 import { Reveal, SectionIntro } from './MarketingSections';
 import { usePublicSession } from './usePublicSession';
+import { SITE_URL } from '../content/site';
 
 /**
  * The public Developers page.
@@ -67,13 +68,23 @@ const CAPABILITIES: Capability[] = [
   },
   {
     name: 'Per-project usage you can look at',
-    status: 'building',
+    status: 'shipping',
     detail: 'Accepted submissions, rejected requests and payload sizes, per project and per period, so the cost of the workload is a number you can read.',
+  },
+  {
+    name: 'Answer notices on your terms',
+    status: 'shipping',
+    detail: 'Ask to be emailed when a project has new answers — every N answers, or a daily digest. It is off until you turn it on, and it only ever goes to you.',
+  },
+  {
+    name: 'A paid tier for developers',
+    status: 'building',
+    detail: 'The billing path is built — checkout, verified webhooks and the whole subscription lifecycle — but it is switched off. Nothing is charged today and no price is promised; if it opens, this page and the changelog will say so first.',
   },
   {
     name: 'Webhooks to your own backend',
     status: 'not-promised',
-    detail: 'Signed delivery, retries and a delivery log are planned, but they do not exist yet. Nothing on this page should be read as a promise of a webhook endpoint.',
+    detail: 'Signed delivery, retries and a delivery log do not exist. Nothing on this page should be read as a promise of a webhook endpoint, and there is no date to plan around.',
   },
   {
     name: 'A JavaScript SDK and API keys',
@@ -102,6 +113,10 @@ const FAQ: Array<{ question: string; answer: string }> = [
   {
     question: 'How are the AI summaries billed?',
     answer: 'With Intake’s own credits: 20 a day on the Free plan, refreshed at 00:00 UTC, and a Pro reserve on top. A summary that fails does not cost anything, and the cost is shown before you run it.',
+  },
+  {
+    question: 'Is there a paid plan for the developer side?',
+    answer: 'Not yet. The billing path is built and tested — checkout, verified webhooks, the whole subscription lifecycle — but it is switched off, so every developer is on the same Free plan with 20 credits a day and nothing is charged today. If it ever opens, this page and the changelog will say so first, and no price is promised here before that.',
   },
   {
     question: 'Is this the same Intake I already use for Google Forms?',
@@ -146,6 +161,25 @@ function DeveloperFaq() {
   );
 }
 
+/**
+ * The questions on the page, as structured data.
+ *
+ * It is the same array the page renders, so the two cannot drift: a crawler sees exactly what a
+ * reader sees. No invented claims, no ratings, no reviews.
+ */
+function faqSchema(): Record<string, unknown> {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    '@id': `${SITE_URL}/developers#faq`,
+    mainEntity: FAQ.map(item => ({
+      '@type': 'Question',
+      name: item.question,
+      acceptedAnswer: { '@type': 'Answer', text: item.answer },
+    })),
+  };
+}
+
 export function DevelopersPage() {
   const authenticated = usePublicSession();
   return (
@@ -157,6 +191,7 @@ export function DevelopersPage() {
       heading={<>Ship the form. Keep the form system out of your repo.</>}
       lede="Embedding a form in a product means owning a renderer, a validation layer, a storage table, a spam story, an export, and a dashboard — none of which is what your product is for. Intake for Developers is that layer, hosted, with your branding on it and a lifecycle you can change without touching your code."
       analyticsPath="/developers"
+      schema={faqSchema()}
     >
       <section className="mk-section" aria-label="What you stop building">
         <div className="mk-container">

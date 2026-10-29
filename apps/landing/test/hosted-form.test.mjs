@@ -142,6 +142,25 @@ test('a form that cannot be loaded says so', async t => {
   assert.match(view.text(), /having a moment/);
 });
 
+test('the hosted page has a canonical address and a description', async t => {
+  const view = await mount({ projectSlug: 'checkout-app', formSlug: 'waitlist' });
+  t.after(view.restore);
+
+  assert.equal(document.title, 'Waitlist · Intake');
+  const canonical = document.head.querySelector('link[rel="canonical"]');
+  assert.equal(canonical?.getAttribute('href'), 'https://intake.test/forms/checkout-app/waitlist');
+  const description = document.head.querySelector('meta[name="description"]')?.getAttribute('content');
+  assert.match(description, /Waitlist — a form hosted by Intake/);
+});
+
+test('the embed variant is kept out of search results', async t => {
+  const view = await mount({ projectSlug: 'checkout-app', formSlug: 'waitlist', variant: 'embed' });
+  t.after(view.restore);
+
+  const robots = document.head.querySelector('meta[name="robots"]');
+  assert.equal(robots?.getAttribute('content'), 'noindex, nofollow');
+});
+
 test('the embed variant carries no site chrome', async t => {
   const view = await mount({ projectSlug: 'checkout-app', formSlug: 'waitlist', variant: 'embed' });
   t.after(view.restore);
