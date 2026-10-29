@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Plugin } from 'vite';
-import { BUNDLED_RELEASES, type BundledRelease } from '../src/content/changelog.ts';
+import { BUNDLED_RELEASES, mergeReleases, type BundledRelease } from '../src/content/changelog.ts';
 import { escapeHtml, releaseBodyHtml, releaseSections } from '../src/lib/release-notes.ts';
 
 /**
@@ -51,7 +51,10 @@ function indexDocumentFor(siteUrl: string, html: string): string {
   const image = cardUrl(siteUrl);
   const imageAlt = 'The Intake changelog: the Intake mark, the words “INTAKE CHANGELOG”, and the newest release.';
 
-  const items = BUNDLED_RELEASES.map(release => `
+  // The same order the page shows: the newest release first.
+  const ordered = mergeReleases([]);
+
+  const items = ordered.map(release => `
         <li>
           <h2><a href="/changelog/${escapeHtml(release.slug)}">${escapeHtml(release.title)}</a></h2>
           <p><time datetime="${escapeHtml(release.releaseDate ?? '')}">${escapeHtml(longDate(release.releaseDate))}</time></p>
@@ -70,7 +73,7 @@ function indexDocumentFor(siteUrl: string, html: string): string {
     image,
     mainEntity: {
       '@type': 'ItemList',
-      itemListElement: BUNDLED_RELEASES.map((release, index) => ({
+      itemListElement: ordered.map((release, index) => ({
         '@type': 'ListItem',
         position: index + 1,
         url: `${siteUrl}/changelog/${release.slug}`,
