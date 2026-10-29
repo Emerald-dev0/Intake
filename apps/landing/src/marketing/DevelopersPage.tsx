@@ -41,6 +41,11 @@ const CAPABILITIES: Capability[] = [
     detail: 'Every published form gets a stable URL and a snippet you paste into your page. The form renders on its own, so it does not inherit anything from your CSS by accident.',
   },
   {
+    name: 'Describe the form in a sentence',
+    status: 'shipping',
+    detail: 'The same AI that writes provider forms can write the questions of a form Intake hosts: you write a sentence, it drafts the questions, and you read and edit them before anything is published. It uses the same 20 daily credits — a small form costs two — and a failed request costs nothing.',
+  },
+  {
     name: 'The field types developers actually use',
     status: 'shipping',
     detail: 'Short and long text, email, number, dropdown, single and multiple choice, checkbox and date — with required flags, descriptions and sensible validation.',
@@ -108,6 +113,10 @@ const FAQ: Array<{ question: string; answer: string }> = [
   {
     question: 'Do you have an uptime guarantee?',
     answer: 'No. We are a small product and we would rather say so than print a number we cannot hold. What we do publish is the changelog, and what is in it is what actually shipped.',
+  },
+  {
+    question: 'Can the AI write the form for me?',
+    answer: 'Yes. In the developer console, “Describe it” takes one sentence and returns a draft form with the questions written for you — the labels, the types, the required flags and the choices. You read them, change what you want, and publish when they are right. It is the same AI and the same credits as the rest of Intake, a small form costs two credits, a clarifying question is free, and nothing is published until you say so.',
   },
   {
     question: 'How are the AI summaries billed?',

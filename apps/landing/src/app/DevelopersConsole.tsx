@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DevFormBuilder } from './DevFormBuilder';
+import { DevFormComposer } from './DevFormComposer';
 import { DevResponses } from './DevResponses';
 import {
   ACTION_LABEL,
@@ -217,6 +218,7 @@ export function DevelopersWorkspacePage() {
   const [creatingProject, setCreatingProject] = useState(false);
   const [projectError, setProjectError] = useState('');
   const [newFormFor, setNewFormFor] = useState<string | null>(null);
+  const [describeFor, setDescribeFor] = useState<string | null>(null);
   const [formName, setFormName] = useState('');
   const [formError, setFormError] = useState('');
 
@@ -347,6 +349,24 @@ export function DevelopersWorkspacePage() {
           )}
 
           <NotificationPreference projectId={project.id} />
+
+          <div className="dev-inline-form">
+            <button
+              type="button"
+              className="dev-button dev-button--quiet"
+              onClick={() => { setDescribeFor(describeFor === project.id ? null : project.id); setNewFormFor(null); setFormError(''); }}
+              aria-expanded={describeFor === project.id}
+            >
+              Describe it
+            </button>
+          </div>
+
+          {describeFor === project.id && (
+            <DevFormComposer
+              projectId={project.id}
+              onCreated={formId => navigate(`/app/developers/forms/${formId}`)}
+            />
+          )}
 
           {newFormFor === project.id ? (
             <form className="dev-inline-form" onSubmit={event => createForm(event, project.id)}>

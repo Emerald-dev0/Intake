@@ -323,3 +323,95 @@
 .dev-field--inline input {
   min-width: 9.5rem;
 }
+
+/* Writing a form from one sentence. */
+.dev-compose {
+  margin-top: 16px;
+  padding: 18px clamp(16px, 2.5vw, 22px);
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  background: var(--ink-1);
+}
+.dev-compose__title {
+  margin: 0 0 6px;
+  font-size: 15.5px;
+  font-weight: 550;
+  color: var(--cream);
+}
+.dev-compose__form {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  max-width: 620px;
+}
+.dev-compose__answer {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-2);
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+.dev-compose__question {
+  margin: 0;
+  max-width: 60ch;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--cream);
+}
+.dev-compose__reply {
+  margin: 0;
+  max-width: 60ch;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--cream-2);
+}
+.dev-compose__list {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 6px;
+  max-width: 60ch;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--cream-2);
+}
+.dev-compose__label { color: var(--cream); }
+.dev-compose__type {
+  margin-left: 8px;
+  font: 11px var(--mono);
+  letter-spacing: .06em;
+  color: var(--cream-3);
+}
+
+.dev-compose__templates {
+  margin-top: 14px;
+  display: grid;
+  gap: 8px;
+}
+.dev-compose__templates-label {
+  font: 11px var(--mono);
+  letter-spacing: .08em;
+  color: var(--cream-3);
+}
+.dev-compose__templates-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.dev-compose__template {
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--cream-2);
+  font: 500 12.5px var(--sans);
+  padding: 6px 13px;
+  cursor: pointer;
+}
+.dev-compose__template:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--cream);
+  background: rgba(255, 90, 31, .08);
+}
+.dev-compose__template:disabled { opacity: .5; cursor: not-allowed; }
+.dev-compose__template:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
