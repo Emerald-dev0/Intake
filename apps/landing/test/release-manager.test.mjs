@@ -379,16 +379,21 @@ test('the share endpoint refuses to invent copy for a release that does not exis
   assert.equal(missing.status, 404);
 });
 
-test('the migration seeds exactly the releases the site bundles', async () => {
+test('the migrations seed exactly the releases the site bundles', async () => {
   const [sql, bundled] = await Promise.all([
-    readFile('db/migrations/022_release_manager.sql', 'utf8'),
+    // Every migration is scanned: the first release migration seeds the shipped history, and each
+    // later release brings its own entry.
+    readFile('db/migrations/022_release_manager.sql', 'utf8')
+      .then(first => readFile('db/migrations/023_release_depth.sql', 'utf8')
+        .then(second => readFile('db/migrations/024_release_developers_page.sql', 'utf8')
+          .then(third => `${first}\n${second}\n${third}`))),
     import('../src/content/changelog.ts'),
   ]);
   for (const release of bundled.BUNDLED_RELEASES) {
-    assert.match(sql, new RegExp(`'${release.slug}'`), `${release.slug} is seeded in the migration`);
+    assert.match(sql, new RegExp(`'${release.slug}'`), `${release.slug} is seeded in a migration`);
   }
-  const seeded = [...sql.matchAll(/^\s*\(\s*'rel_[a-z0-9_]+',\s*'([a-z0-9-]+)'/gm)].map(match => match[1]);
-  assert.deepEqual(seeded.sort(), bundled.BUNDLED_RELEASES.map(release => release.slug).sort(),
+  const seeded = [...sql.matchAll(/'rel_[a-z0-9_]+',\s*'([a-z0-9-]+)'/g)].map(match => match[1]);
+  assert.deepEqual([...new Set(seeded)].sort(), bundled.BUNDLED_RELEASES.map(release => release.slug).sort(),
     'the seeded releases and the bundled releases are the same set');
 });
 
@@ -397,7 +402,9 @@ test('the deeper migration carries exactly the copy the site bundles', async () 
   // note that reads one way on the site and another way in the database is a release note nobody
   // can trust.
   const [sql, bundled] = await Promise.all([
-    readFile('db/migrations/023_release_depth.sql', 'utf8'),
+    // Every migration is scanned: each release's copy lands in the migration that introduced it.
+    readFile('db/migrations/023_release_depth.sql', 'utf8')
+      .then(first => readFile('db/migrations/024_release_developers_page.sql', 'utf8').then(second => `${first}\n${second}`)),
     import('../src/content/changelog.ts'),
   ]);
   const escaped = value => value.replace(/'/g, "''");

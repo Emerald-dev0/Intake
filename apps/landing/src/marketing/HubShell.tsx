@@ -14,7 +14,7 @@ import type { AnalyticsPath } from '../lib/analytics';
  * the changelog now spans two pages (index and release detail) plus a route the analytics
  * allowlist does not track.
  */
-export function HubShell({ path, title, description, eyebrow, heading, lede, children, analyticsPath, article, schema, image }: {
+export function HubShell({ path, title, description, eyebrow, heading, lede, children, analyticsPath, article, schema, image, cta }: {
   path: string;
   title: string;
   description: string;
@@ -29,6 +29,8 @@ export function HubShell({ path, title, description, eyebrow, heading, lede, chi
   schema?: Record<string, unknown>;
   /** An absolute image for the social preview. The site's default card is used when it is absent. */
   image?: string | null;
+  /** Replaces the closing call to action, for a page that needs a different one. */
+  cta?: ReactNode;
 }) {
   const authenticated = usePublicSession();
   if (analyticsPath) useSiteAnalytics(analyticsPath);
@@ -53,15 +55,17 @@ export function HubShell({ path, title, description, eyebrow, heading, lede, chi
           </div>
         </section>
         {children}
-        <section className="mk-section mk-hub-cta" aria-label="Get started">
-          <div className="mk-container">
-            <Reveal variant="rise">
-              <h2>Your first form is one sentence away.</h2>
-              <p>Free during launch · 20 credits daily · No card needed</p>
-              <StartLink authenticated={authenticated} />
-            </Reveal>
-          </div>
-        </section>
+        {cta ?? (
+          <section className="mk-section mk-hub-cta" aria-label="Get started">
+            <div className="mk-container">
+              <Reveal variant="rise">
+                <h2>Your first form is one sentence away.</h2>
+                <p>Free during launch · 20 credits daily · No card needed</p>
+                <StartLink authenticated={authenticated} />
+              </Reveal>
+            </div>
+          </section>
+        )}
       </main>
       <MarketingFooter authenticated={authenticated} />
       <MobileActionBar authenticated={authenticated} />

@@ -18,6 +18,7 @@ const TemplatesPage = lazy(() => import('../marketing/MarketingPages').then(m =>
 const GuidesPage = lazy(() => import('../marketing/MarketingPages').then(m => ({ default: m.GuidesPage })));
 const TrustPage = lazy(() => import('../marketing/MarketingPages').then(m => ({ default: m.TrustPage })));
 const ChangelogPage = lazy(() => import('../marketing/Changelog').then(m => ({ default: m.ChangelogPage })));
+const DevelopersPage = lazy(() => import('../marketing/DevelopersPage').then(m => ({ default: m.DevelopersPage })));
 const ReleaseDetailPage = lazy(() => import('../marketing/Changelog').then(m => ({ default: m.ReleaseDetailPage })));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage').then(m => ({ default: m.PrivacyPage })));
 const TermsPage = lazy(() => import('./pages/TermsPage').then(m => ({ default: m.TermsPage })));
@@ -52,6 +53,7 @@ export const routes: RouteObject[] = [
   { path: '/guides', element: <GuidesPage /> },
   { path: '/trust', element: <TrustPage /> },
   { path: '/changelog', element: <ChangelogPage /> },
+  { path: '/developers', element: <DevelopersPage /> },
   { path: '/changelog/:slug', element: <ReleaseDetailPage /> },
   { path: '/privacy', element: <PrivacyPage /> },
   { path: '/terms', element: <TermsPage /> },

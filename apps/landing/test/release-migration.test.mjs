@@ -103,7 +103,13 @@ test('the deeper migration applies and brings the shipped copy with it', async (
   assert.deepEqual(stored.rows[0].highlights, bundled.highlights, 'the highlights are stored');
   assert.equal(stored.rows[0].audience, bundled.audience, 'the audience line is stored');
 
-  // Every shipped release has been brought up to the current copy, not just one of them.
+});
+
+test('the developer page entry is seeded with the rest of the shipped releases', async () => {
+  await db.exec(await migration('024_release_developers_page.sql'));
+  const { BUNDLED_RELEASES } = await import('../src/content/changelog.ts');
+
+  // Every shipped release carries the current copy, not just the newest one.
   const shipped = await db.query(
     `SELECT slug, body FROM release WHERE slug = ANY($1) ORDER BY slug`,
     [BUNDLED_RELEASES.map(release => release.slug)],
@@ -114,6 +120,16 @@ test('the deeper migration applies and brings the shipped copy with it', async (
     assert.ok(release, `${row.slug} is a release the site also bundles`);
     assert.equal(row.body, release.body, `${row.slug} carries the current notes`);
   }
+
+  const release = BUNDLED_RELEASES.find(entry => entry.slug === 'intake-for-developers-page');
+  assert.ok(release, 'the developer page has a changelog entry');
+  const row = await db.query(`SELECT title, summary, body, highlights, audience, status FROM release WHERE slug = $1`, [release.slug]);
+  assert.equal(row.rows.length, 1);
+  assert.equal(row.rows[0].title, release.title);
+  assert.equal(row.rows[0].body, release.body);
+  assert.deepEqual(row.rows[0].highlights, release.highlights);
+  assert.equal(row.rows[0].audience, release.audience);
+  assert.equal(row.rows[0].status, 'published', 'a seeded release is published, not a draft');
 });
 
 test('a release keeps its slug, its state and its checklist decisions', async () => {

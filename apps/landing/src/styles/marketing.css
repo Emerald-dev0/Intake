@@ -2227,7 +2227,7 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
 /* Release pages: highlights, who it is for, and the table of contents. */
 .mk-release__audience {
   margin: 18px 0 0;
-  color: var(--mk-ink-2);
+  color: var(--mk-muted);
   font-size: 15px;
   line-height: 1.6;
 }
@@ -2237,7 +2237,7 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
   padding: 2px 8px;
   border: 1px solid var(--mk-line);
   border-radius: 999px;
-  color: var(--mk-ink-2);
+  color: var(--mk-muted);
   font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -2250,7 +2250,7 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
   font-size: 13px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--mk-ink-2);
+  color: var(--mk-muted);
 }
 .mk-release__highlights ul {
   margin: 0;
@@ -2262,7 +2262,7 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
 .mk-release__highlights li {
   position: relative;
   padding-left: 24px;
-  color: var(--mk-ink-1);
+  color: var(--mk-text);
   font-size: 16px;
   line-height: 1.6;
 }
@@ -2281,7 +2281,7 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
   padding: 16px 18px;
   border: 1px solid var(--mk-line);
   border-radius: var(--mk-r-md);
-  background: var(--mk-surface);
+  background: var(--mk-bg-raised);
 }
 .mk-release__contents ul {
   margin: 0;
@@ -2290,10 +2290,90 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
   display: grid;
   gap: 7px;
 }
-.mk-release__contents a { color: var(--mk-ink-1); font-size: 14.5px; }
+.mk-release__contents a { color: var(--mk-text); font-size: 14.5px; }
 .mk-release__contents a:hover { color: var(--mk-accent); }
 .mk-release__body h2 { scroll-margin-top: 90px; }
 @media (max-width: 640px) {
   .mk-release__highlights li { font-size: 15px; }
   .mk-release__contents { padding: 14px 15px; }
 }
+
+/* The Developers page: the honest cost, the capability board, and the embed. */
+.mk-dev__costs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1px;
+  background: var(--mk-line);
+  border: 1px solid var(--mk-line);
+  border-radius: var(--mk-r-md);
+  overflow: hidden;
+}
+.mk-dev__costs li {
+  display: grid;
+  gap: 8px;
+  padding: 22px 24px;
+  background: var(--mk-bg);
+}
+.mk-dev__costs strong { font-weight: 550; font-size: 16px; color: var(--mk-text); }
+.mk-dev__costs span { color: var(--mk-muted); font-size: 14px; line-height: 1.6; }
+
+.mk-dev__capabilities { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.mk-dev__capabilities li {
+  padding: 18px 20px;
+  border: 1px solid var(--mk-line);
+  border-radius: var(--mk-r-md);
+  background: rgba(var(--mk-text-rgb), .02);
+}
+.mk-dev__capability-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.mk-dev__capability-head h3 { margin: 0; font-size: 16.5px; font-weight: 550; }
+.mk-dev__capabilities p { margin: 0; color: var(--mk-muted); font-size: 14px; line-height: 1.65; }
+
+.mk-dev__status {
+  flex: none;
+  padding: 3px 10px;
+  border-radius: var(--mk-pill);
+  border: 1px solid var(--mk-line-strong);
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--mk-muted);
+  white-space: nowrap;
+}
+.mk-dev__status--shipping { border-color: rgba(143, 217, 182, .4); color: var(--mk-ok); }
+.mk-dev__status--building { border-color: var(--mk-chip-warm-line); color: var(--mk-chip-warm); }
+.mk-dev__status--not-promised { border-style: dashed; color: var(--mk-dim); }
+
+.mk-dev__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+.mk-dev__card {
+  padding: 22px 22px 24px;
+  border: 1px solid var(--mk-line);
+  border-radius: var(--mk-r-md);
+  background: rgba(var(--mk-text-rgb), .02);
+}
+.mk-dev__card h3 { margin: 0 0 8px; font-size: 16.5px; font-weight: 550; }
+.mk-dev__card p { margin: 0; color: var(--mk-muted); font-size: 14px; line-height: 1.65; }
+
+.mk-dev__cta { text-align: left; }
+.mk-dev__cta h2 {
+  margin: 0 0 10px;
+  font-family: var(--serif);
+  font-size: clamp(26px, 3.2vw, 40px);
+  font-weight: 400;
+  letter-spacing: -.02em;
+  line-height: 1.05;
+}
+.mk-dev__cta p { margin: 0; color: var(--mk-muted); font-size: 15.5px; line-height: 1.6; max-width: 62ch; }

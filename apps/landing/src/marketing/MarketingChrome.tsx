@@ -31,6 +31,7 @@ const MAIN_LINKS = [
   ['Providers', '#providers'],
   ['Pricing', '#pricing'],
   ['FAQ', '#faq'],
+  ['Developers', '/developers'],
 ] as const;
 
 /** Thin accent line at the top of the viewport that fills as the page is read. */
@@ -138,6 +139,7 @@ const FOOTER_COLUMNS = [
   {
     heading: 'Resources',
     links: [
+      ['Developers', '/developers'],
       ['Changelog', '/changelog'],
       ['Trust & permissions', '/trust'],
       ['Contact', 'mailto:support@intake.calder.click'],

@@ -18,6 +18,9 @@ From `apps/landing`, with a real `DATABASE_URL` and the other required auth vari
 
    - `022_release_manager.sql` creates the Release Manager schema: `release` (one public announcement, with a permanent slug), `release_source` (the pull request, commit, release or deployment a release came from), `release_audit` (append-only record of administrative actions), `release_checklist_item` (the administrator's answers to the manual readiness checks) and `release_webhook_event` (processed GitHub delivery ids, so a repeated delivery is ignored). It also seeds the releases that predate the Release Manager, so every shipped entry has a permanent URL. It is additive and safe to roll back by dropping those five tables; the public changelog then falls back to the notes bundled with the site.
 
+   - `023_release_depth.sql` gives a release two more columns — `highlights` (what changed, in a few lines) and `audience` (one line naming who it is for) — and rewrites the shipped release notes so the stored copy matches the copy the site ships. Both columns are optional; a release without them renders as it did before.
+   - `024_release_developers_page.sql` seeds the changelog entry for the public Developers page, so the page and the changelog agree from the first request.
+
 `npm run db:generate` writes a reviewable Better Auth SQL snapshot to `db/auth.sql`. It does not apply it, and it does not include Intake provider tables. Do not point Better Auth at the provider tables.
 
 No migration was applied in the cloud agent environment: no Neon connection was provided. Do not claim the database is initialized until both commands succeed against the real project.

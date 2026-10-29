@@ -14,7 +14,7 @@ import { useEffect } from 'react';
  * workspace routes are never tracked. Honors Do Not Track.
  */
 
-export type AnalyticsPath = '/' | '/pricing' | '/vs' | '/templates' | '/guides' | '/trust' | '/changelog' | '/waitlist';
+export type AnalyticsPath = '/' | '/pricing' | '/vs' | '/templates' | '/guides' | '/trust' | '/changelog' | '/developers' | '/waitlist';
 
 const CTA_PREFIXES = ['/auth', '/app', '/pricing', '/waitlist'];
 
