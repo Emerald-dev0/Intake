@@ -56,14 +56,17 @@ after(async () => {
   await db.close();
 });
 
-test('the two release migrations apply in order and seed published entries', async () => {
+test('the release migrations apply in order and seed published entries', async () => {
   await db.exec(await migration('038_release_intake_for_developers.sql'));
   await db.exec(await migration('040_release_describe_a_form_in_a_sentence.sql'));
+  await db.exec(await migration('041_release_every_release_opens.sql'));
 
   const rows = await db.query(
-    `SELECT slug, status, published_at FROM release WHERE slug IN ('intake-for-developers', 'describe-a-form-in-a-sentence') ORDER BY slug`,
+    `SELECT slug, status, published_at FROM release
+      WHERE slug IN ('intake-for-developers', 'describe-a-form-in-a-sentence', 'every-release-opens')
+      ORDER BY slug`,
   );
-  assert.equal(rows.rows.length, 2);
+  assert.equal(rows.rows.length, 3);
   for (const row of rows.rows) {
     assert.equal(row.status, 'published', `${row.slug} is public as soon as it is seeded`);
     assert.ok(row.published_at, `${row.slug} says when it was published`);
@@ -108,6 +111,25 @@ test('the entry and the bundled notes say the same thing', async () => {
     `SELECT title, summary, body, categories, highlights, audience FROM release WHERE slug = 'describe-a-form-in-a-sentence'`,
   );
   const seeded = row.rows[0];
+
+  assert.equal(seeded.title, bundled.title);
+  assert.equal(seeded.summary, bundled.summary);
+  assert.equal(seeded.body, bundled.body);
+  assert.deepEqual(seeded.categories, bundled.categories);
+  assert.deepEqual(seeded.highlights, bundled.highlights);
+  assert.equal(seeded.audience, bundled.audience);
+});
+
+test('the routing fix entry and the bundled notes say the same thing', async () => {
+  const { BUNDLED_RELEASES } = await import('../src/content/changelog.ts');
+  const bundled = BUNDLED_RELEASES.find(entry => entry.slug === 'every-release-opens');
+  assert.ok(bundled, 'the bundled notes have the entry');
+
+  const row = await db.query(
+    `SELECT title, summary, body, categories, highlights, audience FROM release WHERE slug = 'every-release-opens'`,
+  );
+  const seeded = row.rows[0];
+  assert.ok(seeded, 'the entry is seeded');
 
   assert.equal(seeded.title, bundled.title);
   assert.equal(seeded.summary, bundled.summary);

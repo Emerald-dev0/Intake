@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import { type RouteObject, useParams } from 'react-router-dom';
+import { type RouteObject, Navigate, useParams } from 'react-router-dom';
 import { ProtectedLayout } from './layouts/ProtectedLayout';
 import { WorkspaceLayout } from './layouts/WorkspaceLayout';
 
@@ -54,6 +54,20 @@ function HostedFormRoute({ variant }: { variant: 'page' | 'embed' }) {
   return <HostedFormPage projectSlug={projectSlug} formSlug={formSlug} variant={variant} />;
 }
 
+/**
+ * Takes a reader from the address a release document is served from to its permanent address.
+ *
+ * Every release is written to the site as a document of its own, so a crawler and a link preview
+ * read the release rather than a stub. A host may serve that document from the address it was
+ * written to, which ends in `index.html`, and a reader who arrives there would otherwise be told
+ * the page does not exist — on the page they were trying to read. The release is the same either
+ * way, so the reader is taken to the address it has always had.
+ */
+function ChangelogDocumentRoute() {
+  const { slug = '' } = useParams();
+  return <Navigate to={`/changelog/${slug}`} replace />;
+}
+
 export const routes: RouteObject[] = [
   { path: '/', element: <LandingPage /> },
   { path: '/pricing', element: <PricingPage /> },
@@ -67,6 +81,11 @@ export const routes: RouteObject[] = [
   { path: '/forms/:projectSlug/:formSlug', element: <HostedFormRoute variant="page" /> },
   { path: '/embed/forms/:projectSlug/:formSlug', element: <HostedFormRoute variant="embed" /> },
   { path: '/changelog/:slug', element: <ReleaseDetailPage /> },
+  // The address a release document is served from, and the address the changelog index is served
+  // from. Both are the same pages as the addresses above, so a reader is taken to the one they
+  // have always had rather than being told the page does not exist.
+  { path: '/changelog/index.html', element: <Navigate to="/changelog" replace /> },
+  { path: '/changelog/:slug/index.html', element: <ChangelogDocumentRoute /> },
   { path: '/privacy', element: <PrivacyPage /> },
   { path: '/terms', element: <TermsPage /> },
   { path: '/auth/sign-in', element: <AuthPage key="sign-in" /> },

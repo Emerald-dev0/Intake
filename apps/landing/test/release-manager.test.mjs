@@ -400,6 +400,7 @@ const RELEASE_MIGRATIONS = [
   '037_release_the_mail_reads.sql',
   '038_release_intake_for_developers.sql',
   '040_release_describe_a_form_in_a_sentence.sql',
+  '041_release_every_release_opens.sql',
 ];
 
 async function readReleaseMigrations() {

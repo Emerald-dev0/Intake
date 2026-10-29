@@ -577,6 +577,36 @@ export const BUNDLED_RELEASES: BundledRelease[] = [
     ],
     heroImageUrl: null,
   },
+  {
+    slug: 'every-release-opens',
+    title: 'Every release opens',
+    releaseDate: '2026-10-29',
+    publishedAt: '2026-10-29T18:30:00.000Z',
+    categories: ['fix'],
+    summary: 'A release served from the address it is stored at was met with a page saying it did not exist. Every release now opens at that address, and at the permanent one it always had.',
+    highlights: [
+      'A release opened at the address it is served from now shows the release — not a page saying it does not exist.',
+      'The changelog index opens at that address too, rather than looking for a release called index.html.',
+      'The permanent address of every release is unchanged, and it is the one the address bar settles on.',
+      'No release notes, titles or dates changed. The same history, with the pages open.',
+    ],
+    audience: 'For anyone who followed a link to a release and was told the page was not there.',
+    body: [
+      '## The page that said it was not there',
+      'A release has one permanent address: /changelog/<slug>. It is in the sitemap, it is what the share card points at, and it is what a link from the changelog, from a search engine or from a colleague sends you to.',
+      'Each release is also written out as a document of its own, so that a crawler and a link preview can read the release without running the site. That document is stored with an index.html on the end of its address, and some addresses served it from there. The document itself was right: the title was the release title, the description was the release description, and the whole release was written into it.',
+      'What the site did with that address was the problem. It knew the permanent address, and it knew the address with the file name on the end, but not the two together — so the reader was told the page did not exist. The release was there the whole time.',
+      '## What changed',
+      'The site now knows the address a release is served from as well as the address it is written under. Opening a release at that address shows the release; opening the changelog index at that address shows the changelog.',
+      'The address in the address bar settles on the permanent one, so a reader who arrives by the other address ends up somewhere they can share, and the canonical link and the share card still point at the same place as before.',
+      '## What did not change',
+      'Every release keeps its permanent address, its title, its date, its notes and its place in the order. The sitemap is unchanged. Nothing was rewritten and no release was republished.',
+    ].join('\n'),
+    links: [
+      { label: 'Changelog', url: '/changelog' },
+    ],
+    heroImageUrl: null,
+  },
 ];
 
 export function bundledReleaseBySlug(slug: string): BundledRelease | null {
