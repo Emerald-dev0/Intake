@@ -55,7 +55,7 @@ test('the developers page says what exists, what is being built, and what is not
     'The field types developers actually use',
     'Submissions validated on the server',
     'A response inbox with search, filters and CSV export',
-    'Pause, close and reopen without a redeploy',
+    'Pause, close, reopen, archive and delete without a redeploy',
     'AI summaries on the credits you already have',
     'Per-project usage you can look at',
     'Answer notices on your terms',

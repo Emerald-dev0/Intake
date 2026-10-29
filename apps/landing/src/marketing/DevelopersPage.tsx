@@ -57,9 +57,9 @@ const CAPABILITIES: Capability[] = [
     detail: 'Read responses without building an admin panel. The count comes from the database, not from a model, and the export has the same columns as the table.',
   },
   {
-    name: 'Pause, close and reopen without a redeploy',
+    name: 'Pause, close, reopen, archive and delete without a redeploy',
     status: 'shipping',
-    detail: 'The public endpoint enforces the state of the form, so you can stop collecting answers from the console and leave your site untouched.',
+    detail: 'The public endpoint enforces the state of the form, so you can stop collecting answers from the console and leave your site untouched. A form that is still live has to be closed before it can be deleted, and deleting one asks you to type its address first.',
   },
   {
     name: 'AI summaries on the credits you already have',

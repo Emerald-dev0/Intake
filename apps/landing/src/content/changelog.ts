@@ -385,6 +385,34 @@ export const BUNDLED_RELEASES: BundledRelease[] = [
     ],
     heroImageUrl: null,
   },
+  {
+    slug: 'delete-a-form',
+    title: 'Delete a form when you are done with it',
+    releaseDate: '2026-10-29',
+    publishedAt: '2026-10-29T00:00:00.000Z',
+    categories: ['feature'],
+    summary: 'A form can now be deleted from the console — but only once it is closed, and only when you type its address to confirm it.',
+    highlights: [
+      'A live form has to be closed first, so nothing is deleted while it is still collecting answers.',
+      'You type the form\'s address to confirm. A stray click cannot take anything with it.',
+      'The form, its versions and its answers go together.',
+    ],
+    audience: 'For developers who have finished with a form and want it out of the way.',
+    body: [
+      '## Finishing with a form',
+      'Every form has an address on the internet, and every answer is stored against it. When a form has done its job, you can now delete it from the console: the form, its versions and the answers it collected go together, and the address is free for the next thing.',
+      '## Two things the server will not let you do by accident',
+      'A form that is still live cannot be deleted. Close it first — that is one deliberate click, and it stops the public endpoint taking answers from the moment you do it. Nothing is thrown away in the meantime.',
+      'And the deletion has to carry the form\'s own address. If a request arrives from a tab you forgot about, or a client sends the same call twice, it takes nothing with it: the address has to match.',
+      '## Or archive it instead',
+      'If you only want a form out of the way for a while, archive it. That is reversible — restore it and it comes back as a draft, and its answers are still there. Deleting is for the forms you are finished with.',
+    ].join('\n'),
+    links: [
+      { label: 'Developers', url: '/developers' },
+      { label: 'Changelog', url: '/changelog' },
+    ],
+    heroImageUrl: null,
+  },
 ];
 
 export function bundledReleaseBySlug(slug: string): BundledRelease | null {
