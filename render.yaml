@@ -97,3 +97,14 @@ services:
       # OPENAI_API_KEY / AI_PROVIDER: only for an explicit alternate vendor. There is no request-time
       # failover, and AI_PROVIDER without a matching credential is a startup error.
       # GROQ_REASONING_EFFORT (low|medium|high) and AI_MAX_COMPLETION_TOKENS (256-32768) are optional.
+      # --- Release Manager (optional) ---------------------------------------
+      # The Release Manager works without GitHub: drafts are written by hand and a source can be
+      # linked by URL. Set these three to let the console read pull requests, commits, releases and
+      # deployments from the GitHub API, and to accept signed webhook deliveries.
+      # GITHUB_TOKEN: a fine-grained token with read-only Contents, Pull requests, Metadata and
+      # Deployments access. It is read only by the API process and never sent to the browser.
+      # GITHUB_REPOSITORY: owner/repo, for example Emerald-dev0/Intake.
+      # GITHUB_WEBHOOK_SECRET: the signing secret of the webhook pointing at
+      # ${BETTER_AUTH_URL}/api/webhooks/github. Without it the endpoint refuses every delivery.
+      # RELEASE_AUTO_PUBLISH_AFTER_DEPLOYMENT: keep it unset (or false) until the workflow is
+      # trusted. Even when enabled it only publishes a release an administrator already approved.
