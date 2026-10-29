@@ -181,6 +181,7 @@ export function ReleaseDetailPage() {
       heading={<>{release.title}</>}
       lede={release.summary}
       article={{ publishedTime: release.publishedAt }}
+      image={release.heroImageUrl}
       schema={releaseSchema({
         path,
         name: release.title,

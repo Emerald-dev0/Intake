@@ -110,6 +110,27 @@ test('a release page shows the announcement and carries its own canonical and so
   assert.equal(schema.headline, 'A live release');
 });
 
+test('a release with a screenshot uses it for the social card', async t => {
+  const view = await mount({
+    path: '/changelog/a-live-release',
+    handler: path => {
+      if (path === '/api/releases/a-live-release') {
+        return json({ release: { ...LIVE_RELEASE, heroImageUrl: 'https://intake.test/shots/release.png' } });
+      }
+      return json({ error: 'not found' }, 404);
+    },
+  });
+  t.after(view.restore);
+
+  const meta = name => document.head.querySelector(`meta[property="${name}"], meta[name="${name}"]`)?.getAttribute('content');
+  assert.equal(meta('og:image'), 'https://intake.test/shots/release.png');
+  assert.equal(meta('twitter:image'), 'https://intake.test/shots/release.png');
+  const image = view.container.querySelector('.mk-release__media img');
+  assert.ok(image, 'the screenshot is shown above the notes');
+  assert.equal(image.getAttribute('src'), 'https://intake.test/shots/release.png');
+  assert.equal(image.getAttribute('alt'), 'Screenshot for A live release');
+});
+
 test('a release that was never published is a not-found page, not a blank one', async t => {
   const view = await mount({
     path: '/changelog/not-a-release',

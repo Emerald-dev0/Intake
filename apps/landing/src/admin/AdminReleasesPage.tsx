@@ -256,6 +256,8 @@ export function AdminReleaseDetailPage() {
 
   const release = query.state.status === 'ready' ? query.state.data.release : null;
 
+  // The form is seeded once per release. Re-seeding it on every refresh would throw away edits
+  // that were not saved yet — confirming a checklist item must not wipe the text being written.
   useEffect(() => {
     if (!release) return;
     setDraft({
@@ -270,7 +272,7 @@ export function AdminReleaseDetailPage() {
       shareText: release.shareText,
     });
     setShareText(release.shareText ?? '');
-  }, [release?.id, release?.updatedAt]);
+  }, [release?.id]);
 
   const value = useCallback(<K extends keyof ReleaseRecord>(key: K, fallback: ReleaseRecord[K]) => {
     const current = draft[key];
@@ -295,7 +297,7 @@ export function AdminReleaseDetailPage() {
     setSaving(true);
     setMessage(null);
     try {
-      await adminPost<{ release: ReleaseRecord }>(`/api/admin/releases/${releaseId}`, {
+      const response = await adminPost<{ release: ReleaseRecord }>(`/api/admin/releases/${releaseId}`, {
         title: draft.title,
         summary: draft.summary,
         body: draft.body,
@@ -307,6 +309,19 @@ export function AdminReleaseDetailPage() {
         shareText: draft.shareText,
       });
       setMessage({ tone: 'ok', text: 'Saved.' });
+      // Take the saved record back into the form, so the fields show exactly what the server stored.
+      const saved = response.release;
+      setDraft({
+        title: saved.title,
+        summary: saved.summary,
+        body: saved.body,
+        slug: saved.slug,
+        categories: saved.categories,
+        releaseDate: saved.releaseDate,
+        links: saved.links,
+        heroImageUrl: saved.heroImageUrl,
+        shareText: saved.shareText,
+      });
       query.refresh();
     } catch (error) {
       const text = error instanceof AdminApiError ? error.message : 'The release could not be saved.';

@@ -14,7 +14,7 @@ import type { AnalyticsPath } from '../lib/analytics';
  * the changelog now spans two pages (index and release detail) plus a route the analytics
  * allowlist does not track.
  */
-export function HubShell({ path, title, description, eyebrow, heading, lede, children, analyticsPath, article, schema }: {
+export function HubShell({ path, title, description, eyebrow, heading, lede, children, analyticsPath, article, schema, image }: {
   path: string;
   title: string;
   description: string;
@@ -27,6 +27,8 @@ export function HubShell({ path, title, description, eyebrow, heading, lede, chi
   article?: { publishedTime: string | null; modifiedTime?: string | null };
   /** Structured data for the page. Defaults to a plain WebPage node. */
   schema?: Record<string, unknown>;
+  /** An absolute image for the social preview. The site's default card is used when it is absent. */
+  image?: string | null;
 }) {
   const authenticated = usePublicSession();
   if (analyticsPath) useSiteAnalytics(analyticsPath);
@@ -36,6 +38,7 @@ export function HubShell({ path, title, description, eyebrow, heading, lede, chi
     path,
     schema: schema ?? webPageSchema(path, title, description),
     article,
+    image,
   });
   return (
     <div className="marketing-page">

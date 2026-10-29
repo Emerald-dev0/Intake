@@ -6,13 +6,15 @@ import { SITE_URL } from '../content/site';
  * metadata through the build plugin; these pages set theirs at runtime and
  * inject a WebPage schema node — enough for the crawlers that render JavaScript.
  */
-export function usePageMeta({ title, description, path, schema, article }: {
+export function usePageMeta({ title, description, path, schema, article, image }: {
   title: string;
   description: string;
   path: string;
   schema?: Record<string, unknown>;
   /** Article metadata for dated pages such as a changelog release. */
   article?: { publishedTime: string | null; modifiedTime?: string | null };
+  /** An absolute image for the social preview. The site's default card is used when it is absent. */
+  image?: string | null;
 }) {
   useEffect(() => {
     document.title = title;
@@ -38,6 +40,10 @@ export function usePageMeta({ title, description, path, schema, article }: {
     setMeta('meta[name="twitter:description"]', 'content', description);
     if (article?.publishedTime) setMeta('meta[property="article:published_time"]', 'content', article.publishedTime);
     if (article?.modifiedTime) setMeta('meta[property="article:modified_time"]', 'content', article.modifiedTime);
+    if (image) {
+      setMeta('meta[property="og:image"]', 'content', image);
+      setMeta('meta[name="twitter:image"]', 'content', image);
+    }
     let canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
     if (!canonical) {
       canonical = document.createElement('link');
@@ -57,7 +63,7 @@ export function usePageMeta({ title, description, path, schema, article }: {
       return () => script.remove();
     }
     return undefined;
-  }, [title, description, path, schema, article?.publishedTime, article?.modifiedTime]);
+  }, [title, description, path, schema, article?.publishedTime, article?.modifiedTime, image]);
 }
 
 /** Structured data for a dated changelog release. */
