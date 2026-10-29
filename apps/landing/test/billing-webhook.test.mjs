@@ -213,6 +213,13 @@ test('the end of the subscription takes the plan away', async () => {
   assert.equal(response.status, 200);
   const summary = await billing.getBillingSummary('user_owner');
   assert.equal(summary.subscriptionActive, false);
+
+  // The quota follows the subscription: the account is back on the free plan's credits.
+  const entitlement = await credits.entitlement('user_owner');
+  assert.equal(entitlement.plan, 'free');
+  // The entitlement's own vocabulary for an ended subscription: the account is no longer on a
+  // plan, and the daily credits are all it has.
+  assert.equal(entitlement.subscriptionStatus, 'canceled');
 });
 
 test('the live gate holds: with paid billing off, no checkout is created', async () => {

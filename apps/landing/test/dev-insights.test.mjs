@@ -224,6 +224,17 @@ test('a developer with no credits is told, and nothing is spent', async () => {
   assert.equal(calls.length, 0, 'the model was not called');
 });
 
+test('the summary is recorded as an operation, with what it cost', async () => {
+  // The ledger is how an operator reconciles the credits against the provider's own numbers, so
+  // the operation has to land there with its type and its cost.
+  const usage = await creditStore.usage('user_owner');
+  const summary = usage.find(row => row.operationType === 'dev_insights');
+  assert.ok(summary, 'the summary is in the ledger');
+  assert.equal(summary.operationType, 'dev_insights');
+  assert.equal(summary.creditCost, DEV_INSIGHTS_COST, 'and it cost what the price list says');
+  assert.ok(summary.outcome === 'succeeded', 'and it is recorded as a success');
+});
+
 test('somebody else cannot summarise your answers', async () => {
   const response = await call(`/forms/${formId}/insights`, { userId: 'user_stranger' });
   assert.equal(response.status, 404);
