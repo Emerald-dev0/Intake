@@ -37,3 +37,22 @@ test('a provider name handed over in lower case still starts the line properly',
   assert.equal(rendered.subject, 'Typeform was disconnected from Intake');
   assert.match(rendered.html, /Typeform disconnected/);
 });
+
+test('the details table lines its values up under each other', () => {
+  const rendered = renderEmail('provider_connection_removed', { ...VARIABLES });
+  // The label column has a width of its own, so every value starts in the same place. Without it,
+  // the table hands the spare width to the first column and the values step in and out.
+  const labels = [...rendered.html.matchAll(/<td width="(\d+)" valign="top" style="width:\d+px/g)].map(match => match[1]);
+  assert.ok(labels.length > 0, 'the details table gives its label column a width');
+  assert.equal(new Set(labels).size, 1, 'every label column is the same width');
+  assert.match(rendered.html, /<td valign="top" style="padding:7px 0[^"]*"/, 'the value column starts where the label ends');
+});
+
+test('the mark in the header lines up with the text in the card', () => {
+  const rendered = renderEmail('provider_connection_removed', { ...VARIABLES });
+  // The card's text is inset by the shell's padding; the mark is padded to the same column.
+  const brand = rendered.html.match(/class="shell-brand"[^>]*style="([^"]*)"/);
+  assert.ok(brand, 'the header row carries the shell padding');
+  assert.match(brand[1], /padding:0 38px/, 'the mark sits on the text column, not to the left of it');
+  assert.match(rendered.html, /\.shell-brand\{padding-left:24px/, 'and it tightens on a narrow screen');
+});

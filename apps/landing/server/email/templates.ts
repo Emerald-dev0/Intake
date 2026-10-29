@@ -118,12 +118,17 @@ function sentenceCase(value: string): string {
 }
 
 function detailRow(label: string, value: string): string {
-  return `<tr><td style="padding:7px 0;font:11px/1.4 ${MONO};letter-spacing:.14em;text-transform:uppercase;color:${MUTED};white-space:nowrap;vertical-align:top">${escapeHtml(label)}</td>
-  <td style="padding:7px 0 7px 18px;font:15px/1.5 ${SANS};color:${BODY}">${escapeHtml(value)}</td></tr>`;
+  // The label column has a width of its own, so every value starts in the same place. Left to
+  // itself, the table gives the spare width to the first column and the values step in and out
+  // with the length of their labels.
+  return `<tr><td width="118" valign="top" style="width:118px;padding:7px 0;font:11px/1.4 ${MONO};letter-spacing:.14em;text-transform:uppercase;color:${MUTED};white-space:nowrap;vertical-align:top">${escapeHtml(label)}</td>
+  <td valign="top" style="padding:7px 0;font:15px/1.5 ${SANS};color:${BODY}">${escapeHtml(value)}</td></tr>`;
 }
 
 function detailsTable(rows: string): string {
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:22px 0 6px;border-top:1px solid ${LINE};border-bottom:1px solid ${LINE}">${rows}</table>`;
+  // `table-layout:fixed` is what makes the label column keep its width: left to itself the browser
+  // hands the spare room to the first column, and the values drift in and out with their labels.
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="table-layout:fixed;margin:22px 0 6px;border-top:1px solid ${LINE};border-bottom:1px solid ${LINE}">${rows}</table>`;
 }
 
 function codeBlock(code: string): string {

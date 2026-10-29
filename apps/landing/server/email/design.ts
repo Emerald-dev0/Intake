@@ -72,8 +72,10 @@ export function preheader(text: string): string {
  */
 export function brandHeader(options: VisualOptions): string {
   const mark = `${options.assetBaseUrl.replace(/\/$/, '')}/brand/intake-mark.png`;
+  // The mark sits on the paper, above the card, so it is padded to the same column the card's
+  // text starts in. Without that, the logo hangs to the left of everything else on the page.
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
-  <td align="left" style="padding:0 0 22px">
+  <td align="left" class="shell-brand" style="padding:0 ${PAD_X}px 22px">
     <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
       <td width="30" valign="middle" style="padding:0 10px 0 0">
         <img src="${attr(mark)}" width="30" height="30" alt="Intake" style="display:block;width:30px;height:30px;border:0;outline:none;text-decoration:none" />
@@ -229,6 +231,7 @@ export function shell(options: ShellOptions): string {
 <style>
   @media only screen and (max-width:600px){
     .shell-pad{padding-left:24px !important;padding-right:24px !important}
+    .shell-brand{padding-left:24px !important;padding-right:24px !important}
     .shell-outer{padding:22px 12px 34px !important}
     .shell-h1{font-size:27px !important;line-height:1.22 !important}
     .shell-statement{font-size:21px !important}
