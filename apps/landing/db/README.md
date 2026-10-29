@@ -20,6 +20,8 @@ From `apps/landing`, with a real `DATABASE_URL` and the other required auth vari
 
    - `023_release_depth.sql` gives a release two more columns — `highlights` (what changed, in a few lines) and `audience` (one line naming who it is for) — and rewrites the shipped release notes so the stored copy matches the copy the site ships. Both columns are optional; a release without them renders as it did before.
    - `024_release_developers_page.sql` seeds the changelog entry for the public Developers page, so the page and the changelog agree from the first request.
+   - `025`–`026` create the developer workspace: `dev_project`, `dev_form`, `dev_form_version` and `dev_submission`, with the ownership, the published version and the submission limits the server enforces. `027`–`030` add the form builder, the response inbox and the release summaries. `031`–`035` add the usage counters, the notification preferences and the remaining changelog entries.
+   - `036_release_changelog_card.sql` seeds the changelog entry for the changelog cards and documents, so the page and the changelog agree from the first request.
 
 `npm run db:generate` writes a reviewable Better Auth SQL snapshot to `db/auth.sql`. It does not apply it, and it does not include Intake provider tables. Do not point Better Auth at the provider tables.
 
