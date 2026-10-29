@@ -289,6 +289,38 @@ export class DevService {
     return this.getFormDetail(userId, formId);
   }
 
+  /**
+   * Deletes a form, its versions and its answers.
+   *
+   * Two rules, both on the server:
+   *
+   * 1. A form that is live cannot be deleted by accident. Close it first — that is a deliberate
+   *    act, and it stops the public endpoint a moment before the answers go.
+   * 2. The confirmation has to be the form's own address. A delete that fires from a stale tab,
+   *    a mis-wired client or a stray retry cannot take anything with it.
+   */
+  async deleteForm(userId: string, formId: string, confirmation: string): Promise<void> {
+    const detail = await this.getFormDetail(userId, formId);
+
+    if (detail.form.status === 'published') {
+      throw new DevError(
+        409,
+        'form_live',
+        'This form is still live. Close it first, then delete it.',
+      );
+    }
+
+    if (confirmation.trim() !== detail.form.slug) {
+      throw new DevError(
+        400,
+        'confirmation_required',
+        `Type the form's address (${detail.form.slug}) to delete it.`,
+      );
+    }
+
+    await this.store.deleteForm(detail.form.id);
+  }
+
   // ── the notification preference ─────────────────────────────────────────────
 
   /**

@@ -191,6 +191,54 @@ test('the lifecycle is enforced on the server', async () => {
   assert.equal(unknown.body.error, 'invalid_action');
 });
 
+test('a live form cannot be deleted by accident', async () => {
+  const project = (await call('/projects', { method: 'POST', body: { name: 'Deleting' } })).body.project;
+  const form = (await call(`/projects/${project.id}/forms`, { method: 'POST', body: { name: 'Stay' } })).body.form;
+  await call(`/forms/${form.id}/definition`, {
+    method: 'PUT',
+    body: { definition: { ...emptyDefinition(), fields: [{ id: 'a', type: 'short_text', label: 'Hi' }] } },
+  });
+  await call(`/forms/${form.id}/publish`, { method: 'POST' });
+
+  const refused = await call(`/forms/${form.id}`, { method: 'DELETE', body: { confirm: form.slug } });
+  assert.equal(refused.status, 409);
+  assert.equal(refused.body.error, 'form_live');
+});
+
+test('deleting a form asks for the address, and takes the answers with it', async () => {
+  const project = (await call('/projects', { method: 'POST', body: { name: 'Removal' } })).body.project;
+  const form = (await call(`/projects/${project.id}/forms`, { method: 'POST', body: { name: 'Goes' } })).body.form;
+
+  // A mistaken confirmation removes nothing.
+  const wrong = await call(`/forms/${form.id}`, { method: 'DELETE', body: { confirm: 'not-the-address' } });
+  assert.equal(wrong.status, 400);
+  assert.equal(wrong.body.error, 'confirmation_required');
+
+  const missing = await call(`/forms/${form.id}`, { method: 'DELETE', body: {} });
+  assert.equal(missing.status, 400);
+
+  const gone = await call(`/forms/${form.id}`, { method: 'DELETE', body: { confirm: form.slug } });
+  assert.equal(gone.status, 200);
+  assert.equal(gone.body.deleted, true);
+
+  // And it is really gone: the form cannot be fetched, and the address is free for the asking.
+  const after = await call(`/forms/${form.id}`);
+  assert.equal(after.status, 404);
+  const list = await call(`/projects/${project.id}`);
+  assert.equal((list.body.forms ?? []).filter(entry => entry.id === form.id).length, 0);
+});
+
+test('a stranger cannot delete somebody else\'s form', async () => {
+  const project = (await call('/projects', { method: 'POST', body: { name: 'Guarded removal' } })).body.project;
+  const form = (await call(`/projects/${project.id}/forms`, { method: 'POST', body: { name: 'Mine' } })).body.form;
+
+  const attempt = await call(`/forms/${form.id}`, { method: 'DELETE', body: { confirm: form.slug }, userId: STRANGER });
+  assert.equal(attempt.status, 404, 'and it does not say the form exists');
+
+  const still = await call(`/forms/${form.id}`);
+  assert.equal(still.status, 200);
+});
+
 test('a stranger cannot reach a form through its project', async () => {
   const project = (await call('/projects', { method: 'POST', body: { name: 'Guarded' } })).body.project;
   const form = (await call(`/projects/${project.id}/forms`, { method: 'POST', body: { name: 'Guarded form' } })).body.form;

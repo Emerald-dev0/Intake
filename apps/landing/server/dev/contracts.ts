@@ -189,6 +189,14 @@ export interface DevStore {
   createVersion(version: DevFormVersion): Promise<DevFormVersion>;
   updateVersion(versionId: string, patch: Partial<DevFormVersion>): Promise<DevFormVersion | null>;
 
+  /**
+   * Removes a form, its versions and its answers.
+   *
+   * The answers go with it: an answer nobody can read, in a form nobody can open, is not data
+   * worth keeping. The service decides whether a form may be deleted at all.
+   */
+  deleteForm(formId: string): Promise<void>;
+
   createSubmission(submission: DevSubmission): Promise<DevSubmission>;
   getSubmissionByIdempotencyKey(formId: string, key: string): Promise<DevSubmission | null>;
 

@@ -384,6 +384,9 @@ export function DeveloperFormPage() {
   const detail = useAsync(() => devApi.getForm(formId), [formId]);
   const [busy, setBusy] = useState('');
   const [actionError, setActionError] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const [confirmation, setConfirmation] = useState('');
+  const [deleteError, setDeleteError] = useState('');
 
   const value = detail.state.status === 'ready' ? detail.state.value : null;
   const actions = useMemo(() => (value ? availableActions(value.form.status) : []), [value]);
@@ -397,6 +400,19 @@ export function DeveloperFormPage() {
       detail.reload();
     } catch (error) {
       setActionError(error instanceof DevApiError ? error.message : 'That did not go through.');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function remove() {
+    setBusy('delete');
+    setDeleteError('');
+    try {
+      await devApi.deleteForm(formId, confirmation);
+      navigate('/app/developers');
+    } catch (error) {
+      setDeleteError(error instanceof DevApiError ? error.message : 'That did not go through.');
     } finally {
       setBusy('');
     }
@@ -460,6 +476,69 @@ export function DeveloperFormPage() {
           The state is enforced by the server, not by this page: pausing a form stops it accepting
           submissions the moment you click, with no change to your site.
         </p>
+      </section>
+
+      <section className="dev-section dev-section--danger" aria-labelledby="dev-form-delete">
+        <h2 id="dev-form-delete" className="dev-section__title">Delete this form</h2>
+        {form.status === 'published' ? (
+          <p className="dev-section__note">
+            This form is live, so it cannot be deleted yet. Close it first — the public endpoint
+            stops taking answers the moment you do, and nothing is thrown away until you say so.
+          </p>
+        ) : confirming ? (
+          <div className="dev-danger">
+            <p className="dev-section__note">
+              This deletes the form, its versions and every answer it collected. It cannot be
+              undone. Type the form's address, <code>{form.slug}</code>, to confirm.
+            </p>
+            <label className="dev-field">
+              <span className="dev-field__label">Type {form.slug} to confirm</span>
+              <input
+                className="dev-field__input"
+                value={confirmation}
+                onChange={event => setConfirmation(event.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </label>
+            <div className="dev-actions">
+              <button
+                type="button"
+                className="dev-button dev-button--danger"
+                disabled={busy !== '' || confirmation.trim() !== form.slug}
+                onClick={() => void remove()}
+              >
+                {busy === 'delete' ? 'Deleting…' : 'Delete for good'}
+              </button>
+              <button
+                type="button"
+                className="dev-button dev-button--quiet"
+                disabled={busy !== ''}
+                onClick={() => { setConfirming(false); setConfirmation(''); setDeleteError(''); }}
+              >
+                Keep it
+              </button>
+            </div>
+            {deleteError && <ErrorNote message={deleteError} />}
+          </div>
+        ) : (
+          <>
+            <p className="dev-section__note">
+              Deleting a form removes it, its versions and its answers. If you only want it out of
+              the way for a while, archive it instead — that can be undone.
+            </p>
+            <div className="dev-actions">
+              <button
+                type="button"
+                className="dev-button dev-button--quiet"
+                disabled={busy !== ''}
+                onClick={() => setConfirming(true)}
+              >
+                Delete this form
+              </button>
+            </div>
+          </>
+        )}
       </section>
 
       <section className="dev-section" aria-labelledby="dev-form-address">

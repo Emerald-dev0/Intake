@@ -362,6 +362,18 @@ export function createDevRouter(deps: DevRouterDeps): Router {
     }
   });
 
+  // Deleting a form is the one action that cannot be undone, so it asks for the form's address
+  // and the server refuses a form that is still live.
+  router.delete('/forms/:formId', express.json({ limit: '8kb', strict: true }), async (req, res) => {
+    const confirmation = typeof req.body?.confirm === 'string' ? req.body.confirm : '';
+    try {
+      await deps.service.deleteForm(userId(res), req.params.formId, confirmation);
+      res.json({ deleted: true });
+    } catch (error) {
+      handle(error, res);
+    }
+  });
+
   router.post('/forms/:formId/state', express.json({ limit: '8kb', strict: true }), async (req, res) => {
     const action = req.body?.action as DevFormAction | undefined;
     if (!action || !DEV_FORM_ACTIONS.includes(action)) {

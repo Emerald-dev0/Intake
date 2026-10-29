@@ -57,6 +57,7 @@ function fakeFetch({ projects = [PROJECT], forms = [FORM], detail, calls = [] } 
         perDay: [{ day: '2026-10-29', count: 1 }],
       });
     }
+    if (url.endsWith('/api/dev/forms/dev_form_1') && init.method === 'DELETE') return respond({ deleted: true });
     if (url.endsWith('/api/dev/forms/dev_form_1')) {
       return respond(detail ?? {
         form: FORM,
@@ -172,7 +173,9 @@ test('a draft cannot be paused, and says why', async t => {
   });
   t.after(view.restore);
 
-  assert.equal(view.container.querySelectorAll('.dev-actions button').length, 0);
+  // The lifecycle section has nothing to offer a draft. The delete panel is a different section,
+  // and a draft can be deleted — it has never been public.
+  assert.equal(view.container.querySelectorAll('section[aria-labelledby="dev-form-actions"] .dev-actions button').length, 0);
   assert.match(view.text(), /not public yet/);
 });
 
@@ -184,6 +187,59 @@ test('the answers are listed with an exact count and a way to export them', asyn
   assert.match(view.text(), /ada@example\.com/);
   assert.ok(view.container.querySelector('a[download]'), 'the CSV can be downloaded');
   assert.match(view.container.querySelector('a[download]').getAttribute('href'), /submissions\.csv$/);
+});
+
+test('a live form cannot be deleted, and says what to do first', async t => {
+  const view = await mount(React.createElement(DeveloperFormPage), { path: '/app/developers/forms/dev_form_1' });
+  t.after(view.restore);
+
+  assert.match(view.text(), /is live, so it cannot be deleted yet/);
+  assert.match(view.text(), /Close it first/);
+  assert.equal([...view.container.querySelectorAll('button')].filter(node => node.textContent === 'Delete this form').length, 0);
+});
+
+test('deleting a form asks for its address, and the server is told the confirmation', async t => {
+  const closed = { ...FORM, status: 'closed' };
+  const calls = [];
+  const view = await mount(React.createElement(DeveloperFormPage), {
+    path: '/app/developers/forms/dev_form_1',
+    fetchImpl: fakeFetch({
+      calls,
+      detail: {
+        form: closed,
+        project: PROJECT,
+        publishedVersion: { id: 'dev_ver_1', formId: FORM.id, version: 1, definition: DEFINITION, state: 'published', createdAt: '2026-10-29T00:00:00.000Z', publishedAt: '2026-10-29T00:00:00.000Z' },
+        draftVersion: null,
+        versions: [{ id: 'dev_ver_1', formId: FORM.id, version: 1, definition: DEFINITION, state: 'published', createdAt: '2026-10-29T00:00:00.000Z', publishedAt: '2026-10-29T00:00:00.000Z' }],
+      },
+    }),
+  });
+  t.after(view.restore);
+
+  const open = [...view.container.querySelectorAll('button')].find(node => node.textContent === 'Delete this form');
+  assert.ok(open, 'a closed form can be deleted');
+  await act(async () => { open.click(); });
+
+  // The confirmation is the form's own address, and the button stays shut until it matches.
+  const input = view.container.querySelector('.dev-danger input');
+  assert.ok(input, 'the panel asks for the address');
+  const confirmButton = [...view.container.querySelectorAll('button')].find(node => node.textContent === 'Delete for good');
+  assert.equal(confirmButton.disabled, true, 'and it cannot be pressed with the wrong address');
+
+  await act(async () => {
+    const setter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set;
+    setter.call(input, 'waitlist');
+    input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  });
+  await act(async () => {
+    const button = [...view.container.querySelectorAll('button')].find(node => node.textContent === 'Delete for good');
+    assert.equal(button.disabled, false, 'the right address enables it');
+    button.click();
+  });
+
+  const deletion = calls.find(call => call.method === 'DELETE');
+  assert.ok(deletion, 'the delete goes to the server');
+  assert.equal(JSON.parse(deletion.body).confirm, 'waitlist');
 });
 
 test('creating a project goes through the server and refreshes the list', async t => {

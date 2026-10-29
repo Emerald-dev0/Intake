@@ -176,6 +176,33 @@ test('the counters move when an answer is accepted and when one is refused', asy
   assert.ok(usage.some(row => row.bytes > 0), 'the bytes stored are counted');
 });
 
+test('an answer that is longer than the question allows is refused', async () => {
+  const long = 'x'.repeat(501);
+  const response = await call('/forms/checkout-app/waitlist/submissions', {
+    method: 'POST',
+    body: { answers: { email: 'a@b.co', name: long } },
+  });
+  assert.equal(response.status, 400);
+  assert.ok(response.body.fieldErrors.some(error => error.field === 'name'), 'the field is named');
+});
+
+test('a payload that is too large is refused before it is read', async () => {
+  const huge = 'y'.repeat(40 * 1024);
+  const response = await call('/forms/checkout-app/waitlist/submissions', {
+    method: 'POST',
+    body: { answers: { email: 'a@b.co', name: huge } },
+  });
+  assert.ok(response.status === 413 || response.status === 422, `the payload is refused (got ${response.status})`);
+});
+
+test('a submission with more answers than the form has questions is refused', async () => {
+  const answers = { email: 'a@b.co' };
+  for (let index = 0; index < 60; index += 1) answers[`extra_${index}`] = 'value';
+  const response = await call('/forms/checkout-app/waitlist/submissions', { method: 'POST', body: { answers } });
+  assert.equal(response.status, 400);
+  assert.ok(response.body.fieldErrors.some(error => error.field === 'answers'));
+});
+
 test('a submission to a draft form is a 404', async () => {
   const response = await call('/forms/draft-project/secret-form/submissions', {
     method: 'POST',

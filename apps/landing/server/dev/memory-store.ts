@@ -81,6 +81,17 @@ export function createMemoryDevStore(): MemoryDevStore {
       return copy(form);
     },
 
+    async deleteForm(formId: string) {
+      const index = forms.findIndex(entry => entry.id === formId);
+      if (index >= 0) forms.splice(index, 1);
+      for (let i = versions.length - 1; i >= 0; i -= 1) {
+        if (versions[i].formId === formId) versions.splice(i, 1);
+      }
+      for (let i = submissions.length - 1; i >= 0; i -= 1) {
+        if (submissions[i].formId === formId) submissions.splice(i, 1);
+      }
+    },
+
     async listVersions(formId: string) {
       return versions
         .filter(version => version.formId === formId)

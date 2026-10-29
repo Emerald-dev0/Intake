@@ -222,6 +222,15 @@ export const devApi = {
   applyAction: (formId: string, action: DevFormAction) =>
     request<DevFormDetail>(`/forms/${encodeURIComponent(formId)}/state`, { method: 'POST', body: JSON.stringify({ action }) }),
 
+  /**
+   * Deletes a form for good, with its answers.
+   *
+   * The confirmation is the form's own address: the server will not take a form away on a
+   * mistaken click, and a form that is still live has to be closed first.
+   */
+  deleteForm: (formId: string, confirmation: string) =>
+    request<{ deleted: true }>(`/forms/${encodeURIComponent(formId)}`, { method: 'DELETE', body: JSON.stringify({ confirm: confirmation }) }),
+
   listSubmissions: (formId: string, options: { q?: string; limit?: number; offset?: number } = {}) => {
     const query = new URLSearchParams();
     if (options.q) query.set('q', options.q);

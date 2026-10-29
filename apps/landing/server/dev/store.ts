@@ -232,6 +232,14 @@ export function createPostgresDevStore(pool: Queryable): DevStore {
       return row ? mapForm(row) : null;
     },
 
+    async deleteForm(formId: string) {
+      // The answers first: a submission points at the version it was accepted under, and that
+      // version goes with the form. The database would refuse to take the form while they were
+      // still there.
+      await pool.query('DELETE FROM dev_submission WHERE form_id = $1', [formId]);
+      await pool.query('DELETE FROM dev_form WHERE id = $1', [formId]);
+    },
+
     async listVersions(formId: string) {
       const result = await pool.query(
         `SELECT id, form_id, version, definition, state, created_at, published_at
