@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { devApi, DevApiError, type DevField, type DevSubmission, type DevSubmissionPage } from '../lib/dev-api';
+import { devApi, DevApiError, type DevField, type DevInsights, type DevSubmission, type DevSubmissionPage } from '../lib/dev-api';
 
 /**
  * The response inbox.
@@ -26,6 +26,9 @@ function formatWhen(value: string): string {
 }
 
 export function DevResponses({ formId, fields }: { formId: string; fields: DevField[] }) {
+  const [insights, setInsights] = useState<DevInsights | null>(null);
+  const [summarising, setSummarising] = useState(false);
+  const [summaryError, setSummaryError] = useState('');
   const [page, setPage] = useState<DevSubmissionPage | null>(null);
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
@@ -58,6 +61,21 @@ export function DevResponses({ formId, fields }: { formId: string; fields: DevFi
   const shown = page?.items.length ?? 0;
   const lastPage = offset + shown >= total;
 
+  async function summarise() {
+    setSummarising(true);
+    setSummaryError('');
+    try {
+      const result = await devApi.summarizeAnswers(formId);
+      setInsights(result);
+    } catch (caught) {
+      setSummaryError(caught instanceof DevApiError
+        ? caught.message
+        : 'The summary could not be produced. No credits were spent.');
+    } finally {
+      setSummarising(false);
+    }
+  }
+
   return (
     <div className="dev-responses">
       <div className="dev-responses__toolbar">
@@ -71,7 +89,45 @@ export function DevResponses({ formId, fields }: { formId: string; fields: DevFi
           />
         </label>
         <a className="dev-button dev-button--quiet" href={devApi.submissionsCsvUrl(formId)} download>Export CSV</a>
+        <button type="button" className="dev-button" onClick={() => void summarise()} disabled={summarising || total === 0}>
+          {summarising ? 'Reading the answers…' : 'Summarise the answers'}
+        </button>
       </div>
+
+      {summaryError && <p className="dev-note dev-note--error" role="alert">{summaryError}</p>}
+
+      {insights && (
+        <div className="dev-insight">
+          <p className="dev-insight__label">What the answers sound like — an interpretation, not a measurement</p>
+          <p className="dev-insight__summary">{insights.summary}</p>
+          {insights.highlights.length > 0 && (
+            <ul className="dev-insight__list">
+              {insights.highlights.map(highlight => <li key={highlight}>{highlight}</li>)}
+            </ul>
+          )}
+          {insights.caveats.length > 0 && (
+            <ul className="dev-insight__caveats">
+              {insights.caveats.map(caveat => <li key={caveat}>{caveat}</li>)}
+            </ul>
+          )}
+          <p className="dev-insight__cost">
+            {insights.cost.credits} {insights.cost.credits === 1 ? 'credit' : 'credits'}
+            {insights.cost.status === 'already_charged' ? ' — already paid for this summary' : ''} · read {insights.answersRead} of {insights.answersTotal} answers
+          </p>
+          <details className="dev-insight__counts">
+            <summary>The exact counts</summary>
+            <ul>
+              {insights.statistics.questions.map(question => (
+                <li key={question.id}>
+                  <strong>{question.title}</strong> — {question.answered} answered
+                  {question.choices?.map(choice => ` · ${choice.label}: ${choice.count}`).join('')}
+                  {question.topPhrases?.length ? ` · ${question.topPhrases.map(phrase => `${phrase.phrase} (${phrase.count})`).join(', ')}` : ''}
+                </li>
+              ))}
+            </ul>
+          </details>
+        </div>
+      )}
 
       {state === 'loading' && <p className="dev-note" role="status">Loading the answers…</p>}
       {state === 'failed' && (

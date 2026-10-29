@@ -11,13 +11,38 @@
  */
 
 import express, { Router, type Request, type Response } from 'express';
+import { createHash } from 'node:crypto';
 import { DevError, type DevService } from './service.ts';
 import { DEV_FORM_ACTIONS, type DevFormAction } from './contracts.ts';
+import { summarizeResponses, type InsightQuestion } from '../forms/insights/summary.ts';
+import { MAX_ANSWERS_READ, type DevInsightModel } from './insights.ts';
+import type { AiOperationRunner } from '../ai/operations.ts';
 
 export interface DevRouterDeps {
   service: DevService;
   /** Resolves the signed-in person, or null when there is no session. */
   getSession: (req: Request) => Promise<{ id: string; email: string; name: string } | null>;
+  /** The AI summary of a form's answers. Absent when the server has no model configured. */
+  insights?: {
+    runner: AiOperationRunner;
+    model: DevInsightModel;
+    /** What one summary costs, in the credits the customer already has. */
+    cost: number;
+  };
+}
+
+/** The field types the statistics know how to count. */
+function insightKind(type: string): InsightQuestion['kind'] {
+  if (type === 'dropdown' || type === 'single_choice' || type === 'multiple_choice') return 'choice';
+  if (type === 'short_text' || type === 'long_text') return 'text';
+  if (type === 'checkbox') return 'other';
+  return 'other';
+}
+
+/** A key that is the same for the same answers, so a repeat is not charged twice. */
+function insightsOperationKey(formId: string, total: number, latest: string | undefined): string {
+  const digest = createHash('sha256').update(`${formId}:${total}:${latest ?? ''}`).digest('hex').slice(0, 16);
+  return `devi_${formId.slice(0, 16)}_${digest}`;
 }
 
 /** The JSON body a definition is allowed to be. A form is small; a megabyte is not one. */
@@ -145,6 +170,98 @@ export function createDevRouter(deps: DevRouterDeps): Router {
   });
 
   // ── the answers ─────────────────────────────────────────────────────────────
+
+  /**
+   * A summary of what the answers say.
+   *
+   * The counts are computed here, from the rows. The model only says what the answers sound
+   * like, and it is never asked for a number. The whole thing is one charged operation through
+   * the canonical runner: nothing is charged when the model fails, and the same answers are
+   * never charged twice.
+   */
+  router.post('/forms/:formId/insights', async (req, res) => {
+    if (!deps.insights) {
+      res.status(503).json({ error: 'insights_unavailable', message: 'Summaries are not available on this server right now.' });
+      return;
+    }
+    try {
+      const detail = await deps.service.getFormDetail(userId(res), req.params.formId);
+      const definition = detail.publishedVersion?.definition ?? detail.draftVersion?.definition ?? null;
+      const fields = definition?.fields ?? [];
+      if (fields.length === 0) {
+        res.status(400).json({ error: 'no_questions', message: 'This form has no questions, so there is nothing to summarise.' });
+        return;
+      }
+
+      const page = await deps.service.listSubmissions(userId(res), detail.form.id, { limit: MAX_ANSWERS_READ });
+      if (page.total === 0) {
+        res.status(400).json({ error: 'no_answers', message: 'This form has no answers yet, so there is nothing to summarise.' });
+        return;
+      }
+
+      const questions: InsightQuestion[] = fields.map(field => ({
+        id: field.id,
+        title: field.label,
+        kind: insightKind(field.type),
+        options: field.options.length ? field.options : undefined,
+      }));
+      const allAnswers = page.items.map(item => {
+        const row: Record<string, string[]> = {};
+        for (const field of fields) {
+          const value = item.answers[field.id];
+          if (value === undefined) continue;
+          row[field.id] = Array.isArray(value) ? value : [String(value)];
+        }
+        return row;
+      });
+
+      // The exact numbers, counted from the rows.
+      const statistics = summarizeResponses(questions, allAnswers);
+
+      const latest = page.items[0]?.submittedAt.toISOString() ?? '';
+      const key = insightsOperationKey(detail.form.id, page.total, latest);
+      const outcome = await deps.insights.runner.run({
+        userId: userId(res),
+        operationType: 'dev_insights',
+        operationKey: key,
+        execute: async () => {
+          const result = await deps.insights!.model.summarize({
+            questions: questions.map(question => ({ id: question.id, title: question.title, kind: question.kind })),
+            answers: allAnswers,
+            totalAnswers: page.total,
+          });
+          return { kind: 'usable' as const, value: result, cost: deps.insights!.cost };
+        },
+      });
+
+      if (!outcome.ok) {
+        const code = (outcome.error as { code?: string } | null)?.code ?? 'model_unavailable';
+        res.status(code === 'insufficient_credits' ? 402 : 502).json({
+          error: code,
+          message: code === 'insufficient_credits'
+            ? 'You do not have enough credits for a summary right now.'
+            : 'The summary could not be produced. No credits were spent.',
+        });
+        return;
+      }
+
+      res.json({
+        summary: outcome.value.summary,
+        highlights: outcome.value.highlights,
+        caveats: outcome.value.caveats,
+        statistics,
+        answersRead: allAnswers.length,
+        answersTotal: page.total,
+        cost: { credits: outcome.charge.cost, status: outcome.charge.status },
+      });
+    } catch (error) {
+      if (error instanceof DevError) {
+        res.status(error.status).json({ error: error.code, message: error.message });
+        return;
+      }
+      res.status(500).json({ error: 'insights_failed', message: 'The summary could not be produced. No credits were spent.' });
+    }
+  });
 
   router.get('/forms/:formId/submissions', async (req, res) => {
     try {

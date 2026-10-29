@@ -82,6 +82,16 @@ export function editComplexity(plan: { operations: readonly { type: string; ques
   return { operationCount: plan.operations.length, structuralCount: structural, touchedQuestions: touched.size };
 }
 
+/**
+ * What a developer response summary costs.
+ *
+ * It is a fixed price because the work is bounded: the summary reads a capped number of answers
+ * from one form and writes a short interpretation. It is charged through the same service, the
+ * same buckets and the same idempotency rules as every other operation — there is no second
+ * currency for developers.
+ */
+export const DEV_INSIGHTS_COST = 3;
+
 /** Public estimates/examples calculated through the exact same classifiers used to charge. */
 export function publicCreditCostGuide(): PublicCreditCostGuide {
   return {

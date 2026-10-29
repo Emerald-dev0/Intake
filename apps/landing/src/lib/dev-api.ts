@@ -90,6 +90,30 @@ export interface DevSubmissionPage {
   perDay: Array<{ day: string; count: number }>;
 }
 
+/** The result of a summary: what the answers sound like, and the counts beside it. */
+export interface DevInsights {
+  summary: string;
+  highlights: string[];
+  caveats: string[];
+  /** The exact counts, computed from the rows rather than by the model. */
+  statistics: {
+    totalResponses: number;
+    truncated: boolean;
+    questions: Array<{
+      id: string;
+      title: string;
+      kind: string;
+      answered: number;
+      choices?: Array<{ label: string; count: number }>;
+      average?: number;
+      topPhrases?: Array<{ phrase: string; count: number }>;
+    }>;
+  };
+  answersRead: number;
+  answersTotal: number;
+  cost: { credits: number; status: string };
+}
+
 export interface DevProjectDetail {
   project: DevProject;
   forms: DevForm[];
@@ -180,6 +204,9 @@ export const devApi = {
     const suffix = query.toString() ? `?${query.toString()}` : '';
     return request<DevSubmissionPage>(`/forms/${encodeURIComponent(formId)}/submissions${suffix}`);
   },
+
+  /** Asks the model what the answers sound like. It costs credits, like every other AI operation. */
+  summarizeAnswers: (formId: string) => request<DevInsights>(`/forms/${encodeURIComponent(formId)}/insights`, { method: 'POST' }),
 
   /** The address of the CSV file. The browser downloads it; the server builds it. */
   submissionsCsvUrl: (formId: string) => `/api/dev/forms/${encodeURIComponent(formId)}/submissions.csv`,

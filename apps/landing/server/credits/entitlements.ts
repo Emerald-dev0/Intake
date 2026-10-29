@@ -89,7 +89,7 @@ export type SpendableBucket = (typeof SPENDABLE_BUCKETS)[number];
  */
 export const BUCKET_PRIORITY: readonly CreditBucket[] = ['daily', 'subscription', 'monthly', 'purchased', 'promotion'];
 
-export const OPERATION_TYPES = ['form_create', 'form_edit', 'form_revise'] as const;
+export const OPERATION_TYPES = ['form_create', 'form_edit', 'form_revise', 'dev_insights'] as const;
 export type AiOperationType = (typeof OPERATION_TYPES)[number];
 
 export function isOperationType(value: unknown): value is AiOperationType {
