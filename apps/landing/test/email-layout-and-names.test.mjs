@@ -23,6 +23,8 @@ test('a provider is named the way the product names it', () => {
   assert.equal(providerLabel('typeform'), 'Typeform');
   assert.equal(providerLabel('google'), 'Google Forms');
   assert.equal(providerLabel('microsoft'), 'Microsoft Forms');
+  // A provider the registry does not know is named by its own id, never by another provider.
+  assert.equal(providerLabel('surveyor'), 'surveyor');
 });
 
 test('a provider notice names the provider, in the subject and in the heading', () => {

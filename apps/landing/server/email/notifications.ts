@@ -6,7 +6,6 @@ import type { EmailService } from './service';
 import type { EmailType } from './types';
 import { effectiveDailyCredits } from '../billing/settings';
 import { providerLabel } from '../providers/registry';
-import type { ProviderId } from '../../src/lib/connections';
 
 /**
  * The event layer: named, typed things that happened in Intake.
@@ -134,7 +133,7 @@ export function createEmailNotifier(options: NotifierOptions): EmailNotifier {
     if (!user) return;
     await emit('provider_connection_added', `provider-connected:${newId()}`, user, {
       userName: user.name ?? '',
-      providerName: providerLabel(providerId as ProviderId) ?? providerId,
+      providerName: providerLabel(providerId),
       accountLabel,
     });
   }
@@ -144,7 +143,7 @@ export function createEmailNotifier(options: NotifierOptions): EmailNotifier {
     if (!user) return;
     await emit('provider_connection_removed', `provider-disconnected:${newId()}`, user, {
       userName: user.name ?? '',
-      providerName: providerLabel(providerId as ProviderId) ?? providerId,
+      providerName: providerLabel(providerId),
       accountLabel,
     });
   }
