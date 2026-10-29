@@ -23,6 +23,8 @@ const ReleaseDetailPage = lazy(() => import('../marketing/Changelog').then(m => 
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage').then(m => ({ default: m.PrivacyPage })));
 const TermsPage = lazy(() => import('./pages/TermsPage').then(m => ({ default: m.TermsPage })));
 const BillingPage = lazy(() => import('./pages/BillingPage').then(m => ({ default: m.BillingPage })));
+const DevelopersWorkspacePage = lazy(() => import('../app/DevelopersConsole').then(m => ({ default: m.DevelopersWorkspacePage })));
+const DeveloperFormPage = lazy(() => import('../app/DevelopersConsole').then(m => ({ default: m.DeveloperFormPage })));
 const AdminGate = lazy(() => import('../admin/AdminGate').then(m => ({ default: m.AdminGate })));
 const AdminShell = lazy(() => import('../admin/AdminShell').then(m => ({ default: m.AdminShell })));
 const AdminOverviewPage = lazy(() => import('../admin/AdminPages').then(m => ({ default: m.AdminOverviewPage })));
@@ -90,6 +92,8 @@ export const routes: RouteObject[] = [
       { path: 'forms', element: <FormsPage /> },
       { path: 'account', element: <AccountPage /> },
       { path: 'billing', element: <BillingPage /> },
+      { path: 'developers', element: <DevelopersWorkspacePage /> },
+      { path: 'developers/forms/:formId', element: <DeveloperFormPage /> },
       { path: '*', element: <NotFoundPage /> },
     ] },
   ] },

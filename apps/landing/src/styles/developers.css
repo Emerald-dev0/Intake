@@ -1,0 +1,164 @@
+/* The developer console: projects, forms and the states a form can be in. */
+
+.dev-console { display: grid; gap: 34px; }
+
+.dev-section {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 24px clamp(18px, 3vw, 28px);
+  background: var(--ink-2);
+}
+.dev-section__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.dev-section__title {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 550;
+  letter-spacing: -.02em;
+}
+.dev-section__note {
+  margin: 14px 0 0;
+  color: var(--cream-2);
+  font-size: 13.5px;
+  line-height: 1.6;
+  max-width: 64ch;
+}
+
+.dev-slug {
+  font: 12px var(--mono);
+  color: var(--cream-3);
+  word-break: break-all;
+}
+
+.dev-note {
+  margin: 12px 0 0;
+  color: var(--cream-2);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.dev-note--error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 90, 31, .38);
+  border-radius: 8px;
+  background: rgba(255, 90, 31, .08);
+  color: var(--accent-2);
+}
+.dev-note--error button {
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cream);
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.dev-empty {
+  border: 1px dashed var(--line-2);
+  border-radius: 12px;
+  padding: 34px clamp(18px, 3vw, 28px);
+}
+.dev-empty h2 { margin: 0 0 8px; font-size: 19px; font-weight: 550; }
+.dev-empty p { margin: 0; color: var(--cream-2); font-size: 14px; line-height: 1.65; max-width: 58ch; }
+
+.dev-inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: 14px;
+}
+.dev-field { display: grid; gap: 7px; min-width: 220px; }
+.dev-field > span { font: 11px var(--mono); letter-spacing: .08em; color: var(--cream-3); }
+.dev-field input {
+  background: var(--ink-1);
+  border: 1px solid var(--line-2);
+  border-radius: 7px;
+  padding: 11px 13px;
+  color: var(--cream);
+  font: 400 14px var(--sans);
+  outline: none;
+}
+.dev-field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 90, 31, .16); }
+
+.dev-button {
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: var(--accent);
+  color: #fff;
+  font: 550 13.5px var(--sans);
+  padding: 11px 16px;
+  cursor: pointer;
+}
+.dev-button:hover:not(:disabled) { background: var(--accent-2); }
+.dev-button:disabled { opacity: .5; cursor: not-allowed; }
+.dev-button--quiet {
+  background: transparent;
+  border-color: var(--line-2);
+  color: var(--cream);
+}
+.dev-button--quiet:hover:not(:disabled) { background: var(--ink-3); color: var(--cream); }
+
+.dev-list { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 8px; }
+.dev-list li {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--ink-1);
+}
+.dev-list__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 15px;
+  color: inherit;
+  text-decoration: none;
+}
+.dev-list__row:hover { border-color: var(--line-2); background: var(--ink-3); }
+.dev-list__name { font-size: 14.5px; font-weight: 500; }
+.dev-list--fields li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 15px;
+}
+.dev-required { color: var(--accent); }
+.dev-field-type { font: 11px var(--mono); letter-spacing: .06em; color: var(--cream-3); text-transform: uppercase; }
+.dev-options { color: var(--cream-2); font-size: 13px; }
+
+.dev-badge {
+  margin-left: auto;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  font: 10px var(--mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--cream-2);
+  white-space: nowrap;
+}
+.dev-badge--published { border-color: rgba(143, 217, 182, .4); color: #8fd9b6; }
+.dev-badge--paused { border-color: rgba(211, 178, 145, .4); color: #d3b291; }
+.dev-badge--closed { border-color: rgba(255, 90, 31, .38); color: var(--accent-2); }
+.dev-badge--draft, .dev-badge--superseded { border-style: dashed; color: var(--cream-3); }
+.dev-badge--archived { border-style: dashed; color: var(--cream-4); }
+
+.dev-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.dev-back { color: var(--cream-2); font-size: 13px; text-decoration: none; }
+.dev-back:hover { color: var(--accent); }
+
+@media (max-width: 640px) {
+  .dev-section { padding: 20px 16px; }
+  .dev-badge { margin-left: 0; }
+}

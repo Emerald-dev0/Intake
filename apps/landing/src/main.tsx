@@ -18,6 +18,7 @@ import './styles/admin.css';
 import './styles/pricing.css';
 import './styles/privacy.css';
 import './styles/billing.css';
+import './styles/developers.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

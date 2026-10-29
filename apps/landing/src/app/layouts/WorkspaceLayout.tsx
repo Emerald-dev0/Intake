@@ -37,6 +37,7 @@ const NAV = [
   { key: 'library', href: '/app/library', label: 'Library', icon: '▤' },
   { key: 'connections', href: '/app/connections', label: 'Connections', icon: '◇' },
   { key: 'billing', href: '/app/billing', label: 'Billing', icon: '◎' },
+  { key: 'developers', href: '/app/developers', label: 'Developers', icon: '◇' },
 ] as const;
 
 /**
