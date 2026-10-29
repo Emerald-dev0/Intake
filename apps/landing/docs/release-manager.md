@@ -96,6 +96,17 @@ database and never logged.
   `RELEASE_AUTO_PUBLISH_AFTER_DEPLOYMENT=true`, and it still only acts on a release an administrator
   has already approved and whose checklist is complete.
 
+## Previewing
+
+Every release has a preview at `/admin/releases/<id>/preview`. It renders the same component the
+public page renders, from the same payload the public endpoint will return, so you read the release
+exactly as a reader will. The preview lives inside the operator console, which the robots file
+disallows, so a draft is never indexable and never reaches a social preview.
+
+A release can carry a screenshot. The console asks for an absolute https image, it is shown above
+the notes with the release title as its alt text, and it is used for the social card when the
+release page is shared.
+
 ## Sharing
 
 The share panel writes the copy: the title, one sentence of benefit and the permanent changelog
