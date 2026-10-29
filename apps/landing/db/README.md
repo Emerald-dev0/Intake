@@ -26,14 +26,15 @@ From `apps/landing`, with a real `DATABASE_URL` and the other required auth vari
    - `038_release_intake_for_developers.sql` seeds the single release that covers the whole developer platform shipped today: the problem, the solution and how to use it.
    - `039_dev_form_source_operation_key.sql` adds one nullable column to `dev_form`: `source_operation_key`, the AI operation that wrote the form. It makes a retried proposal land on the same form instead of a second copy of it. Forms made by hand, and every form made before this migration, keep a null value and behave exactly as they did. Rollback: `ALTER TABLE dev_form DROP COLUMN source_operation_key;`.
    - `040_release_describe_a_form_in_a_sentence.sql` seeds the changelog entry for writing a hosted form from one sentence.
+   - `041_release_every_release_opens.sql` seeds the changelog entry for the changelog answering at every address a release is served from.
 
-**Deployment order for 039 and 040.** Apply 039 before or with the deployment that introduces the
-AI proposal endpoint, and 040 whenever the changelog entry should exist in the database rather
-than only in the notes bundled with the site. The server does not depend on the order: it checks
-for `dev_form.source_operation_key` at runtime and writes the column only when it is there, so a
+**Deployment order for 039, 040 and 041.** Apply 039 before or with the deployment that introduces the
+AI proposal endpoint, and 040 and 041 whenever the changelog entries should exist in the database
+rather than only in the notes bundled with the site. The server does not depend on the order: it
+checks for `dev_form.source_operation_key` at runtime and writes the column only when it is there, so a
 deployment that runs before 039 forgets the operation key instead of failing, and a deployment that
-runs before 040 still serves the entry from the bundled notes. Apply 039 as soon as possible so a
-retried proposal lands on the same form.
+runs before 040 or 041 still serves those entries from the bundled notes. Apply 039 as soon as possible
+so a retried proposal lands on the same form.
 
 `npm run db:generate` writes a reviewable Better Auth SQL snapshot to `db/auth.sql`. It does not apply it, and it does not include Intake provider tables. Do not point Better Auth at the provider tables.
 
