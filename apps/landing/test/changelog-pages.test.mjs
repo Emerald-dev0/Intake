@@ -205,6 +205,20 @@ test('a release that cannot be fetched is reported as unavailable rather than gu
   assert.doesNotMatch(view.text(), /A live release exists/);
 });
 
+test('a shipped release is still readable when the changelog cannot be reached', async t => {
+  // The live changelog can be unavailable — a cold database, a migration that has not run. A
+  // release that shipped is still in the notes bundled with the site, so the reader is shown it
+  // and told where it came from, rather than being shown an error.
+  const view = await mount({
+    path: '/changelog/the-response-inbox',
+    handler: () => json({ error: 'The changelog is temporarily unavailable.' }, 503),
+  });
+  t.after(view.restore);
+  assert.match(view.text(), /The inbox, and a number you can trust/);
+  assert.match(view.text(), /bundled with the site/);
+  assert.doesNotMatch(view.text(), /could not be loaded/);
+});
+
 test('the copy button only claims success when the clipboard accepted the link', async t => {
   const view = await mount({
     path: '/changelog/a-live-release',

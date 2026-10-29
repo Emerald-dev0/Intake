@@ -124,7 +124,15 @@ export function ReleaseDetailPage() {
     setState({ status: 'loading' });
     loadPublishedRelease(slug, controller.signal).then(result => {
       if (!active) return;
-      if (result === undefined) { setState({ status: 'unavailable' }); return; }
+      if (result === undefined) {
+        // The changelog could not be reached. A release that shipped is still in the notes bundled
+        // with the site, so the reader is shown it and told where it came from — the same thing
+        // the index does when the live releases cannot be loaded.
+        const bundled = bundledReleaseBySlug(slug);
+        if (bundled) { setState({ status: 'ready', release: bundled, live: false }); return; }
+        setState({ status: 'unavailable' });
+        return;
+      }
       if (result === null) {
         const bundled = bundledReleaseBySlug(slug);
         setState(bundled ? { status: 'ready', release: bundled, live: false } : { status: 'missing' });
