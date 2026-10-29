@@ -162,7 +162,11 @@ export class DevService {
     return this.store.listForms(project.id);
   }
 
-  async createForm(userId: string, projectId: string, input: { name?: unknown; slug?: unknown }): Promise<DevFormDetail> {
+  async createForm(
+    userId: string,
+    projectId: string,
+    input: { name?: unknown; slug?: unknown; sourceOperationKey?: string | null },
+  ): Promise<DevFormDetail> {
     const project = await this.store.getProject(userId, projectId);
     if (!project) throw notFound('project');
 
@@ -185,6 +189,7 @@ export class DevService {
       name: name.value,
       slug: slug.value,
       status: 'draft',
+      sourceOperationKey: input.sourceOperationKey ?? null,
       createdAt: timestamp,
       updatedAt: timestamp,
     };

@@ -183,6 +183,20 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return payload as T;
 }
 
+/**
+ * What one answer from the AI composer can be: a question to answer, an honest no, or the form
+ * that was written. `cost` says what was charged, so the console never has to guess.
+ */
+export interface DevProposalResult {
+  status: 'ready' | 'needs_clarification' | 'unsupported';
+  form?: DevFormDetail;
+  reply?: string;
+  description?: string;
+  question?: string;
+  explanation?: string;
+  cost: { credits: number; status: string };
+}
+
 export const devApi = {
   listProjects: () => request<{ projects: DevProject[] }>('/projects').then(result => result.projects),
 
@@ -208,6 +222,18 @@ export const devApi = {
 
   createForm: (projectId: string, input: { name: string; slug?: string }) =>
     request<DevFormDetail>(`/projects/${encodeURIComponent(projectId)}/forms`, { method: 'POST', body: JSON.stringify(input) }),
+
+  /**
+   * Ask the AI to write the questions of a form.
+   *
+   * The server decides what this costs and whether it is charged at all; the browser only sends
+   * the sentence and reads the answer.
+   */
+  proposeForm: (projectId: string, input: { request: string; clarification?: string; operationId?: string }) =>
+    request<DevProposalResult>(`/projects/${encodeURIComponent(projectId)}/forms/propose`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
 
   getForm: (formId: string) => request<DevFormDetail>(`/forms/${encodeURIComponent(formId)}`),
 

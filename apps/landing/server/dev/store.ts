@@ -64,6 +64,9 @@ function mapForm(row: DbRow): DevForm {
     name: String(row.name),
     slug: String(row.slug),
     status: row.status as DevForm['status'],
+    sourceOperationKey: row.source_operation_key === null || row.source_operation_key === undefined
+      ? null
+      : String(row.source_operation_key),
     createdAt: toDate(row.created_at),
     updatedAt: toDate(row.updated_at),
   };
@@ -110,7 +113,38 @@ function mapVersion(row: DbRow): DevFormVersion {
   };
 }
 
+/**
+ * The column that remembers which AI operation wrote a form arrives with migration 039.
+ *
+ * A deployment can be running before that migration has been applied — the migration is run by
+ * an operator against the live database, not by the server on start-up. A developer console that
+ * throws because of a missing column would be worse than one that quietly forgets the operation
+ * key, so the store checks once, remembers the answer for a short while, and writes SQL that
+ * matches the schema it is actually talking to.
+ */
+const SOURCE_COLUMN_CHECK_MS = 60_000;
+
 export function createPostgresDevStore(pool: Queryable): DevStore {
+  // The answer is remembered for a minute so a busy console does not ask the catalogue on every
+  // read, and so a migration applied while the server is running is picked up without a restart.
+  let sourceColumnCheck: { at: number; present: boolean } | null = null;
+
+  const hasSourceOperationKey = async (): Promise<boolean> => {
+    const now = Date.now();
+    if (sourceColumnCheck && now - sourceColumnCheck.at < SOURCE_COLUMN_CHECK_MS) return sourceColumnCheck.present;
+    let present = false;
+    try {
+      const result = await pool.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'dev_form' AND column_name = 'source_operation_key'`,
+      );
+      present = (result.rowCount ?? 0) > 0;
+    } catch {
+      present = false;
+    }
+    sourceColumnCheck = { at: now, present };
+    return present;
+  };
+
   return {
     async listProjects(userId: string) {
       const result = await pool.query(
@@ -178,8 +212,9 @@ export function createPostgresDevStore(pool: Queryable): DevStore {
     },
 
     async listForms(projectId: string) {
+      const source = await hasSourceOperationKey();
       const result = await pool.query(
-        `SELECT id, project_id, name, slug, status, created_at, updated_at
+        `SELECT id, project_id, name, slug, status, ${source ? 'source_operation_key, ' : ''}created_at, updated_at
            FROM dev_form
           WHERE project_id = $1
           ORDER BY updated_at DESC, name ASC`,
@@ -189,8 +224,9 @@ export function createPostgresDevStore(pool: Queryable): DevStore {
     },
 
     async getForm(formId: string) {
+      const source = await hasSourceOperationKey();
       const result = await pool.query(
-        `SELECT id, project_id, name, slug, status, created_at, updated_at FROM dev_form WHERE id = $1`,
+        `SELECT id, project_id, name, slug, status, ${source ? 'source_operation_key, ' : ''}created_at, updated_at FROM dev_form WHERE id = $1`,
         [formId],
       );
       const row = (result.rows as DbRow[])[0];
@@ -198,8 +234,9 @@ export function createPostgresDevStore(pool: Queryable): DevStore {
     },
 
     async getFormBySlug(projectId: string, slug: string) {
+      const source = await hasSourceOperationKey();
       const result = await pool.query(
-        `SELECT id, project_id, name, slug, status, created_at, updated_at
+        `SELECT id, project_id, name, slug, status, ${source ? 'source_operation_key, ' : ''}created_at, updated_at
            FROM dev_form WHERE project_id = $1 AND slug = $2`,
         [projectId, slug],
       );
@@ -208,12 +245,20 @@ export function createPostgresDevStore(pool: Queryable): DevStore {
     },
 
     async createForm(form: DevForm) {
-      const result = await pool.query(
-        `INSERT INTO dev_form (id, project_id, name, slug, status, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING id, project_id, name, slug, status, created_at, updated_at`,
-        [form.id, form.projectId, form.name, form.slug, form.status, form.createdAt, form.updatedAt],
-      );
+      const source = await hasSourceOperationKey();
+      const result = source
+        ? await pool.query(
+          `INSERT INTO dev_form (id, project_id, name, slug, status, source_operation_key, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           RETURNING id, project_id, name, slug, status, source_operation_key, created_at, updated_at`,
+          [form.id, form.projectId, form.name, form.slug, form.status, form.sourceOperationKey ?? null, form.createdAt, form.updatedAt],
+        )
+        : await pool.query(
+          `INSERT INTO dev_form (id, project_id, name, slug, status, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING id, project_id, name, slug, status, created_at, updated_at`,
+          [form.id, form.projectId, form.name, form.slug, form.status, form.createdAt, form.updatedAt],
+        );
       return mapForm((result.rows as DbRow[])[0]);
     },
 

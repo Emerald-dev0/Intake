@@ -24,6 +24,8 @@ From `apps/landing`, with a real `DATABASE_URL` and the other required auth vari
    - `036_release_changelog_card.sql` seeds the changelog entry for the changelog cards and documents, so the page and the changelog agree from the first request.
    - `037_release_the_mail_reads.sql` seeds the changelog entry for the email changes — no social row, a provider notice that names the provider, and a card whose details line up.
    - `038_release_intake_for_developers.sql` seeds the single release that covers the whole developer platform shipped today: the problem, the solution and how to use it.
+   - `039_dev_form_source_operation_key.sql` adds one nullable column to `dev_form`: `source_operation_key`, the AI operation that wrote the form. It makes a retried proposal land on the same form instead of a second copy of it. Forms made by hand, and every form made before this migration, keep a null value and behave exactly as they did. Rollback: `ALTER TABLE dev_form DROP COLUMN source_operation_key;`.
+   - `040_release_describe_a_form_in_a_sentence.sql` seeds the changelog entry for writing a hosted form from one sentence.
 
 `npm run db:generate` writes a reviewable Better Auth SQL snapshot to `db/auth.sql`. It does not apply it, and it does not include Intake provider tables. Do not point Better Auth at the provider tables.
 

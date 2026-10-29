@@ -45,6 +45,21 @@ function fakeFetch({ projects = [PROJECT], forms = [FORM], detail, calls = [] } 
     if (url.endsWith('/api/dev/projects') && (init.method ?? 'GET') === 'GET') return respond({ projects });
     if (url.endsWith('/api/dev/projects') && init.method === 'POST') return respond({ project: { ...PROJECT, name: 'Created' } }, 201);
     if (url.includes('/api/dev/projects/') && url.endsWith('/forms') && init.method === 'POST') return respond({ form: FORM, project: PROJECT, publishedVersion: null, draftVersion: null, versions: [] }, 201);
+    if (url.includes('/api/dev/projects/') && url.endsWith('/forms/propose') && init.method === 'POST') {
+      return respond({
+        status: 'ready',
+        reply: 'Here are the questions your form asks.',
+        description: '',
+        form: {
+          form: { ...FORM, name: 'Beta application', status: 'draft' },
+          project: PROJECT,
+          publishedVersion: null,
+          draftVersion: { id: 'dev_ver_2', formId: FORM.id, version: 1, state: 'draft', definition: DEFINITION, createdAt: FORM.createdAt, publishedAt: null },
+          versions: [],
+        },
+        cost: { credits: 2, status: 'charged' },
+      }, 201);
+    }
     if (url.includes('/api/dev/projects/')) return respond({ project: PROJECT, forms });
     if (url.endsWith('/api/dev/forms/dev_form_1/publish')) return respond(detail ?? { form: FORM, project: PROJECT, publishedVersion: null, draftVersion: null, versions: [] });
     if (url.endsWith('/api/dev/forms/dev_form_1/state')) return respond(detail ?? { form: FORM, project: PROJECT, publishedVersion: null, draftVersion: null, versions: [] });
@@ -259,4 +274,55 @@ test('creating a project goes through the server and refreshes the list', async 
   const created = calls.find(call => call.method === 'POST' && call.url.endsWith('/api/dev/projects'));
   assert.ok(created, 'the project is created through the API');
   assert.equal(JSON.parse(created.body).name, 'New project');
+});
+
+test('a starter template puts its sentence in the box, and nothing is sent until you ask', async t => {
+  const calls = [];
+  const view = await mount(React.createElement(DevelopersWorkspacePage), { fetchImpl: fakeFetch({ calls }) });
+  t.after(view.restore);
+
+  const describe = [...view.container.querySelectorAll('button')].find(button => button.textContent === 'Describe it');
+  await act(async () => { describe.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); });
+
+  const waitlist = [...view.container.querySelectorAll('button')].find(button => button.textContent === 'Waitlist');
+  assert.ok(waitlist, 'there are starter templates');
+  await act(async () => { waitlist.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); });
+
+  const textarea = view.container.querySelector('.dev-compose textarea');
+  assert.match(textarea.value, /waitlist/i, 'the sentence lands in the box');
+  assert.equal(calls.filter(call => call.url.endsWith('/forms/propose')).length, 0, 'nothing was sent');
+
+  const write = [...view.container.querySelectorAll('button')].find(button => button.textContent === 'Write the questions');
+  await act(async () => { write.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); });
+  const proposal = calls.find(call => call.method === 'POST' && call.url.endsWith('/forms/propose'));
+  assert.ok(proposal, 'the sentence is sent when the developer asks for it');
+  assert.match(JSON.parse(proposal.body).request, /waitlist/i);
+});
+
+test('a form can be described in a sentence, and the questions are shown before anything is published', async t => {
+  const calls = [];
+  const view = await mount(React.createElement(DevelopersWorkspacePage), { fetchImpl: fakeFetch({ calls }) });
+  t.after(view.restore);
+
+  const describe = [...view.container.querySelectorAll('button')].find(button => button.textContent === 'Describe it');
+  assert.ok(describe, 'there is a way to describe a form');
+  await act(async () => { describe.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); });
+  assert.match(view.text(), /Describe the form you need/);
+
+  const textarea = view.container.querySelector('.dev-compose textarea');
+  await act(async () => {
+    const setter = Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value').set;
+    setter.call(textarea, 'a sign-up form for our design partners');
+    textarea.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  });
+  const write = [...view.container.querySelectorAll('button')].find(button => button.textContent === 'Write the questions');
+  await act(async () => { write.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); });
+
+  const proposal = calls.find(call => call.method === 'POST' && call.url.endsWith('/forms/propose'));
+  assert.ok(proposal, 'the proposal goes to the server');
+  assert.equal(JSON.parse(proposal.body).request, 'a sign-up form for our design partners');
+  // The questions are shown, with the price, and the form is still a draft.
+  assert.match(view.text(), /Here are the questions your form asks/);
+  assert.match(view.text(), /Team size/);
+  assert.match(view.text(), /2 credits/);
 });

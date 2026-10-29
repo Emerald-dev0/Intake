@@ -20,6 +20,7 @@ import { createDevRouter } from './dev/routes';
 import { createPublicDevRouter } from './dev/public-routes';
 import { createPostgresUserDirectory } from './email/notifications';
 import { createDevInsightModel } from './dev/insights';
+import { createDevFormComposer } from './dev/compose';
 import { createDevNotifier } from './dev/notifications';
 import { DEV_INSIGHTS_COST } from './credits/pricing';
 import { DevService } from './dev/service';
@@ -211,6 +212,9 @@ const devService = new DevService({ store: devStore });
 // The response summary is one more operation on the same credit service: the same buckets, the
 // same idempotency, the same price list. There is no second wallet for developers.
 const devInsightModel = createDevInsightModel({ env: providerEnv });
+// The composer that writes the questions of a hosted form from one sentence. Same model, same
+// credits, same runner as everything else.
+const devFormComposer = createDevFormComposer({ env: providerEnv });
 // Notices about new answers go through the one email service: the same templates, the same
 // suppression list, the same delivery log, and the same idempotency key.
 const devNotifier = createDevNotifier({
@@ -287,6 +291,7 @@ app.use('/api/dev', createDevRouter({
   store: devStore,
   getSession,
   insights: { runner: aiOperations, model: devInsightModel, cost: DEV_INSIGHTS_COST },
+  compose: { runner: aiOperations, model: devFormComposer },
 }));
 
 /**
