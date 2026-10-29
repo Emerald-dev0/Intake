@@ -11,7 +11,7 @@
  * published version, rate-limited, and a retry with the same key does not create a second answer.
  */
 
-import express, { Router, type Request, type Response } from 'express';
+import express, { Router, type NextFunction, type Request, type Response } from 'express';
 import type { RateLimitStore } from '../security/rate-limit';
 import { requestNetworkSubject, setRateLimitHeaders } from '../security/rate-limit';
 import type { DevStore } from './contracts.ts';
@@ -28,15 +28,46 @@ export const SUBMISSION_BODY_LIMIT = '32kb';
 const READ_LIMIT = { limit: 120, windowSeconds: 60 };
 const SUBMIT_LIMIT = { limit: 20, windowSeconds: 60 };
 
+/**
+ * How long a submission may take.
+ *
+ * A form is a handful of questions, not a file upload: ten seconds is generous for a body of a
+ * few kilobytes. Without a limit, a client that stops reading holds the connection open for as
+ * long as the server's own default allows, which is five minutes.
+ */
+export const SUBMISSION_TIMEOUT_MS = 10_000;
+
 export interface PublicDevRouterDeps {
   store: DevStore;
   rateLimiter?: RateLimitStore;
   now?: () => Date;
   /** Tells the owner that there are new answers, if they asked to be told. Never throws. */
   notify?: (input: { projectId: string; userId: string; projectName: string; formName: string }) => Promise<boolean>;
+  /** How long a submission may take, in milliseconds. Defaults to ten seconds. */
+  submissionTimeoutMs?: number;
 }
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/**
+ * Cuts a submission off if it takes too long.
+ *
+ * The deadline is set before the body is read, so a client that sends a header and then stops
+ * does not hold the connection open. The answer says what happened rather than leaving the
+ * caller waiting for a socket to close.
+ */
+function submissionDeadline(timeoutMs: number) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    req.setTimeout(timeoutMs, () => {
+      if (res.headersSent) {
+        res.end();
+        return;
+      }
+      res.status(408).json({ error: 'timeout', message: 'That took too long. Try again.' });
+    });
+    next();
+  };
+}
 
 export function createPublicDevRouter(deps: PublicDevRouterDeps): Router {
   const router = Router();
@@ -100,7 +131,7 @@ export function createPublicDevRouter(deps: PublicDevRouterDeps): Router {
     }
   });
 
-  router.post('/forms/:projectSlug/:formSlug/submissions', express.json({ limit: SUBMISSION_BODY_LIMIT, strict: true }), async (req, res) => {
+  router.post('/forms/:projectSlug/:formSlug/submissions', submissionDeadline(deps.submissionTimeoutMs ?? SUBMISSION_TIMEOUT_MS), express.json({ limit: SUBMISSION_BODY_LIMIT, strict: true }), async (req, res) => {
     if (!await allow(req, res, 'dev.public.submit', SUBMIT_LIMIT)) return;
     try {
       const found = await findPublished(String(req.params.projectSlug ?? ''), String(req.params.formSlug ?? ''));

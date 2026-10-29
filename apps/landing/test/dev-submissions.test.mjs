@@ -1,6 +1,7 @@
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
+import net from 'node:net';
 import { createPublicDevRouter } from '../server/dev/public-routes.ts';
 import { DevService } from '../server/dev/service.ts';
 import { createMemoryDevStore } from '../server/dev/memory-store.ts';
@@ -201,6 +202,64 @@ test('a submission with more answers than the form has questions is refused', as
   const response = await call('/forms/checkout-app/waitlist/submissions', { method: 'POST', body: { answers } });
   assert.equal(response.status, 400);
   assert.ok(response.body.fieldErrors.some(error => error.field === 'answers'));
+});
+
+test('a caller that sends too much is refused, and nothing is stored', async () => {
+  // The abuse limiter stands in front of the endpoint: the answer is refused before the form is
+  // even looked up, so a flood costs nothing.
+  const app = express();
+  app.use('/api/dev/public', createPublicDevRouter({
+    store,
+    now: () => new Date('2026-10-29T00:00:00.000Z'),
+    rateLimiter: { consume: async () => ({ allowed: false, retryAfterSeconds: 42 }) },
+  }));
+  const local = await new Promise(resolve => { const listener = app.listen(0, '127.0.0.1', () => resolve(listener)); });
+  const response = await fetch(`http://127.0.0.1:${local.address().port}/api/dev/public/forms/checkout-app/waitlist/submissions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ answers: { email: 'a@b.co' } }),
+  });
+  const body = await response.json();
+  await new Promise(resolve => local.close(resolve));
+
+  assert.equal(response.status, 429);
+  assert.equal(body.error, 'rate_limited');
+  assert.equal(response.headers.get('retry-after'), '42');
+});
+
+test('a submission that stalls is cut off, and told why', async () => {
+  // A client that sends the headers and then stops must not hold the connection open. The
+  // deadline is set before the body is read, so the answer comes back on its own.
+  const app = express();
+  app.use('/api/dev/public', createPublicDevRouter({
+    store,
+    now: () => new Date('2026-10-29T00:00:00.000Z'),
+    submissionTimeoutMs: 250,
+  }));
+  const local = await new Promise(resolve => { const listener = app.listen(0, '127.0.0.1', () => resolve(listener)); });
+  const port = local.address().port;
+
+  const body = JSON.stringify({ answers: { email: 'a@b.co' } });
+  const response = await new Promise(resolve => {
+    const socket = net.connect(port, '127.0.0.1', () => {
+      socket.write(
+        `POST /api/dev/public/forms/checkout-app/waitlist/submissions HTTP/1.1\r\n` +
+        `Host: 127.0.0.1\r\n` +
+        `Content-Type: application/json\r\n` +
+        `Content-Length: ${body.length + 50}\r\n\r\n` +
+        body,
+      );
+      // …and then nothing more.
+    });
+    let text = '';
+    socket.on('data', chunk => { text += chunk.toString(); });
+    socket.setTimeout(4000, () => { socket.destroy(); resolve({ text, timedOut: true }); });
+    socket.on('close', () => resolve({ text, timedOut: false }));
+  });
+  await new Promise(resolve => local.close(resolve));
+
+  assert.match(response.text, /408/, 'the request is cut off');
+  assert.match(response.text, /timeout/, 'and it says what happened');
 });
 
 test('a submission to a draft form is a 404', async () => {
