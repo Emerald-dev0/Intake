@@ -215,6 +215,14 @@ export async function checkDatabase(env: NodeJS.ProcessEnv = process.env): Promi
       ? { name: 'composed mail', status: 'pass', detail: 'admin_mail_send exists, so /admin/mail can send and keep a record.' }
       : { name: 'composed mail', status: 'warn', detail: 'admin_mail_send is missing (020_admin_mail.sql). /admin/mail will refuse to send until it is applied; nothing else is affected.' });
 
+    // The Release Manager is optional in the same way composed mail is: without its tables the
+    // console cannot prepare a release, and the public changelog falls back to the notes bundled
+    // with the site. Nothing else in the product is affected.
+    const releaseTable = await pool.query<{ present: string | null }>(`SELECT to_regclass('public.release')::text AS present`);
+    checks.push(releaseTable.rows[0]?.present
+      ? { name: 'release manager', status: 'pass', detail: 'release exists, so the Release Manager and the published changelog can store their records.' }
+      : { name: 'release manager', status: 'warn', detail: 'release is missing (022_release_manager.sql). /admin/releases cannot save anything and the public changelog will show only the bundled notes until it is applied.' });
+
     if (!missing.includes('waitlist')) {
       const columns = await pool.query<{ column_name: string }>(
         `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'waitlist'`,
