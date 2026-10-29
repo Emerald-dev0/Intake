@@ -50,7 +50,6 @@ const dryRunLabel = sending ? 'SEND' : 'DRY RUN';
 console.log(`\n  Intake launch mail · ${campaign} · ${dryRunLabel}`);
 console.log(`  from:     ${campaign === 'launch_note' ? config.welcomeFromName : config.announcementFromName} <${campaign === 'launch_note' ? config.welcomeFromEmail : config.announcementFromEmail}>`);
 console.log(`  reply-to: ${config.welcomeReplyTo ?? config.replyTo ?? '(none)'}`);
-console.log(`  x row:    ${config.xUrl ?? '(not configured — the social row is omitted)'}`);
 console.log(`  waiting:  ${total} recipient${total === 1 ? '' : 's'}\n`);
 
 if (total === 0) {

@@ -134,7 +134,7 @@ export function createEmailService(options: EmailServiceOptions): EmailService {
     let rendered;
     try {
       rendered = renderEmail(request.type, variables, {
-        visuals: { assetBaseUrl: config.assetBaseUrl, xUrl: config.xUrl, xHandle: config.xHandle },
+        visuals: { assetBaseUrl: config.assetBaseUrl },
         unsubscribeUrl: typeof variables.unsubscribeUrl === 'string' ? variables.unsubscribeUrl : undefined,
       });
     } catch {

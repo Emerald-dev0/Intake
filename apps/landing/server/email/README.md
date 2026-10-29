@@ -243,7 +243,6 @@ CALDER_FROM_EMAIL=hello@intake.example   # required unless CALDER_SENDER_ID is s
 CALDER_ANNOUNCEMENT_FROM_EMAIL=          # launch mail only; falls back to CALDER_FROM_EMAIL
 CALDER_ANNOUNCEMENT_FROM_NAME=The Intake Team
 INTAKE_ASSET_BASE_URL=                  # origin serving /brand/intake-mark.png
-INTAKE_X_URL=https://x.com/intake       # footer social row; unset = no row
 CALDER_FROM_NAME=Intake
 CALDER_SENDER_ID=              # optional sender_… identity; wins over FROM_EMAIL
 CALDER_REPLY_TO=               # optional
@@ -276,8 +275,12 @@ card with an accent rule, a footer. The rules it exists to enforce:
 - **The wordmark stays text**, so it survives a client that blocks images.
 - **Dark mode is declared `light only`.** The card is cream by design; a client that inverts it produces
   dark text on dark paper.
-- **The X row is in every footer** and is omitted entirely when `INTAKE_X_URL` is unset — a social row
-  pointing nowhere is worse than no social row.
+- **No social row.** The footer carries the mark's origin and nothing else. An account link is
+  something to earn, not to guess at.
+- **The mark lines up with the card.** The header is padded to the same column the card's text starts
+  in, so the logo is not hanging to the left of everything else.
+- **The details table has two columns.** The label column has a width of its own, so every value
+  starts in the same place.
 
 Two footers, never mixed: `transactional` carries the support address and the account disclaimer;
 `list` says why the recipient is on the list and offers an unsubscribe. Account boilerplate in a

@@ -47,7 +47,6 @@ line('personal sender', config.welcomeFromEmail, 'info');
 line('announcement sender', config.announcementFromEmail || '(falls back to system sender)', 'info');
 line('reply-to', config.welcomeReplyTo ?? config.replyTo ?? '(none)', 'info');
 line('webhook secret', config.webhookSecret ? 'set' : 'missing — delivery failures are invisible without it', config.webhookSecret ? 'pass' : 'warn');
-line('X row', config.xUrl ?? '(unset — no social row)', config.xUrl ? 'pass' : 'warn');
 line('logo origin', `${config.assetBaseUrl}/brand/intake-mark.png`, 'info');
 
 // The mark is fetched by the recipient's client, not by us, so a broken URL fails silently in every

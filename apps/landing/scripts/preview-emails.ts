@@ -18,16 +18,12 @@ import type { EmailType } from '../server/email/types';
 const OUT = join(import.meta.dirname, '..', 'docs', 'email-preview');
 
 /**
- * The handle is not guessed in production either — `INTAKE_X_URL` decides. This is the preview.
- *
  * `assetBaseUrl` is `./` only here: the preview frames are served from the same directory as the
  * copied logo, so the mark renders without reaching the public internet. Real mail always gets an
  * absolute origin, because a mail client has no page to resolve a relative path against.
  */
 const VISUALS = {
   assetBaseUrl: '.',
-  xUrl: 'https://x.com/intake',
-  xHandle: '@intake',
 };
 
 const SITE = 'https://intake.calder.click';
@@ -57,7 +53,7 @@ const PREVIEWS: Preview[] = [
     from: { name: 'Daniel from Intake', email: 'daniel@intake.calder.click' },
     replyTo: 'daniel@intake.calder.click',
     variables: { marketingUrl: SITE },
-    note: 'Email 2 — the personal note. Replies land with Daniel; the X row is the invitation to follow along.',
+    note: 'Email 2 — the personal note. Replies land with Daniel, and the changelog keeps the record.',
   },
   {
     file: '03-waitlist-welcome',
@@ -65,10 +61,24 @@ const PREVIEWS: Preview[] = [
     from: { name: 'Daniel from Intake', email: 'daniel@intake.calder.click' },
     replyTo: 'daniel@intake.calder.click',
     variables: {},
-    note: 'The existing signup letter, now wearing the same clothes: mark, card, X row, unsubscribe.',
+    note: 'The existing signup letter, now wearing the same clothes: mark, card, unsubscribe.',
   },
   {
-    file: '04-welcome-signed-up',
+    file: '04-provider-disconnected',
+    type: 'provider_connection_removed',
+    from: { name: 'Intake', email: 'noreply@intake.calder.click' },
+    replyTo: 'noreply@intake.calder.click',
+    variables: {
+      providerName: 'Typeform',
+      accountLabel: 'oluwadare458@gmail.com',
+      timestamp: '29 Oct 2026, 12:55 UTC',
+      connectionsUrl: `${SITE}/app/connections`,
+      userName: 'Daniel Oluwadare',
+    },
+    note: 'The security notice a provider connection sends when it ends.',
+  },
+  {
+    file: '05-welcome-signed-up',
     type: 'welcome',
     from: { name: 'Daniel from Intake', email: 'daniel@intake.calder.click' },
     replyTo: 'daniel@intake.calder.click',
