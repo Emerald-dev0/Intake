@@ -52,6 +52,35 @@ test('all public and protected paths have explicit ownership', () => {
   assert.equal(matchRoutes(routes, '/admin/users/owner-id')[0].route.path, '/admin');
 });
 
+test('the changelog answers at every address a release is served from', () => {
+  // Each release is written out as a document of its own, so a crawler and a link preview can
+  // read it without running the site. A host may serve that document from the address it is
+  // stored at, which ends in `index.html`. A reader who arrives there must get the release, not
+  // the site's not-found page — this is the address the release was actually being read at.
+  const release = matchRoutes(routes, '/changelog/describe-a-form-in-a-sentence/index.html');
+  assert.ok(release, 'the document address is routed');
+  assert.equal(release.at(-1).route.path, '/changelog/:slug/index.html');
+  assert.equal(release.at(-1).params.slug, 'describe-a-form-in-a-sentence', 'the slug is read from the address');
+
+  // The permanent address still belongs to the release, and is still preferred over the
+  // document address.
+  const permanent = matchRoutes(routes, '/changelog/describe-a-form-in-a-sentence');
+  assert.equal(permanent.at(-1).route.path, '/changelog/:slug');
+  assert.equal(permanent.at(-1).params.slug, 'describe-a-form-in-a-sentence');
+
+  // The changelog index has a document of its own too, and it is not a release called
+  // "index.html".
+  const index = matchRoutes(routes, '/changelog/index.html');
+  assert.equal(index.at(-1).route.path, '/changelog/index.html');
+  assert.equal(index.at(-1).params.slug, undefined, 'the index is not mistaken for a release');
+
+  // The index is still the index at its own address.
+  assert.equal(matchRoutes(routes, '/changelog').at(-1).route.path, '/changelog');
+
+  // A path that is not a release document is still a not-found page.
+  assert.equal(matchRoutes(routes, '/changelog/a-release/extra/index.html').at(-1).route.path, '*');
+});
+
 test('API helper keeps requests same-origin, uncached and surfaces authentication failures', async () => {
   const original = globalThis.fetch;
   try {
