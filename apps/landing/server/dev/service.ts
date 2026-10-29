@@ -289,6 +289,58 @@ export class DevService {
     return this.getFormDetail(userId, formId);
   }
 
+  // ── the notification preference ─────────────────────────────────────────────
+
+  /**
+   * How this person wants to be told about new answers.
+   *
+   * Off unless they say otherwise. The check is the account's own, so one person cannot read or
+   * change another's preference.
+   */
+  async getNotificationPreference(userId: string, projectId: string) {
+    const project = await this.store.getProject(userId, projectId);
+    if (!project) throw notFound('project');
+    const preference = await this.store.getNotificationPreference(userId, projectId);
+    if (!preference) {
+      return { mode: 'off' as const, threshold: 10, pending: 0, lastSentAt: null };
+    }
+    return { mode: preference.mode, threshold: preference.threshold, pending: preference.pending, lastSentAt: preference.lastSentAt };
+  }
+
+  async setNotificationPreference(userId: string, projectId: string, input: { mode?: unknown; threshold?: unknown }) {
+    const project = await this.store.getProject(userId, projectId);
+    if (!project) throw notFound('project');
+
+    const mode = input.mode === 'threshold' || input.mode === 'digest' || input.mode === 'off' ? input.mode : null;
+    if (!mode) throw new DevError(400, 'invalid_preference', 'Choose off, every N answers, or a daily digest.');
+
+    let threshold = 10;
+    if (input.threshold !== undefined && input.threshold !== null && input.threshold !== '') {
+      const value = Number(input.threshold);
+      if (!Number.isSafeInteger(value) || value < 1 || value > 1000) {
+        throw new DevError(400, 'invalid_preference', 'The threshold has to be a whole number between 1 and 1000.', [
+          { path: 'threshold', message: 'Between 1 and 1000.' },
+        ]);
+      }
+      threshold = value;
+    }
+
+    const existing = await this.store.getNotificationPreference(userId, projectId);
+    const timestamp = this.now();
+    const saved = await this.store.saveNotificationPreference({
+      id: existing?.id ?? this.id(),
+      userId,
+      projectId,
+      mode,
+      threshold,
+      pending: existing?.pending ?? 0,
+      lastSentAt: existing?.lastSentAt ?? null,
+      createdAt: existing?.createdAt ?? timestamp,
+      updatedAt: timestamp,
+    });
+    return { mode: saved.mode, threshold: saved.threshold, pending: saved.pending, lastSentAt: saved.lastSentAt };
+  }
+
   // ── the answers ─────────────────────────────────────────────────────────────
 
   /**

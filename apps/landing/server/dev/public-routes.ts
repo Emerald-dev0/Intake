@@ -32,6 +32,8 @@ export interface PublicDevRouterDeps {
   store: DevStore;
   rateLimiter?: RateLimitStore;
   now?: () => Date;
+  /** Tells the owner that there are new answers, if they asked to be told. Never throws. */
+  notify?: (input: { projectId: string; userId: string; projectName: string; formName: string }) => Promise<boolean>;
 }
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -140,6 +142,15 @@ export function createPublicDevRouter(deps: PublicDevRouterDeps): Router {
       });
       await count(found.project.id, { accepted: 1, bytes: JSON.stringify(validation.answers).length });
       res.status(201).json({ submission: { id: submission.id, receivedAt: submission.submittedAt.toISOString() }, duplicate: false });
+      // The notice goes out after the answer has been accepted, and never slows the answer down.
+      if (deps.notify) {
+        void deps.notify({
+          projectId: found.project.id,
+          userId: found.project.userId,
+          projectName: found.project.name,
+          formName: found.form.name,
+        }).catch(() => undefined);
+      }
     } catch {
       res.status(503).json({ error: 'forms_unavailable', message: 'The form is temporarily unavailable. Try again shortly.' });
     }

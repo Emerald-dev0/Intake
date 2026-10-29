@@ -7,13 +7,13 @@
  */
 
 import type {
-  DevForm, DevFormVersion, DevProject, DevStore, DevSubmission, DevSubmissionPage, DevSubmissionQuery,
-  DevUsageDay, DevUsageDelta,
+  DevForm, DevFormVersion, DevNotifyPreference, DevProject, DevStore, DevSubmission, DevSubmissionPage,
+  DevSubmissionQuery, DevUsageDay, DevUsageDelta,
 } from './contracts.js';
 
 export interface MemoryDevStore extends DevStore {
   /** Test helper: every row the store holds. */
-  dump(): { projects: DevProject[]; forms: DevForm[]; versions: DevFormVersion[]; submissions: DevSubmission[]; usage: DevUsageDay[] };
+  dump(): { projects: DevProject[]; forms: DevForm[]; versions: DevFormVersion[]; submissions: DevSubmission[]; usage: DevUsageDay[]; preferences: DevNotifyPreference[] };
 }
 
 export function createMemoryDevStore(): MemoryDevStore {
@@ -22,6 +22,7 @@ export function createMemoryDevStore(): MemoryDevStore {
   const versions: DevFormVersion[] = [];
   const submissions: DevSubmission[] = [];
   const usage: DevUsageDay[] = [];
+  const preferences: DevNotifyPreference[] = [];
 
   // A structured clone keeps the dates as dates. A JSON round trip would turn them into strings
   // and quietly break anything that calls toISOString().
@@ -121,6 +122,28 @@ export function createMemoryDevStore(): MemoryDevStore {
       return copy(submission);
     },
 
+    async getNotificationPreference(userId: string, projectId: string) {
+      const preference = preferences.find(entry => entry.userId === userId && entry.projectId === projectId);
+      return preference ? copy(preference) : null;
+    },
+
+    async saveNotificationPreference(preference: DevNotifyPreference) {
+      const existing = preferences.find(entry => entry.userId === preference.userId && entry.projectId === preference.projectId);
+      if (existing) {
+        Object.assign(existing, copy(preference));
+        return copy(existing);
+      }
+      preferences.push(copy(preference));
+      return copy(preference);
+    },
+
+    async addPendingAnswers(projectId: string, count: number) {
+      const preference = preferences.find(entry => entry.projectId === projectId && entry.mode !== 'off');
+      if (!preference) return null;
+      preference.pending += count;
+      return copy(preference);
+    },
+
     async recordUsage(delta: DevUsageDelta) {
       const day = delta.day.toISOString().slice(0, 10);
       const row = usage.find(entry => entry.projectId === delta.projectId && entry.day === day);
@@ -187,7 +210,7 @@ export function createMemoryDevStore(): MemoryDevStore {
     },
 
     dump() {
-      return { projects: copy(projects), forms: copy(forms), versions: copy(versions), submissions: copy(submissions), usage: copy(usage) };
+      return { projects: copy(projects), forms: copy(forms), versions: copy(versions), submissions: copy(submissions), usage: copy(usage), preferences: copy(preferences) };
     },
   };
 }

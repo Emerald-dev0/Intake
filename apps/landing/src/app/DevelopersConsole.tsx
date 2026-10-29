@@ -83,6 +83,92 @@ function ErrorNote({ message, onRetry }: { message: string; onRetry?: () => void
 }
 
 /**
+ * Whether to be told about new answers.
+ *
+ * Off until somebody says otherwise. There is no per-submission email: the choice is every N
+ * answers or a daily digest, and both are one notice rather than one per answer.
+ */
+function NotificationPreference({ projectId }: { projectId: string }) {
+  const preference = useAsync(() => devApi.getNotificationPreference(projectId), [projectId]);
+  const [mode, setMode] = useState<'off' | 'threshold' | 'digest'>('off');
+  const [threshold, setThreshold] = useState(10);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (preference.state.status !== 'ready') return;
+    setMode(preference.state.value.mode);
+    setThreshold(preference.state.value.threshold);
+  }, [preference.state]);
+
+  async function save(next: { mode: 'off' | 'threshold' | 'digest'; threshold?: number }) {
+    setSaving(true);
+    setError('');
+    try {
+      const result = await devApi.setNotificationPreference(projectId, next);
+      setMode(result.mode);
+      setThreshold(result.threshold);
+      setSaved(true);
+      preference.reload();
+    } catch (caught) {
+      setError(caught instanceof DevApiError ? caught.message : 'That could not be saved.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (preference.state.status === 'loading') return <p className="dev-note">Loading the notification setting…</p>;
+  if (preference.state.status === 'failed') return <ErrorNote message={preference.state.message} onRetry={preference.reload} />;
+
+  return (
+    <div className="dev-notify">
+      <label className="dev-check">
+        <input
+          type="checkbox"
+          checked={mode !== 'off'}
+          disabled={saving}
+          onChange={event => void save({ mode: event.target.checked ? 'threshold' : 'off', threshold })}
+        />
+        <span>Email me when this project has new answers</span>
+      </label>
+      {mode !== 'off' && (
+        <div className="dev-notify__detail">
+          <label className="dev-field">
+            <span>How often</span>
+            <select
+              className="dev-select"
+              value={mode}
+              disabled={saving}
+              onChange={event => void save({ mode: event.target.value as 'threshold' | 'digest', threshold })}
+            >
+              <option value="threshold">Every N answers</option>
+              <option value="digest">A daily digest</option>
+            </select>
+          </label>
+          {mode === 'threshold' && (
+            <label className="dev-field">
+              <span>Every</span>
+              <input
+                type="number"
+                min={1}
+                max={1000}
+                value={threshold}
+                disabled={saving}
+                onChange={event => setThreshold(Number(event.target.value))}
+                onBlur={event => void save({ mode: 'threshold', threshold: Number(event.target.value) })}
+              />
+            </label>
+          )}
+        </div>
+      )}
+      {saved && <span className="dev-saved">Saved.</span>}
+      {error && <span className="dev-field-error">{error}</span>}
+    </div>
+  );
+}
+
+/**
  * The usage of the last thirty days.
  *
  * The numbers are ours, counted from the rows: answers accepted, requests refused, and the bytes
@@ -259,6 +345,8 @@ export function DevelopersWorkspacePage() {
               ))}
             </ul>
           )}
+
+          <NotificationPreference projectId={project.id} />
 
           {newFormFor === project.id ? (
             <form className="dev-inline-form" onSubmit={event => createForm(event, project.id)}>

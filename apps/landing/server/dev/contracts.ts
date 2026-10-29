@@ -153,6 +153,21 @@ export interface DevUsageDelta {
   day: Date;
 }
 
+/** How a person wants to be told about new answers. */
+export type DevNotifyMode = 'off' | 'threshold' | 'digest';
+
+export interface DevNotifyPreference {
+  id: string;
+  userId: string;
+  projectId: string;
+  mode: DevNotifyMode;
+  threshold: number;
+  pending: number;
+  lastSentAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface DevStore {
   listProjects(userId: string): Promise<DevProject[]>;
   getProject(userId: string, projectId: string): Promise<DevProject | null>;
@@ -176,6 +191,11 @@ export interface DevStore {
 
   createSubmission(submission: DevSubmission): Promise<DevSubmission>;
   getSubmissionByIdempotencyKey(formId: string, key: string): Promise<DevSubmission | null>;
+
+  getNotificationPreference(userId: string, projectId: string): Promise<DevNotifyPreference | null>;
+  saveNotificationPreference(preference: DevNotifyPreference): Promise<DevNotifyPreference>;
+  /** Adds to the number of answers waiting to be reported. */
+  addPendingAnswers(projectId: string, count: number): Promise<DevNotifyPreference | null>;
 
   /** Adds to a project's daily counters. */
   recordUsage(delta: DevUsageDelta): Promise<void>;

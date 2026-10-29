@@ -121,6 +121,14 @@ export interface DevUsage {
   totals: { accepted: number; rejected: number; bytes: number };
 }
 
+/** How the owner of a project wants to be told about new answers. */
+export interface DevNotifyPreference {
+  mode: 'off' | 'threshold' | 'digest';
+  threshold: number;
+  pending: number;
+  lastSentAt: string | null;
+}
+
 export interface DevProjectDetail {
   project: DevProject;
   forms: DevForm[];
@@ -184,6 +192,15 @@ export const devApi = {
     request<{ project: DevProject }>('/projects', { method: 'POST', body: JSON.stringify(input) }).then(result => result.project),
 
   getProject: (projectId: string) => request<DevProjectDetail>(`/projects/${encodeURIComponent(projectId)}`),
+
+  getNotificationPreference: (projectId: string) =>
+    request<DevNotifyPreference>(`/projects/${encodeURIComponent(projectId)}/notifications`),
+
+  setNotificationPreference: (projectId: string, input: { mode: DevNotifyPreference['mode']; threshold?: number }) =>
+    request<DevNotifyPreference>(`/projects/${encodeURIComponent(projectId)}/notifications`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
 
   updateProject: (projectId: string, input: { name?: string; description?: string }) =>
     request<{ project: DevProject }>(`/projects/${encodeURIComponent(projectId)}`, { method: 'PATCH', body: JSON.stringify(input) })

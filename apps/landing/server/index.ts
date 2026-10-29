@@ -18,7 +18,9 @@ import { createInterpretationLimiter } from './forms/interpretation/routes';
 import { createFormsRouter } from './forms/routes';
 import { createDevRouter } from './dev/routes';
 import { createPublicDevRouter } from './dev/public-routes';
+import { createPostgresUserDirectory } from './email/notifications';
 import { createDevInsightModel } from './dev/insights';
+import { createDevNotifier } from './dev/notifications';
 import { DEV_INSIGHTS_COST } from './credits/pricing';
 import { DevService } from './dev/service';
 import { createPostgresDevStore } from './dev/store';
@@ -208,9 +210,21 @@ const devService = new DevService({ store: devStore });
 // The response summary is one more operation on the same credit service: the same buckets, the
 // same idempotency, the same price list. There is no second wallet for developers.
 const devInsightModel = createDevInsightModel({ env: providerEnv });
+// Notices about new answers go through the one email service: the same templates, the same
+// suppression list, the same delivery log, and the same idempotency key.
+const devNotifier = createDevNotifier({
+  store: devStore,
+  emails: emailRuntime.emails,
+  user: async userId => {
+    const found = await createPostgresUserDirectory(pool).getById(userId);
+    return found ? { id: found.id, email: found.email, name: found.name } : null;
+  },
+  publicOrigin: serverConfig.publicOrigin,
+  log: (label, detail) => logSafe(label, undefined, detail ? JSON.stringify(detail) : ''),
+});
 // The public side of a hosted form comes first: it is mounted before the workspace router, whose
 // session check would otherwise answer 401 to a form somebody published on purpose.
-app.use('/api/dev/public', createPublicDevRouter({ store: devStore, rateLimiter: abuseLimiter }));
+app.use('/api/dev/public', createPublicDevRouter({ store: devStore, rateLimiter: abuseLimiter, notify: input => devNotifier.answersReceived(input) }));
 // The public changelog. Published releases only: a draft is answered with 404, not 403.
 app.use(createPublicReleaseRouter({ store: releaseStore, rateLimiter: abuseLimiter }));
 /**

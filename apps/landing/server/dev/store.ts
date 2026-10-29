@@ -8,8 +8,8 @@
 
 import type { Pool } from 'pg';
 import type {
-  DevForm, DevFormDefinition, DevFormVersion, DevProject, DevStore, DevSubmission, DevSubmissionPage,
-  DevSubmissionQuery, DevUsageDay, DevUsageDelta,
+  DevForm, DevFormDefinition, DevFormVersion, DevNotifyPreference, DevProject, DevStore, DevSubmission,
+  DevSubmissionPage, DevSubmissionQuery, DevUsageDay, DevUsageDelta,
 } from './contracts.js';
 
 type Queryable = Pick<Pool, 'query'>;
@@ -64,6 +64,20 @@ function mapForm(row: DbRow): DevForm {
     name: String(row.name),
     slug: String(row.slug),
     status: row.status as DevForm['status'],
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+function mapPreference(row: DbRow): DevNotifyPreference {
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    projectId: String(row.project_id),
+    mode: (row.mode === 'threshold' || row.mode === 'digest' ? row.mode : 'off'),
+    threshold: Number(row.threshold),
+    pending: Number(row.pending),
+    lastSentAt: toNullableDate(row.last_sent_at),
     createdAt: toDate(row.created_at),
     updatedAt: toDate(row.updated_at),
   };
@@ -298,6 +312,48 @@ export function createPostgresDevStore(pool: Queryable): DevStore {
         ],
       );
       return mapSubmission((result.rows as DbRow[])[0]);
+    },
+
+    async getNotificationPreference(userId: string, projectId: string) {
+      const result = await pool.query(
+        `SELECT id, user_id, project_id, mode, threshold, pending, last_sent_at, created_at, updated_at
+           FROM dev_notification_preference
+          WHERE user_id = $1 AND project_id = $2`,
+        [userId, projectId],
+      );
+      const row = (result.rows as DbRow[])[0];
+      return row ? mapPreference(row) : null;
+    },
+
+    async saveNotificationPreference(preference: DevNotifyPreference) {
+      const result = await pool.query(
+        `INSERT INTO dev_notification_preference (id, user_id, project_id, mode, threshold, pending, last_sent_at, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (user_id, project_id) DO UPDATE
+           SET mode = EXCLUDED.mode,
+               threshold = EXCLUDED.threshold,
+               pending = EXCLUDED.pending,
+               last_sent_at = EXCLUDED.last_sent_at,
+               updated_at = EXCLUDED.updated_at
+        RETURNING id, user_id, project_id, mode, threshold, pending, last_sent_at, created_at, updated_at`,
+        [
+          preference.id, preference.userId, preference.projectId, preference.mode, preference.threshold,
+          preference.pending, preference.lastSentAt, preference.createdAt, preference.updatedAt,
+        ],
+      );
+      return mapPreference((result.rows as DbRow[])[0]);
+    },
+
+    async addPendingAnswers(projectId: string, count: number) {
+      const result = await pool.query(
+        `UPDATE dev_notification_preference
+            SET pending = pending + $2, updated_at = now()
+          WHERE project_id = $1
+        RETURNING id, user_id, project_id, mode, threshold, pending, last_sent_at, created_at, updated_at`,
+        [projectId, count],
+      );
+      const row = (result.rows as DbRow[])[0];
+      return row ? mapPreference(row) : null;
     },
 
     async recordUsage(delta: DevUsageDelta) {

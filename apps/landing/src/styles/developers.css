@@ -285,3 +285,7 @@
   color: var(--cream-2);
 }
 .dev-usage strong { font-size: 17px; font-weight: 550; color: var(--cream); }
+
+.dev-notify { margin-top: 16px; display: grid; gap: 10px; }
+.dev-notify__detail { display: flex; flex-wrap: wrap; gap: 12px; }
+.dev-notify__detail .dev-field { min-width: 160px; }

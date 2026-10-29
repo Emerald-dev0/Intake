@@ -31,6 +31,7 @@ const VARIABLES = {
   provider_connection_added: { providerName: 'Google Forms', accountLabel: 'ada@example.com', connectionsUrl: APP.connectionsUrl, timestamp: APP.timestamp },
   provider_connection_removed: { providerName: 'Microsoft Forms', accountLabel: 'ada@work.test', connectionsUrl: APP.connectionsUrl, timestamp: APP.timestamp },
   credits_low: { detail: '42 credits left', resetAt: '1 November 2026', dashboardUrl: APP.dashboardUrl },
+  dev_answers_received: { projectName: 'Checkout app', formName: 'Waitlist', answerCount: '3', sinceLast: '28 October 2026', dashboardUrl: 'https://intake.example/app/developers' },
   billing_subscription_started: { planLabel: 'Pro', interval: 'monthly', amount: '$7.99', subscriptionCredits: '1,000', dailyCredits: '10', periodStart: '1 Oct 2026', periodEnd: '1 Nov 2026', dashboardUrl: 'https://intake.example/app' },
   billing_subscription_renewed: { amount: '$7.99', periodStart: '1 Nov 2026', periodEnd: '1 Dec 2026', subscriptionCredits: '1,000', dashboardUrl: 'https://intake.example/app' },
   billing_subscription_canceled: { canceledAt: '5 October 2026', dashboardUrl: 'https://intake.example/app' },

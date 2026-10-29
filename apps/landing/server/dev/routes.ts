@@ -151,6 +151,27 @@ export function createDevRouter(deps: DevRouterDeps): Router {
     }
   });
 
+  router.get('/projects/:projectId/notifications', async (req, res) => {
+    try {
+      const preference = await deps.service.getNotificationPreference(userId(res), req.params.projectId);
+      res.json(preference);
+    } catch (error) {
+      handle(error, res);
+    }
+  });
+
+  router.put('/projects/:projectId/notifications', express.json({ limit: '4kb', strict: true }), async (req, res) => {
+    try {
+      const preference = await deps.service.setNotificationPreference(userId(res), req.params.projectId, {
+        mode: req.body?.mode,
+        threshold: req.body?.threshold,
+      });
+      res.json(preference);
+    } catch (error) {
+      handle(error, res);
+    }
+  });
+
   router.get('/projects/:projectId', async (req, res) => {
     try {
       const detail = await deps.service.getProjectDetail(userId(res), req.params.projectId);
