@@ -36,24 +36,18 @@ export const SANS = "'Geist Variable', -apple-system, BlinkMacSystemFont, 'Segoe
 export const MONO = "'Geist Mono Variable', ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
 
 /**
- * Where the mark is fetched from, and where the social row points.
+ * Where the mark is fetched from.
  *
- * Both are overridable per deployment (see `server/email/config.ts`): the logo must live on a public
- * origin the recipient's client can reach, and the X handle is not something to guess.
+ * Overridable per deployment (see `server/email/config.ts`): the logo must live on a public origin
+ * the recipient's client can reach.
  */
 export interface VisualOptions {
   /** Origin that serves `/brand/intake-mark.png`. No trailing slash. */
   assetBaseUrl: string;
-  /** Absolute URL of the Intake account on X, or null to omit the social row entirely. */
-  xUrl: string | null;
-  /** Label shown beside the X row, e.g. `@intake`. Falls back to "Intake". */
-  xHandle?: string | null;
 }
 
 export const DEFAULT_VISUALS: VisualOptions = {
   assetBaseUrl: 'https://intake.calder.click',
-  xUrl: null,
-  xHandle: null,
 };
 
 /** `transactional` gets the account/security footer; `list` gets the wait-list footer and unsubscribe. */
@@ -78,8 +72,10 @@ export function preheader(text: string): string {
  */
 export function brandHeader(options: VisualOptions): string {
   const mark = `${options.assetBaseUrl.replace(/\/$/, '')}/brand/intake-mark.png`;
+  // The mark sits on the paper, above the card, so it is padded to the same column the card's
+  // text starts in. Without that, the logo hangs to the left of everything else on the page.
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
-  <td align="left" style="padding:0 0 22px">
+  <td align="left" class="shell-brand" style="padding:0 ${PAD_X}px 22px">
     <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
       <td width="30" valign="middle" style="padding:0 10px 0 0">
         <img src="${attr(mark)}" width="30" height="30" alt="Intake" style="display:block;width:30px;height:30px;border:0;outline:none;text-decoration:none" />
@@ -170,27 +166,6 @@ export function signature(name: string, role: string): string {
 </td></tr></table>`;
 }
 
-/**
- * The X row, present in every Intake email from now on.
- *
- * The glyph is a styled table cell, not an image: every client can draw a letter, and a missing
- * icon image is the most common way a social row looks broken.
- */
-function socialRow(options: VisualOptions): string {
-  if (!options.xUrl) return '';
-  const handle = options.xHandle ? `Follow ${attr(options.xHandle)} on X` : 'Follow Intake on X';
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 20px"><tr>
-  <td width="34" valign="middle" style="padding:0 0 0 1px">
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-      <td width="30" height="30" align="center" valign="middle" bgcolor="${C.ink}" style="background:${C.ink};border-radius:7px;font:700 15px/30px ${SANS};color:${C.card};text-align:center">𝕏</td>
-    </tr></table>
-  </td>
-  <td valign="middle" style="padding:0 0 0 12px">
-    <a href="${attr(options.xUrl)}" style="font:600 14px/1.5 ${SANS};color:${C.ink};text-decoration:none">${handle}&nbsp;→</a>
-  </td>
-</tr></table>`;
-}
-
 export interface FooterOptions {
   kind: FooterKind;
   /** Why the reader is on this list. Required for `list`: an unexplained bulk email is a complaint. */
@@ -198,14 +173,11 @@ export interface FooterOptions {
   /** Per-recipient signed unsubscribe link. Without it, list mail falls back to the support address. */
   unsubscribeUrl?: string;
   supportEmail: string;
-  visuals?: VisualOptions;
 }
 
 function footer(options: FooterOptions): string {
-  const social = socialRow(options.visuals ?? DEFAULT_VISUALS);
   if (options.kind === 'transactional') {
     return `<tr><td style="padding:24px 4px 0">
-  ${social}
   <p style="margin:0 0 8px;font:13px/1.65 ${SANS};color:${C.muted}">Questions, trouble, or a salty edge case? Just reply to this email, or write to ${options.supportEmail} — a human being reads everything.</p>
   <p style="margin:0;font:12px/1.6 ${SANS};color:${C.muted}">You are receiving this because it relates to activity on your Intake account. Transactional notices like this one are required to keep your account secure.</p>
 </td></tr>`;
@@ -215,7 +187,6 @@ function footer(options: FooterOptions): string {
     ? `<a href="${attr(options.unsubscribeUrl)}" style="color:${C.muted};text-decoration:underline">Unsubscribe</a>`
     : `Reply to this email and ask to be removed.`;
   return `<tr><td style="padding:24px 4px 0">
-  ${social}
   <p style="margin:0 0 8px;font:13px/1.65 ${SANS};color:${C.muted}">${reason} ${out}.</p>
   <p style="margin:0;font:12px/1.6 ${SANS};color:${C.muted}">Intake · a form from a sentence · <a href="https://intake.calder.click" style="color:${C.muted}">intake.calder.click</a></p>
 </td></tr>`;
@@ -260,6 +231,7 @@ export function shell(options: ShellOptions): string {
 <style>
   @media only screen and (max-width:600px){
     .shell-pad{padding-left:24px !important;padding-right:24px !important}
+    .shell-brand{padding-left:24px !important;padding-right:24px !important}
     .shell-outer{padding:22px 12px 34px !important}
     .shell-h1{font-size:27px !important;line-height:1.22 !important}
     .shell-statement{font-size:21px !important}
@@ -282,7 +254,7 @@ ${preheader(options.preheaderText)}
         </td>
       </tr></table>
     </td></tr>
-    ${footer({ kind: options.footerKind, reason: options.footerReason, unsubscribeUrl: options.unsubscribeUrl, supportEmail: options.supportEmail, visuals })}
+    ${footer({ kind: options.footerKind, reason: options.footerReason, unsubscribeUrl: options.unsubscribeUrl, supportEmail: options.supportEmail })}
   </table>
 </td></tr>
 </table>

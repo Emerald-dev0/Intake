@@ -307,20 +307,11 @@ test('accepted events replay locally and a failed send retry updates one canonic
   assert.equal(responses.calls.length, 2, 'accepted events never need another provider call');
 });
 
-test('the social row is configured, validated, and never points somewhere unexpected', () => {
-  // Unset means "no social row" — better than a link to an account that is not ours.
-  assert.equal(config().xUrl, null);
-  assert.equal(config().xHandle, null);
-
-  const withX = config({ INTAKE_X_URL: 'https://x.com/intake' });
-  assert.equal(withX.xUrl, 'https://x.com/intake');
-  assert.equal(withX.xHandle, '@intake');
-  // The link is normalised to x.com even when twitter.com was used, and a trailing slash is dropped.
-  assert.equal(config({ INTAKE_X_URL: 'https://twitter.com/intake/' }).xUrl, 'https://x.com/intake');
-
-  for (const bad of ['https://example.com/intake', 'http://x.com/intake', 'https://x.com', 'https://x.com/a/b', 'not a url']) {
-    assert.throws(() => config({ INTAKE_X_URL: bad }), /INTAKE_X_URL/, `${bad} must be refused`);
-  }
+test('there is no social account to configure — the emails carry the mark and nothing else', () => {
+  // The X row was removed from every email. What is left of the configuration is the mark's origin.
+  assert.equal(config().xUrl, undefined);
+  assert.equal(config().xHandle, undefined);
+  assert.match(config().assetBaseUrl, /^https?:\/\//, 'the mark is fetched from a real origin');
 });
 
 test('the launch letters can go out under their own sender, defaulting to the system sender', () => {

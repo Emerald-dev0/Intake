@@ -104,13 +104,31 @@ function link(href: string, label: string): string {
   return `<a href="${escapeHtml(href)}" style="color:${INK};text-decoration:underline;text-decoration-color:${ACCENT};text-underline-offset:3px">${escapeHtml(label)}</a>`;
 }
 
+/**
+ * The first letter of a name, capitalised.
+ *
+ * A subject line that starts in lower case reads like a typing mistake — "typeform was
+ * disconnected from Intake". The name itself is left exactly as the product writes it; only the
+ * first letter of the line changes.
+ */
+function sentenceCase(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
 function detailRow(label: string, value: string): string {
-  return `<tr><td style="padding:7px 0;font:11px/1.4 ${MONO};letter-spacing:.14em;text-transform:uppercase;color:${MUTED};white-space:nowrap;vertical-align:top">${escapeHtml(label)}</td>
-  <td style="padding:7px 0 7px 18px;font:15px/1.5 ${SANS};color:${BODY}">${escapeHtml(value)}</td></tr>`;
+  // The label column has a width of its own, so every value starts in the same place. Left to
+  // itself, the table gives the spare width to the first column and the values step in and out
+  // with the length of their labels.
+  return `<tr><td width="118" valign="top" style="width:118px;padding:7px 0;font:11px/1.4 ${MONO};letter-spacing:.14em;text-transform:uppercase;color:${MUTED};white-space:nowrap;vertical-align:top">${escapeHtml(label)}</td>
+  <td valign="top" style="padding:7px 0;font:15px/1.5 ${SANS};color:${BODY}">${escapeHtml(value)}</td></tr>`;
 }
 
 function detailsTable(rows: string): string {
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:22px 0 6px;border-top:1px solid ${LINE};border-bottom:1px solid ${LINE}">${rows}</table>`;
+  // `table-layout:fixed` is what makes the label column keep its width: left to itself the browser
+  // hands the spare room to the first column, and the values drift in and out with their labels.
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="table-layout:fixed;margin:22px 0 6px;border-top:1px solid ${LINE};border-bottom:1px solid ${LINE}">${rows}</table>`;
 }
 
 function codeBlock(code: string): string {
@@ -356,7 +374,7 @@ const launchNote: EmailTemplate = {
       button(site, 'Give Intake a try →'),
       paragraph("We're early, and there's a lot I still want to improve. If you try it and something feels confusing, or a form doesn't come out the way you pictured it, tell me. Reply straight to this email — it reaches me, not a ticket queue."),
       rule(),
-      paragraph("And if you'd like to follow along as we build — the things that break, the fixes, what's next — I post it all on X. There's a link under this email."),
+      paragraph("And if you'd like to follow along as we build — the things that break, the fixes, what's next — the changelog keeps the record, and every release has a page of its own."),
       paragraph('Thank you for signing up before there was anything to see. I hope Intake earns that.'),
       signature('Daniel', 'Building Intake'),
     ].join('');
@@ -371,7 +389,7 @@ const launchNote: EmailTemplate = {
     "If you're finishing a project, collecting research data, organising an event, or building something that needs forms — I'd love for you to try it.",
     `Give Intake a try: ${text_(vars.marketingUrl, LAUNCH_SITE)}`,
     "We're early, and there's a lot I still want to improve. If you try it and something feels confusing, or a form doesn't come out the way you pictured it, tell me. Reply straight to this email — it reaches me, not a ticket queue.",
-    "And if you'd like to follow along as we build, I post it all on X — the link is under this email.",
+    "And if you'd like to follow along as we build — the things that break, the fixes, what's next — the changelog keeps the record, and every release has a page of its own.",
     'Thank you for signing up before there was anything to see. I hope Intake earns that.',
     'Daniel\nBuilding Intake',
   ].join('\n\n'),
@@ -539,9 +557,9 @@ const securityGoogleDisconnected: EmailTemplate = {
 const providerConnectionAdded: EmailTemplate = {
   id: 'provider_connection_added',
   alias: 'intake-provider-connection-added',
-  subject: vars => `${text_(vars.providerName)} was connected to Intake`,
+  subject: vars => `${sentenceCase(text_(vars.providerName))} was connected to Intake`,
   preheader: vars => `Intake can now create and edit forms in this ${text_(vars.providerName)} account when you confirm a request.`,
-  heading: vars => `${escapeHtml(text_(vars.providerName))} connected`,
+  heading: vars => `${escapeHtml(sentenceCase(text_(vars.providerName)))} connected`,
   body: vars => [
     paragraph(greeting(vars)),
     paragraph(`Your ${escapeHtml(text_(vars.providerName))} account is now connected to Intake. Intake can create and edit forms in it, but only when you review a proposal and confirm it yourself.`),
@@ -566,9 +584,9 @@ const providerConnectionAdded: EmailTemplate = {
 const providerConnectionRemoved: EmailTemplate = {
   id: 'provider_connection_removed',
   alias: 'intake-provider-connection-removed',
-  subject: vars => `${text_(vars.providerName)} was disconnected from Intake`,
+  subject: vars => `${sentenceCase(text_(vars.providerName))} was disconnected from Intake`,
   preheader: vars => `Intake can no longer create or edit forms in this ${text_(vars.providerName)} account.`,
-  heading: vars => `${escapeHtml(text_(vars.providerName))} disconnected`,
+  heading: vars => `${escapeHtml(sentenceCase(text_(vars.providerName)))} disconnected`,
   body: vars => [
     paragraph(greeting(vars)),
     paragraph(`Your ${escapeHtml(text_(vars.providerName))} account is no longer connected to Intake. Intake cannot create or edit forms in it until you connect again. Forms already created are untouched.`),
@@ -1000,20 +1018,18 @@ export function templateFor(type: EmailType): EmailTemplate {
 /** Why a stranger is on this list. Every bulk email says it; an unexplained one is a complaint. */
 const LIST_REASON = 'You are receiving this because you joined the Intake wait-list.';
 
-function listTextFooter(visuals: VisualOptions, unsubscribeUrl: string | undefined): string {
+function listTextFooter(unsubscribeUrl: string | undefined): string {
   return [
     '—',
     'Intake · a form from a sentence',
-    ...(visuals.xUrl ? [`Follow Intake on X: ${visuals.xUrl}`] : []),
     unsubscribeUrl ? `${LIST_REASON} Unsubscribe: ${unsubscribeUrl}` : LIST_REASON,
   ].join('\n');
 }
 
-function transactionalTextFooter(visuals: VisualOptions): string {
+function transactionalTextFooter(): string {
   return [
     '—',
     'Intake · a form from a sentence',
-    ...(visuals.xUrl ? [`Follow Intake on X: ${visuals.xUrl}`] : []),
     `Questions? Just reply, or write to ${SUPPORT_EMAIL} — a human reads everything.`,
   ].join('\n');
 }
@@ -1033,12 +1049,12 @@ export function renderEmail(type: EmailType, variables: EmailVariables, options:
       headingText: heading || undefined,
       reason: LIST_REASON,
     });
-    return { subject, html, text: `${template.text(variables)}\n\n${listTextFooter(visuals, unsubscribeUrl)}` };
+    return { subject, html, text: `${template.text(variables)}\n\n${listTextFooter(unsubscribeUrl)}` };
   }
 
   return {
     subject,
     html: layout(template.preheader(variables), heading, template.body(variables), '', { visuals }),
-    text: `${subject}\n\n${template.text(variables)}\n\n${transactionalTextFooter(visuals)}`,
+    text: `${subject}\n\n${template.text(variables)}\n\n${transactionalTextFooter()}`,
   };
 }

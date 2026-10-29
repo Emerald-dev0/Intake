@@ -5,6 +5,7 @@ import { createEmailLogger } from './logging';
 import type { EmailService } from './service';
 import type { EmailType } from './types';
 import { effectiveDailyCredits } from '../billing/settings';
+import { providerLabel } from '../providers/registry';
 
 /**
  * The event layer: named, typed things that happened in Intake.
@@ -64,7 +65,7 @@ export interface NotifierOptions {
   log?: EmailLogger;
 }
 
-const PROVIDER_LABELS: Record<string, string> = { google: 'Google Forms', microsoft: 'Microsoft Forms' };
+
 
 export function createEmailNotifier(options: NotifierOptions): EmailNotifier {
   const now = options.now ?? (() => new Date());
@@ -127,22 +128,22 @@ export function createEmailNotifier(options: NotifierOptions): EmailNotifier {
     await emit('security_google_disconnected', `security-google-disconnected:${newId()}`, user, { userName: user.name ?? '' });
   }
 
-  async function providerConnected(userId: string, providerName: string, accountLabel: string): Promise<void> {
+  async function providerConnected(userId: string, providerId: string, accountLabel: string): Promise<void> {
     const user = await options.users.getById(userId);
     if (!user) return;
     await emit('provider_connection_added', `provider-connected:${newId()}`, user, {
       userName: user.name ?? '',
-      providerName: PROVIDER_LABELS[providerName] ?? providerName,
+      providerName: providerLabel(providerId),
       accountLabel,
     });
   }
 
-  async function providerDisconnected(userId: string, providerName: string, accountLabel: string): Promise<void> {
+  async function providerDisconnected(userId: string, providerId: string, accountLabel: string): Promise<void> {
     const user = await options.users.getById(userId);
     if (!user) return;
     await emit('provider_connection_removed', `provider-disconnected:${newId()}`, user, {
       userName: user.name ?? '',
-      providerName: PROVIDER_LABELS[providerName] ?? providerName,
+      providerName: providerLabel(providerId),
       accountLabel,
     });
   }
