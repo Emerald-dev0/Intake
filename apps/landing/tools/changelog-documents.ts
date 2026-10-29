@@ -44,7 +44,7 @@ const CHANGELOG_TITLE = 'Changelog — what Intake shipped';
 const CHANGELOG_DESCRIPTION = 'Every Intake release with its own permanent page: what changed, who it is for, and how to use it.';
 
 /** The document for the changelog index. */
-function indexDocument(siteUrl: string, html: string): string {
+function indexDocumentFor(siteUrl: string, html: string): string {
   const url = `${siteUrl}/changelog`;
   const title = CHANGELOG_TITLE;
   const description = CHANGELOG_DESCRIPTION;
@@ -230,10 +230,20 @@ export function changelogDocuments(siteUrl: string): Plugin {
         ? index.source
         : Buffer.from(index.source).toString('utf8');
       const directory = options.dir ?? 'dist';
+      const indexDocument = indexDocumentFor(siteUrl, source);
+      // The index is written both ways: as its own document and as the index of its directory,
+      // so `/changelog` and `/changelog/` both find it.
       mkdirSync(join(directory, 'changelog'), { recursive: true });
-      writeFileSync(join(directory, 'changelog.html'), indexDocument(siteUrl, source));
+      writeFileSync(join(directory, 'changelog.html'), indexDocument);
+      writeFileSync(join(directory, 'changelog', 'index.html'), indexDocument);
       for (const release of BUNDLED_RELEASES) {
-        writeFileSync(join(directory, 'changelog', `${release.slug}.html`), releaseDocument(siteUrl, source, release));
+        // A release is a directory of its own, so `/changelog/<slug>` finds it without a rewrite
+        // that could point at a file that is not there.
+        mkdirSync(join(directory, 'changelog', release.slug), { recursive: true });
+        writeFileSync(
+          join(directory, 'changelog', release.slug, 'index.html'),
+          releaseDocument(siteUrl, source, release),
+        );
       }
     },
   };
