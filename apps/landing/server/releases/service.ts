@@ -170,10 +170,16 @@ export function createReleaseService(options: ReleaseServiceOptions) {
       if (patch.heroImageUrl !== undefined) next.heroImageUrl = patch.heroImageUrl;
       if (patch.shareText !== undefined) next.shareText = patch.shareText;
       if (patch.slug !== undefined) {
-        if (release.status === 'published') {
-          throw new ReleaseError('slug_locked', 'The slug is permanent once a release is published, so the link never breaks.');
+        const requested = patch.slug.trim();
+        // Sending the same slug again is not a change: a published entry can still be corrected in
+        // place, and the console sends the whole form. Only a different slug is refused once the
+        // release is published, because that URL is permanent.
+        if (requested && requested !== release.slug) {
+          if (release.status === 'published') {
+            throw new ReleaseError('slug_locked', 'The slug is permanent once a release is published, so the link never breaks.');
+          }
+          next.slug = await uniqueSlug(requested, release.id);
         }
-        next.slug = await uniqueSlug(patch.slug, release.id);
       }
       const updated = await store.update(id, next);
       if (!updated) throw new ReleaseError('not_found', 'That release no longer exists.');

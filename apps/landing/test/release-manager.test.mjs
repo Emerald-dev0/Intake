@@ -144,6 +144,15 @@ test('a published release keeps its permanent slug, and a correction does not ch
   const corrected = await call('PUT', `/api/admin/releases/${id}`, { summary: 'Create a form in Google Forms or Typeform, from one description.' });
   assert.equal(corrected.status, 200);
   assert.equal(corrected.json.release.slug, 'typeform-joins-google-forms');
+
+  // The console sends the whole form, including the slug. Saving a published entry must not fail
+  // because the slug came back unchanged.
+  const resaved = await call('PUT', `/api/admin/releases/${id}`, {
+    slug: 'typeform-joins-google-forms',
+    summary: 'Create a form in Google Forms or Typeform, from one description.',
+  });
+  assert.equal(resaved.status, 200);
+  assert.equal(resaved.json.release.slug, 'typeform-joins-google-forms');
   const publicView = await call('GET', '/api/releases/typeform-joins-google-forms');
   assert.equal(publicView.json.release.summary, 'Create a form in Google Forms or Typeform, from one description.');
 });
