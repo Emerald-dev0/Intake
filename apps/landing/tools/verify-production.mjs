@@ -154,6 +154,16 @@ export function buildChecks(context) {
     return { status: 'pass', detail: 'Database probe succeeded.' };
   });
 
+  add('changelog-card', 'GET /api/og/changelog draws the changelog card', async () => {
+    const { response } = await request('/api/og/changelog');
+    if (response.status !== 200) return { status: 'fail', detail: `Expected 200, received ${response.status}.` };
+    const type = response.headers.get('content-type') ?? '';
+    if (!type.includes('image/png')) return { status: 'fail', detail: `Expected image/png, received ${type || 'nothing'}.` };
+    const length = Number(response.headers.get('content-length') ?? '0');
+    if (length < 1000) return { status: 'fail', detail: `The card is ${length} bytes, which is too small to be a 1200×630 image.` };
+    return { status: 'pass', detail: `The changelog card is served as a PNG (${length} bytes).` };
+  });
+
   add('api-headers', 'API responses carry the security baseline', async () => {
     const { response } = await request('/api/health');
     const missing = [];

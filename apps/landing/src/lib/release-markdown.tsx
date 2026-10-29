@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react';
+import { isSafeHref, parseReleaseBody, releaseSectionId, releaseSections } from './release-notes';
 
 /**
  * The renderer for release notes.
@@ -9,27 +10,20 @@ import { type ReactNode } from 'react';
  * `dangerouslySetInnerHTML` anywhere near the changelog, and a link that is not http, https,
  * mailto or a same-origin path is shown as plain text instead of being turned into a clickable
  * target.
+ *
+ * The parsing itself lives in `release-notes.ts`, so the document a crawler reads is built from
+ * the same structure as this page.
  */
 
-const INLINE_PATTERN = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)\s]+\))/g;
-
-function isSafeHref(href: string): boolean {
-  if (href.startsWith('/') && !href.startsWith('//')) return true;
-  try {
-    const url = new URL(href);
-    return url.protocol === 'https:' || url.protocol === 'http:' || url.protocol === 'mailto:';
-  } catch {
-    return false;
-  }
-}
+export { releaseSectionId, releaseSections };
 
 function renderInline(text: string, keyPrefix: string): ReactNode[] {
   const nodes: ReactNode[] = [];
+  const pattern = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)\s]+\))/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
-  INLINE_PATTERN.lastIndex = 0;
   let index = 0;
-  while ((match = INLINE_PATTERN.exec(text)) !== null) {
+  while ((match = pattern.exec(text)) !== null) {
     if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
     const token = match[0];
     if (token.startsWith('**')) {
@@ -58,53 +52,6 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
   return nodes;
 }
 
-/**
- * A section of a release note.
- *
- * The notes are a set of `##` sections, and a release page gives each one an address so a long
- * entry can be linked to by section and read in pieces.
- */
-export interface ReleaseSection {
-  id: string;
-  title: string;
-  level: 2 | 3;
-}
-
-/** The address of a section: a readable slug of its heading. */
-export function releaseSectionId(title: string): string {
-  const base = title
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[*`]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80)
-    .replace(/-+$/g, '');
-  return base || 'section';
-}
-
-/**
- * The sections of a release note, in the order they appear.
- *
- * The renderer and the table of contents both read this, so an anchor and its link can never
- * disagree. A repeated heading gets a numbered address rather than a duplicate one.
- */
-export function releaseSections(body: string): ReleaseSection[] {
-  const seen = new Map<string, number>();
-  const sections: ReleaseSection[] = [];
-  for (const line of body.replace(/\r\n/g, '\n').split('\n')) {
-    const heading = line.match(/^(#{2,3})\s+(.+)$/);
-    if (!heading) continue;
-    const title = heading[2].trim();
-    const level: 2 | 3 = heading[1].length === 3 ? 3 : 2;
-    const base = releaseSectionId(title);
-    const count = seen.get(base) ?? 0;
-    seen.set(base, count + 1);
-    sections.push({ id: count === 0 ? base : `${base}-${count + 1}`, title, level });
-  }
-  return sections;
-}
-
 export interface ReleaseMarkdownProps {
   body: string;
   className?: string;
@@ -112,64 +59,29 @@ export interface ReleaseMarkdownProps {
 
 /** Render release notes into semantic HTML: headings, lists, paragraphs and inline emphasis. */
 export function ReleaseMarkdown({ body, className }: ReleaseMarkdownProps) {
-  const lines = body.replace(/\r\n/g, '\n').split('\n');
-  const blocks: ReactNode[] = [];
-  // The same source the table of contents reads, so an anchor always has a link that reaches it.
-  const sections = releaseSections(body);
-  let sectionIndex = 0;
-  let paragraph: string[] = [];
-  let list: string[] = [];
+  const blocks = parseReleaseBody(body);
+  const nodes: ReactNode[] = [];
 
-  const flushParagraph = () => {
-    if (paragraph.length === 0) return;
-    const text = paragraph.join(' ').trim();
-    paragraph = [];
-    if (text) blocks.push(<p key={`p${blocks.length}`}>{renderInline(text, `p${blocks.length}`)}</p>);
-  };
-
-  const flushList = () => {
-    if (list.length === 0) return;
-    const items = list;
-    list = [];
-    blocks.push(
-      <ul key={`ul${blocks.length}`}>
-        {items.map((item, position) => <li key={`li${position}`}>{renderInline(item, `li${position}`)}</li>)}
-      </ul>,
-    );
-  };
-
-  for (const line of lines) {
-    const heading = line.match(/^#{2,3}\s+(.+)$/);
-    if (heading) {
-      flushParagraph();
-      flushList();
-      const level = line.startsWith('###') ? 3 : 2;
-      const Tag = level === 3 ? 'h3' : 'h2';
-      const section = sections[sectionIndex];
-      sectionIndex += 1;
-      blocks.push(
-        <Tag key={`h${blocks.length}`} id={section?.id}>
-          {renderInline(heading[1], `h${blocks.length}`)}
+  blocks.forEach((block, position) => {
+    if (block.kind === 'heading') {
+      const Tag = block.level === 3 ? 'h3' : 'h2';
+      nodes.push(
+        <Tag key={`b${position}`} id={block.id}>
+          {renderInline(block.text, `h${position}`)}
         </Tag>,
       );
-      continue;
+    } else if (block.kind === 'paragraph') {
+      nodes.push(<p key={`b${position}`}>{renderInline(block.text, `p${position}`)}</p>);
+    } else {
+      nodes.push(
+        <ul key={`b${position}`}>
+          {block.items.map((item, itemPosition) => (
+            <li key={`li${itemPosition}`}>{renderInline(item, `li${position}-${itemPosition}`)}</li>
+          ))}
+        </ul>,
+      );
     }
-    const bullet = line.match(/^[-*]\s+(.+)$/);
-    if (bullet) {
-      flushParagraph();
-      list.push(bullet[1]);
-      continue;
-    }
-    if (!line.trim()) {
-      flushParagraph();
-      flushList();
-      continue;
-    }
-    flushList();
-    paragraph.push(line.trim());
-  }
-  flushParagraph();
-  flushList();
+  });
 
-  return <div className={className}>{blocks}</div>;
+  return <div className={className}>{nodes}</div>;
 }

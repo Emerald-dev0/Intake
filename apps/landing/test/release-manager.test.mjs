@@ -396,6 +396,7 @@ const RELEASE_MIGRATIONS = [
   '033_release_usage_numbers.sql',
   '034_release_answer_notices.sql',
   '035_release_delete_a_form.sql',
+  '036_release_changelog_card.sql',
 ];
 
 async function readReleaseMigrations() {

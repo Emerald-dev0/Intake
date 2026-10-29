@@ -38,6 +38,10 @@
       "dest": "/pricing.html"
     },
     {
+      "src": "/changelog/?$",
+      "dest": "/changelog.html"
+    },
+    {
       "handle": "filesystem"
     },
     {
