@@ -27,6 +27,14 @@ From `apps/landing`, with a real `DATABASE_URL` and the other required auth vari
    - `039_dev_form_source_operation_key.sql` adds one nullable column to `dev_form`: `source_operation_key`, the AI operation that wrote the form. It makes a retried proposal land on the same form instead of a second copy of it. Forms made by hand, and every form made before this migration, keep a null value and behave exactly as they did. Rollback: `ALTER TABLE dev_form DROP COLUMN source_operation_key;`.
    - `040_release_describe_a_form_in_a_sentence.sql` seeds the changelog entry for writing a hosted form from one sentence.
 
+**Deployment order for 039 and 040.** Apply 039 before or with the deployment that introduces the
+AI proposal endpoint, and 040 whenever the changelog entry should exist in the database rather
+than only in the notes bundled with the site. The server does not depend on the order: it checks
+for `dev_form.source_operation_key` at runtime and writes the column only when it is there, so a
+deployment that runs before 039 forgets the operation key instead of failing, and a deployment that
+runs before 040 still serves the entry from the bundled notes. Apply 039 as soon as possible so a
+retried proposal lands on the same form.
+
 `npm run db:generate` writes a reviewable Better Auth SQL snapshot to `db/auth.sql`. It does not apply it, and it does not include Intake provider tables. Do not point Better Auth at the provider tables.
 
 No migration was applied in the cloud agent environment: no Neon connection was provided. Do not claim the database is initialized until both commands succeed against the real project.
