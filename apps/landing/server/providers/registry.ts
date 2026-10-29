@@ -63,6 +63,18 @@ export function providerDefinition(id: ProviderId, env: NodeJS.ProcessEnv): Prov
   return definition;
 }
 
+/**
+ * The name a provider is shown under, without the environment.
+ *
+ * The definitions are static — only Microsoft reads the environment, and only for its tenant — so
+ * a letter can name a provider without carrying the whole environment around.
+ */
+export function providerLabel(id: ProviderId): string {
+  if (id === 'google') return googleDefinition().name;
+  if (id === 'typeform') return typeformDefinition().name;
+  return microsoftDefinition('common').name;
+}
+
 export function supportedProviders(env: NodeJS.ProcessEnv): ProviderDefinition[] {
   // Microsoft is still recognized for an existing grant, but it is not offered on the Connections
   // page: it has no supported Forms creation API, so a connection there only ever records identity.

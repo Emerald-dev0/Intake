@@ -104,6 +104,19 @@ function link(href: string, label: string): string {
   return `<a href="${escapeHtml(href)}" style="color:${INK};text-decoration:underline;text-decoration-color:${ACCENT};text-underline-offset:3px">${escapeHtml(label)}</a>`;
 }
 
+/**
+ * The first letter of a name, capitalised.
+ *
+ * A subject line that starts in lower case reads like a typing mistake — "typeform was
+ * disconnected from Intake". The name itself is left exactly as the product writes it; only the
+ * first letter of the line changes.
+ */
+function sentenceCase(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
 function detailRow(label: string, value: string): string {
   return `<tr><td style="padding:7px 0;font:11px/1.4 ${MONO};letter-spacing:.14em;text-transform:uppercase;color:${MUTED};white-space:nowrap;vertical-align:top">${escapeHtml(label)}</td>
   <td style="padding:7px 0 7px 18px;font:15px/1.5 ${SANS};color:${BODY}">${escapeHtml(value)}</td></tr>`;
@@ -539,9 +552,9 @@ const securityGoogleDisconnected: EmailTemplate = {
 const providerConnectionAdded: EmailTemplate = {
   id: 'provider_connection_added',
   alias: 'intake-provider-connection-added',
-  subject: vars => `${text_(vars.providerName)} was connected to Intake`,
+  subject: vars => `${sentenceCase(text_(vars.providerName))} was connected to Intake`,
   preheader: vars => `Intake can now create and edit forms in this ${text_(vars.providerName)} account when you confirm a request.`,
-  heading: vars => `${escapeHtml(text_(vars.providerName))} connected`,
+  heading: vars => `${escapeHtml(sentenceCase(text_(vars.providerName)))} connected`,
   body: vars => [
     paragraph(greeting(vars)),
     paragraph(`Your ${escapeHtml(text_(vars.providerName))} account is now connected to Intake. Intake can create and edit forms in it, but only when you review a proposal and confirm it yourself.`),
@@ -566,9 +579,9 @@ const providerConnectionAdded: EmailTemplate = {
 const providerConnectionRemoved: EmailTemplate = {
   id: 'provider_connection_removed',
   alias: 'intake-provider-connection-removed',
-  subject: vars => `${text_(vars.providerName)} was disconnected from Intake`,
+  subject: vars => `${sentenceCase(text_(vars.providerName))} was disconnected from Intake`,
   preheader: vars => `Intake can no longer create or edit forms in this ${text_(vars.providerName)} account.`,
-  heading: vars => `${escapeHtml(text_(vars.providerName))} disconnected`,
+  heading: vars => `${escapeHtml(sentenceCase(text_(vars.providerName)))} disconnected`,
   body: vars => [
     paragraph(greeting(vars)),
     paragraph(`Your ${escapeHtml(text_(vars.providerName))} account is no longer connected to Intake. Intake cannot create or edit forms in it until you connect again. Forms already created are untouched.`),
