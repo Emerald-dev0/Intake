@@ -16,6 +16,9 @@ import { createPostgresFormEditDraftStore } from './forms/edit-postgres-store';
 import { createFormEditRouter } from './forms/edit-routes';
 import { createInterpretationLimiter } from './forms/interpretation/routes';
 import { createFormsRouter } from './forms/routes';
+import { createDevRouter } from './dev/routes';
+import { DevService } from './dev/service';
+import { createPostgresDevStore } from './dev/store';
 import { createInsightsRouter } from './forms/insights/routes';
 import { getProviderConnection } from './providers/service';
 import { getOGPNG } from './og';
@@ -192,6 +195,13 @@ app.use('/api/admin', createAdminRouter({
     github: githubConfig,
   },
 }));
+/**
+ * Intake for Developers. The workspace lives in the same database as everything else and behind the
+ * same session: the service checks ownership on every call, so the console is a convenience rather
+ * than the boundary.
+ */
+const devService = new DevService({ store: createPostgresDevStore(pool) });
+app.use('/api/dev', createDevRouter({ service: devService, getSession }));
 // The public changelog. Published releases only: a draft is answered with 404, not 403.
 app.use(createPublicReleaseRouter({ store: releaseStore, rateLimiter: abuseLimiter }));
 /**
