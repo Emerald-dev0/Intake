@@ -2377,3 +2377,6 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
   line-height: 1.05;
 }
 .mk-dev__cta p { margin: 0; color: var(--mk-muted); font-size: 15.5px; line-height: 1.6; max-width: 62ch; }
+.mk-dev__cta .mk-button { margin-top: 18px; }
+.mk-dev__cta-note { margin-top: 18px; font-size: 14px; }
+.mk-dev__cta-note a { color: var(--mk-text); text-decoration: underline; text-underline-offset: 2px; }

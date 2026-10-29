@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { HubShell } from './HubShell';
-import { NotifyForm } from './NotifyForm';
 import { Reveal, SectionIntro } from './MarketingSections';
 import { usePublicSession } from './usePublicSession';
 import { SITE_URL } from '../content/site';
@@ -323,13 +322,26 @@ export function DevelopersPage() {
         <section className="mk-section" aria-label="Get started">
           <div className="mk-container mk-dev__cta">
             <Reveal variant="rise">
-              <h2>Get the developer workspace when it opens.</h2>
+              <h2>The developer workspace is open.</h2>
               <p>
                 {authenticated
-                  ? 'You are signed in. The developer workspace will appear in your console as it ships, and the changelog will say when.'
-                  : 'Create an Intake account now and we will tell you the day developer forms are ready. One email, then nothing unless you ask for more.'}
+                  ? 'It is in your console, beside Chat, Library and Connections. Make a project, build a form, and paste the snippet into your page.'
+                  : 'Create an Intake account and the workspace is in your console straight away — the same account, the same 20 credits, the same sign-in you already use for the rest of Intake.'}
               </p>
-              {!authenticated && <NotifyForm interest="updates" buttonLabel="Tell me when it opens" id="dev-notify" />}
+              {authenticated ? (
+                <a className="mk-button mk-button--primary" href="/app/developers">
+                  <span>Open the workspace</span>
+                </a>
+              ) : (
+                <a className="mk-button mk-button--primary" href="/auth/sign-up">
+                  <span>Sign up free</span>
+                </a>
+              )}
+              <p className="mk-dev__cta-note">
+                <a href="/changelog">The changelog</a> says what shipped and when. The things that
+                do not exist yet — webhooks to your own backend, an SDK — are named on this page as
+                things you should not plan around.
+              </p>
             </Reveal>
           </div>
         </section>

@@ -116,9 +116,22 @@ test('the call to action offers a real way in', async t => {
   const view = await mount();
   t.after(view.restore);
 
-  // Signed out, the page offers the updates list — a real, working subscription — rather than a
-  // button that goes nowhere.
-  const form = view.container.querySelector('#dev-notify');
-  assert.ok(form, 'the notification form is there');
+  // The workspace is open, so the way in is the account — not a list to wait on.
+  const link = [...view.container.querySelectorAll('a')].find(node => node.getAttribute('href') === '/auth/sign-up');
+  assert.ok(link, 'there is a way to create an account');
+  assert.match(link.textContent, /Sign up free/);
   assert.ok(view.text(), 'the page explains what happens next');
+});
+
+test('the developer page says the workspace is open, and links to it', async t => {
+  const view = await mount();
+  t.after(view.restore);
+
+  // The page must not say the workspace is still to come: it is in the console today.
+  assert.doesNotMatch(view.text(), /when it opens/);
+  assert.match(view.text(), /developer workspace is open/i);
+
+  // And it links to the changelog, which is where the shipped history is.
+  const links = [...view.container.querySelectorAll('a')].map(node => node.getAttribute('href'));
+  assert.ok(links.includes('/changelog'), 'the changelog is one click away');
 });
