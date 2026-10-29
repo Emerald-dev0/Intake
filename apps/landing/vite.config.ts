@@ -13,6 +13,7 @@ import { DEFAULT_SITE_URL, isNonPublicHost, normalizeSiteUrl } from './src/lib/s
 import { BUNDLED_RELEASES } from './src/content/changelog.ts';
 import { PLAN_CATALOG, formatUsd, proPriceComparison } from './src/lib/plans.ts';
 import { PRICING_DESCRIPTION, PRICING_FAQS, PRICING_TITLE } from './src/content/pricing.ts';
+import { changelogDocuments } from './tools/changelog-documents.ts';
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, character => ({
@@ -379,7 +380,7 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
-    plugins: [react(), siteMeta(siteUrl), pricingDocument(siteUrl), staticDocuments(siteUrl)],
+    plugins: [react(), siteMeta(siteUrl), pricingDocument(siteUrl), changelogDocuments(siteUrl), staticDocuments(siteUrl)],
     build: { rollupOptions: { input: inputs } },
     server: { host: '0.0.0.0', port: 5173, allowedHosts: true, proxy },
     preview: { host: '0.0.0.0', port: 4173, allowedHosts: true, proxy },
