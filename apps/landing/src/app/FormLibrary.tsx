@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import type { ProviderLoad } from './Connections';
 import {
   parseLibraryFormList,
@@ -9,9 +9,14 @@ import {
 } from '../lib/forms';
 import { Insights } from './components/Insights';
 import { ProviderMark } from './components/ProviderBadge';
-import { formProviderLabel } from '../lib/connections';
+import {
+  formProviderLabel,
+  grantResultMessage,
+  hasCapability,
+  RESPONSES_CAPABILITY,
+} from '../lib/connections';
 import { PageHeader, EmptyState, ErrorState, Skeleton } from './components/PagePrimitives';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 export interface FormLibraryProps {
   providers: ProviderLoad;
@@ -72,7 +77,13 @@ export function FormLibrary({
   // Arriving from the command palette: focus the form that was chosen, rather than dropping the
   // person at the top of a filtered list and letting them hunt for the row they just clicked.
   const location = useLocation();
+  const navigate = useNavigate();
   const focusFormId = (location.state as { focusFormId?: string } | null)?.focusFormId ?? null;
+  // Coming back from Google's consent screen. The authorization finished and this person landed
+  // back here; say what happened and reopen the summary they came for.
+  const search = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const insightsFormId = search.get('insights');
+  const grantNotice = useMemo(() => grantResultMessage(search), [search]);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   useEffect(() => {
     if (!focusFormId) return;
@@ -95,7 +106,6 @@ export function FormLibrary({
   const [inspectingForm, setInspectingForm] = useState<PublicLibraryForm | null>(null);
   const [liveChecking, setLiveChecking] = useState(false);
   const [liveStatus, setLiveStatus] = useState<LiveStatusResult | null>(null);
-
   const [importOpen, setImportOpen] = useState(false);
   const [importUrl, setImportUrl] = useState('');
   const [importBusy, setImportBusy] = useState(false);
@@ -116,6 +126,29 @@ export function FormLibrary({
   const typeform = providers.providers?.find(provider => provider.id === 'typeform');
   const isGoogleConnected = google?.status === 'connected';
   const canImport = isGoogleConnected || typeform?.status === 'connected';
+  // What the connection may actually do. The server says this, so the browser never has to know a
+  // scope string — and a person who already allowed response reading is never asked again.
+  const canReadResponses = providers.status === 'ready'
+    ? hasCapability(google, RESPONSES_CAPABILITY)
+    : null;
+  const needsReconnect = providers.status === 'ready' && google?.status !== 'connected';
+  // The grant finished and sent this person back here: reopen the summary they came for, once.
+  const reopenedFromLink = useRef(false);
+  useEffect(() => {
+    if (!insightsFormId || reopenedFromLink.current) return;
+    const form = forms.find(item => item.id === insightsFormId);
+    if (!form) return;
+    reopenedFromLink.current = true;
+    void loadProStatus();
+    setInspectingForm(form);
+    setInsightsOpen(true);
+    // The summary is open now, so the address no longer has to ask for it: a later visit to this
+    // page should not open a modal nobody asked for.
+    const params = new URLSearchParams(location.search);
+    params.delete('insights');
+    const remaining = params.toString();
+    navigate({ pathname: location.pathname, search: remaining ? `?${remaining}` : '' }, { replace: true });
+  }, [insightsFormId, forms, location.pathname, location.search, navigate]);
 
   useEffect(() => {
     alive.current = true;
@@ -385,8 +418,7 @@ export function FormLibrary({
     }
   }
 
-  async function openInsights(form: PublicLibraryForm) {
-    if (!alive.current) return;
+  async function loadProStatus() {
     try {
       const response = await fetch('/api/credits', {
         credentials: 'same-origin',
@@ -398,13 +430,11 @@ export function FormLibrary({
         setIsPro(data.credits?.plan === 'pro' && data.credits?.subscriptionStatus === 'active');
       }
     } catch { /* ignore */ }
+  }
 
-    // Check if responses scope is granted
-    const googleProvider = providers.providers?.find(p => p.id === 'google');
-    if (googleProvider?.status === 'connected') {
-      // The insights endpoint will return 403 with code 'responses_scope_required' if not granted
-      // We'll let the Insights component handle the error display
-    }
+  async function openInsights(form: PublicLibraryForm) {
+    if (!alive.current) return;
+    void loadProStatus();
     setInspectingForm(form);
     setInsightsOpen(true);
     setActionError(null);
@@ -431,6 +461,12 @@ export function FormLibrary({
         description="Everything Intake made for you, or imported from an account you connected."
         actions={<a className="btn btn-accent btn-sm" href="/app/forms">New form →</a>}
       />
+
+      {grantNotice && (
+        <div className={`form-banner ${grantNotice.tone}`} role="status" style={{ marginBottom: 24 }}>
+          <p>{grantNotice.text}</p>
+        </div>
+      )}
 
       {!canImport && (
         <div className="form-banner warn" role="status" style={{ marginBottom: 24 }}>
@@ -967,7 +1003,9 @@ export function FormLibrary({
           form={inspectingForm}
           onClose={() => { setInsightsOpen(false); setInspectingForm(null); }}
           isPro={isPro}
-          hasResponsesScope={true}
+          canReadResponses={canReadResponses}
+          needsReconnect={needsReconnect}
+          returnTo={`/app/library?insights=${encodeURIComponent(inspectingForm.id)}&grant=${RESPONSES_CAPABILITY}`}
         />
       )}
     </div>
