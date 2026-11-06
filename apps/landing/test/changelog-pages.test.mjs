@@ -32,6 +32,18 @@ const LIVE_RELEASE = {
   heroImageUrl: null,
 };
 
+/**
+ * A day after the newest release the site bundles.
+ *
+ * The panel shows the newest release, whatever else has shipped, so the fixture has to be newer
+ * than everything bundled with the site. Deriving the date keeps that true as more releases ship,
+ * instead of quietly going stale and failing on the day one does.
+ */
+const NEWEST_DATE = (() => {
+  const latest = BUNDLED_RELEASES.reduce((latestDate, release) => (release.releaseDate > latestDate ? release.releaseDate : latestDate), '1970-01-01');
+  return new Date(new Date(`${latest}T00:00:00Z`).getTime() + 86400000).toISOString().slice(0, 10);
+})();
+
 async function mount({ path = '/changelog', handler }) {
   const original = globalThis.fetch;
   const calls = [];
@@ -81,7 +93,7 @@ test('when the live changelog cannot be loaded, the page says so and still shows
 });
 
 test('the newest release is shown on its own, with the card a pasted link shows', async t => {
-  const newest = { ...LIVE_RELEASE, slug: 'the-newest-release', title: 'The newest release', releaseDate: '2026-10-30', publishedAt: '2026-10-30T09:00:00.000Z' };
+  const newest = { ...LIVE_RELEASE, slug: 'the-newest-release', title: 'The newest release', releaseDate: NEWEST_DATE, publishedAt: `${NEWEST_DATE}T09:00:00.000Z` };
   const view = await mount({ handler: path => {
     if (path === '/api/releases') return json({ releases: [newest], total: 1 });
     return json({ error: 'not found' }, 404);

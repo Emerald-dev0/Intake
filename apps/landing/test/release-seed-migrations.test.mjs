@@ -60,6 +60,7 @@ test('the release migrations apply in order and seed published entries', async (
   await db.exec(await migration('038_release_intake_for_developers.sql'));
   await db.exec(await migration('040_release_describe_a_form_in_a_sentence.sql'));
   await db.exec(await migration('041_release_every_release_opens.sql'));
+  await db.exec(await migration('043_release_ask_for_response_reading.sql'));
 
   const rows = await db.query(
     `SELECT slug, status, published_at FROM release
