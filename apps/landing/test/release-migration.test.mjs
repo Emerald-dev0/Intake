@@ -88,6 +88,9 @@ test('the migration can be applied twice without failing', async () => {
 
 test('the deeper migration applies and brings the shipped copy with it', async () => {
   await db.exec(await migration('023_release_depth.sql'));
+  // The plain-English pass is the latest word on every note, so it is applied before the copy is
+  // compared: the database is meant to hold the wording the site holds today.
+  await db.exec(await migration('044_release_plainer_words.sql'));
 
   const columns = await db.query(
     `SELECT column_name FROM information_schema.columns
@@ -119,6 +122,7 @@ test('the developer page entry is seeded with the rest of the shipped releases',
   await db.exec(await migration('040_release_describe_a_form_in_a_sentence.sql'));
   await db.exec(await migration('041_release_every_release_opens.sql'));
   await db.exec(await migration('043_release_ask_for_response_reading.sql'));
+  await db.exec(await migration('044_release_plainer_words.sql'));
   const { BUNDLED_RELEASES } = await import('../src/content/changelog.ts');
 
   // Every shipped release carries the current copy, not just the newest one.

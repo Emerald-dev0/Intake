@@ -245,6 +245,16 @@
 .insights-pro-required .btn { margin:0 8px; }
 .insights-footer { display:flex; justify-content:flex-end; padding-top:16px; border-top:1px solid var(--paper-line); margin-top:8px; }
 
+/* Export: the one action on this screen that produces a file. */
+.insights-export { display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px; padding:16px; margin-top:24px; border:1px solid var(--paper-line); border-radius:10px; background:var(--paper-2); }
+.insights-export .btn { display:inline-flex; align-items:center; gap:8px; }
+.insights-export-help { margin:0; font-size:12px; color:var(--paper-mute); flex:1 1 200px; min-width:0; }
+.insights-export-status { flex-basis:100%; font:12px/1.5 var(--mono); color:var(--paper-mute); }
+.insights-export-status:empty { display:none; }
+.insights-export-status.done { color:var(--paper-ink); }
+.insights-export-status.incomplete, .insights-export-status.error { color:var(--dev-danger, #b42318); }
+.insights-export-status.empty { color:var(--paper-mute); }
+
 /* Choice charts */
 .insight-choice-chart { display:flex; flex-direction:column; gap:10px; }
 .choice-bar-row { display:flex; flex-direction:column; gap:6px; }

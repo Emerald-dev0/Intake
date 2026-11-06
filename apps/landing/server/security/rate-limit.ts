@@ -29,6 +29,7 @@ export type AbuseScope =
   | 'ai.interpret'
   | 'forms.create'
   | 'forms.provider_read'
+  | 'forms.export'
   | 'forms.edit'
   | 'email.verify.send'
   | 'email.verify.confirm'
@@ -51,6 +52,9 @@ export const ABUSE_POLICIES: Record<AbuseScope, ScopePolicy> = {
   'ai.interpret': { user: { limit: 8, windowSeconds: 600 }, network: { limit: 800, windowSeconds: 600 } },
   'forms.create': { user: { limit: 12, windowSeconds: 600 }, network: { limit: 1_200, windowSeconds: 600 } },
   'forms.provider_read': { user: { limit: 30, windowSeconds: 600 }, network: { limit: 3_000, windowSeconds: 600 } },
+  // An export walks every page of a form, so it is the most expensive read a person can ask for.
+  // Six an hour is far more than a real workflow needs and far less than a loop would spend.
+  'forms.export': { user: { limit: 6, windowSeconds: 600 }, network: { limit: 600, windowSeconds: 600 } },
   'forms.edit': { user: { limit: 20, windowSeconds: 600 }, network: { limit: 2_000, windowSeconds: 600 } },
   // Verification codes: tight per account, because the blast radius of an abused sender is the
   // whole domain's reputation. Confirmations are tighter still — they are guesses, not requests.

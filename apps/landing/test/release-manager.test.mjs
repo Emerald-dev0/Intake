@@ -402,6 +402,7 @@ const RELEASE_MIGRATIONS = [
   '040_release_describe_a_form_in_a_sentence.sql',
   '041_release_every_release_opens.sql',
   '043_release_ask_for_response_reading.sql',
+  '044_release_plainer_words.sql',
 ];
 
 async function readReleaseMigrations() {

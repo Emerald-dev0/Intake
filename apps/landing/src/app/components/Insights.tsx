@@ -21,6 +21,15 @@ interface FormInsightsData {
 /** Why the summary cannot be shown, when it cannot. */
 type Blocked = 'pro' | 'responses_scope' | 'reconnect' | null;
 
+/** What the export button is doing, and what it last said. */
+type ExportState =
+  | { kind: 'idle' }
+  | { kind: 'working' }
+  | { kind: 'done'; filename: string; count: number | null }
+  | { kind: 'incomplete'; filename: string; count: number | null }
+  | { kind: 'error'; message: string }
+  | { kind: 'empty'; message: string };
+
 interface InsightsProps {
   form: PublicLibraryForm;
   onClose: () => void;
@@ -47,6 +56,7 @@ export function Insights({ form, onClose, isPro, canReadResponses, needsReconnec
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [blocked, setBlocked] = useState<Blocked>(null);
+  const [exportState, setExportState] = useState<ExportState>({ kind: 'idle' });
 
   // The server decides what is allowed. The connection state only decides whether asking is worth
   // it: a request that is certain to be refused is not worth making, and a person who already
@@ -107,6 +117,71 @@ export function Insights({ form, onClose, isPro, canReadResponses, needsReconnec
     load();
     return () => { mounted = false; };
   }, [form.id, knownMissing]);
+
+  /**
+   * Download every response as one CSV.
+   *
+   * The file is fetched rather than linked so this screen can say what happened: a form with no
+   * responses gets an explanation instead of an empty file, a missing permission gets the same
+   * "allow response reading" door as the summary, and an export that stopped early is reported as
+   * stopped rather than handed over as if it were complete.
+   */
+  async function downloadCsv() {
+    setExportState({ kind: 'working' });
+    try {
+      const response = await fetch(`/api/forms/${encodeURIComponent(form.id)}/insights/export.csv`, {
+        credentials: 'same-origin',
+        cache: 'no-store',
+      });
+
+      if (response.status === 401) {
+        window.location.replace('/auth/sign-in?reason=session_expired');
+        return;
+      }
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({})) as { error?: unknown; code?: unknown };
+        const code = typeof body.code === 'string' ? body.code : '';
+        const message = typeof body.error === 'string' ? body.error : 'The export did not start. Try again.';
+        if (code === 'responses_scope_required') { setBlocked('responses_scope'); setExportState({ kind: 'idle' }); return; }
+        if (code === 'reauthorization_required') { setBlocked('reconnect'); setExportState({ kind: 'idle' }); return; }
+        if (code === 'pro_required') { setBlocked('pro'); setExportState({ kind: 'idle' }); return; }
+        if (code === 'no_responses') { setExportState({ kind: 'empty', message }); return; }
+        if (response.status === 429) { setExportState({ kind: 'error', message: 'Too many exports just now. Wait a few minutes and try again.' }); return; }
+        setExportState({ kind: 'error', message });
+        return;
+      }
+
+      const blob = await response.blob();
+      const filename = filenameFrom(response.headers.get('Content-Disposition')) ?? `intake-form-responses-${new Date().toISOString().slice(0, 10)}.csv`;
+
+      // Hand the file to the browser the ordinary way, so it lands in Downloads like any other.
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      // Give the browser a moment to start reading before the URL goes away. Long enough for a
+      // slow download to begin, short enough not to hold a large file in memory for a minute.
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+
+      // The last line of the file says whether it finished. Reading only the tail keeps a large
+      // export off the main thread's memory.
+      const tail = await blob.slice(Math.max(0, blob.size - 400)).text().catch(() => '');
+      const count = /# End of export\. (\d+) response/.exec(tail);
+      setExportState(
+        tail.includes('# INCOMPLETE') || tail.includes('# STOPPED')
+          ? { kind: 'incomplete', filename, count: count ? Number(count[1]) : null }
+          : { kind: 'done', filename, count: count ? Number(count[1]) : null },
+      );
+    } catch {
+      setExportState({ kind: 'error', message: 'Network error. The export was not downloaded.' });
+    }
+  }
+
+  const exportBusy = exportState.kind === 'working';
+  const nothingToExport = !!data && data.totalResponses === 0;
 
   if (!isPro || blocked === 'pro') {
     return (
@@ -212,6 +287,37 @@ export function Insights({ form, onClose, isPro, canReadResponses, needsReconnec
             ))}
           </div>
         )}
+
+        <div className="insights-export">
+          <button
+            className="btn btn-accent btn-sm"
+            onClick={downloadCsv}
+            disabled={exportBusy || nothingToExport || loading}
+            aria-describedby="insights-export-status"
+          >
+            {exportBusy ? <><span className="spin" /> Preparing CSV…</> : 'Download all responses (CSV)'}
+          </button>
+          <p className="insights-export-help">One row per response. Opens in Excel, Numbers or Sheets.</p>
+          <div id="insights-export-status" className={`insights-export-status ${exportState.kind}`} role="status" aria-live="polite">
+            {nothingToExport && exportState.kind === 'idle' && <span>No responses to export yet.</span>}
+            {exportState.kind === 'working' && <span>Collecting responses from Google…</span>}
+            {exportState.kind === 'done' && (
+              <span>
+                Saved {exportState.filename}
+                {exportState.count !== null ? ` — ${formatNumber(exportState.count)} response${exportState.count === 1 ? '' : 's'}.` : '.'}
+              </span>
+            )}
+            {exportState.kind === 'incomplete' && (
+              <span>
+                Saved {exportState.filename}, but it stopped early
+                {exportState.count !== null ? ` after ${formatNumber(exportState.count)} responses` : ''}.
+                Open it to see why, then export again.
+              </span>
+            )}
+            {exportState.kind === 'empty' && <span>{exportState.message}</span>}
+            {exportState.kind === 'error' && <span>{exportState.message}</span>}
+          </div>
+        </div>
 
         <div className="insights-footer">
           <button className="btn btn-ghost" onClick={onClose}>Close</button>
@@ -323,4 +429,12 @@ function InsightQuestionCard({ question, index, totalResponses }: InsightQuestio
       )}
     </section>
   );
+}
+/** The server names the file; its header is the authority, with the fallback only for safety. */
+function filenameFrom(disposition: string | null): string | null {
+  if (!disposition) return null;
+  const match = /filename="([^"]+)"/.exec(disposition) ?? /filename=([^;]+)/.exec(disposition);
+  const name = match?.[1]?.trim();
+  // A filename is a name, not a path.
+  return name && /^[\w.\-]+$/.test(name) ? name : null;
 }

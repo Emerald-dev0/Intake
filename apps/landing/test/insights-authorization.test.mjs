@@ -70,7 +70,11 @@ async function boot(options = {}) {
       async listResponses() {
         calls.listResponses += 1;
         return {
-          answers: [{ q1: ['Good'] }, { q1: ['Bad'] }, { q1: ['Good'] }],
+          responses: [
+            { responseId: 'r1', createTime: '2026-09-01T10:00:00.000Z', lastSubmittedTime: '2026-09-01T10:00:00.000Z', respondentEmail: null, answers: { q1: ['Good'] }, totalScore: null },
+            { responseId: 'r2', createTime: '2026-09-01T10:01:00.000Z', lastSubmittedTime: '2026-09-01T10:01:00.000Z', respondentEmail: null, answers: { q1: ['Bad'] }, totalScore: null },
+            { responseId: 'r3', createTime: '2026-09-01T10:02:00.000Z', lastSubmittedTime: '2026-09-01T10:02:00.000Z', respondentEmail: null, answers: { q1: ['Good'] }, totalScore: null },
+          ],
           nextPageToken: null,
         };
       },

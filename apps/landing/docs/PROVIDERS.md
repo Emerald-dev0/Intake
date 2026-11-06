@@ -12,7 +12,7 @@ lifecycle, see [`../server/providers/README.md`](../server/providers/README.md).
 
 | Provider | Connection | Create | Edit in place | Import | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Google Forms | Live | Yes | Yes | Yes | `forms.body` for create/edit; `forms.responses.readonly` only as an optional, separately requested permission for Response Insights. No Drive scope. |
+| Google Forms | Live | Yes | Yes | Yes | `forms.body` for create/edit; `forms.responses.readonly` only as an optional, separately requested permission for Response Insights and the CSV export of responses. No Drive scope. |
 | Typeform | Live | Yes | Yes, with limits | Yes | `accounts:read`, `forms:read`, `forms:write`, `offline`. Edit is a verified read-modify-write; deletes, type changes and reordering a form with logic are refused (see [TYPEFORM.md](./TYPEFORM.md)) |
 | Microsoft | Live, identity only | No | No | No | No supported Forms API exists; the UI says so |
 | SurveyMonkey | Planned | — | — | — | Public roadmap |
@@ -67,6 +67,118 @@ version.
    and labels the roadmap; `test/marketing-experience.test.mjs` asserts the planned group renders
    monochrome with its `PLANNED` chip. A provider that ships without those assertions is a provider
    that will quietly become a lie on the homepage six months from now.
+
+## Reading responses, and exporting them
+
+Google Forms is the only provider Intake can read responses from, and it is the only one where
+reading is a permission of its own. Everything below lives in
+`server/forms/insights/` plus the Google client in `server/forms/providers/google/client.ts`.
+
+### The permission
+
+`forms.responses.readonly` is requested only through an explicit, optional grant: the button in
+Response Insights, or the one on the Connections screen under Manage. Connecting Google Forms never
+asks for it. Without it there is no response data of any kind — not a summary, not an empty file,
+not a partial read. The API answers `403` with `code: "responses_scope_required"`, and the UI turns
+that into the button that fixes it.
+
+### Endpoints
+
+| Route | What it does |
+| --- | --- |
+| `GET /api/forms/:id/insights` | Summary of the answers: counts, choices, averages, top phrases. Bounded at 5 pages of 200 responses. |
+| `GET /api/forms/:id/insights/export.csv` | The full export: one row per response, streamed as it is read. |
+
+Both routes run the same gate, in the same order: signed in → within the abuse limit → the form
+belongs to the caller, is a Google form, and is finished → the plan is Pro → the Google connection is
+usable → the response scope is granted. The export has no looser door than the summary. A missing or
+foreign form answers `404` with no distinguishing detail, exactly as it does for a form that never
+existed.
+
+Error codes, unchanged from Response Insights:
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `pro_required` | 403 | Response reading is a Pro feature. |
+| `reauthorization_required` | 403 | The Google connection is missing, expired, or was refused by Google. |
+| `responses_scope_required` | 403 | The optional response permission has not been granted. |
+| `no_responses` | 404 | The export ran and there is nothing in it (or nothing in the requested date range). |
+| `invalid_since` | 400 | The `since` value is not an ISO 8601 timestamp or a `YYYY-MM-DD` date. |
+
+### Pagination
+
+`forms.responses.list` returns a `nextPageToken` and nothing else to page with, so both routes
+follow the token until it is gone. The client clamps `pageSize` to Google's documented maximum of
+5000 and treats an unspecified page size as "Google decides" rather than sending `0`. A page token
+is only ever the one Google handed back: it must be a non-empty string of reasonable length, and it
+is refused before a request is made if it is not.
+
+The export asks for 1000 per page and caps itself at 400 pages (400,000 responses). The cap exists
+to bound one request that a person is waiting on. If it is ever reached, the file says so in a line
+of its own instead of ending as though it were the whole form.
+
+### Filtering
+
+The only filter Google documents for `forms.responses.list` is a timestamp comparison:
+
+```
+filter=timestamp > 2026-10-01T00:00:00Z     (or >=)
+```
+
+Intake builds that string itself from a validated timestamp. `?since=` on the export route accepts a
+`YYYY-MM-DD` date (pinned to UTC midnight) or an RFC 3339 timestamp, with optional
+`&since_exclusive=true`. Anything else is a `400 invalid_since`. No query parameter is ever forwarded
+to Google, and unknown parameters are not read at all.
+
+### The CSV
+
+`server/forms/insights/export.ts` is pure: questions and responses in, a string out. It has no
+network, no database, and no logger.
+
+- **Shape** — three leading columns (`Response ID`, `Submitted at`, `Respondent email`) then one
+  column per question, in form order, titled with the question as the owner wrote it.
+- **Rows** — one per response. An unanswered question is an empty cell in its own column, so no
+  answer ever shifts sideways. A multi-value answer keeps all its values in one cell.
+- **Escaping** — RFC 4180: a cell is quoted when it contains a comma, a quote or a line break, and
+  inner quotes are doubled. Line breaks inside an answer are kept; null bytes are dropped.
+- **Formula injection** — a value or a question title starting with `=`, `+`, `-`, `@`, tab or
+  carriage return is prefixed with `'`, so a spreadsheet reads it as text. The title matters as much
+  as the answer here: a form owner can name a question `=cmd|calc`.
+- **Times** — ISO 8601, UTC, normalized from whatever offset Google sent.
+- **Branding** — a `#` comment block at the top names Intake, the form, and when the file was made.
+  A client or a script can tell it from data at a glance. A closing line states the exact number of
+  responses written; if the export stopped early it says that instead, so an incomplete file can
+  never pass for a complete one.
+- **Filename** — `intake-form-responses-YYYY-MM-DD.csv`, sent as
+  `Content-Disposition: attachment` with `Cache-Control: no-store` and `nosniff`.
+
+### Failure behaviour
+
+The first page is fetched before any header is sent, so anything a person can act on arrives as a
+normal JSON error with a real status. After the file has started, a failure is written into the file
+as `# INCOMPLETE: …` with the count so far and the fix to try. Backpressure is respected: a slow
+reader slows the paging instead of buffering the whole form, and if the reader goes away, paging
+stops.
+
+Retries are bounded (`server/forms/providers/google/retry.ts`): 429, 408, 5xx, timeouts and network
+failures get up to three attempts with exponential backoff, jitter, and Google's `Retry-After`
+honoured up to a 4 second cap. `400`, `401`, `403` and `404` are never retried — they are answers,
+and retrying them only spends quota. There is no unbounded concurrency: one page at a time.
+
+### What is not stored
+
+Nothing. Response bodies, respondent emails, page tokens and access tokens are held in local
+variables for the length of one request and are never written to a table, a log line, a cache or a
+background job. There is no response database, no sync, and no scheduled read. Google stays the
+source of truth. Never add logging of an answer, an email address or a token to this path — the
+tests in `test/insights-export.test.mjs` and `test/forms-responses-client.test.mjs` are written to
+make that kind of change loud.
+
+### Reading one response
+
+`google.getResponse(token, formId, responseId)` exists in the client and reuses the same client,
+token and error contract. It is not exposed as a route yet; when it is, it goes behind the same gate
+as the export.
 
 ## The honesty rule
 

@@ -236,7 +236,7 @@ export const FAQS = [
   },
   {
     question: 'Can Intake read my form responses?',
-    answer: 'Yes, but only if you ask it to. Response Insights — a Pro feature — reads the answers to the form you open and shows you how many people answered, what they chose, and the most common phrases. That needs one extra Google permission, forms.responses.readonly. Intake requests it only when you open Response Insights and choose to allow it, Google adds it to the permission you already gave rather than replacing it, and you can remove it from your Google account permissions at any time. Connecting Google Forms never asks for it, and if you say no, creating and editing forms keeps working exactly as before. The answers stay in your Google form: Intake reads them to work out the summary and does not store them.',
+    answer: 'Yes, but only if you ask it to. Response Insights — a Pro feature — reads the answers to the form you open and shows you how many people answered, what they chose, and the most common phrases. That needs one extra Google permission, forms.responses.readonly. Intake requests it only when you open Response Insights and choose to allow it, Google adds it to the permission you already gave rather than replacing it, and you can remove it from your Google account permissions at any time. Connecting Google Forms never asks for it, and if you say no, creating and editing forms keeps working exactly as before. The answers stay in your Google form: Intake reads them to work out the summary, or to write the CSV you asked for, and does not store them.',
   },
   {
     question: 'Do I need to sign up to try it?',
@@ -252,7 +252,7 @@ export const FAQS = [
   },
   {
     question: 'Where do the responses go?',
-    answer: 'Straight to the provider you chose. People answer on the normal Google Forms or Typeform page, and every response lands in the form you own, ready for its responses tab or a spreadsheet. Intake only reads the answers when you open Response Insights, and it does not keep them. When Google Sheets joins as a provider, that stays true: the rows go into your sheet, not into Intake.',
+    answer: 'Straight to the provider you chose. People answer on the normal Google Forms or Typeform page, and every response lands in the form you own, ready for its responses tab or a spreadsheet. Intake only reads the answers when you open Response Insights or download them as a CSV, and it does not keep them. When Google Sheets joins as a provider, that stays true: the rows go into your sheet, not into Intake.',
   },
   {
     question: 'What kinds of questions can I create?',
