@@ -1,0 +1,440 @@
+-- Phase: the changelog is written the way people talk, and responses can be read in full.
+--
+-- Two things in one migration, because they ship together.
+--
+-- First, every release note in the changelog was rewritten in plain English: shorter sentences,
+-- the real screen and the real number, no essay-length paragraphs. The words changed and nothing
+-- else did — no title moved, no date moved, no release was added or removed, and no sentence was
+-- allowed to describe work that did not happen. Each UPDATE below replaces one published entry
+-- with its current wording, so the database and the copy bundled with the site agree again.
+--
+-- Second, the response export: insights now follow every page Google returns instead of stopping
+-- at the first batch, and a Download CSV button writes one row per response with the question
+-- titles as columns. Answers are read from Google while the file is written and are not stored by
+-- Intake. The new entry is seeded here as well as bundled with the site.
+--
+-- Rollback: the NOTES rows can be restored by re-running the earlier seed migrations (038, 040,
+-- 041, 043) after deleting this file's updates, and the new entry is removed with
+-- DELETE FROM release WHERE slug = 'read-every-response';. No other table is touched, and no
+-- customer data is read or written.
+
+-- launch
+UPDATE release SET
+  title = 'Intake opens',
+  summary = 'Describe the form you need in a sentence. Intake writes the questions, you read them, and the form is created in the Google account you connected.',
+  body = $notes$## One sentence in, a form you can read
+Describe the form and Intake writes it out: the questions, what kind of answer each one takes, which are required, and the order they appear in. You get a draft first. Nothing exists in Google until you approve it.
+The order matters more than it sounds. A form that appears before you have read it is a form you have to undo. A draft you can edit is a form you can approve.
+## Why nothing is created without you
+The model that writes the draft never talks to Google. It suggests a structure, and Intake checks that structure against what Google Forms can actually build before showing you anything: which question types exist, which settings are allowed. If part of your request cannot be built there, we say so. We do not hand you a form with half of it quietly missing.
+When you confirm, the form is created in your Google account and you get a real link to it. Not a preview and not a file to import. The form itself, in your account.
+## Making your first one
+Create an account, connect Google Forms, and describe the form from the home screen. The first one takes a sentence and a click. If your description is vague, Intake asks a question instead of guessing, and that question is free.
+Each account gets 20 credits a day, refreshed at midnight UTC. One credit is one form or one edit. A failed attempt costs nothing.
+## What was not there yet
+At launch, Google Forms was the only target. Typeform came later. Microsoft Forms never became one, because Microsoft does not offer a supported way to create or edit forms through an API. A Microsoft connection would have promised something the product could not do.
+Editing also meant going to Google at launch. Intake could create a form but not change it in place.$notes$,
+  highlights = ARRAY['One sentence in, a full question list out: the questions, their answer types, and which ones are required.', 'Nothing is sent to Google until you have read the draft and approved it.', '20 credits a day on every account, refreshed at midnight UTC. No card and no trial clock.'],
+  audience = 'For anyone who has typed the same fourteen questions into a form editor twice.',
+  updated_at = now()
+WHERE slug = 'launch';
+
+-- welcome-mail
+UPDATE release SET
+  title = 'Every signup gets a proper welcome',
+  summary = 'New accounts get a real email from Daniel: what Intake does, what is being built next, and how to get the first form made.',
+  body = $notes$## The email you get now
+You get one email after signing up. It explains what Intake does in a paragraph, what we are working on next, and how to make your first form. Daniel wrote it, and it arrives through the same mail system that sends your password resets.
+It is not a drip campaign and it is not a template with your name dropped into it. There is one of these, and it comes once.
+## Why we bothered
+Most people come to a form tool with one job in mind, and the first question is not what the tool does. It is whether it will work for them.
+That question used to be answered by a confirmation screen. Now it is answered in plain words: what the product does, who it is for, what happens next, and what it does not do yet.
+## What it does not do
+It does not put you on a mailing list. Product updates are a separate list you opt into, and you can leave it from the same email. Account and security messages always arrive, whichever way you set that list.
+It also does not claim more than it can prove. We record that the send happened and what the mail provider accepted. We cannot see what happened in the inbox afterwards, and we do not pretend to.$notes$,
+  highlights = ARRAY['Daniel wrote it and Daniel sends it. It is not generated from a template.', 'It tells you how often things ship, so you are not left guessing.', 'You get one of these. After that, nothing unless you ask for it.'],
+  audience = 'For new accounts working out whether Intake is worth a second browser tab.',
+  updated_at = now()
+WHERE slug = 'welcome-mail';
+
+-- traffic-analytics
+UPDATE release SET
+  title = 'We count visits without watching people',
+  summary = 'The marketing site now records which pages were read and which buttons were pressed. No IP address, no cookie, no identifier.',
+  body = $notes$## What is recorded
+Every public page can report that it was read, and which links were pressed. That event carries the page path, the label of the button, the site the visit came from, the browser time zone, and any campaign tags in the URL.
+That is all of it. No IP address, no user agent, no cookie, no device identifier, no account identifier. Two visits from one computer look exactly like two visits from two computers.
+## Country reach without addresses
+We wanted to know which countries read the site. An IP address would have answered that question, and it would also have been a location we had no reason to keep.
+The browser time zone answers it well enough on its own to tell a reader in Lagos from a reader in Berlin, and it identifies neither of them.
+## What it does not tell us
+No unique visitors, no sessions, no retention, and no funnel from a first visit to a first form.
+Those numbers need an identifier to compute them, and the only honest way to have one is to keep one. We would rather publish counts we can stand behind.
+## Do Not Track
+If the browser sends `Do Not Track: 1`, nothing is recorded: not the page view, not the click. No consent banner, no cookie to decline. The browser says no and the answer is no.$notes$,
+  highlights = ARRAY['Page path, button label, referring site, time zone, campaign tags. That is the whole record.', 'We get a rough idea of which countries read the site without storing a single IP address.', 'A browser that sends Do Not Track is not recorded at all.'],
+  audience = 'For us, and for you, if you would rather we did not.',
+  updated_at = now()
+WHERE slug = 'traffic-analytics';
+
+-- sign-up-is-open
+UPDATE release SET
+  title = 'The waiting list is gone',
+  summary = 'You can create an account, connect Google Forms or Typeform, and make your first form in one sitting. Free plan, 20 credits a day, no card.',
+  body = $notes$## It is open
+There is no queue any more. You can make an account and make a form now, and the three things that used to happen at different times — signing up, connecting a provider, describing the form — happen in one sitting, in one tab.
+Connecting a provider is still its own step, and it stays that way on purpose. Signing in proves who you are. It does not hand over your Google account. The connection screen names the permissions being asked for and says what happens if you say no.
+## What the Free plan is
+Twenty credits a day on every account, refreshed at midnight UTC. One credit is one form or one edit, so a normal day of work fits comfortably inside twenty.
+There is no card to add and no trial that rolls into a paid plan. If Intake ever costs money, it will be a plan you chose at a price you saw.
+## What still needs a provider
+Intake creates forms in Google Forms and Typeform. Without either one connected you can still make an account and look around, but your first form needs somewhere to live, and that somewhere is the provider.$notes$,
+  highlights = ARRAY['Account, provider connection and first form in the same tab.', '20 credits a day on the Free plan, refreshed at midnight UTC.', 'No card, no trial timer, no sales call.'],
+  audience = 'For anyone who signed up to wait and would rather just start.',
+  updated_at = now()
+WHERE slug = 'sign-up-is-open';
+
+-- typeform-joins-google-forms
+UPDATE release SET
+  title = 'Typeform is now a creation target',
+  summary = 'Pick Google Forms or Typeform before you describe the form. Either way you get the same draft-first flow.',
+  body = $notes$## One composer, two targets
+You choose the provider before you describe the form. It is a decision at the start, not a setting you find later. Intake writes the same kind of draft for either one, checks it against what that provider can build, and shows it to you before anything is created.
+Typeform has different question types and a different way of expressing logic, so a draft that Typeform cannot build is adjusted before you see it, instead of failing after you approve it.
+## Importing what you already have
+A Typeform connection can pull in links you have already made, so your library holds forms from both providers instead of only the ones Intake created. Imported forms are marked as imports: Intake can read them and link to them, and it says which ones it did not create.
+## What is not there yet
+Editing a Typeform in place is not built. A Google Form can be changed in the account it lives in. A Typeform cannot yet, and the interface says that rather than pretending both providers behave the same way.
+Microsoft Forms is a connection and nothing more. Microsoft offers no supported way to create or edit forms, so connecting Microsoft does not mean Intake can make you a form there. It cannot.$notes$,
+  highlights = ARRAY['One composer, two targets, and the same review step in front of both.', 'Typeform links you already have can be imported, so they sit beside the forms you made.', 'Editing a Typeform in place is not built yet, and the workspace says so.'],
+  audience = 'For teams whose forms already live in Typeform.',
+  updated_at = now()
+WHERE slug = 'typeform-joins-google-forms';
+
+-- every-release-has-a-page
+UPDATE release SET
+  title = 'Every release has its own address',
+  summary = 'The changelog is no longer one long list. Each release has a permanent address you can link to, share and keep.',
+  body = $notes$## Why a list was not enough
+A changelog you can only read in place is a changelog you cannot send to anyone. Every entry now has its own address: a permanent link that keeps working when the next release lands above it.
+That link carries its own title, description, canonical URL and social card, so it looks right when you paste it into a chat, a forum or a commit message.
+## What a release page carries
+The date, the categories, a summary, the highlights, the full notes and the links that go with the release. The notes get a table of contents, so a long entry can be read in pieces or linked to by section. Every page has a button that copies its own address.
+## Only what has shipped
+A release becomes public when it is published. Before that it does not exist as far as the outside world is concerned: drafts are answered with a 404 rather than a 403, so nobody can use the public API to find out whether one exists.
+Drafts stay out of the sitemap, out of the social preview and out of anything a search engine indexes. The releases from before this change were given pages too, so every entry in the list can be linked directly.$notes$,
+  highlights = ARRAY['A permanent URL per release, with its own canonical link and its own social card.', 'A copy button on every page, so sharing a release takes one click.', 'Only published releases are public. Drafts never reach a search engine or a link preview.'],
+  audience = 'For anyone who wants to point at one change instead of at the whole history.',
+  updated_at = now()
+WHERE slug = 'every-release-has-a-page';
+
+-- intake-for-developers-page
+UPDATE release SET
+  title = 'The developer page, and what it does not promise',
+  summary = 'There is a Developers page now, and every capability on it says whether it ships today, is being built, or is not promised.',
+  body = $notes$## A page before the product
+Intake for Developers is being built, and the page says so on its face instead of at the bottom. Every capability carries one of three states: shipping, being built, or not promised.
+Webhooks are not promised and an SDK is not promised. Both are plausible ideas, neither of them exists, so both are written down as things you should not plan around yet.
+## What the page covers
+What a form costs when you host it yourself: the renderer, the validation, the storage, the spam control, the exports and the whole lifecycle. Then what Intake for Developers takes off that list.
+How the embed works: a permanent address per form, a snippet to paste, theme tokens for colour, background, text, border, typeface and corner radius, and light, dark and system themes with an option for a transparent background.
+Then the part most pages skip. An iframe pointing at another origin cannot read your page’s stylesheet, your CSS variables or your fonts. That is a browser rule and not a setting, which is why the theme is configuration you pass in rather than something inherited from your page.
+## The credits do not change
+AI summaries of responses use the same 20 daily credits as everything else. There is no second wallet for developers, no separate currency, and no conversion rate to remember. The cost is shown before a summary runs, and a summary that fails spends nothing.
+## How we keep it honest
+Each capability’s status is one line in one file, and every change to it ships with a changelog entry, this one included. When something starts working, the page says so the day it works.$notes$,
+  highlights = ARRAY['One board, three states: shipping, being built, not promised. Nothing vague.', 'What a cross-origin embed can and cannot inherit is written down in plain words.', 'One email when developer forms open. Nothing else, and no list you did not ask for.'],
+  audience = 'For developers deciding whether to wait for Intake to host their forms.',
+  updated_at = now()
+WHERE slug = 'intake-for-developers-page';
+
+-- hosted-forms-for-developers
+UPDATE release SET
+  title = 'Hosted forms, and the address they keep',
+  summary = 'You can build a form, publish it at a permanent address and drop it into a page. Every answer is checked on the server before it is stored.',
+  body = $notes$## What you can do now
+Make a project, make a form in it, write the questions, and publish. The form gets its own address — /forms/your-project/your-form — and a snippet you can paste into a page instead.
+The question types are the usual ones: a line of text, a paragraph, an email, a number, a date, a dropdown, one choice, several choices, or a box to tick. Each one can carry a label, a line of help text and a required flag.
+## The address does not move
+Editing a published form does not move it and does not rewrite it. A published version is frozen: your next edit becomes the next version, and the one people are answering stays exactly as it was. A snippet you pasted last month still points at the same form, and answers are still checked against the version that was live when they arrived.
+## What the server checks
+Every answer is checked against the published version before it is stored: required questions answered, email addresses that look like email addresses, choices that are actually on the form, and nothing slipped in under a question that does not exist.
+A retry is the same answer and not a second one. Each form makes one key when it loads and keeps it, so a double tap or a dropped connection leaves one response instead of two.
+Only what the form asked for is kept. The referrer and the browser’s user agent are stored, shortened, because they answer how people found the form without keeping a list of who visited.
+## How it looks
+A form inside an iframe on somebody else’s page cannot inherit that page’s stylesheet, its variables or its fonts. Since that is the browser’s rule and not a setting, the theme is configuration: primary colour, background, text, border, typeface and corner radius, in light, dark or system, with a transparent background if you would rather your own page showed through.
+## What is still to come
+Answers are being stored, and the inbox to read them — with search, filters and a CSV export — is the next piece of work. Webhooks are not promised yet and neither is an SDK. Both sit under "not promised" on the developer page, and they will stay there until they are real.$notes$,
+  highlights = ARRAY['A published form keeps its address, so a snippet you pasted months ago still works.', 'Answers are checked against the version that was live, and a retry never records the same person twice.', 'The theme is a setting, because an iframe cannot read your CSS.'],
+  audience = 'For developers who want a form in their product without a form system in their repo.',
+  updated_at = now()
+WHERE slug = 'hosted-forms-for-developers';
+
+-- the-response-inbox
+UPDATE release SET
+  title = 'The inbox, and a number you can trust',
+  summary = 'The answers to a hosted form can be read, searched and exported. The count comes from the database, not from whatever happens to be on screen.',
+  body = $notes$## Reading the answers
+Every form has an inbox now. The questions are the columns, the answers are the rows, and the newest answer sits at the top. There is a search box for a word somebody wrote, and paging for when there are more answers than fit on one screen.
+## The count is the count
+The number of answers is counted by the database. It is not the number of rows currently on screen, and it is not a number a model estimated. It stays the same on the first page, on the last page, and on a search that matched one answer.
+## The export is the table
+The CSV file has the same columns as the table in the same order, with the time of each answer in front. The server builds it, not the browser, so it behaves the same whether there are twelve answers or twelve thousand.
+One small piece of care: a value that starts with a character a spreadsheet reads as the start of a formula is escaped on the way out. An answer somebody typed should never be able to run something in the file you open next.
+## Whose answers are whose
+An answer can be read by the account that owns the form and by nobody else. Anyone else asking gets the same answer a form that never existed gets: nothing, and no hint that it was ever there.$notes$,
+  highlights = ARRAY['The number of answers is counted by the database, so "12 answers" means twelve answers.', 'Search finds a word anywhere in an answer, not only in the first column.', 'The CSV has the same columns as the table, and a value a spreadsheet would run as a formula is defused on the way out.'],
+  audience = 'For developers whose form is collecting answers and who would rather not build a dashboard to read them.',
+  updated_at = now()
+WHERE slug = 'the-response-inbox';
+
+-- summarise-the-answers
+UPDATE release SET
+  title = 'What the answers sound like',
+  summary = 'A set of answers can now be summarised for three of the credits you already have, with the exact counts printed beside the interpretation.',
+  body = $notes$## A summary, not a statistic
+Press the button and Intake reads the answers and says what they sound like: the themes, the things people keep coming back to, the tone. It is labelled as an interpretation, because that is what it is.
+The counts sit next to it and are exact, because they are counted from the rows rather than written by a model. Ask for a summary of two hundred answers and the table above it still says how many answers there were.
+## What it costs
+A summary is one operation like any other: the same 20 daily credits, the same price list, the same behaviour when the balance runs out. There is no developer wallet and no developer currency. The page shows the cost before you run it and the receipt afterwards.
+If the model does not answer, you pay nothing. The charge happens when there is a usable summary, not when the request is made.
+## Asking again is free
+The key of the operation is worked out from the answers themselves, so asking for a summary of the same answers a second time does not take another three credits. It tells you that you already paid for this one. When new answers arrive it becomes a new operation, and it costs again.
+## What the model is allowed to see
+The answers to that form and nothing else. No account details, no other form, no other customer. The number of answers read is capped, each answer is trimmed, and the whole prompt has a size limit, so a form with a great many answers cannot become a great many credits.
+The model is also told not to write numbers. "Most people mention pricing" is fine. "42% mention pricing" is not, because that would be a guess sitting next to a count that is not.$notes$,
+  highlights = ARRAY['Three credits from the same balance as everything else. There is no second wallet.', 'The counts are counted from the rows. The model is never asked for a number.', 'A failed summary costs nothing, and the same answers are never charged for twice.'],
+  audience = 'For developers with a hundred answers and no wish to read all of them.',
+  updated_at = now()
+WHERE slug = 'summarise-the-answers';
+
+-- your-usage-numbers
+UPDATE release SET
+  title = 'What your forms did, in three numbers',
+  summary = 'Every project now reports the answers it accepted, the requests it refused and the bytes it stored, over the last thirty days.',
+  body = $notes$## Three numbers
+The workspace now reports what your projects did: how many answers were accepted, how many requests were refused, and how much was stored. Thirty days at a time, per project and in total.
+## A refusal counts as a refusal
+A request that did not become an answer is counted as refused: a bad answer, a question the form does not have, a value of the wrong shape. That is the number you want when something is being thrown at you. It is only counted for a project that exists, so a request for an address that does not exist is not quietly charged to somebody else.
+## Where the numbers come from
+Intake counts them as the answers arrive. An operator can hold them up against what the hosting, the database and the model provider report, and the numbers should agree. That is the reason to count them here instead of estimating them somewhere else.
+They are deliberately plain: a count of answers, a count of refusals, a count of bytes. No addresses, no user agents, no notes.$notes$,
+  highlights = ARRAY['Three counters, counted as they happen: answers accepted, requests refused, bytes stored.', 'Per project and across everything, over thirty days.', 'The same numbers an operator sees, so the two can be compared rather than believed.'],
+  audience = 'For developers who want to know what a form is doing without reading every answer.',
+  updated_at = now()
+WHERE slug = 'your-usage-numbers';
+
+-- be-told-about-new-answers
+UPDATE release SET
+  title = 'Ask to hear about new answers',
+  summary = 'You can ask Intake to email you when a form has new answers: every N answers, or a daily digest. Off until you turn it on.',
+  body = $notes$## Off until you ask
+There is a setting on each project: email me when this project has new answers. It is off until you turn it on, and there is no version of this that is on by default.
+## One note, not one per answer
+Choose every N answers, ten for example, or a daily digest. The point of a threshold is that three answers make one note instead of three, so a busy form does not turn into a flood.
+The notice goes through the same mail system as every other message from Intake: the same delivery log, the same suppression list, and the same rule that the same notice is never sent twice. If a notice cannot be sent, the count is left where it was and the next answer tries again.
+## Your form, your answers
+The notice is about your form and it goes to you. Nobody who filled the form in is ever written to from this. There is no way to make that happen and no setting that would.$notes$,
+  highlights = ARRAY['Off by default. Nobody is told anything until you ask.', 'Every N answers, or one digest a day. Never one email per answer.', 'The notice is about your form and goes to you. Nobody who filled it in is ever written to.'],
+  audience = 'For developers who want to know something arrived without watching the inbox.',
+  updated_at = now()
+WHERE slug = 'be-told-about-new-answers';
+
+-- delete-a-form
+UPDATE release SET
+  title = 'Delete a form when you are done with it',
+  summary = 'A form can be deleted from the console, but only once it is closed, and only after you type its address to confirm.',
+  body = $notes$## Finishing with a form
+Every form has an address on the internet, and every answer is stored against it. When a form has done its job you can delete it from the console. The form, its versions and the answers it collected go together, and the address is free for the next thing.
+## Two things the server will not let you do by accident
+A live form cannot be deleted. Close it first. That is one deliberate click, and the public endpoint stops taking answers the moment you make it. Nothing is thrown away in the meantime.
+The deletion also has to carry the form’s own address. If a request arrives from a tab you had forgotten about, or a client sends the same call twice, it takes nothing with it, because the address has to match.
+## Or archive it instead
+If you only want a form out of the way for a while, archive it. That is reversible: restore it and it comes back as a draft with its answers still there. Deleting is for the forms you have finished with.$notes$,
+  highlights = ARRAY['A live form has to be closed first, so nothing is deleted while it is still collecting answers.', 'You type the form’s address to confirm. A stray click cannot take anything with it.', 'The form, its versions and its answers go together.'],
+  audience = 'For developers who have finished with a form and want it out of the way.',
+  updated_at = now()
+WHERE slug = 'delete-a-form';
+
+-- the-changelog-has-a-card
+UPDATE release SET
+  title = 'The changelog, where you look for it',
+  summary = 'The changelog sits in the navigation bar now, and every release draws its own preview card when you paste a link to it.',
+  body = $notes$## Where the changelog went
+The changelog used to be in the footer, which is where a link ends up when nobody is thinking about it. It is in the navigation bar now, between the questions page and the developers page, because people who want to know what shipped look there.
+## A card for every release
+Pasting a link to a release used to produce a preview of the home page, which tells a reader nothing about what they are about to read.
+Each release now draws its own card: the title, the day it shipped, and the first lines of what it says, in the same colours and shape as the rest of the site. It is drawn from the release itself, so a corrected release gets a corrected card, and a release published tomorrow gets one without the site being rebuilt. The changelog index has a card too, carrying the newest release.
+## What a crawler sees
+Every changelog address now has a document of its own, written at build time: the title, the description, the permanent address, the card, and the notes in readable HTML.
+That matters beyond search engines. A link preview is built from the document before any of the page runs, so without it the preview had nothing to show. Now the preview, the crawler and the reader all get the same release.
+The permanent addresses have not changed. A release you linked to before still resolves to the same place with the same card.$notes$,
+  highlights = ARRAY['Changelog is in the top navigation, one click from the home page.', 'Every release draws a card from its own title, date and summary, so the preview shows what was actually written.', 'Every changelog address has a document of its own, so a crawler reads the release instead of a stub.'],
+  audience = 'For readers who follow what Intake ships, and for anybody pasting a link to a release.',
+  updated_at = now()
+WHERE slug = 'the-changelog-has-a-card';
+
+-- the-mail-reads-properly
+UPDATE release SET
+  title = 'The mail reads properly now',
+  summary = 'Every Intake email has been read through and fixed: the social row is gone, provider names are spelled properly, and the details line up.',
+  body = $notes$## The row that was never the product’s
+Every Intake email ended with a badge and a line inviting you to follow the product on X. The account behind that row was a personal one set up as if it belonged to the product, which is not a row a product gets to print on every letter it sends. It is gone: from the footer, from the plain-text version of the letter, and from the setting that put it there.
+The letter that invited you to follow along now points at the changelog, which is where the updates actually are and where every release has a page.
+## The provider, named properly
+When a connection ended, the subject line read "typeform was disconnected from Intake": the raw identifier, in lower case, at the start of a sentence. It read like a typo because it was one. Nobody had looked the provider’s name up.
+The name now comes from the same place the rest of the product gets it — Typeform, Google Forms, Microsoft Forms — and a line starts with a capital whatever it is handed. A provider name can no longer begin a subject in lower case.
+## A card that lines up
+The details under the heading, the account and the time, had no width of their own. The table gave its spare room to the label column, so the values slid in and out depending on how long their labels were, and the card looked as if it had been assembled from parts. The table uses a fixed layout now: labels have a column and every value starts in the same place.
+The mark in the header had a version of the same problem. It sat on the edge of the paper, to the left of the text it belongs to. It is padded to the column the card’s text starts in, and it tightens on a narrow screen.
+## What did not change
+Nothing about what the mail says, when it goes out, or who it goes to. The same notices go out on the same triggers, with the same rules about what is optional and what is not. This release is about how the letter looks once it has arrived.$notes$,
+  highlights = ARRAY['The X row is gone from every email. The footer carries the mark, the words and a way to reply.', 'A provider notice reads "Typeform was disconnected from Intake" instead of "typeform was disconnected from Intake".', 'The details table gives its labels a column of their own, so values start in the same place every time.', 'The mark in the header sits on the same column as the text in the card, and tightens on a narrow screen.'],
+  audience = 'For everyone who reads Intake’s mail, and for whoever has to read a hundred of them in a week.',
+  updated_at = now()
+WHERE slug = 'the-mail-reads-properly';
+
+-- describe-a-form-in-a-sentence
+UPDATE release SET
+  title = 'Describe a form in a sentence',
+  summary = 'The developer console can write a hosted form’s questions from a sentence: the same AI, the same credits, and nothing published until you have read it.',
+  body = $notes$## The sentence you would have typed anyway
+Making a form by hand is not hard, it is tedious. You open a builder, decide what to ask, type it out, set what is required, then read it back to check you did not leave a required field blank. It is easy to start and annoying to finish.
+You already know the sentence. “A sign-up form for our design partners.” “Ask a freelancer what they charge per hour.” “A short application for the beta list.” That is the whole description, and until today the console made you type the questions out longhand anyway.
+Now it does not. Press “Describe it” in a project, write the sentence, and Intake writes the questions: the labels, the types, the required flags, and the choices where choices belong. You read them, change what you like, and publish.
+## What the model does, and what it cannot do
+The model writes words. That is all it does. It cannot create a form, publish a form, move a form, or reach the database. It returns a proposal, and the server turns that proposal into a form definition, checks it against what a hosted form can actually render, and makes a draft.
+If your sentence needs something this kind of form cannot do — a file upload, a payment, a question that only appears for some people — Intake says so instead of quietly dropping it. It is the same rule the provider forms follow. An honest no beats a form that lost half of what you asked for.
+When a sentence is ambiguous in a way that would change the form, Intake asks one question instead of guessing. Your answer goes into the same proposal.
+## The credits you already have
+Same AI, same ledger, same twenty credits a day as everything else in Intake. No second wallet and no new currency. A small form costs two credits, a bigger one costs a little more, and the console tells you what it charged when it is done.
+Nothing is charged when the model fails, and nothing is charged for the clarifying question. If your browser drops the connection and sends the request again, the server recognises it and hands you the form it already made instead of making a second copy: one operation, one form, one charge.
+## Starter templates for forms people actually want
+Some sentences everybody writes. There is a row of templates above the box — waitlist, feedback, contact, sign-in, newsletter, beta application, support request, booking, RSVP, one question — and pressing one puts its sentence in the box.
+It is a shortcut and not a fixed form. The sentence is yours to read and change before you send it, and the questions come back for the sentence you ended up with. The sign-in template asks for an email address and a one-time code, never a password. A hosted form collects answers. It does not hold a session, and it is not a place to type a password.
+## What it will not do
+- It does not publish anything. What it writes is a draft until you publish it yourself.
+- It does not choose a provider or a Google account. A hosted form lives on an Intake address, which is the point of it.
+- It does not invent requirements. If it cannot responsibly guess a list of choices, it asks you for the list.
+- It is not a second builder. Everything it writes can be edited by hand afterwards, and everything you could do by hand you still can.$notes$,
+  highlights = ARRAY['Open a project, press “Describe it”, and write what the form should ask. The questions come back for you to read before anything is live.', 'The same twenty daily credits as everywhere else. A small form costs two of them, and the price is shown when it is charged.', 'If Intake needs one more detail it asks, and that question is free. A provider that fails costs nothing.', 'The form arrives as a draft. You edit the questions, publish when they are right, and the address never moves.', 'Starter templates for the forms people actually need — waitlist, feedback, contact, sign-in, RSVP — put the sentence in the box for you.'],
+  audience = 'For developers who would rather describe a form than type fourteen questions into a builder.',
+  updated_at = now()
+WHERE slug = 'describe-a-form-in-a-sentence';
+
+-- intake-for-developers
+UPDATE release SET
+  title = 'Intake for Developers',
+  summary = 'The whole developer platform in one release: build a form, publish it at an address that never moves, put it in your page, read the answers, and know what it cost.',
+  body = $notes$## The problem we kept hearing
+Intake was built for people. You describe the form you want in a sentence, Intake drafts the questions, you read them over, and they land in the Google or Typeform account you connected. That is a good shape for somebody who wants a form.
+Developers kept asking a different question, and it was never whether Intake could make a form. It was this: I want the form at my address, in my page, and the answers where my code can reach them. Until today the honest answer was to use the provider’s form, the provider’s responses tab, and to write the integration yourself if you wanted the answers in your own system.
+That is a lot to ask of somebody who only wanted to know how many people filled in their form. So the developer platform arrives as one piece instead of six: the form, the checks, the inbox, the summary, the numbers, the notice, and a way to finish with a form when it has done its job.
+## What is there now
+### A form at an address that is yours
+Make a project, make a form in it, write the questions, publish it. The form gets an address of its own — /forms/your-project/your-form — and a snippet you can paste into a page to embed it there instead. Editing a published form does not move it and does not rewrite it: a published version is frozen, your next edit becomes the next version, and the one people are answering stays exactly as it was.
+A form that lives in an iframe on somebody else’s page cannot inherit that page’s stylesheet, its variables or its fonts. That is the browser’s rule and not a setting, so the theme is configuration: primary colour, background, text, border, typeface and corner radius, in light, dark or system, with a transparent background if you would rather your own page showed through.
+### Answers that are checked before they are stored
+Every answer is checked against the published version: required questions answered, email addresses that look like email addresses, choices that are actually on the form, and nothing else smuggled in under a question that does not exist. A payload is 32 kilobytes at most, a request has ten seconds to finish, and one address can send twenty submissions a minute.
+A retry is the same answer and not a second one. Each form makes one key when it loads and reuses it, so a double tap, or a connection that drops halfway, leaves one response and not two.
+### An inbox, and numbers you can trust
+The responses are in the console: search them, filter them, page through them, open one, and export the lot as CSV. The count at the top is counted by the database, so the number of responses is the number of responses. It is not a model’s guess and it does not drift when you are looking at page nine.
+### What the answers sound like
+The same twenty credits a day you already have can summarise a set of responses for three credits. There is no second wallet and no second currency. The cost is shown before you run it, the exact counts are counted in SQL and printed beside the interpretation, and a provider that fails costs nothing.
+### What it cost, and what it did
+Every project reports what happened over the last thirty days: submissions accepted, requests refused, and the bytes stored, per project and across the platform. It is the number you need when somebody asks what this thing costs to run.
+### Hearing about new answers
+Ask to be emailed when a project has new answers, every N answers or as a daily digest. It is off until you turn it on, it only ever goes to you, and a repeated trigger does not send the same notice twice.
+### Finishing with a form
+Pause it, close it, reopen it, archive it, delete it, from the console and without touching your site. The public endpoint enforces the state, so a closed form stops taking answers the moment you close it. A live form has to be closed before it can be deleted, and deleting one asks you to type its address first.
+## How to use it
+- Sign in and open the developer console at /app/developers.
+- Make a project. It is the thing the forms and the answers belong to.
+- Make a form in it and write the questions: short and long text, email, number, date, dropdown, one choice, several choices, or a box to tick. Each one can carry a label, a line of help and a required flag.
+- Publish it. You get an address and a snippet. Paste the snippet into your page, or link to the address if you would rather the form had a page of its own.
+- Read the answers in the inbox, export them as CSV, and run a summary when you want the shape of them rather than the rows.
+- Turn on the notice if you want to hear about new answers instead of watching for them.
+- Close, archive or delete the form when it has done its job.
+## What it does not do yet
+- There are no webhooks to your own backend. Today the inbox and the CSV are how the answers get out, and the developer page says so in the same words. It will say so there first when that changes.
+- There is no SDK and no API key. The plain embed is the interface.
+- The form lives on an Intake address, not on a domain of your own.
+- There are no file uploads, and there is no payment collection inside a form.
+- Paid plans are built but switched off. Everybody is on the same free plan with twenty credits a day, and no price is promised before that changes.$notes$,
+  highlights = ARRAY['A form you build in the console, published at an address that never moves, with a snippet you can paste into a page.', 'Every answer is checked on the server against the version that was live, and a retry never records the same person twice.', 'An inbox you can search, filter and export to CSV, with counts counted by the database rather than by the page.', 'Your answers summarised for three of the credits you already have, with the exact counts printed beside the interpretation.', 'Usage per project and in total: accepted, refused and stored, over the last thirty days.', 'An email when new answers arrive, every N answers or as a daily digest. Off until you turn it on.'],
+  audience = 'For developers who want a form in their own page and the answers in their own hands, without building a form system first.',
+  updated_at = now()
+WHERE slug = 'intake-for-developers';
+
+-- every-release-opens
+UPDATE release SET
+  title = 'Every release opens',
+  summary = 'Opening a release at the address it is served from produced a page saying it did not exist. Every release now opens there, and at its permanent address.',
+  body = $notes$## The page that said it was not there
+A release has one permanent address: /changelog/<slug>. It is in the sitemap, it is what the share card points at, and it is where a link from the changelog, a search engine or a colleague sends you.
+Each release is also written out as a document of its own, so a crawler and a link preview can read it without running the site. That document is stored with an index.html on the end of its address, and some addresses served it from there. The document itself was correct: the right title, the right description, the whole release written into it.
+What the site did with that address was the problem. It knew the permanent address and it knew the address with the file name on the end, but not the two together, so the reader was told the page did not exist. The release was there the whole time.
+## What changed
+The site now knows the address a release is served from as well as the address it is written under. Opening a release there shows the release, and opening the changelog index there shows the changelog.
+The address bar settles on the permanent address, so a reader who arrives the other way ends up somewhere they can share, and the canonical link and the share card still point where they always did.
+## What did not change
+Every release keeps its permanent address, its title, its date, its notes and its place in the order. The sitemap is unchanged. Nothing was rewritten and nothing was republished.$notes$,
+  highlights = ARRAY['A release opened at the address serving it now shows the release instead of a page saying it does not exist.', 'The changelog index opens there too, instead of looking for a release called index.html.', 'Every release keeps its permanent address, and the address bar settles on it.', 'No titles, dates or notes changed. Same history, with the pages open.'],
+  audience = 'For anyone who followed a link to a release and was told the page was not there.',
+  updated_at = now()
+WHERE slug = 'every-release-opens';
+
+-- ask-for-response-reading
+UPDATE release SET
+  title = 'Ask for response reading when you want it',
+  summary = 'Response insights needed a Google permission that had no button anywhere. There is one now, in the place you were already looking, and granting it cannot cost you access you had.',
+  body = $notes$## The error with no way out of it
+Response insights need one Google permission more than creating a form does: the ability to read the responses people give you. Intake asked for it as an optional addition, and the server enforced it properly.
+The other end was missing. No button anywhere started that request, so a person without the permission opened response insights, was told the screen was not available, and had nowhere to go. The permission existed in the API and in the documentation, and nowhere a person could reach it.
+The same screen was written as though the permission were always granted, too. One line of code said so, which meant the screen that was supposed to explain the situation was the least able to.
+## One button, in the place you were already looking
+Open response insights and Intake now says what is missing and why it is needed: one extra Google permission, to read the answers so it can count them, separate from the permission you already gave to create and edit your forms. It says what happens to your answers — they stay in your Google form and Intake does not store them — and then offers one button.
+The button goes to Google through the same handshake that connects your account. Google adds the permission to what you already granted rather than replacing it. You come back to the form you were looking at, and Intake tells you what happened.
+If you say no, nothing changes. The form you were looking at is still there, your access is exactly as it was, and you are not asked again. The same button is on the Connections screen under Manage, so you can see what you have allowed and change it.
+## What the grant could have cost you
+Allowing a second permission goes back through Google, and Google sometimes answers without a refresh token. Intake was writing that answer over the refresh token it already had, which would have left a working connection unable to renew itself. That could have surfaced an hour later or a week later, depending on who was looking.
+It keeps the token it already has now. A new one replaces it, and the absence of one changes nothing.
+The permissions themselves were stored as whatever the last answer said. They are now the union of what was granted before and what was granted now, compared without caring how the provider spells or repeats them. A permission you granted earlier is never quietly dropped, and one you were asked for but did not get is never recorded as though you had it.
+## What we said about all this
+The privacy policy said Intake never requests a responses scope and cannot read your form responses. The FAQ said Intake has no technical way to read answers. The trust page listed “Read your form responses” among the things Intake never does.
+All three were true when they were written, and then the feature shipped and the copy did not follow. They now say what is asked for and when: the permission is optional, it is requested only when you open response insights and choose to allow it, and your answers are read to build a summary and are not kept.
+## What did not change
+Connecting Google Forms still asks for one scope. Response reading is still never requested when you connect, still never requested for a Typeform, and still not something Intake can do without your say-so. No Drive scope, no Sheets scope, no new Google service.
+Existing connections still work. If you already connected Google you keep the access you had, and if you already allowed response reading you are never asked for it again.$notes$,
+  highlights = ARRAY['Opening response insights without the permission now names the Google permission it needs and offers one button to allow it.', 'Allowing it sends you back to the form you were looking at and tells you what happened, including when you said no.', 'A grant that returns no refresh token no longer wipes the one already stored, so the connection keeps renewing.', 'Your permissions are the union of what you granted before and what you granted now, and a refused grant changes nothing.', 'The privacy policy, the FAQ and the trust page now say what Intake really asks for.'],
+  audience = 'For anyone who opened response insights, saw an error, and had no way to fix it.',
+  updated_at = now()
+WHERE slug = 'ask-for-response-reading';
+
+-- read-every-response
+INSERT INTO release (id, slug, title, summary, body, categories, status, release_date, links, highlights, audience, published_at, created_at, updated_at)
+VALUES (
+  'rel_read_every_response', 'read-every-response', 'Read every response, then take it with you',
+  'Response insights now follow every page of answers instead of stopping at the first thousand. A Download CSV button sits on the same screen and writes one row per response.',
+  $notes$## What was wrong with the first version
+The summary screen asked Google for responses once, took the first batch, and stopped. There was no way to see the rest, nothing on the page said anything was missing, and there was no way to get the answers out of the browser at all. If you wanted them in a spreadsheet you were copying them by hand.
+## Every page, followed to the end
+Intake now follows Google’s page tokens until there are no more, and asks for a page size Google accepts rather than one it has to clamp. It caps how many pages it will walk, so one form cannot hold a request open forever, and if it ever reaches that cap it says so inside the file instead of ending quietly.
+Each response is remembered by its id as it is written, so a page token that hands the same row back twice cannot put a duplicate in your file.
+## The file you get
+Download all responses (CSV) is on the response insights screen, for the form you already have open. There is no detour through another page and no separate export screen to find.
+The first three columns are the response id, the submission time in ISO 8601, and the respondent’s email when Google provides one. After that comes one column per question, in the order the form asks them, with the question titles as the headers.
+A question nobody answered leaves an empty cell in its own column, so the columns never move. A checkbox answer keeps all of its values. Commas, quotes, line breaks and non-Latin scripts are quoted properly instead of being flattened.
+## Downloads that behave
+An answer somebody typed is data, not code, and a spreadsheet will happily run a cell that starts with a formula character. Values and question titles that begin that way are prefixed so the spreadsheet reads them as text. Dates are ISO 8601, so every reader sorts them the same way.
+The file opens with a few lines saying where it came from, which form it is, and when it was made. It closes with a line saying how many responses were written. If the export stopped early because Google refused or went away, that is what the closing line says instead. A download that did not finish should not look like one that did.
+## What it does not do
+Intake does not keep a copy of your responses. They are read from Google while the file is written and then they are gone: no table, no cache, no background job. The permission is the same optional response permission as before, and without it there is no data at all. You get an explanation, not an empty file.
+The screen has no filter controls yet, so an export takes everything. Sheet sync and background syncing are not part of this release, and neither is anything that would keep your answers somewhere other than Google.$notes$,
+  ARRAY['feature', 'improvement'], 'published', DATE '2026-11-06',
+  '[{"label":"Changelog","url":"/changelog"},{"label":"Trust and permissions","url":"/trust"}]'::jsonb,
+  ARRAY['The summary follows Google’s page tokens, so a form with thousands of answers is counted in full instead of up to a thousand.', 'Download all responses (CSV) is on the insights screen. One row per response, one column per question, in the order the form asks them.', 'The file carries Intake branding, ISO 8601 timestamps, and a plain count at the end, so you can tell a complete export from one that stopped.', 'A skipped question leaves an empty cell in its own column, so no answer ever slides sideways into the next one.', 'A cell a spreadsheet would run as a formula is defused, in the answers and in the question titles alike.', 'Your answers are read from Google when you ask for them and written straight into the file. Intake still stores none of them.'],
+  'For anyone with more than a screenful of responses who needs them in a spreadsheet.',
+  TIMESTAMPTZ '2026-11-06T15:00:00.000Z', TIMESTAMPTZ '2026-11-06T15:00:00.000Z', TIMESTAMPTZ '2026-11-06T15:00:00.000Z'
+)
+ON CONFLICT (slug) DO NOTHING;

@@ -47,7 +47,7 @@ export const PRIVACY_SECTIONS = [
     heading: 'What Intake stores',
     body: [
       'Your Intake account (email, name, session), your form drafts and the forms you created through Intake (titles, questions, provider form ids and links), credit usage records, and — only if you connect — your encrypted Google authorization described above.',
-      'Intake never stores form responses. Answers submitted by your respondents land in the Google Form you own and stay there. When you open Response Insights, the counts, averages and common phrases you see are worked out from those answers each time, and those are not written down either — they are not kept after the page closes.',
+      'Intake never stores form responses. Answers submitted by your respondents land in the Google Form you own and stay there. When you open Response Insights, the counts, averages and common phrases you see are worked out from those answers each time, and those are not written down either. When you download responses as a CSV, Intake reads them from Google while it writes the file and keeps no copy: the file is the only copy you get, and it goes to your computer, not to a table we own.',
     ],
   },
   {

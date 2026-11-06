@@ -43,7 +43,7 @@ async function limitedText(response: Response): Promise<string> {
   return new TextDecoder().decode(Buffer.concat(chunks));
 }
 
-export type GoogleFormsOperation = 'forms.create' | 'forms.get' | 'forms.batchUpdate' | 'forms.setPublishSettings' | 'forms.listResponses';
+export type GoogleFormsOperation = 'forms.create' | 'forms.get' | 'forms.batchUpdate' | 'forms.setPublishSettings' | 'forms.listResponses' | 'forms.getResponse';
 
 export interface GoogleFormResource {
   formId: string;
@@ -109,12 +109,49 @@ export interface GoogleFormsClient {
   getForm(accessToken: string, formId: string): Promise<GoogleFormResource>;
   batchUpdate(accessToken: string, formId: string, requests: readonly GoogleRequest[], writeControl?: { requiredRevisionId: string }): Promise<{ replies: unknown[] }>;
   setPublishSettings(accessToken: string, formId: string, state: { isPublished: boolean; isAcceptingResponses: boolean }): Promise<PublishStateResponse>;
-  listResponses(accessToken: string, formId: string, pageToken?: string): Promise<GoogleFormResponsesPage>;
+  listResponses(accessToken: string, formId: string, options?: ListResponsesOptions): Promise<GoogleFormResponsesPage>;
+  getResponse(accessToken: string, formId: string, responseId: string): Promise<GoogleFormResponse>;
 }
 
-/** One page of answers, normalized to plain strings. Raw respondent payloads never leave this module. */
+/** Google returns at most this many responses in one page. Asking for more is not an error; it is a cap. */
+export const MAX_RESPONSE_PAGE_SIZE = 5000;
+
+/** What one response looks like once it has been read and normalized. */
+export interface GoogleFormResponse {
+  /** Google's id for this answer set. Stable, and the only safe key for de-duplicating pages. */
+  responseId: string;
+  /** When the respondent started, when Google recorded it. */
+  createTime: string | null;
+  /** When the respondent last submitted. This is the timestamp `filter` compares against. */
+  lastSubmittedTime: string | null;
+  /** Only present when the form collects verified email addresses. Often null. */
+  respondentEmail: string | null;
+  /** Question id to the answer values given. A checkbox answer keeps every value it was given. */
+  answers: Record<string, string[]>;
+  /** Quiz score, when the form is a quiz. */
+  totalScore: number | null;
+}
+
+export interface ListResponsesOptions {
+  /**
+   * Google's documented cap is 5000 and is applied here rather than trusted from the caller. Zero
+   * and absent both mean "let Google choose", which is its own default.
+   */
+  pageSize?: number;
+  pageToken?: string;
+  /**
+   * Only responses submitted at or after this instant. Built into Google's `filter` here, so a
+   * caller supplies a timestamp rather than a query string that reaches the API unchecked.
+   * Google supports only `timestamp > N` and `timestamp >= N`.
+   */
+  since?: string;
+  /** Ask for responses after the instant rather than at-and-after it. */
+  sinceExclusive?: boolean;
+}
+
+/** One page of responses, normalized. Raw respondent payloads never leave this module. */
 export interface GoogleFormResponsesPage {
-  answers: Array<Record<string, string[]>>;
+  responses: GoogleFormResponse[];
   nextPageToken: string | null;
 }
 
@@ -208,51 +245,144 @@ export function createGoogleFormsClient(options: { fetchImpl?: FetchLike; timeou
       };
     },
 
-    async listResponses(accessToken, formId, pageToken) {
-      if (pageToken !== undefined && (typeof pageToken !== 'string' || !pageToken || pageToken.length > 2000)) {
-        throw new GoogleFormsApiError({ operation: 'forms.listResponses', kind: 'malformed_response' });
+    async listResponses(accessToken, formId, options = {}) {
+      const query: Record<string, string> = {};
+      const pageSize = readPageSize(options.pageSize);
+      if (pageSize !== null) query.pageSize = String(pageSize);
+      if (options.pageToken !== undefined) {
+        if (typeof options.pageToken !== 'string' || !options.pageToken || options.pageToken.length > 2000) {
+          throw new GoogleFormsApiError({ operation: 'forms.listResponses', kind: 'malformed_response' });
+        }
+        query.pageToken = options.pageToken;
       }
+      // The filter is assembled from a validated timestamp. A caller cannot hand Google a query
+      // string, so nothing arbitrary reaches the API.
+      const filter = buildResponsesFilter(options.since, options.sinceExclusive);
+      if (filter) query.filter = filter;
       const json = await call(
         'forms.listResponses',
         accessToken,
         `${formPath('forms.listResponses', formId)}/responses`,
         undefined,
-        { pageSize: '200', ...(pageToken ? { pageToken } : {}) },
+        Object.keys(query).length ? query : undefined,
         'GET',
       );
       return parseResponsesPage(json);
     },
+
+    async getResponse(accessToken, formId, responseId) {
+      if (typeof responseId !== 'string' || !validResponseId(responseId)) {
+        throw new GoogleFormsApiError({ operation: 'forms.getResponse', kind: 'malformed_response' });
+      }
+      const json = await call(
+        'forms.getResponse',
+        accessToken,
+        `${formPath('forms.getResponse', formId)}/responses/${encodeURIComponent(responseId)}`,
+        undefined,
+        undefined,
+        'GET',
+      );
+      const parsed = parseResponse(json);
+      if (!parsed) throw new GoogleFormsApiError({ operation: 'forms.getResponse', kind: 'malformed_response' });
+      return parsed;
+    },
   };
 }
 
-/** Copy out only question ids mapped to plain answer strings, bounded per value. */
-function parseResponsesPage(json: Record<string, unknown>): GoogleFormResponsesPage {
-  const raw = Array.isArray(json.responses) ? json.responses : [];
-  if (raw.length > 200) throw new GoogleFormsApiError({ operation: 'forms.listResponses', kind: 'malformed_response' });
-  const answers: Array<Record<string, string[]>> = [];
-  for (const entry of raw) {
-    const record = asRecord(entry);
-    const answerMap = record ? asRecord(record.answers) : null;
-    if (!answerMap) continue;
-    const normalized: Record<string, string[]> = {};
-    for (const [questionId, value] of Object.entries(answerMap)) {
+/** A page size of zero or nothing means "Google decides". Anything else must be a real page size. */
+function readPageSize(value: unknown): number | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+    throw new GoogleFormsApiError({ operation: 'forms.listResponses', kind: 'malformed_response' });
+  }
+  return Math.min(value, MAX_RESPONSE_PAGE_SIZE);
+}
+
+/** RFC3339 in UTC, which is the only timestamp format Google accepts in `filter`. */
+const RFC3339_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/;
+
+function buildResponsesFilter(since: unknown, exclusive: unknown): string | null {
+  if (since === undefined || since === null) return null;
+  if (typeof since !== 'string' || !RFC3339_UTC.test(since) || Number.isNaN(Date.parse(since))) {
+    throw new GoogleFormsApiError({ operation: 'forms.listResponses', kind: 'malformed_response' });
+  }
+  return `timestamp ${exclusive === true ? '>' : '>='} ${since}`;
+}
+
+function validResponseId(value: string): boolean {
+  return value.length > 0 && value.length <= 256 && /^[A-Za-z0-9_-]+$/.test(value);
+}
+
+/**
+ * Read one response into the shape the rest of Intake uses.
+ *
+ * Everything a respondent typed is bounded here: the answer count, the number of values in one
+ * answer, and the length of each value. A response that does not look like a response is dropped
+ * rather than half-read, so a caller never sees a row it cannot trust.
+ */
+function parseResponse(entry: unknown): GoogleFormResponse | null {
+  const record = asRecord(entry);
+  if (!record) return null;
+  if (typeof record.responseId !== 'string' || !validResponseId(record.responseId)) return null;
+
+  const answerMap = asRecord(record.answers);
+  const answers: Record<string, string[]> = {};
+  if (answerMap) {
+    const entries = Object.entries(answerMap);
+    if (entries.length > 200) return null;
+    for (const [questionId, value] of entries) {
       if (!validItemId(questionId)) continue;
       const answer = asRecord(value);
       const textAnswers = answer ? asRecord(answer.textAnswers) : null;
       const list = textAnswers && Array.isArray(textAnswers.answers) ? textAnswers.answers : [];
       const values: string[] = [];
-      for (const item of list.slice(0, 10)) {
+      // A checkbox question can legitimately carry many values, but not an unbounded number.
+      for (const item of list.slice(0, 50)) {
         const candidate = asRecord(item)?.value;
         if (typeof candidate === 'string' && candidate.trim() && candidate.length <= 2000) values.push(candidate);
       }
-      if (values.length) normalized[questionId] = values;
+      if (values.length) answers[questionId] = values;
     }
-    answers.push(normalized);
+  }
+
+  return {
+    responseId: record.responseId,
+    createTime: readTimestamp(record.createTime),
+    lastSubmittedTime: readTimestamp(record.lastSubmittedTime),
+    respondentEmail: readEmail(record.respondentEmail),
+    answers,
+    totalScore: typeof record.totalScore === 'number' && Number.isFinite(record.totalScore) ? record.totalScore : null,
+  };
+}
+
+function readTimestamp(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length > 40) return null;
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return null;
+  // Stored as Google sent it, in UTC, so two exports of the same answer say the same thing.
+  return new Date(parsed).toISOString();
+}
+
+function readEmail(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const email = value.trim();
+  if (!email || email.length > 320 || !email.includes('@')) return null;
+  return email;
+}
+
+/** Copy out only what Intake uses, bounded per value. A page that does not fit is not guessed at. */
+function parseResponsesPage(json: Record<string, unknown>): GoogleFormResponsesPage {
+  const raw = Array.isArray(json.responses) ? json.responses : [];
+  if (raw.length > MAX_RESPONSE_PAGE_SIZE) throw new GoogleFormsApiError({ operation: 'forms.listResponses', kind: 'malformed_response' });
+  const responses: GoogleFormResponse[] = [];
+  for (const entry of raw) {
+    const parsed = parseResponse(entry);
+    if (parsed) responses.push(parsed);
   }
   const nextPageToken = typeof json.nextPageToken === 'string' && json.nextPageToken && json.nextPageToken.length <= 2000
     ? json.nextPageToken
     : null;
-  return { answers, nextPageToken };
+  return { responses, nextPageToken };
 }
 
 function validItemId(value: unknown): value is string {
