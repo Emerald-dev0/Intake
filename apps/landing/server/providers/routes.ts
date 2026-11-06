@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { isProviderId, isResultCode, isRevocationOutcome, type ProviderId, type ResultCode, type RevocationOutcome } from '../../src/lib/connections';
-import { logSafe, publicOrigin } from './oauth';
-import { createProviderService, storageResult, RESPONSES_READONLY_SCOPE, type ProviderDeps, type ProviderService, type SessionUser } from './service';
+import { logSafe, publicOrigin, safeReturnTo } from './oauth';
+import { createProviderService, scopesForCapability, storageResult, type ProviderDeps, type ProviderService, type SessionUser } from './service';
 import { consumeRequestLimit, setRateLimitHeaders, type AbuseScope, type RateLimitStore } from '../security/rate-limit';
 
 const FORBIDDEN_KEYS = new Set([
@@ -55,18 +55,19 @@ export function createProviderRouter(deps: ProviderRouterDeps): Router {
     if (!user) return;
     if (!trustedMutation(req, deps.env)) return res.status(403).json({ error: 'Request was rejected.' });
     if (!await allowExpensive(req, res, user.id, 'oauth.start')) return;
+    const returnTo = returnToParam(req);
     try {
-      const started = await deps.service.start(user.id, provider);
-      if (!started.ok) return redirect(res, provider, started.result);
+      const started = await deps.service.start(user.id, provider, [], returnTo);
+      if (!started.ok) return redirect(res, provider, started.result, undefined, returnTo);
       return res.redirect(303, started.url);
     } catch (error) {
-      return redirect(res, provider, storageResult(error));
+      return redirect(res, provider, storageResult(error), undefined, returnTo);
     }
   });
 
-  // Incremental grant: adds response-summary reading to the existing Forms
-  // connection without touching it. Google merges the scope
-  // (include_granted_scopes); declining keeps the current grant untouched.
+  // Incremental grant: adds one optional permission to the existing connection without touching
+  // it. Google merges the scope (include_granted_scopes); declining keeps the current grant
+  // untouched, and the scopes already granted stay granted.
   router.post('/:provider/extend', async (req, res) => {
     const provider = providerParam(req);
     if (!provider) return redirect(res, null, 'unsupported_provider');
@@ -75,12 +76,19 @@ export function createProviderRouter(deps: ProviderRouterDeps): Router {
     if (!user) return;
     if (!trustedMutation(req, deps.env)) return res.status(403).json({ error: 'Request was rejected.' });
     if (!await allowExpensive(req, res, user.id, 'oauth.start')) return;
+    // The permission is named, not spelled out: only the ones Intake knows about can be asked for.
+    const capability = capabilityParam(req);
+    const scopes = scopesForCapability(capability);
+    if (!scopes) {
+      return res.status(400).json({ error: 'unknown_capability', message: 'That permission is not one Intake can ask for.' });
+    }
+    const returnTo = returnToParam(req);
     try {
-      const started = await deps.service.start(user.id, provider, [RESPONSES_READONLY_SCOPE]);
-      if (!started.ok) return redirect(res, provider, started.result);
+      const started = await deps.service.start(user.id, provider, scopes, returnTo);
+      if (!started.ok) return redirect(res, provider, started.result, undefined, returnTo);
       return res.redirect(303, started.url);
     } catch (error) {
-      return redirect(res, provider, storageResult(error));
+      return redirect(res, provider, storageResult(error), undefined, returnTo);
     }
   });
 
@@ -102,7 +110,7 @@ export function createProviderRouter(deps: ProviderRouterDeps): Router {
       if (finished.result !== 'connected' && finished.result !== 'cancelled') {
         logSafe('Provider authorization did not complete', undefined, `${provider} ${finished.result}`);
       }
-      return redirect(res, provider, finished.result, finished.revocation);
+      return redirect(res, provider, finished.result, finished.revocation, finished.returnTo);
     } catch (error) {
       return redirect(res, provider, storageResult(error));
     }
@@ -158,6 +166,24 @@ function stringParam(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
+/**
+ * The optional permission being asked for. One named capability, never a scope string. An absent
+ * parameter means the default capability; an empty or malformed one is refused rather than
+ * guessed at.
+ */
+function capabilityParam(req: Request): string | null {
+  const value = req.query.capability;
+  if (value === undefined) return 'responses';
+  if (typeof value !== 'string') return null;
+  const capability = value.trim();
+  return capability || null;
+}
+
+/** Where to send this person when the authorization finishes. Only a path on this site. */
+function returnToParam(req: Request): string | null {
+  return safeReturnTo(req.query.return_to);
+}
+
 export function trustedMutation(req: Request, env: NodeJS.ProcessEnv): boolean {
   const expected = publicOrigin(env.BETTER_AUTH_URL);
   if (!expected) return false;
@@ -172,11 +198,15 @@ export function trustedMutation(req: Request, env: NodeJS.ProcessEnv): boolean {
   }
 }
 
-function redirect(res: Response, provider: ProviderId | null, result: ResultCode, revocation?: RevocationOutcome): void {
+function redirect(res: Response, provider: ProviderId | null, result: ResultCode, revocation?: RevocationOutcome, returnTo?: string | null): void {
   const params = new URLSearchParams({ result });
   if (provider) params.set('provider', provider);
   if (revocation && isRevocationOutcome(revocation)) params.set('revocation', revocation);
-  res.redirect(303, `/app/connections?${params.toString()}`);
+  // The person goes back to where they started when they asked for something specific; otherwise
+  // they land on the connections screen, where the outcome is explained.
+  const target = safeReturnTo(returnTo) ?? '/app/connections';
+  const separator = target.includes('?') ? '&' : '?';
+  res.redirect(303, `${target}${separator}${params.toString()}`);
 }
 
 function respond(req: Request, res: Response, provider: ProviderId | null, result: ResultCode, revocation?: RevocationOutcome): void {

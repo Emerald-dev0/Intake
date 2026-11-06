@@ -17,6 +17,8 @@ import {
   readTokenResponse,
   redirectUri,
   refreshTokenBody,
+  safeReturnTo,
+  unionScopes,
 } from './oauth';
 import { isProviderConfigured, missingProviderEnv, providerDefinition, supportedProviders, type ProviderDefinition } from './registry';
 import type { ConnectionRecord, ConnectionStore } from './store';
@@ -32,16 +34,51 @@ const RATE_LIMIT = 8;
 const MSA_TENANT = '9188040d-6c67-4c5b-b112-36a304b66dad';
 
 /**
- * Scopes a signed-in user may add to an existing grant through the extend
- * endpoint. Must stay equal to FORMS_RESPONSES_READONLY_SCOPE in
- * server/forms/providers/google/adapter.ts; a test checks both directions so
- * the default connect set can never silently grow.
+ * The optional permissions a signed-in user may add to an existing grant.
+ *
+ * Each entry is a named capability rather than a bare scope, so the route asks for "response
+ * reading" without knowing the scope string, and a future capability can be added without touching
+ * the OAuth flow. The scope strings stay in one place, and adding one here is the only way a new
+ * optional permission can be requested.
+ *
+ * The responses scope must stay equal to FORMS_RESPONSES_READONLY_SCOPE in
+ * server/forms/providers/google/adapter.ts; a test checks both directions so the default connect
+ * set can never silently grow.
  */
-const OPTIONAL_SCOPES = ['https://www.googleapis.com/auth/forms.responses.readonly'] as const;
-type OptionalScope = (typeof OPTIONAL_SCOPES)[number];
+const OPTIONAL_SCOPE_SETS = {
+  responses: ['https://www.googleapis.com/auth/forms.responses.readonly'],
+} as const;
 
-/** The one scope the extend endpoint may add. Exported so the route cannot invent its own. */
-export const RESPONSES_READONLY_SCOPE: OptionalScope = OPTIONAL_SCOPES[0];
+export type OptionalCapability = keyof typeof OPTIONAL_SCOPE_SETS;
+
+/** Every scope that may be added to an existing grant. Nothing outside this set is ever requested. */
+const ALLOWED_OPTIONAL_SCOPES: ReadonlySet<string> = new Set(
+  Object.values(OPTIONAL_SCOPE_SETS).flat() as string[],
+);
+
+/** The scopes one capability is made of, or null when the capability is not one Intake knows. */
+export function scopesForCapability(capability: unknown): string[] | null {
+  if (typeof capability !== 'string') return null;
+  const set = OPTIONAL_SCOPE_SETS[capability as OptionalCapability];
+  return set ? [...set] : null;
+}
+
+/** Every optional capability Intake can ask for, and the scopes each one is made of. */
+export function optionalCapabilities(): Record<string, string[]> {
+  return Object.fromEntries(
+    (Object.keys(OPTIONAL_SCOPE_SETS) as OptionalCapability[]).map(capability => [capability, [...OPTIONAL_SCOPE_SETS[capability]]]),
+  );
+}
+
+/** Every optional capability a set of granted scopes satisfies. */
+export function capabilitiesForScopes(scopes: string[]): string[] {
+  return (Object.keys(OPTIONAL_SCOPE_SETS) as OptionalCapability[]).filter(capability =>
+    OPTIONAL_SCOPE_SETS[capability].every(scope => hasScope(scopes, scope)),
+  );
+}
+
+/** The one scope the responses capability adds. Exported so the route cannot invent its own. */
+export const RESPONSES_READONLY_SCOPE = OPTIONAL_SCOPE_SETS.responses[0];
 
 export interface SessionUser {
   id: string;
@@ -65,8 +102,8 @@ export interface ProviderDeps {
 
 export interface ProviderService {
   list(userId: string): Promise<PublicProvider[]>;
-  start(userId: string, provider: ProviderId, extraScopes?: string[]): Promise<{ ok: true; url: string } | { ok: false; result: ResultCode }>;
-  complete(userId: string, provider: ProviderId, query: CallbackQuery): Promise<{ result: ResultCode; revocation?: RevocationOutcome }>;
+  start(userId: string, provider: ProviderId, extraScopes?: string[], returnTo?: string | null): Promise<{ ok: true; url: string } | { ok: false; result: ResultCode }>;
+  complete(userId: string, provider: ProviderId, query: CallbackQuery): Promise<{ result: ResultCode; revocation?: RevocationOutcome; returnTo?: string | null }>;
   disconnect(userId: string, provider: ProviderId): Promise<{ result: ResultCode; revocation: RevocationOutcome }>;
   getAuthorizedConnection(userId: string, provider: string): Promise<AuthorizedConnection>;
   /** A provider API refused a token Intake believed was valid. The grant is unusable until the user reconnects. */
@@ -125,8 +162,8 @@ export function createProviderService(deps: ProviderDeps): ProviderService {
 
   return {
     list: userId => listProviders(deps, userId, now()),
-    start(userId, provider, extraScopes = []) {
-      return startAuthorization(deps, userId, provider, now(), allow, extraScopes);
+    start(userId, provider, extraScopes = [], returnTo = null) {
+      return startAuthorization(deps, userId, provider, now(), allow, extraScopes, returnTo);
     },
     complete(userId, provider, query) {
       return completeAuthorization(deps, userId, provider, query, now());
@@ -182,6 +219,9 @@ export function toPublicProvider(definition: ProviderDefinition, configured: boo
     accountLabel: record ? cleanLabel(record.externalAccountLabel) : null,
     scopes,
     scopeLabels: scopes.map(scope => definition.scopeLabels[scope] || scope),
+    // What this connection may actually do, in plain words. The browser never has to know a scope
+    // string to know whether response reading is allowed.
+    capabilities: capabilitiesForScopes(scopes),
     connectedAt: record?.lastAuthorizedAt?.toISOString() ?? null,
     canRefresh: !!record?.refreshTokenCiphertext && status !== 'reauthorization_required',
     revocation: definition.revocation.type === 'google' ? 'supported' : 'unsupported',
@@ -222,7 +262,7 @@ async function listProviders(deps: ProviderDeps, userId: string, at: Date): Prom
   });
 }
 
-async function startAuthorization(deps: ProviderDeps, userId: string, provider: ProviderId, at: Date, allow: (userId: string, now: number) => boolean, extraScopes: string[] = []): Promise<{ ok: true; url: string } | { ok: false; result: ResultCode }> {
+async function startAuthorization(deps: ProviderDeps, userId: string, provider: ProviderId, at: Date, allow: (userId: string, now: number) => boolean, extraScopes: string[] = [], returnTo: string | null = null): Promise<{ ok: true; url: string } | { ok: false; result: ResultCode }> {
   const definition = providerDefinition(provider, deps.env);
   if (definition.configurationError) return { ok: false, result: 'not_configured' };
   const origin = publicOrigin(deps.env.BETTER_AUTH_URL);
@@ -234,6 +274,13 @@ async function startAuthorization(deps: ProviderDeps, userId: string, provider: 
   const state = createOpaque();
   const nonce = createOpaque();
   const callback = redirectUri(origin, provider);
+  // Incremental authorization: extra scopes merge into the existing grant
+  // (include_granted_scopes), so enabling response summaries never disturbs
+  // the forms.body grant. Only allowlisted optional scopes are accepted.
+  const requestedScopes = [
+    ...definition.scopes,
+    ...extraScopes.filter(scope => ALLOWED_OPTIONAL_SCOPES.has(scope)),
+  ];
   await deps.store.createTransaction({
     id: randomUUID(),
     userId,
@@ -242,16 +289,15 @@ async function startAuthorization(deps: ProviderDeps, userId: string, provider: 
     codeVerifierCiphertext: deps.cipher.encrypt(verifier, credentialAad(userId, provider, 'verifier')),
     nonceHash: hashSecret(nonce),
     redirectUri: callback,
+    requestedScopes,
+    returnTo: safeReturnTo(returnTo),
     expiresAt: new Date(at.getTime() + TRANSACTION_TTL_MS),
   }, at);
   const url = buildAuthorizationUrl({
     endpoint: definition.authorizationEndpoint,
     clientId,
     redirectUri: callback,
-    // Incremental authorization: extra scopes merge into the existing grant
-    // (include_granted_scopes), so enabling response summaries never disturbs
-    // the forms.body grant. Only allowlisted optional scopes are accepted.
-    scopes: [...definition.scopes, ...extraScopes.filter(scope => OPTIONAL_SCOPES.includes(scope as OptionalScope))],
+    scopes: requestedScopes,
     state,
     nonce: definition.oidcNonce ? nonce : undefined,
     codeChallenge: definition.pkce ? challenge : undefined,
@@ -261,7 +307,7 @@ async function startAuthorization(deps: ProviderDeps, userId: string, provider: 
   return { ok: true, url };
 }
 
-async function completeAuthorization(deps: ProviderDeps, userId: string, provider: ProviderId, query: CallbackQuery, at: Date): Promise<{ result: ResultCode; revocation?: RevocationOutcome }> {
+async function completeAuthorization(deps: ProviderDeps, userId: string, provider: ProviderId, query: CallbackQuery, at: Date): Promise<{ result: ResultCode; revocation?: RevocationOutcome; returnTo?: string | null }> {
   const definition = providerDefinition(provider, deps.env);
   const classified = classifyCallbackError(query);
   // Provider error callbacks are still OAuth callbacks: cancellation/denial is trusted only after
@@ -269,18 +315,20 @@ async function completeAuthorization(deps: ProviderDeps, userId: string, provide
   if (!query.state || query.state.length > 128) return { result: 'invalid_callback' };
   const consumed = await deps.store.consumeTransaction(hashSecret(query.state), userId, provider, at);
   if (!consumed.ok) return { result: consumed.reason };
+  // Where this person is sent when the authorization finishes, if they asked to be sent somewhere.
+  const returnTo = consumed.transaction.returnTo ?? null;
   const origin = publicOrigin(deps.env.BETTER_AUTH_URL);
   const expectedRedirect = origin ? redirectUri(origin, provider) : '';
-  if (!origin || consumed.transaction.redirectUri !== expectedRedirect) return { result: 'invalid_callback' };
-  if (classified) return { result: classified };
-  if (!query.code || query.code.length > 2048) return { result: 'invalid_callback' };
-  if (definition.configurationError || !isProviderConfigured(definition, deps.env)) return { result: 'not_configured' };
+  if (!origin || consumed.transaction.redirectUri !== expectedRedirect) return { result: 'invalid_callback', returnTo };
+  if (classified) return { result: classified, returnTo };
+  if (!query.code || query.code.length > 2048) return { result: 'invalid_callback', returnTo };
+  if (definition.configurationError || !isProviderConfigured(definition, deps.env)) return { result: 'not_configured', returnTo };
   let verifier: string;
   try {
     verifier = deps.cipher.decrypt(consumed.transaction.codeVerifierCiphertext, credentialAad(userId, provider, 'verifier'));
   } catch (error) {
     logSafe('Provider verifier decrypt failed', error);
-    return { result: 'invalid_state' };
+    return { result: 'invalid_state', returnTo };
   }
   let tokenJson: unknown;
   try {
@@ -298,31 +346,50 @@ async function completeAuthorization(deps: ProviderDeps, userId: string, provide
       // Typeform reports failures as { code, description }, not { error }, so without this the log
       // said only "rejected" and hid the one detail that makes the failure diagnosable.
       logSafe('Provider token exchange rejected', undefined, providerTokenFailure(tokenJson) ?? providerError);
-      if (providerError === 'invalid_grant') return { result: 'expired_code' };
-      if (providerError === 'invalid_client') return { result: 'not_configured' };
-      return { result: 'exchange_failed' };
+      if (providerError === 'invalid_grant') return { result: 'expired_code', returnTo };
+      if (providerError === 'invalid_client') return { result: 'not_configured', returnTo };
+      return { result: 'exchange_failed', returnTo };
     }
   } catch (error) {
     logSafe('Provider token endpoint unavailable', error);
-    return { result: 'provider_unavailable' };
+    return { result: 'provider_unavailable', returnTo };
   }
   const token = readTokenResponse(tokenJson);
   if (!token || 'error' in token) {
     logSafe('Provider token exchange rejected', undefined, providerTokenFailure(tokenJson) ?? (token && 'error' in token ? token.error : undefined));
-    if (token && 'error' in token && token.error === 'invalid_grant') return { result: 'expired_code' };
-    return { result: 'exchange_failed' };
+    if (token && 'error' in token && token.error === 'invalid_grant') return { result: 'expired_code', returnTo };
+    return { result: 'exchange_failed', returnTo };
   }
   const identity = await identifyAccount(deps, definition, token, consumed.transaction.nonceHash, at);
   if ('result' in identity) {
     await revokeTokens(deps, definition, token.accessToken, token.refreshToken);
-    return { result: identity.result };
+    return { result: identity.result, returnTo };
   }
   const granted = grantedScopes(token.scope);
-  const scopes = granted.length ? granted : definition.scopes;
+  // What Google actually granted is the only thing that counts. With include_granted_scopes set,
+  // that is the union of everything this person granted before and what they granted now. If the
+  // token response carries no scope at all, fall back to what this authorization asked for.
+  const requested = consumed.transaction.requestedScopes.length
+    ? consumed.transaction.requestedScopes
+    : [...definition.scopes];
+  const authorized = granted.length ? granted : requested;
+  // The grant that already exists, when it belongs to the same provider account. An incremental
+  // authorization adds to a grant; it never takes one away.
+  const stored = await deps.store.getConnection(userId, provider);
+  const previous = stored && stored.externalAccountId === identity.accountId ? stored : null;
+  const scopes = unionScopes(previous?.scopes ?? [], authorized);
+  // The permission Intake needs has to be somewhere in the grant it now holds — which may be
+  // what it held already, and which is why this is checked against the whole grant and not
+  // against the newest answer alone.
   if (definition.requiredScopes.some(scope => !hasScope(scopes, scope))) {
     await revokeTokens(deps, definition, token.accessToken, token.refreshToken);
-    return { result: 'insufficient_permissions' };
+    return { result: 'insufficient_permissions', returnTo };
   }
+  // Google does not always return a refresh token. One that is already stored stays stored: only a
+  // new refresh token may replace it, and nothing may remove it.
+  const refreshTokenCiphertext = token.refreshToken
+    ? deps.cipher.encrypt(token.refreshToken, credentialAad(userId, provider, 'refresh'))
+    : previous?.refreshTokenCiphertext ?? null;
   let saved: Awaited<ReturnType<ConnectionStore['saveConnection']>>;
   try {
     saved = await deps.store.saveConnection({
@@ -336,7 +403,7 @@ async function completeAuthorization(deps: ProviderDeps, userId: string, provide
       scopes,
       accessTokenCiphertext: deps.cipher.encrypt(token.accessToken, credentialAad(userId, provider, 'access')),
       accessTokenExpiresAt: accessExpiresAt(at, token.expiresIn),
-      refreshTokenCiphertext: token.refreshToken ? deps.cipher.encrypt(token.refreshToken, credentialAad(userId, provider, 'refresh')) : null,
+      refreshTokenCiphertext,
       lastAuthorizedAt: at,
       lastRefreshedAt: null,
     });
@@ -346,11 +413,11 @@ async function completeAuthorization(deps: ProviderDeps, userId: string, provide
   }
   if (!saved.ok) {
     await revokeTokens(deps, definition, token.accessToken, token.refreshToken);
-    return { result: 'connection_conflict' };
+    return { result: 'connection_conflict', returnTo };
   }
   await deps.store.deleteTransactions(userId, provider);
   notifyConnectionChange(deps, 'connected', userId, provider, identity.email ?? identity.label);
-  return { result: 'connected' };
+  return { result: 'connected', returnTo };
 }
 
 async function identifyAccount(deps: ProviderDeps, definition: ProviderDefinition, token: { accessToken: string; idToken: string | null }, nonceHash: string, at: Date): Promise<{ accountId: string; email: string | null; label: string | null } | { result: ResultCode }> {
