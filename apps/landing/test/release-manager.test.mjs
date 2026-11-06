@@ -403,6 +403,7 @@ const RELEASE_MIGRATIONS = [
   '041_release_every_release_opens.sql',
   '043_release_ask_for_response_reading.sql',
   '044_release_plainer_words.sql',
+  '046_release_sheets_sync.sql',
 ];
 
 async function readReleaseMigrations() {

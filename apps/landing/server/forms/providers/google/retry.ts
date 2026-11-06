@@ -35,9 +35,32 @@ const defaultSleep = (ms: number) => new Promise<void>(resolve => setTimeout(res
  * an answer: the request is wrong, the permission is missing, or the thing is not there. Retrying
  * those spends quota to be told the same thing.
  */
+interface ApiErrorInfo {
+  kind?: string;
+  httpStatus?: number;
+  retryAfterSeconds?: number;
+}
+
+/**
+ * The error details, for any Google client in this repository.
+ *
+ * Both the Forms and Sheets clients carry the same `info` shape, so retry policy lives in one place
+ * rather than being reimplemented per vendor. The check is structural on purpose: importing the
+ * Sheets error class here would make the shared helper depend on a client it is meant to be used by.
+ */
+function apiInfo(error: unknown): ApiErrorInfo | null {
+  if (error instanceof GoogleFormsApiError) return error.info;
+  if (error && typeof error === 'object' && 'info' in error) {
+    const info = (error as { info?: unknown }).info;
+    if (info && typeof info === 'object' && typeof (info as ApiErrorInfo).kind === 'string') return info as ApiErrorInfo;
+  }
+  return null;
+}
+
 export function isRetryable(error: unknown): boolean {
-  if (!(error instanceof GoogleFormsApiError)) return false;
-  const { kind, httpStatus } = error.info;
+  const info = apiInfo(error);
+  if (!info) return false;
+  const { kind, httpStatus } = info;
   if (kind === 'network' || kind === 'timeout') return true;
   if (kind !== 'http') return false;
   return httpStatus === 429 || httpStatus === 408 || (typeof httpStatus === 'number' && httpStatus >= 500);
@@ -67,7 +90,7 @@ export async function withRetry<T>(run: () => Promise<T>, options: RetryOptions 
     } catch (error) {
       lastError = error;
       if (!isRetryable(error) || attempt === attempts) throw error;
-      const retryAfter = error instanceof GoogleFormsApiError ? error.info.retryAfterSeconds : undefined;
+      const retryAfter = apiInfo(error)?.retryAfterSeconds;
       await sleep(retryDelayMs(attempt, retryAfter, options));
     }
   }

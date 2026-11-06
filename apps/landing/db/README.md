@@ -28,8 +28,15 @@ From `apps/landing`, with a real `DATABASE_URL` and the other required auth vari
    - `040_release_describe_a_form_in_a_sentence.sql` seeds the changelog entry for writing a hosted form from one sentence.
    - `041_release_every_release_opens.sql` seeds the changelog entry for the changelog answering at every address a release is served from.
    - `042_provider_oauth_transaction_context.sql` adds two nullable columns to `provider_oauth_transaction`: `requested_scopes` (the scopes an in-flight authorization asked for) and `return_to` (the page the person is sent back to). Both are additive: an authorization started before this migration simply has neither, and the callback falls back to the provider's base scopes and the default landing page. No connection, grant or scope changes. Rollback: `ALTER TABLE provider_oauth_transaction DROP COLUMN requested_scopes, DROP COLUMN return_to;`.
+   - `043_release_ask_for_response_reading.sql` seeds the changelog entry for the optional response permission and the one button that grants it.
+   - `044_release_plainer_words.sql` rewrites the existing changelog entry that read like a release note written by a machine.
+   - `045_form_sheet_sync.sql` creates the two tables the Google Sheets sync needs: `form_sheet_sync` (one row per form — destination, tab id and title, header signature, status, cursor, counters, last error, schedule and lease) and `form_sheet_row` (`sync_id`, `response_id`, and nothing else). Neither holds an answer, a respondent email or a token; both are deleted with the form. They are coordination state, not a response store: the spreadsheet is the record of what has been written, and every run reads the destination's Response ID column before appending. Rollback: `DROP TABLE form_sheet_row; DROP TABLE form_sheet_sync;` — no form, response or spreadsheet is touched.
+   - `046_release_sheets_sync.sql` seeds the changelog entry for spreadsheet syncing.
 
-**Deployment order for 039, 040, 041 and 042.** Apply 039 before or with the deployment that introduces the
+**Deployment order for 039, 040, 041, 042, 045 and 046.** Apply 045 before the deployment that
+ships spreadsheet syncing: the routes answer `503` until the tables exist, and the worker does not
+start without them. Apply 046 whenever the changelog entry should exist in the database rather than
+only in the notes bundled with the site. Apply 039 before or with the deployment that introduces the
 AI proposal endpoint, and 040 and 041 whenever the changelog entries should exist in the database
 rather than only in the notes bundled with the site. Apply 042 before or with the deployment that
 adds the optional Google response-reading permission, so an authorization started by that deployment

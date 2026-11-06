@@ -30,6 +30,7 @@ export type AbuseScope =
   | 'forms.create'
   | 'forms.provider_read'
   | 'forms.export'
+  | 'forms.sheets'
   | 'forms.edit'
   | 'email.verify.send'
   | 'email.verify.confirm'
@@ -55,6 +56,9 @@ export const ABUSE_POLICIES: Record<AbuseScope, ScopePolicy> = {
   // An export walks every page of a form, so it is the most expensive read a person can ask for.
   // Six an hour is far more than a real workflow needs and far less than a loop would spend.
   'forms.export': { user: { limit: 6, windowSeconds: 600 }, network: { limit: 600, windowSeconds: 600 } },
+  // Creating a spreadsheet is a Drive write, and a person needs a handful at most. Resuming or
+  // switching one off is cheap, so the same generous-enough ceiling covers all of them.
+  'forms.sheets': { user: { limit: 10, windowSeconds: 600 }, network: { limit: 800, windowSeconds: 600 } },
   'forms.edit': { user: { limit: 20, windowSeconds: 600 }, network: { limit: 2_000, windowSeconds: 600 } },
   // Verification codes: tight per account, because the blast radius of an abused sender is the
   // whole domain's reputation. Confirmations are tighter still — they are guesses, not requests.

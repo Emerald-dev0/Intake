@@ -8,12 +8,14 @@ import {
   type PublicFormSummary,
 } from '../lib/forms';
 import { Insights } from './components/Insights';
+import { SheetSync } from './components/SheetSync';
 import { ProviderMark } from './components/ProviderBadge';
 import {
   formProviderLabel,
   grantResultMessage,
   hasCapability,
   RESPONSES_CAPABILITY,
+  SHEETS_CAPABILITY,
 } from '../lib/connections';
 import { PageHeader, EmptyState, ErrorState, Skeleton } from './components/PagePrimitives';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -83,6 +85,7 @@ export function FormLibrary({
   // back here; say what happened and reopen the summary they came for.
   const search = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const insightsFormId = search.get('insights');
+  const sheetsFormId = search.get('sheets');
   const grantNotice = useMemo(() => grantResultMessage(search), [search]);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   useEffect(() => {
@@ -118,6 +121,8 @@ export function FormLibrary({
 
   // Insights state
   const [insightsOpen, setInsightsOpen] = useState(false);
+  // Spreadsheet sync state
+  const [sheetsOpen, setSheetsOpen] = useState(false);
   const [isPro, setIsPro] = useState(false);
 
   const alive = useRef(true);
@@ -130,6 +135,11 @@ export function FormLibrary({
   // scope string — and a person who already allowed response reading is never asked again.
   const canReadResponses = providers.status === 'ready'
     ? hasCapability(google, RESPONSES_CAPABILITY)
+    : null;
+  // A separate, optional permission: reading responses once and keeping a spreadsheet current are
+  // different promises, so the browser asks the server which of them is allowed right now.
+  const canSyncSheets = providers.status === 'ready'
+    ? hasCapability(google, SHEETS_CAPABILITY)
     : null;
   const needsReconnect = providers.status === 'ready' && google?.status !== 'connected';
   // The grant finished and sent this person back here: reopen the summary they came for, once.
@@ -149,6 +159,22 @@ export function FormLibrary({
     const remaining = params.toString();
     navigate({ pathname: location.pathname, search: remaining ? `?${remaining}` : '' }, { replace: true });
   }, [insightsFormId, forms, location.pathname, location.search, navigate]);
+
+  // Coming back from Google after allowing the spreadsheet permission: reopen the panel they left.
+  const reopenedSheets = useRef(false);
+  useEffect(() => {
+    if (!sheetsFormId || reopenedSheets.current) return;
+    const form = forms.find(item => item.id === sheetsFormId);
+    if (!form) return;
+    reopenedSheets.current = true;
+    void loadProStatus();
+    setInspectingForm(form);
+    setSheetsOpen(true);
+    const params = new URLSearchParams(location.search);
+    params.delete('sheets');
+    const remaining = params.toString();
+    navigate({ pathname: location.pathname, search: remaining ? `?${remaining}` : '' }, { replace: true });
+  }, [sheetsFormId, forms, location.pathname, location.search, navigate]);
 
   useEffect(() => {
     alive.current = true;
@@ -440,6 +466,14 @@ export function FormLibrary({
     setActionError(null);
   }
 
+  async function openSheetSync(form: PublicLibraryForm) {
+    if (!alive.current) return;
+    void loadProStatus();
+    setInspectingForm(form);
+    setSheetsOpen(true);
+    setActionError(null);
+  }
+
   function clearFilters() {
     setSearchQuery('');
     setSourceFilter('all');
@@ -715,6 +749,15 @@ export function FormLibrary({
                     title={isGoogleConnected ? 'View response insights' : 'Connect Google to view insights'}
                   >
                     View insights
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => void openSheetSync(form)}
+                    disabled={!isGoogleConnected}
+                    title={isGoogleConnected ? 'Keep every response in a Google Sheet' : 'Connect Google to sync to a spreadsheet'}
+                  >
+                    Sync to a sheet
                   </button>
                 </div>
               </li>
@@ -995,6 +1038,18 @@ export function FormLibrary({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Spreadsheet sync Modal */}
+      {sheetsOpen && inspectingForm && (
+        <SheetSync
+          form={inspectingForm}
+          onClose={() => { setSheetsOpen(false); }}
+          isPro={isPro}
+          canSyncSheets={canSyncSheets}
+          needsReconnect={needsReconnect}
+          returnTo={`/app/library?sheets=${encodeURIComponent(inspectingForm.id)}&grant=${SHEETS_CAPABILITY}`}
+        />
       )}
 
       {/* Insights Modal */}

@@ -10,6 +10,7 @@ import {
   parseProviderList,
   resultMessage,
   RESPONSES_CAPABILITY,
+  SHEETS_CAPABILITY,
   type PublicProvider,
   type ResultCode,
   type RevocationOutcome,
@@ -180,6 +181,24 @@ function ProviderRow({ provider, onChange }: { provider: PublicProvider; onChang
                   <button className="btn btn-accent btn-sm" type="submit">Allow response reading</button>
                 </form>
               </>
+            )}
+          </div>
+        )}
+        {open && provider.id === 'google' && provider.status === 'connected' && (
+          <div className="manage-panel">
+            <span className="info-index">OPTIONAL PERMISSION</span>
+            {hasCapability(provider, SHEETS_CAPABILITY) ? (
+              <p className="provider-note">
+                Intake may create spreadsheets of its own for your forms and keep them up to date. It
+                can only reach files it created itself — nothing else in your Drive is visible — and
+                it never deletes one. Syncing is turned on per form, from your library.
+              </p>
+            ) : (
+              <p className="provider-note">
+                Intake may not create a spreadsheet for your forms. Spreadsheet syncing needs this one
+                extra permission, and it is asked for from the form you want to sync rather than here,
+                so nothing is granted before there is a form to use it with.
+              </p>
             )}
           </div>
         )}

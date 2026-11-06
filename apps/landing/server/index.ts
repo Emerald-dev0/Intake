@@ -26,6 +26,11 @@ import { DEV_INSIGHTS_COST } from './credits/pricing';
 import { DevService } from './dev/service';
 import { createPostgresDevStore } from './dev/store';
 import { createInsightsRouter } from './forms/insights/routes';
+import { createGoogleFormsClient } from './forms/providers/google/client';
+import { createGoogleSheetsClient } from './forms/sheets/client';
+import { createSheetsRouter } from './forms/sheets/routes';
+import { createPostgresSheetsSyncStore } from './forms/sheets/store';
+import { createSheetsWorker } from './forms/sheets/worker';
 import { getProviderConnection } from './providers/service';
 import { getOGPNG } from './og';
 import { createPostgresDraftStore } from './forms/draft-postgres-store';
@@ -361,6 +366,38 @@ app.use('/api/forms', createInsightsRouter({
   abuseLimiter,
 }));
 /**
+ * Spreadsheet syncing: a form's answers appended to a spreadsheet Intake created for it.
+ *
+ * The same Google Forms client the insights screen uses, one Sheets client, and a store that holds
+ * only coordination state. The scheduled worker below picks up whatever is due; this router only
+ * creates the destination and reports what the sync is doing.
+ */
+const sheetsSyncStore = createPostgresSheetsSyncStore(pool);
+const sheetsClient = createGoogleSheetsClient();
+app.use('/api/forms', createSheetsRouter({
+  getSession,
+  getForm: (userId, id) => formsEngine.getForm(userId, id).then(outcome => (outcome.ok ? { ok: true as const, form: outcome.form } : { ok: false as const })),
+  entitlement: userId => creditService.entitlement(userId),
+  getConnection: (userId, provider) => getProviderConnection(userId, provider),
+  syncs: sheetsSyncStore,
+  google: createGoogleFormsClient(),
+  sheets: sheetsClient,
+  abuseLimiter,
+}));
+
+const sheetsWorker = createSheetsWorker({
+  store: sheetsSyncStore,
+  deps: {
+    syncs: sheetsSyncStore,
+    google: createGoogleFormsClient(),
+    sheets: sheetsClient,
+    getConnection: userId => getProviderConnection(userId, 'google'),
+    getForm: (userId, id) => formsEngine.getForm(userId, id).then(outcome => (outcome.ok ? { ok: true as const, form: outcome.form } : { ok: false as const })),
+    onError: label => logSafe(label),
+  },
+});
+
+/**
  * Password reset: Better Auth generates, stores, expires and single-uses the token; Intake sends the
  * email. The link always points at Intake. The idempotency key hashes the token so a reset token is
  * never written to the delivery table or a log line.
@@ -457,6 +494,8 @@ const port = serverConfig.port;
 const server = app.listen(port, '0.0.0.0', () => {
   console.log(`Intake listening on ${port}`);
   waitlistDelivery.start();
+  // Durable state, a lease per form, and a timer that only nudges: see server/forms/sheets/worker.ts.
+  sheetsWorker.start();
 });
 let shutdownStarted = false;
 async function shutdown(reason: string, exitCode = 0): Promise<void> {
@@ -477,6 +516,7 @@ async function shutdown(reason: string, exitCode = 0): Promise<void> {
   }
   try {
     await waitlistDelivery.stop();
+    await sheetsWorker.stop();
     await pool.end();
   } catch (error) {
     logSafe('Database pool shutdown failed', error);
