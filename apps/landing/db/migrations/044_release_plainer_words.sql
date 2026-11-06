@@ -8,13 +8,13 @@
 -- allowed to describe work that did not happen. Each UPDATE below replaces one published entry
 -- with its current wording, so the database and the copy bundled with the site agree again.
 --
--- Second, the response export: insights now follow every page Google returns instead of stopping
--- at the first batch, and a Download CSV button writes one row per response with the question
--- titles as columns. Answers are read from Google while the file is written and are not stored by
--- Intake. The new entry is seeded here as well as bundled with the site.
+-- Second, the response export: the export follows every page Google returns, and a Download CSV
+-- button writes one row per response with the question titles as columns. Answers are read from
+-- Google while the file is written and are not stored by Intake. The new entry is seeded here as
+-- well as bundled with the site.
 --
--- Rollback: the NOTES rows can be restored by re-running the earlier seed migrations (038, 040,
--- 041, 043) after deleting this file's updates, and the new entry is removed with
+-- Rollback: the notes can be restored by re-running the earlier seed migrations (038, 040, 041,
+-- 043) after removing this file's updates, and the new entry is removed with
 -- DELETE FROM release WHERE slug = 'read-every-response';. No other table is touched, and no
 -- customer data is read or written.
 
@@ -415,11 +415,12 @@ WHERE slug = 'ask-for-response-reading';
 INSERT INTO release (id, slug, title, summary, body, categories, status, release_date, links, highlights, audience, published_at, created_at, updated_at)
 VALUES (
   'rel_read_every_response', 'read-every-response', 'Read every response, then take it with you',
-  'Response insights now follow every page of answers instead of stopping at the first thousand. A Download CSV button sits on the same screen and writes one row per response.',
-  $notes$## What was wrong with the first version
-The summary screen asked Google for responses once, took the first batch, and stopped. There was no way to see the rest, nothing on the page said anything was missing, and there was no way to get the answers out of the browser at all. If you wanted them in a spreadsheet you were copying them by hand.
+  'Responses can be exported in full now: Intake follows every page Google returns, and a Download CSV button on the insights screen writes one row per response.',
+  $notes$## What was missing before
+Response insights could show you a summary of the first thousand answers, and it said on screen when it stopped there. That was the end of it. There was no way to get the answers out of the browser at all, so if you wanted them in a spreadsheet you were copying them by hand.
 ## Every page, followed to the end
-Intake now follows Google’s page tokens until there are no more, and asks for a page size Google accepts rather than one it has to clamp. It caps how many pages it will walk, so one form cannot hold a request open forever, and if it ever reaches that cap it says so inside the file instead of ending quietly.
+The export follows Google’s page tokens until there are no more, and asks for a page size Google accepts rather than one it has to clamp. It caps how many pages it will walk, so one form cannot hold a request open forever, and if it ever reaches that cap it says so inside the file instead of ending quietly.
+The summary screen keeps a limit of its own, five pages of two hundred answers, and still tells you when it stopped early. A summary that walked a hundred thousand answers would not be a summary any more.
 Each response is remembered by its id as it is written, so a page token that hands the same row back twice cannot put a duplicate in your file.
 ## The file you get
 Download all responses (CSV) is on the response insights screen, for the form you already have open. There is no detour through another page and no separate export screen to find.
@@ -433,7 +434,7 @@ Intake does not keep a copy of your responses. They are read from Google while t
 The screen has no filter controls yet, so an export takes everything. Sheet sync and background syncing are not part of this release, and neither is anything that would keep your answers somewhere other than Google.$notes$,
   ARRAY['feature', 'improvement'], 'published', DATE '2026-11-06',
   '[{"label":"Changelog","url":"/changelog"},{"label":"Trust and permissions","url":"/trust"}]'::jsonb,
-  ARRAY['The summary follows Google’s page tokens, so a form with thousands of answers is counted in full instead of up to a thousand.', 'Download all responses (CSV) is on the insights screen. One row per response, one column per question, in the order the form asks them.', 'The file carries Intake branding, ISO 8601 timestamps, and a plain count at the end, so you can tell a complete export from one that stopped.', 'A skipped question leaves an empty cell in its own column, so no answer ever slides sideways into the next one.', 'A cell a spreadsheet would run as a formula is defused, in the answers and in the question titles alike.', 'Your answers are read from Google when you ask for them and written straight into the file. Intake still stores none of them.'],
+  ARRAY['The export follows Google’s page tokens until there are no more, so a form with thousands of answers gives you every one of them.', 'Download all responses (CSV) is on the insights screen. One row per response, one column per question, in the order the form asks them.', 'The file carries Intake branding, ISO 8601 timestamps, and a plain count at the end, so you can tell a complete export from one that stopped.', 'A skipped question leaves an empty cell in its own column, so no answer ever slides sideways into the next one.', 'A cell a spreadsheet would run as a formula is defused, in the answers and in the question titles alike.', 'Your answers are read from Google when you ask for them and written straight into the file. Intake still stores none of them.'],
   'For anyone with more than a screenful of responses who needs them in a spreadsheet.',
   TIMESTAMPTZ '2026-11-06T15:00:00.000Z', TIMESTAMPTZ '2026-11-06T15:00:00.000Z', TIMESTAMPTZ '2026-11-06T15:00:00.000Z'
 )
