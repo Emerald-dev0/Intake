@@ -232,11 +232,11 @@ export const FAQS = [
   },
   {
     question: 'What permissions does Intake need?',
-    answer: 'Two separate things. Signing in uses only your basic identity (name, email, profile) and never touches your forms. Creating forms uses one extra permission per provider, requested only when you press Connect: Google Forms asks for forms.body (create and edit forms you own); Typeform asks for forms:write and forms:read (create and list your forms), plus accounts:read so the account can be named and offline so the connection does not expire after a week. Every future provider will ask for the narrowest scope its API allows, and only when you connect it. Intake never asks for Gmail, Drive, Calendar, Contacts, webhooks or the right to read your responses, and you can disconnect at any time. A Sheets scope would only ever arrive with the planned Google Sheets provider, requested when you connect it.',
+    answer: 'Two separate things. Signing in uses only your basic identity (name, email, profile) and never touches your forms. Creating forms uses one extra permission per provider, requested only when you press Connect: Google Forms asks for forms.body (create and edit forms you own); Typeform asks for forms:write and forms:read (create and list your forms), plus accounts:read so the account can be named and offline so the connection does not expire after a week. Every future provider will ask for the narrowest scope its API allows, and only when you connect it. Intake never asks for Gmail, Drive, Calendar, Contacts, or webhooks. Reading your form responses is a separate, optional permission — forms.responses.readonly — which Intake asks for only when you open Response Insights and choose to allow it, never when you connect. You can disconnect at any time. A Sheets scope would only ever arrive with the planned Google Sheets provider, requested when you connect it.',
   },
   {
     question: 'Can Intake read my form responses?',
-    answer: 'No. Intake never requests a responses scope from Google or Typeform, so it has no technical way to read answers submitted to your forms. Responses go straight to the provider and land in the form you own, ready for the responses tab or a spreadsheet. Intake only ever handles the form structure: titles, questions, choices, and settings.',
+    answer: 'Yes, but only if you ask it to. Response Insights — a Pro feature — reads the answers to the form you open and shows you how many people answered, what they chose, and the most common phrases. That needs one extra Google permission, forms.responses.readonly. Intake requests it only when you open Response Insights and choose to allow it, Google adds it to the permission you already gave rather than replacing it, and you can remove it from your Google account permissions at any time. Connecting Google Forms never asks for it, and if you say no, creating and editing forms keeps working exactly as before. The answers stay in your Google form: Intake reads them to work out the summary and does not store them.',
   },
   {
     question: 'Do I need to sign up to try it?',
@@ -252,7 +252,7 @@ export const FAQS = [
   },
   {
     question: 'Where do the responses go?',
-    answer: 'Straight to the provider you chose. People answer on the normal Google Forms or Typeform page, and every response lands in the form you own, ready for its responses tab or a spreadsheet. Intake never touches the answers. When Google Sheets joins as a provider, that stays true: the rows go into your sheet, not into Intake.',
+    answer: 'Straight to the provider you chose. People answer on the normal Google Forms or Typeform page, and every response lands in the form you own, ready for its responses tab or a spreadsheet. Intake only reads the answers when you open Response Insights, and it does not keep them. When Google Sheets joins as a provider, that stays true: the rows go into your sheet, not into Intake.',
   },
   {
     question: 'What kinds of questions can I create?',

@@ -32,7 +32,7 @@ export const EDIT_LIMITS: Partial<Record<FormProvider, ProviderEditLimits>> = {
       {
         key: 'delete',
         title: 'Deleting a question',
-        detail: 'Typeform cannot delete a question without deleting the answers already collected for it, and Intake is not allowed to read your responses — so it cannot tell you what would be lost. Delete it in Typeform, where the response count is visible.',
+        detail: 'Typeform cannot delete a question without deleting the answers already collected for it, and Intake cannot read Typeform responses — so it cannot tell you what would be lost. Delete it in Typeform, where the response count is visible.',
       },
       {
         key: 'retype',

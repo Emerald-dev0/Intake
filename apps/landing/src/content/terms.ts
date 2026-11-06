@@ -18,7 +18,7 @@ export const TERMS_SECTIONS = [
   {
     heading: 'The service',
     body: [
-      'Intake turns a plain-English description into a real Google Form in your own Google account. You review every proposal and confirm before anything is created or changed. Intake does not host respondent forms and never collects form responses.',
+      'Intake turns a plain-English description into a real Google Form in your own Google account. You review every proposal and confirm before anything is created or changed. Intake does not host respondent forms and does not keep form responses; it reads them only if you turn on Response Insights, and only to work out the summary you asked for.',
       'Intake is provided as-is during launch. Features, limits, and pricing may change as the product develops.',
     ],
   },
