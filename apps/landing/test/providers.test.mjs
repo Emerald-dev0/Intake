@@ -9,12 +9,14 @@ import { createMemoryStore } from '../server/providers/memory-store.ts';
 import { buildAuthorizationUrl, createPkce, redact } from '../server/providers/oauth.ts';
 import { FORBIDDEN_SCOPE_MARKERS, providerDefinition, supportedProviders } from '../server/providers/registry.ts';
 import { createProviderRouter } from '../server/providers/routes.ts';
-import { createProviderService } from '../server/providers/service.ts';
+import { createProviderService, optionalCapabilities, scopesForCapability } from '../server/providers/service.ts';
+import { FORMS_RESPONSES_READONLY_SCOPE } from '../server/forms/providers/google/adapter.ts';
 import { parseProviderList, resultMessage, RESULT_CODES } from '../src/lib/connections.ts';
 
 const SECRET = 'test-secret-must-be-at-least-32-characters';
 const ORIGIN = 'http://localhost:5173';
 const GOOGLE_SCOPE = 'openid email https://www.googleapis.com/auth/forms.body';
+const RESPONSES_SCOPE = 'https://www.googleapis.com/auth/forms.responses.readonly';
 const ACCESS = 'ACCESS_TOKEN_SHOULD_NOT_LEAK';
 const REFRESH = 'REFRESH_TOKEN_SHOULD_NOT_LEAK';
 const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -64,7 +66,22 @@ async function boot(options = {}) {
     pendingMicrosoftToken: '',
     store: createMemoryStore(),
   };
-  const calls = { token: 0, refresh: 0, revoke: 0, refreshMode: 'ok', tokenBodies: [] };
+  const calls = {
+    token: 0,
+    refresh: 0,
+    revoke: 0,
+    refreshMode: 'ok',
+    tokenBodies: [],
+    // The token response the provider hands back. Tests change it between calls: Google does not
+    // always issue a refresh token, and that difference has to be exercised.
+    tokenResponse: {
+      access_token: ACCESS,
+      refresh_token: REFRESH,
+      expires_in: options.accessTokenExpiresIn ?? 3600,
+      token_type: 'Bearer',
+      ...('scope' in options ? { scope: options.scope } : { scope: GOOGLE_SCOPE }),
+    },
+  };
   const http = {
     async postForm(url, body) {
       const params = new URLSearchParams(body.toString());
@@ -83,7 +100,7 @@ async function boot(options = {}) {
       if (String(url).includes('login.microsoftonline.com')) {
         return { status: 200, json: { access_token: 'MS_ACCESS_SHOULD_NOT_LEAK', refresh_token: 'MS_REFRESH_SHOULD_NOT_LEAK', expires_in: 3600, token_type: 'Bearer', scope: 'openid profile email offline_access', id_token: users.pendingMicrosoftToken } };
       }
-      return { status: 200, json: { access_token: ACCESS, refresh_token: REFRESH, expires_in: options.accessTokenExpiresIn ?? 3600, token_type: 'Bearer', ...('scope' in options ? { scope: options.scope } : { scope: GOOGLE_SCOPE }) } };
+      return { status: 200, json: { ...calls.tokenResponse } };
     },
     async getJson(url, headers = {}) {
       if (String(url).includes('/discovery/')) return { status: 200, json: { keys: [jwk] } };
@@ -117,17 +134,49 @@ async function connect(base, provider, users) {
   return new URL(callback.headers.get('location'), ORIGIN).searchParams.get('result');
 }
 
+/** Start an authorization at a path other than connect — the extend endpoint, for instance. */
+async function begin(base, path) {
+  const start = await fetch(`${base}${path}`, { method: 'POST', redirect: 'manual', headers: { origin: ORIGIN } });
+  return { response: start, url: new URL(start.headers.get('location')) };
+}
+
+/** Finish an authorization with the code the provider would hand back. */
+async function finish(base, provider, url, code = `code-${provider}`) {
+  const callback = await fetch(`${base}/api/providers/${provider}/callback?${new URLSearchParams({ code, state: url.searchParams.get('state') })}`, { redirect: 'manual' });
+  return new URL(callback.headers.get('location'), ORIGIN);
+}
+
+/** The scopes the authorization asked for, as the provider saw them. */
+function requestedScopes(url) {
+  return url.searchParams.get('scope').split(/\s+/).filter(Boolean);
+}
+
 test('provider scopes stay limited to identity and the forms access that actually exists', () => {
   const runtime = env();
   for (const provider of supportedProviders(runtime)) {
     const blob = provider.scopes.join(' ').toLowerCase();
     for (const marker of FORBIDDEN_SCOPE_MARKERS) assert.equal(blob.includes(marker), false, `${provider.id} requested ${marker}`);
   }
+  // The optional permissions are asked for through a different path, and they are held to the same
+  // rule: nothing beyond the responses permission, and nothing broad.
+  for (const [capability, scopes] of Object.entries(optionalCapabilities())) {
+    const blob = scopes.join(' ').toLowerCase();
+    for (const marker of FORBIDDEN_SCOPE_MARKERS) assert.equal(blob.includes(marker), false, `the ${capability} capability requested ${marker}`);
+  }
   assert.deepEqual(providerDefinition('google', runtime).requiredScopes, ['https://www.googleapis.com/auth/forms.body']);
   assert.deepEqual(providerDefinition('microsoft', runtime).scopes, ['openid', 'profile', 'email', 'offline_access']);
   assert.equal(providerDefinition('google', runtime).formsApi, 'supported');
   assert.equal(providerDefinition('microsoft', runtime).formsApi, 'unsupported');
   assert.equal(providerDefinition('microsoft', { ...runtime, MICROSOFT_OAUTH_TENANT: 'not a tenant' }).configurationError != null, true);
+});
+
+test('the optional response permission is the one the insights gate enforces', () => {
+  // Two places name it: the capability that asks for it, and the gate that checks for it. They
+  // have to be the same permission, or the button grants something nothing uses.
+  assert.deepEqual(scopesForCapability('responses'), [FORMS_RESPONSES_READONLY_SCOPE]);
+  assert.deepEqual(scopesForCapability('spreadsheets'), null, 'there is no Sheets capability');
+  assert.deepEqual(scopesForCapability(''), null);
+  assert.deepEqual(scopesForCapability(undefined), null);
 });
 
 test('authorization URLs carry PKCE and never the client secret', () => {
@@ -518,5 +567,202 @@ test('Google keeps PKCE and the OIDC nonce', async () => {
     assert.equal(url.searchParams.get('code_challenge_method'), 'S256');
     assert.ok(url.searchParams.get('code_challenge'));
     assert.ok(url.searchParams.get('nonce'));
+  } finally { await world.close(); }
+});
+
+test('the first connection stores the refresh token it was issued', async () => {
+  const world = await boot();
+  const box = cipher();
+  try {
+    assert.equal(await connect(world.app, 'google'), 'connected');
+    const stored = await world.users.store.getConnection('user-a', 'google');
+    assert.equal(box.decrypt(stored.refreshTokenCiphertext, credentialAad('user-a', 'google', 'refresh')), REFRESH);
+    assert.equal(box.decrypt(stored.accessTokenCiphertext, credentialAad('user-a', 'google', 'access')), ACCESS);
+  } finally { await world.close(); }
+});
+
+test('an incremental grant keeps the refresh token when Google issues no new one', async () => {
+  // Google does not always hand back a refresh token. A grant that returns none must not cost the
+  // connection the token it already had — that is the difference between "still connected" and
+  // "expired in an hour".
+  const world = await boot();
+  const box = cipher();
+  try {
+    assert.equal(await connect(world.app, 'google'), 'connected');
+    const before = await world.users.store.getConnection('user-a', 'google');
+    assert.equal(box.decrypt(before.refreshTokenCiphertext, credentialAad('user-a', 'google', 'refresh')), REFRESH);
+
+    world.calls.tokenResponse = {
+      access_token: 'SECOND_ACCESS_TOKEN',
+      expires_in: 3600,
+      token_type: 'Bearer',
+      scope: `${GOOGLE_SCOPE} ${RESPONSES_SCOPE}`,
+    };
+    const { url } = await begin(world.app, '/api/providers/google/extend?capability=responses');
+    const done = await finish(world.app, 'google', url);
+    assert.equal(done.searchParams.get('result'), 'connected');
+
+    const after = await world.users.store.getConnection('user-a', 'google');
+    assert.equal(box.decrypt(after.refreshTokenCiphertext, credentialAad('user-a', 'google', 'refresh')), REFRESH, 'the stored refresh token survives an authorization that returned none');
+    assert.equal(box.decrypt(after.accessTokenCiphertext, credentialAad('user-a', 'google', 'access')), 'SECOND_ACCESS_TOKEN');
+  } finally { await world.close(); }
+});
+
+test('an incremental grant replaces the refresh token when Google issues a new one', async () => {
+  const world = await boot();
+  const box = cipher();
+  try {
+    assert.equal(await connect(world.app, 'google'), 'connected');
+    world.calls.tokenResponse = {
+      access_token: ACCESS,
+      refresh_token: 'ROTATED_REFRESH_TOKEN',
+      expires_in: 3600,
+      token_type: 'Bearer',
+      scope: `${GOOGLE_SCOPE} ${RESPONSES_SCOPE}`,
+    };
+    const { url } = await begin(world.app, '/api/providers/google/extend?capability=responses');
+    assert.equal((await finish(world.app, 'google', url)).searchParams.get('result'), 'connected');
+    const after = await world.users.store.getConnection('user-a', 'google');
+    assert.equal(box.decrypt(after.refreshTokenCiphertext, credentialAad('user-a', 'google', 'refresh')), 'ROTATED_REFRESH_TOKEN');
+  } finally { await world.close(); }
+});
+
+test('an incremental grant adds the new permission and keeps the old ones, without duplicates', async () => {
+  const world = await boot();
+  try {
+    assert.equal(await connect(world.app, 'google'), 'connected');
+    world.calls.tokenResponse = {
+      access_token: ACCESS,
+      refresh_token: REFRESH,
+      expires_in: 3600,
+      token_type: 'Bearer',
+      // The provider repeated the permission, as providers sometimes do.
+      scope: `${GOOGLE_SCOPE} ${RESPONSES_SCOPE} ${RESPONSES_SCOPE}`,
+    };
+    const { url } = await begin(world.app, '/api/providers/google/extend?capability=responses');
+    assert.equal((await finish(world.app, 'google', url)).searchParams.get('result'), 'connected');
+    const stored = await world.users.store.getConnection('user-a', 'google');
+    assert.deepEqual(stored.scopes, ['openid', 'email', 'https://www.googleapis.com/auth/forms.body', RESPONSES_SCOPE]);
+    assert.equal(stored.scopes.length, new Set(stored.scopes).size, 'no duplicate permissions');
+  } finally { await world.close(); }
+});
+
+test('a permission the provider did not grant is not recorded as granted', async () => {
+  // Intake asked for the responses permission. Google granted only what it had before. What was
+  // granted is what counts — a request is never evidence of a grant.
+  const world = await boot();
+  try {
+    const { url } = await begin(world.app, '/api/providers/google/extend?capability=responses');
+    assert.ok(requestedScopes(url).includes(RESPONSES_SCOPE));
+    world.calls.tokenResponse = { access_token: ACCESS, refresh_token: REFRESH, expires_in: 3600, token_type: 'Bearer', scope: GOOGLE_SCOPE };
+    const done = await finish(world.app, 'google', url);
+    assert.equal(done.searchParams.get('result'), 'connected');
+    const stored = await world.users.store.getConnection('user-a', 'google');
+    assert.equal(stored.scopes.includes(RESPONSES_SCOPE), false, 'a requested-but-not-granted permission is not stored');
+  } finally { await world.close(); }
+});
+
+test('a refused incremental grant leaves the stored permissions and the refresh token alone', async () => {
+  const world = await boot();
+  try {
+    assert.equal(await connect(world.app, 'google'), 'connected');
+    const before = await world.users.store.getConnection('user-a', 'google');
+    const { url } = await begin(world.app, '/api/providers/google/extend?capability=responses');
+    const state = url.searchParams.get('state');
+    const refused = await fetch(`${world.app}/api/providers/google/callback?${new URLSearchParams({ error: 'access_denied', state })}`, { redirect: 'manual' });
+    assert.equal(new URL(refused.headers.get('location'), ORIGIN).searchParams.get('result'), 'denied');
+    const after = await world.users.store.getConnection('user-a', 'google');
+    assert.deepEqual(after.scopes, before.scopes, 'a refused grant does not change what was granted');
+    assert.equal(after.refreshTokenCiphertext, before.refreshTokenCiphertext);
+  } finally { await world.close(); }
+});
+
+test('the extend endpoint asks for one named permission and returns to the page it came from', async () => {
+  const world = await boot();
+  try {
+    const { response, url } = await begin(world.app, `/api/providers/google/extend?capability=responses&return_to=${encodeURIComponent('/app/library?insights=form-1&grant=responses')}`);
+    assert.equal(response.status, 303);
+    assert.equal(url.origin, 'https://accounts.google.com');
+    const scopes = requestedScopes(url);
+    assert.ok(scopes.includes(RESPONSES_SCOPE), 'the responses permission is asked for');
+    assert.ok(scopes.includes('https://www.googleapis.com/auth/forms.body'), 'the forms permission is still asked for');
+    assert.equal(await world.users.store.getConnection('user-a', 'google'), null, 'nothing is stored before Google answers');
+
+    const done = await finish(world.app, 'google', url);
+    assert.equal(done.searchParams.get('result'), 'connected');
+    assert.equal(done.pathname, '/app/library');
+    assert.equal(done.searchParams.get('insights'), 'form-1');
+    assert.equal(done.searchParams.get('grant'), 'responses');
+  } finally { await world.close(); }
+});
+
+test('the extend endpoint refuses a permission Intake does not offer', async () => {
+  const world = await boot();
+  try {
+    for (const capability of ['spreadsheets', 'drive', 'sheets', '']) {
+      const response = await fetch(`${world.app}/api/providers/google/extend?capability=${encodeURIComponent(capability)}`, { method: 'POST', redirect: 'manual', headers: { origin: ORIGIN } });
+      assert.equal(response.status, 400, `capability ${capability} must not be requestable`);
+      assert.equal((await response.json()).error, 'unknown_capability');
+    }
+  } finally { await world.close(); }
+});
+
+test('a return path can only be a path on this site', async () => {
+  const world = await boot();
+  try {
+    for (const target of ['https://evil.example/steal', '//evil.example/steal', '/app/connections']) {
+      const { url } = await begin(world.app, `/api/providers/google/extend?capability=responses&return_to=${encodeURIComponent(target)}`);
+      const done = await finish(world.app, 'google', url);
+      if (target.startsWith('/app/')) {
+        assert.equal(done.pathname, '/app/connections');
+      } else {
+        assert.equal(done.pathname, '/app/connections', 'an off-site return path falls back to the connections page');
+      }
+      assert.equal(done.searchParams.get('result'), 'connected');
+    }
+  } finally { await world.close(); }
+});
+
+test('a connection reports the response-reading capability only once it is granted', async () => {
+  const world = await boot();
+  const capabilities = async () => {
+    const parsed = parseProviderList(await (await fetch(world.app + '/api/providers', { headers: { accept: 'application/json' } })).json());
+    return parsed.find(provider => provider.id === 'google').capabilities;
+  };
+  try {
+    assert.equal(await connect(world.app, 'google'), 'connected');
+    assert.deepEqual(await capabilities(), [], 'connecting does not grant response reading');
+    world.calls.tokenResponse = { access_token: ACCESS, refresh_token: REFRESH, expires_in: 3600, token_type: 'Bearer', scope: `${GOOGLE_SCOPE} ${RESPONSES_SCOPE}` };
+    const { url } = await begin(world.app, '/api/providers/google/extend?capability=responses');
+    assert.equal((await finish(world.app, 'google', url)).searchParams.get('result'), 'connected');
+    assert.deepEqual(await capabilities(), ['responses']);
+  } finally { await world.close(); }
+});
+
+test('a grant that echoes only the new permission keeps the permissions already granted', async () => {
+  // A provider may answer with just the permission that was asked for now. The permissions granted
+  // before are still granted, so the grant must not shrink — and the grant must not be refused
+  // either, because the permission Intake needs is already there.
+  const world = await boot();
+  try {
+    assert.equal(await connect(world.app, 'google'), 'connected');
+    world.calls.tokenResponse = { access_token: ACCESS, refresh_token: REFRESH, expires_in: 3600, token_type: 'Bearer', scope: RESPONSES_SCOPE };
+    const { url } = await begin(world.app, '/api/providers/google/extend?capability=responses');
+    const done = await finish(world.app, 'google', url);
+    assert.equal(done.searchParams.get('result'), 'connected');
+    const stored = await world.users.store.getConnection('user-a', 'google');
+    assert.deepEqual(stored.scopes, ['openid', 'email', 'https://www.googleapis.com/auth/forms.body', RESPONSES_SCOPE]);
+  } finally { await world.close(); }
+});
+
+test('connecting never asks for the response permission', async () => {
+  // The permission is optional and asked for only when someone opens response insights. An
+  // ordinary connection must not carry it.
+  const world = await boot();
+  try {
+    const { url } = await begin(world.app, '/api/providers/google/connect');
+    const scopes = requestedScopes(url);
+    assert.equal(scopes.includes(RESPONSES_SCOPE), false, 'response reading is never requested when connecting');
+    assert.ok(scopes.includes('https://www.googleapis.com/auth/forms.body'));
   } finally { await world.close(); }
 });

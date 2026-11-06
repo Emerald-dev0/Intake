@@ -339,7 +339,7 @@ function llmsDocument(siteUrl: string): string {
     '- Editing in place applies to Google Forms; Typeform creation and import are supported, Typeform editing is not yet.',
     '- Providers that are planned, not live: SurveyMonkey, Google Sheets, Jira, n8n. They are listed on the homepage under “Next in line” and are never described as working.',
     '- Every new provider is announced only once its OAuth connection, scope list and creation path work.',
-    '- Intake never reads form responses and never requests Gmail, Drive, Calendar or Contacts scopes. A Sheets scope would only ever be requested by the planned Google Sheets provider, when the user connects it.',
+    '- Intake never requests Gmail, Drive, Calendar or Contacts scopes. Reading form responses is a separate, optional permission (https://www.googleapis.com/auth/forms.responses.readonly) that Intake asks for only when the user opens Response Insights and chooses to allow it; the answers are read to produce a summary and are never kept. A Sheets scope would only ever be requested by the planned Google Sheets provider, when the user connects it.',
     '- Google scope beyond identity: https://www.googleapis.com/auth/forms.body (create/edit owned forms).',
     '- Typeform scopes: accounts:read, forms:read, forms:write, offline. No responses, webhooks, workspaces, themes or images.',
     '',

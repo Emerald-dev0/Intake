@@ -78,12 +78,25 @@ export interface PublicProvider {
   accountLabel: string | null;
   scopes: string[];
   scopeLabels: string[];
+  /**
+   * What this connection may actually do, in plain words — `responses` when reading form
+   * responses is allowed. The browser never has to know a scope string to know that.
+   */
+  capabilities: string[];
   connectedAt: string | null;
   canRefresh: boolean;
   revocation: 'supported' | 'unsupported';
   formsApi: 'supported' | 'unsupported';
   formsNote: string;
   permissionLinks: PermissionLink[];
+}
+
+/** The capability that stands for "may read the responses to your forms". */
+export const RESPONSES_CAPABILITY = 'responses';
+
+/** Whether a connection may read form responses. */
+export function hasCapability(provider: PublicProvider | null | undefined, capability: string): boolean {
+  return !!provider?.capabilities?.includes(capability);
 }
 
 export function isProviderId(value: string | null | undefined): value is ProviderId {
@@ -149,6 +162,10 @@ export function parseProviderList(data: unknown): PublicProvider[] | null {
     if (!Array.isArray(row.scopes) || !row.scopes.every((scope): scope is string => typeof scope === 'string' && scope.length < 200)) return null;
     if (!Array.isArray(row.scopeLabels) || !row.scopeLabels.every((label): label is string => typeof label === 'string')) return null;
     if (!Array.isArray(row.setupEnv) || !row.setupEnv.every((name): name is string => typeof name === 'string' && /^[A-Z0-9_]+$/.test(name))) return null;
+    // A server that does not report capabilities is a server that grants none of them.
+    const capabilities = Array.isArray(row.capabilities)
+      ? row.capabilities.filter((capability): capability is string => typeof capability === 'string' && capability.length < 64)
+      : [];
     providers.push({
       id,
       name: row.name,
@@ -161,6 +178,7 @@ export function parseProviderList(data: unknown): PublicProvider[] | null {
       accountLabel: cleanText(row.accountLabel, 120),
       scopes: row.scopes,
       scopeLabels: row.scopeLabels.map(label => label.slice(0, 160)),
+      capabilities,
       connectedAt: typeof row.connectedAt === 'string' ? row.connectedAt : null,
       canRefresh: row.canRefresh,
       revocation: row.revocation,
@@ -177,6 +195,27 @@ export function providerAccountName(id: ProviderId | null): string {
   if (id === 'microsoft') return 'Microsoft';
   if (id === 'typeform') return 'Typeform';
   return 'Provider';
+}
+
+/**
+ * What to say when someone comes back from a provider's consent screen having asked for one
+ * optional permission. The permission is named plainly, and the outcome says that nothing else
+ * about their access changed — a refused permission must never sound like a lost connection.
+ */
+export function grantResultMessage(params: URLSearchParams): { tone: 'ok' | 'warn' | 'bad'; text: string } | null {
+  const result = params.get('result');
+  if (!isResultCode(result)) return null;
+  if (params.get('grant') !== RESPONSES_CAPABILITY) return null;
+  if (result === 'connected') {
+    return { tone: 'ok', text: 'Google now lets Intake read the responses to your forms. Response insights are available.' };
+  }
+  if (result === 'cancelled') {
+    return { tone: 'warn', text: 'You closed Google’s screen before it finished. Nothing changed — the access you already gave Intake is exactly as it was.' };
+  }
+  if (result === 'denied') {
+    return { tone: 'warn', text: 'You did not allow Intake to read form responses. Nothing changed — the access you already gave Intake is exactly as it was.' };
+  }
+  return resultMessage(result, 'google', null);
 }
 
 export function resultMessage(code: ResultCode, provider: ProviderId | null, revocation?: RevocationOutcome | null): { tone: 'ok' | 'warn' | 'bad'; text: string } {

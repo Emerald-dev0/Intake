@@ -2,11 +2,14 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { ProviderMark } from './components/ProviderBadge';
 import { PageHeader, Section, EmptyState, ErrorState, Skeleton, Note } from './components/PagePrimitives';
 import {
+  grantResultMessage,
+  hasCapability,
   isProviderId,
   isResultCode,
   isRevocationOutcome,
   parseProviderList,
   resultMessage,
+  RESPONSES_CAPABILITY,
   type PublicProvider,
   type ResultCode,
   type RevocationOutcome,
@@ -53,6 +56,9 @@ function initialNotice(): { result: ResultCode; provider: PublicProvider['id'] |
 
 export function Connections({ load, reload }: { load: ProviderLoad; reload: () => void }) {
   const [notice, setNotice] = useState(initialNotice);
+  // A grant that came back from the provider's consent screen says its own thing. Any later action
+  // on this screen replaces it, so a disconnect still reports what it did.
+  const [grantMessage, setGrantMessage] = useState(() => grantResultMessage(new URLSearchParams(location.search)));
   const message = notice ? resultMessage(notice.result, notice.provider, notice.revocation) : null;
   return (
     <>
@@ -61,7 +67,8 @@ export function Connections({ load, reload }: { load: ProviderLoad; reload: () =
         title="Connections"
         description="Intake creates forms in an account you control. Connecting is separate from signing in — Intake only gets access when you connect a provider here."
       />
-      {message && <div className={`form-banner ${message.tone}`} role="status">{message.text}</div>}
+      {grantMessage && <div className={`form-banner ${grantMessage.tone}`} role="status">{grantMessage.text}</div>}
+      {message && !grantMessage && <div className={`form-banner ${message.tone}`} role="status">{message.text}</div>}
       {load.status === 'loading' && <Skeleton variant="rows" lines={2} label="Checking your connections" />}
       {load.status === 'error' && (
         <ErrorState
@@ -78,7 +85,7 @@ export function Connections({ load, reload }: { load: ProviderLoad; reload: () =
       >
         {load.status === 'ready' && load.providers && (load.providers.length > 0
           ? <div className="provider-list">
-            {load.providers.map(provider => <ProviderRow key={provider.id} provider={provider} onChange={result => { setNotice(result); void reload(); }} />)}
+            {load.providers.map(provider => <ProviderRow key={provider.id} provider={provider} onChange={result => { setGrantMessage(null); setNotice(result); void reload(); }} />)}
           </div>
           : <EmptyState
             title="No providers are configured on this server"
@@ -152,6 +159,27 @@ function ProviderRow({ provider, onChange }: { provider: PublicProvider; onChang
             {provider.connectedAt && <p className="provider-note">Last authorized {formatWhen(provider.connectedAt)}.</p>}
             {provider.permissionLinks.length > 0 && (
               <p className="provider-links">{provider.permissionLinks.map(link => <a key={link.href} href={link.href} target="_blank" rel="noreferrer">{link.label} ↗</a>)}</p>
+            )}
+          </div>
+        )}
+        {open && provider.id === 'google' && provider.status === 'connected' && (
+          <div className="manage-panel">
+            <span className="info-index">OPTIONAL PERMISSION</span>
+            {hasCapability(provider, RESPONSES_CAPABILITY) ? (
+              <p className="provider-note">
+                Intake may read the responses to your forms. It uses them to count and summarise the
+                answers; your answers stay in your Google account and are not stored by Intake.
+              </p>
+            ) : (
+              <>
+                <p className="provider-note">
+                  Intake may not read the responses to your forms. Response insights need this one extra
+                  permission. Creating and editing your forms does not.
+                </p>
+                <form method="POST" action={`/api/providers/google/extend?capability=${RESPONSES_CAPABILITY}&return_to=${encodeURIComponent('/app/connections?grant=responses')}`}>
+                  <button className="btn btn-accent btn-sm" type="submit">Allow response reading</button>
+                </form>
+              </>
             )}
           </div>
         )}

@@ -28,9 +28,14 @@ interface TransactionRow {
   code_verifier_ciphertext: string;
   nonce_hash: string;
   redirect_uri: string;
+  requested_scopes: string | null;
+  return_to: string | null;
   expires_at: Date;
   consumed_at: Date | null;
 }
+
+/** How long the answer to "has migration 042 run?" is remembered. */
+const CONTEXT_COLUMN_CHECK_MS = 60_000;
 
 const CONNECTION_COLUMNS = `id, user_id, provider, status, external_account_id, external_account_email, external_account_label, scopes,
   access_token_ciphertext, access_token_expires_at, refresh_token_ciphertext, last_authorized_at, last_refreshed_at, created_at, updated_at`;
@@ -64,6 +69,8 @@ function mapTransaction(row: TransactionRow): OAuthTransaction {
     codeVerifierCiphertext: row.code_verifier_ciphertext,
     nonceHash: row.nonce_hash,
     redirectUri: row.redirect_uri,
+    requestedScopes: textToScopes(row.requested_scopes),
+    returnTo: row.return_to ?? null,
     expiresAt: row.expires_at,
     consumedAt: row.consumed_at,
   };
@@ -71,6 +78,31 @@ function mapTransaction(row: TransactionRow): OAuthTransaction {
 
 /** Every read and write is scoped by the Intake user id from the server session, never from the request body. */
 export function createPostgresStore(pool: Pool): ConnectionStore {
+  // The transaction context columns arrived with migration 042. A deployment that runs before it
+  // must still be able to connect a provider: the columns are simply not written, and the callback
+  // falls back to the provider's base scopes and the default landing page. The answer is
+  // remembered for a minute so a busy server does not ask the catalogue on every authorization,
+  // and so a migration applied while the server is running is picked up without a restart.
+  let contextColumnCheck: { at: number; present: boolean } | null = null;
+
+  const hasContextColumns = async (): Promise<boolean> => {
+    const now = Date.now();
+    if (contextColumnCheck && now - contextColumnCheck.at < CONTEXT_COLUMN_CHECK_MS) return contextColumnCheck.present;
+    let present = false;
+    try {
+      const result = await pool.query(
+        `SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'provider_oauth_transaction'
+            AND column_name IN ('requested_scopes', 'return_to')`,
+      );
+      present = (result.rowCount ?? 0) === 2;
+    } catch {
+      present = false;
+    }
+    contextColumnCheck = { at: now, present };
+    return present;
+  };
+
   return {
     async createTransaction(input: NewTransaction, now: Date) {
       await pool.query(
@@ -78,20 +110,51 @@ export function createPostgresStore(pool: Pool): ConnectionStore {
          WHERE expires_at < $1 OR (user_id = $2 AND provider = $3 AND consumed_at IS NOT NULL)`,
         [new Date(now.getTime() - 24 * 60 * 60 * 1000), input.userId, input.provider],
       );
+      const context = await hasContextColumns();
       await pool.query(
-        `INSERT INTO provider_oauth_transaction
-          (id, user_id, provider, state_hash, code_verifier_ciphertext, nonce_hash, redirect_uri, expires_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [input.id, input.userId, input.provider, input.stateHash, input.codeVerifierCiphertext, input.nonceHash, input.redirectUri, input.expiresAt],
+        context
+          ? `INSERT INTO provider_oauth_transaction
+              (id, user_id, provider, state_hash, code_verifier_ciphertext, nonce_hash, redirect_uri, requested_scopes, return_to, expires_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
+          : `INSERT INTO provider_oauth_transaction
+              (id, user_id, provider, state_hash, code_verifier_ciphertext, nonce_hash, redirect_uri, expires_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        context
+          ? [
+              input.id,
+              input.userId,
+              input.provider,
+              input.stateHash,
+              input.codeVerifierCiphertext,
+              input.nonceHash,
+              input.redirectUri,
+              scopesToText(input.requestedScopes),
+              input.returnTo,
+              input.expiresAt,
+            ]
+          : [
+              input.id,
+              input.userId,
+              input.provider,
+              input.stateHash,
+              input.codeVerifierCiphertext,
+              input.nonceHash,
+              input.redirectUri,
+              input.expiresAt,
+            ],
       );
     },
     async consumeTransaction(stateHash, userId, provider, now) {
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
+        const context = await hasContextColumns();
         const found = await client.query<TransactionRow>(
-          `SELECT id, user_id, provider, state_hash, code_verifier_ciphertext, nonce_hash, redirect_uri, expires_at, consumed_at
-           FROM provider_oauth_transaction WHERE state_hash = $1 FOR UPDATE`,
+          context
+            ? `SELECT id, user_id, provider, state_hash, code_verifier_ciphertext, nonce_hash, redirect_uri, requested_scopes, return_to, expires_at, consumed_at
+               FROM provider_oauth_transaction WHERE state_hash = $1 FOR UPDATE`
+            : `SELECT id, user_id, provider, state_hash, code_verifier_ciphertext, nonce_hash, redirect_uri, expires_at, consumed_at
+               FROM provider_oauth_transaction WHERE state_hash = $1 FOR UPDATE`,
           [stateHash],
         );
         const row = found.rows[0];

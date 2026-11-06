@@ -145,6 +145,42 @@ export function hasScope(granted: string[], required: string): boolean {
   return granted.some(scope => scope.toLowerCase() === required.toLowerCase());
 }
 
+/**
+ * The union of several scope lists, in the order the scopes were first seen.
+ *
+ * Scopes are compared case-insensitively, because Google does not promise a stable casing, but the
+ * scope string that was granted is the one kept — it is what the provider sees when it checks a
+ * permission. A scope that appears twice is stored once.
+ */
+export function unionScopes(...lists: string[][]): string[] {
+  const seen = new Map<string, string>();
+  for (const list of lists) {
+    for (const raw of list) {
+      const scope = typeof raw === 'string' ? raw.trim() : '';
+      if (!scope || scope.length > 200) continue;
+      const key = scope.toLowerCase();
+      if (!seen.has(key)) seen.set(key, scope);
+    }
+  }
+  return [...seen.values()];
+}
+
+/**
+ * A path a person may be sent back to after an authorization finishes.
+ *
+ * Only a path on this site is allowed: it must start with a single slash, so it can never point at
+ * another origin, and it carries no control characters. Anything else is refused and the person is
+ * sent to the default page instead.
+ */
+export function safeReturnTo(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const path = value.trim();
+  if (!path || path.length > 300) return null;
+  if (!path.startsWith('/') || path.startsWith('//')) return null;
+  if (/[\u0000-\u001f\u007f]/.test(path)) return null;
+  return path;
+}
+
 const SECRET_QUERY = /((?:access_token|refresh_token|id_token|client_secret|code_verifier|code)=)[^&\s]+/gi;
 const JWT = /eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g;
 const DATABASE_URL = /postgres(?:ql)?:\/\/\S+/gi;

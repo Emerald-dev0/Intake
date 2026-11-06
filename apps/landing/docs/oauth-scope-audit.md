@@ -32,16 +32,17 @@
 
 ### `https://www.googleapis.com/auth/forms.responses.readonly`
 
-**Used by:** `server/providers/service.ts` — `OPTIONAL_SCOPES` via the `/api/providers/google/extend` endpoint.
+**Used by:** `server/providers/service.ts` — the `responses` capability in `OPTIONAL_SCOPE_SETS`, requested via the `/api/providers/google/extend?capability=responses` endpoint.
 
 **Why it's requested:** This scope enables the optional "response summaries" feature. When a user explicitly opts in via the extend endpoint, Intake can call `forms.responses.list` to aggregate response data (counts, averages, top phrases). Individual responses are never stored or displayed — only aggregated statistics.
 
 **Where it's used in code:**
 - `server/forms/providers/google/client.ts` — `listResponses()` method (only called after explicit opt-in)
 - `server/forms/insights/routes.ts` — `GET /api/forms/:id/insights` (gated behind Pro + scope check)
-- `server/providers/service.ts` — `OPTIONAL_SCOPES` constant, used by the extend endpoint
+- `server/providers/service.ts` — `OPTIONAL_SCOPE_SETS`, the capability map the extend endpoint resolves
+- `src/app/components/Insights.tsx` — the panel that offers the permission, as a plain form post
 
-**Note:** This scope is **never requested during the initial connection**. It is only added when the user explicitly enables response summaries through the extend endpoint. The consent screen shows it as an optional addition.
+**Note:** This scope is **never requested during the initial connection**. It is only added when the user explicitly enables response summaries through the extend endpoint. The consent screen shows it as an optional addition. Because Google merges scopes into an existing grant (`include_granted_scopes`), the granted set is the union of what was granted before and what was granted now — the connection's stored scopes are that union, never just the newest request.
 
 ### `https://www.googleapis.com/auth/drive.file`
 
@@ -68,4 +69,4 @@ When a reviewer connects a Google account, the consent screen shows:
 2. **See the email address of that Google account** (`email`)
 3. **Create and edit your Google Forms** (`forms.body`)
 
-The `forms.responses.readonly` scope is not shown during initial connection. It only appears if the user later enables response summaries through the optional extend flow.
+The `forms.responses.readonly` scope is not shown during initial connection. It only appears if the user later enables response summaries through the optional extend flow, which is reached from Response Insights in the library or from the Manage panel on Connections.

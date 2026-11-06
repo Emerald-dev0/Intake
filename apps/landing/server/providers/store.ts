@@ -10,6 +10,10 @@ export interface OAuthTransaction {
   codeVerifierCiphertext: string;
   nonceHash: string;
   redirectUri: string;
+  /** Every scope this authorization asked for. What was actually granted is Google's answer, not this. */
+  requestedScopes: string[];
+  /** Where this person is sent once the authorization finishes. Null means the default page. */
+  returnTo: string | null;
   expiresAt: Date;
   consumedAt: Date | null;
 }
@@ -22,6 +26,8 @@ export interface NewTransaction {
   codeVerifierCiphertext: string;
   nonceHash: string;
   redirectUri: string;
+  requestedScopes: string[];
+  returnTo: string | null;
   expiresAt: Date;
 }
 

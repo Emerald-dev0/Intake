@@ -27,6 +27,21 @@ a new provider has to clear before it may be described as live anywhere on the s
 7. The connection is stored for that user only. A different external account than the one already connected is a conflict; disconnect first.
 8. Disconnect deletes the Intake row. Google revocation is attempted at `https://oauth2.googleapis.com/revoke`. Microsoft has no supported per-app token revocation endpoint, so the UI says so and links to the account permissions pages.
 
+### Incremental authorization (adding one permission to an existing grant)
+
+`POST /api/providers/:provider/extend?capability=responses` starts the same OAuth handshake as connect, but with one optional permission added to the request. It is reached from Response Insights in the library and from the Manage panel on Connections. The permission is named by capability, never by scope string, so the route cannot ask for a scope that Intake does not offer.
+
+Two rules make an incremental grant safe to repeat:
+
+- **A grant only grows.** The scopes stored after the callback are the union of the scopes stored before and the scopes Google actually granted in the token response, normalized and de-duplicated. Google is asked to merge scopes (`include_granted_scopes`), so declining leaves the previous grant untouched and the stored permissions are never reduced.
+- **What Google granted is what counts.** The stored set comes from the token response, not from the request. Only when the response carries no `scope` field at all does the transaction's recorded request stand in for it.
+
+The refresh token is treated the same way. Google does not always issue one. A refresh token that is already stored stays stored; only a new refresh token may replace it. An incremental grant therefore cannot silently cost the connection its ability to renew.
+
+The transaction records the scopes that were requested and the page to return to (`requested_scopes`, `return_to` — migration `042`), so the callback knows where to send the person and what the request asked for. `return_to` is a path on this site only.
+
+A deployment that runs before migration `042` still works: the store checks whether the two columns exist, does not write them when they do not, and the callback falls back to the provider's base scopes and the default landing page. The grant itself and the scope union do not depend on the migration.
+
 Form operations call `getProviderConnection(userId, provider)` from `server/providers/service.ts`. That helper is server-only. It refreshes an expired access token when a refresh token exists, and it never has an HTTP route. Concurrent reads for one user/provider are coalesced within one API process so a rotating refresh token is not submitted twice locally. There is no cross-instance refresh lease; horizontally scaled instances can still race, and the loser may require reconnection. A rejected refresh is marked `reauthorization_required` and the ciphertext is cleared.
 
 When a provider API rejects the access token that helper returned (for example Google answers a Forms request with 401), the caller reports it with `reportProviderAuthorizationRejected(userId, provider)`. That marks the same user's connection `reauthorization_required` through the same store method a rejected refresh uses, so the next request asks the user to reconnect instead of sending a token the provider already refused. `server/forms/` is the only caller today.
@@ -134,7 +149,7 @@ Scopes requested:
 - `email`
 - `https://www.googleapis.com/auth/forms.body` — create and edit the user's Google Forms
 
-Not requested: Gmail, Drive, Calendar, Contacts, Sheets, or `forms.responses.readonly`. `forms.body` is a sensitive scope. A public production app may need Google verification before users outside the test-user list can consent. That verification is a Google Cloud console step, not something this repository can complete.
+Not requested on connect: Gmail, Drive, Calendar, Contacts, or Sheets. `forms.responses.readonly` is also not requested on connect — it is a separate, optional permission that is only requested when the user opens Response Insights and chooses to allow it, and Google merges it into the grant they already gave. `forms.body` is a sensitive scope. A public production app may need Google verification before users outside the test-user list can consent. That verification is a Google Cloud console step, not something this repository can complete.
 
 The authorization URL uses PKCE (`S256`), `access_type=offline`, and `prompt=consent select_account` so the user picks a Google account explicitly and Intake can receive a refresh token. The Intake email is not sent as `login_hint`.
 
@@ -172,7 +187,7 @@ Supported by the API with `forms.body`. The form engine uses create, `batchUpdat
 Not available with the scopes this PR requests:
 
 - Deleting a form, changing who can access it, or updating `documentTitle` after create. The Form resource says those are Drive API operations. `drive` and `drive.file` also satisfy `forms.create`, but they are broader than Forms and are not requested. Adding sharing later means a new scope and a fresh consent.
-- Reading responses. That is `forms.responses.readonly`, intentionally not requested.
+- Reading responses. That is `forms.responses.readonly`, which is not requested when a form is connected. It is requested only when the user opens Response Insights and chooses to allow it, and it covers reading the responses to one form in order to count them.
 
 The editor URL `https://docs.google.com/forms/d/{formId}/edit` is the conventional Docs URL, not a field the API returns.
 

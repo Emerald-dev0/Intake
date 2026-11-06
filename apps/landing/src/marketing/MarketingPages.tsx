@@ -183,10 +183,10 @@ export function TrustPage() {
     <HubShell
       path="/trust"
       title="Trust & permissions — what Intake asks for | Intake"
-      description="Intake asks for your identity to sign in, then the narrowest scope each provider allows — nothing else. No Gmail, Drive, or response access, for any provider, now or later."
+      description="Intake asks for your identity to sign in, then the narrowest scope each provider allows — nothing else. It never asks for Gmail or Drive, and it asks to read your form responses only when you ask it to."
       eyebrow="TRUST & PERMISSIONS"
       heading={<>Your forms, your account, your responses.</>}
-      lede="Two permissions, each with a reason. Intake cannot read your responses, touch your Gmail or Drive, or move your data anywhere — by design, not by promise."
+      lede="Two permissions, each with a reason — plus one you can add later if you want summaries. Intake cannot touch your Gmail or Drive, and it does not keep your form responses."
     >
       <section className="mk-section" aria-label="Permissions detail">
         <div className="mk-container mk-trust-page">
@@ -195,6 +195,7 @@ export function TrustPage() {
             <ul className="mk-trust__ask">
               <li><strong>Your basic identity, to sign you in</strong><p>Name, email address, and profile info (the openid, email, and profile scopes). This never touches your forms.</p></li>
               <li><strong>Google: forms.body, only when you connect</strong><p>One extra scope, requested in a separate step you start yourself: permission to create and edit the Google Forms you own. Nothing else.</p></li>
+              <li><strong>Google: forms.responses.readonly, only if you want summaries</strong><p>Response Insights counts the answers people give you, and that needs permission to read the responses to one form. Intake asks for it only when you open Response Insights and choose to allow it — never when you connect. Google adds it to the permission you already gave, you can remove it from your Google account permissions at any time, and your forms can still be created and edited without it. The answers are read to produce the summary and are never kept.</p></li>
               <li><strong>Typeform: forms:write, forms:read, accounts:read, offline</strong><p>Create and list your Typeforms, read which account you connected, and stay connected past the one-week token. No responses, webhooks, workspaces, themes or images.</p></li>
             </ul>
           </Reveal>
@@ -217,9 +218,9 @@ export function TrustPage() {
             <h2>What happens when a provider is added</h2>
             <p>Each new provider gets its own connection, its own narrow scope list, and its own entry on this page before it appears as live anywhere on the site. A logo in the roadmap is not a connection: planned providers are labelled planned until the OAuth flow, the scope list, and the creation path actually work.</p>
             <h2>What happens to your data</h2>
-            <p>Your description goes to the AI provider to produce the proposal; the proposal comes back to you for approval. Form responses go straight to the provider you connected and Intake never sees them. Intake shows no ads, sells no data, and sends only the emails your account activity requires — plus the welcome mail and the update list you explicitly join.</p>
+            <p>Your description goes to the AI provider to produce the proposal; the proposal comes back to you for approval. Form responses go straight to the provider you connected. Intake reads them only if you turn on Response Insights, and even then it works out the summary and does not keep the answers. Intake shows no ads, sells no data, and sends only the emails your account activity requires — plus the welcome mail and the update list you explicitly join.</p>
             <p>The binding version is the <a href="/privacy">privacy policy</a>, written against Google&rsquo;s API Services User Data Policy and Typeform&rsquo;s developer terms, and the <a href="/terms">terms of service</a>.</p>
-            <p className="mk-hub-updated">Updated October 2026.</p>
+            <p className="mk-hub-updated">Updated November 2026.</p>
           </Reveal>
         </div>
       </section>

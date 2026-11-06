@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { PublicLibraryForm } from '../../lib/forms';
+import { RESPONSES_CAPABILITY } from '../../lib/connections';
 
 interface InsightQuestionSummary {
   id: string;
@@ -17,11 +18,19 @@ interface FormInsightsData {
   questions: InsightQuestionSummary[];
 }
 
+/** Why the summary cannot be shown, when it cannot. */
+type Blocked = 'pro' | 'responses_scope' | 'reconnect' | null;
+
 interface InsightsProps {
   form: PublicLibraryForm;
   onClose: () => void;
   isPro: boolean;
-  hasResponsesScope: boolean;
+  /** Whether reading responses is allowed. null means the server has not said yet. */
+  canReadResponses: boolean | null;
+  /** Whether the Google connection itself has to be made again before anything works. */
+  needsReconnect: boolean;
+  /** Where this person is sent once they are done at Google's screen. */
+  returnTo: string;
 }
 
 function formatNumber(num: number): string {
@@ -33,12 +42,23 @@ function formatPercent(value: number, total: number): string {
   return `${((value / total) * 100).toFixed(1)}%`;
 }
 
-export function Insights({ form, onClose, isPro, hasResponsesScope }: InsightsProps) {
+export function Insights({ form, onClose, isPro, canReadResponses, needsReconnect, returnTo }: InsightsProps) {
   const [data, setData] = useState<FormInsightsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState<Blocked>(null);
+
+  // The server decides what is allowed. The connection state only decides whether asking is worth
+  // it: a request that is certain to be refused is not worth making, and a person who already
+  // allowed response reading is never asked again.
+  const knownMissing = canReadResponses === false && !needsReconnect;
 
   useEffect(() => {
+    if (knownMissing) {
+      setBlocked('responses_scope');
+      setLoading(false);
+      return;
+    }
     let mounted = true;
     async function load() {
       try {
@@ -53,9 +73,12 @@ export function Insights({ form, onClose, isPro, hasResponsesScope }: InsightsPr
           return;
         }
         if (response.status === 403) {
-          const body = await response.json().catch(() => ({}));
-          const msg = body.error || 'Unable to load insights.';
-          setError(msg);
+          const body = await response.json().catch(() => ({})) as { error?: unknown; code?: unknown };
+          const code = typeof body.code === 'string' ? body.code : '';
+          if (code === 'responses_scope_required') setBlocked('responses_scope');
+          else if (code === 'reauthorization_required') setBlocked('reconnect');
+          else if (code === 'pro_required') setBlocked('pro');
+          else setError(typeof body.error === 'string' ? body.error : 'Unable to load insights.');
           setLoading(false);
           return;
         }
@@ -83,9 +106,9 @@ export function Insights({ form, onClose, isPro, hasResponsesScope }: InsightsPr
     }
     load();
     return () => { mounted = false; };
-  }, [form.id]);
+  }, [form.id, knownMissing]);
 
-  if (!isPro) {
+  if (!isPro || blocked === 'pro') {
     return (
       <div className="insights-modal-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="insights-title">
         <div className="insights-modal" onClick={e => e.stopPropagation()}>
@@ -101,16 +124,54 @@ export function Insights({ form, onClose, isPro, hasResponsesScope }: InsightsPr
     );
   }
 
-  if (!hasResponsesScope) {
+  if (blocked === 'responses_scope') {
     return (
       <div className="insights-modal-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="insights-title">
         <div className="insights-modal" onClick={e => e.stopPropagation()}>
           <button className="insights-modal-close" onClick={onClose} aria-label="Close insights">✕</button>
           <div className="insights-pro-required">
             <h2 id="insights-title">Response Insights</h2>
-            <p>To view response summaries, you need to grant Intake access to form responses.</p>
-            <a href="/app/connections" className="btn btn-accent">Reconnect Google & Enable Summaries</a>
-            <button className="btn btn-ghost btn-sm" onClick={onClose} style={{ marginTop: 12 }}>Close</button>
+            <p>
+              To summarise the answers people give you, Intake needs one extra permission from Google:
+              the ability to <strong>read the responses to your forms</strong>. You already gave Intake
+              permission to create and edit your forms — this is a separate, optional permission, and it
+              is only asked for here.
+            </p>
+            <p>
+              Your answers stay in your Google account. Intake reads them to count and summarise them,
+              and does not store the answers themselves.
+            </p>
+            <p className="provider-note">
+              You can remove this permission at any time from your Google account permissions. Intake
+              still creates and edits forms without it.
+            </p>
+            <GrantForm capability={RESPONSES_CAPABILITY} returnTo={returnTo} label="Allow response reading" />
+            <div className="forms-actions" style={{ justifyContent: 'flex-start', marginTop: 12 }}>
+              <a href="/app/connections" className="btn btn-ghost btn-sm">Manage connections</a>
+              <button className="btn btn-ghost btn-sm" onClick={onClose}>Not now</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (blocked === 'reconnect') {
+    return (
+      <div className="insights-modal-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="insights-title">
+        <div className="insights-modal" onClick={e => e.stopPropagation()}>
+          <button className="insights-modal-close" onClick={onClose} aria-label="Close insights">✕</button>
+          <div className="insights-pro-required">
+            <h2 id="insights-title">Response Insights</h2>
+            <p>
+              Intake cannot use your Google Forms account right now. Connect again and Google will show
+              you the permissions it already knows about, so you can pick up where you left off.
+            </p>
+            <GrantForm returnTo={returnTo} label="Connect Google Forms" connect />
+            <div className="forms-actions" style={{ justifyContent: 'flex-start', marginTop: 12 }}>
+              <a href="/app/connections" className="btn btn-ghost btn-sm">Manage connections</a>
+              <button className="btn btn-ghost btn-sm" onClick={onClose}>Not now</button>
+            </div>
           </div>
         </div>
       </div>
@@ -164,6 +225,23 @@ interface InsightQuestionCardProps {
   question: InsightQuestionSummary;
   index: number;
   totalResponses: number;
+}
+
+/**
+ * The one action that starts an authorization. A plain form post, not fetch: the browser has to
+ * navigate to Google's consent screen, and a fetch would download that page instead of showing it.
+ * The permission is named, never spelled out as a scope, and the page to come back to is carried
+ * along so this person lands where they started.
+ */
+function GrantForm({ capability, returnTo, label, connect = false }: { capability?: string; returnTo: string; label: string; connect?: boolean }) {
+  const action = connect
+    ? `/api/providers/google/connect?return_to=${encodeURIComponent(returnTo)}`
+    : `/api/providers/google/extend?capability=${encodeURIComponent(capability ?? RESPONSES_CAPABILITY)}&return_to=${encodeURIComponent(returnTo)}`;
+  return (
+    <form method="POST" action={action}>
+      <button className="btn btn-accent" type="submit">{label}</button>
+    </form>
+  );
 }
 
 function InsightQuestionCard({ question, index, totalResponses }: InsightQuestionCardProps) {
