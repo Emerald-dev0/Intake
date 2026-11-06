@@ -9,7 +9,7 @@ import { createMemoryStore } from '../server/providers/memory-store.ts';
 import { buildAuthorizationUrl, createPkce, redact } from '../server/providers/oauth.ts';
 import { FORBIDDEN_SCOPE_MARKERS, providerDefinition, supportedProviders } from '../server/providers/registry.ts';
 import { createProviderRouter } from '../server/providers/routes.ts';
-import { createProviderService, optionalCapabilities, scopesForCapability } from '../server/providers/service.ts';
+import { createProviderService, optionalCapabilities, scopesForCapability, SHEETS_SCOPE } from '../server/providers/service.ts';
 import { FORMS_RESPONSES_READONLY_SCOPE } from '../server/forms/providers/google/adapter.ts';
 import { parseProviderList, resultMessage, RESULT_CODES } from '../src/lib/connections.ts';
 
@@ -17,6 +17,7 @@ const SECRET = 'test-secret-must-be-at-least-32-characters';
 const ORIGIN = 'http://localhost:5173';
 const GOOGLE_SCOPE = 'openid email https://www.googleapis.com/auth/forms.body';
 const RESPONSES_SCOPE = 'https://www.googleapis.com/auth/forms.responses.readonly';
+const SHEETS_DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const ACCESS = 'ACCESS_TOKEN_SHOULD_NOT_LEAK';
 const REFRESH = 'REFRESH_TOKEN_SHOULD_NOT_LEAK';
 const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -158,10 +159,20 @@ test('provider scopes stay limited to identity and the forms access that actuall
     for (const marker of FORBIDDEN_SCOPE_MARKERS) assert.equal(blob.includes(marker), false, `${provider.id} requested ${marker}`);
   }
   // The optional permissions are asked for through a different path, and they are held to the same
-  // rule: nothing beyond the responses permission, and nothing broad.
+  // rule: nothing beyond the response-reading permission and the per-file spreadsheet permission,
+  // and nothing broad. `drive.file` is the single deliberate exception to the marker list below —
+  // it is the narrow, per-file Drive scope, and it is allowed only in the capability that needs it.
+  const perFileException = 'https://www.googleapis.com/auth/drive.file';
   for (const [capability, scopes] of Object.entries(optionalCapabilities())) {
-    const blob = scopes.join(' ').toLowerCase();
-    for (const marker of FORBIDDEN_SCOPE_MARKERS) assert.equal(blob.includes(marker), false, `the ${capability} capability requested ${marker}`);
+    for (const scope of scopes) {
+      if (scope === perFileException) {
+        assert.equal(capability, 'sheets', 'the per-file Drive scope belongs to one capability');
+        continue;
+      }
+      for (const marker of FORBIDDEN_SCOPE_MARKERS) {
+        assert.equal(scope.toLowerCase().includes(marker), false, `the ${capability} capability requested ${marker}`);
+      }
+    }
   }
   assert.deepEqual(providerDefinition('google', runtime).requiredScopes, ['https://www.googleapis.com/auth/forms.body']);
   assert.deepEqual(providerDefinition('microsoft', runtime).scopes, ['openid', 'profile', 'email', 'offline_access']);
@@ -174,9 +185,37 @@ test('the optional response permission is the one the insights gate enforces', (
   // Two places name it: the capability that asks for it, and the gate that checks for it. They
   // have to be the same permission, or the button grants something nothing uses.
   assert.deepEqual(scopesForCapability('responses'), [FORMS_RESPONSES_READONLY_SCOPE]);
-  assert.deepEqual(scopesForCapability('spreadsheets'), null, 'there is no Sheets capability');
   assert.deepEqual(scopesForCapability(''), null);
   assert.deepEqual(scopesForCapability(undefined), null);
+});
+
+test('the spreadsheet permission is per-file, and is the only one the sync asks for', () => {
+  // `drive.file` covers files Intake created itself and nothing else. `spreadsheets` is a sensitive
+  // scope over every spreadsheet the person owns, and `drive`/`drive.readonly` are restricted:
+  // neither is acceptable here, and both would fail the review this product wants to pass.
+  assert.deepEqual(scopesForCapability('sheets'), ['https://www.googleapis.com/auth/drive.file']);
+  assert.deepEqual(SHEETS_SCOPE, 'https://www.googleapis.com/auth/drive.file');
+  for (const rejected of ['spreadsheets', 'drive', 'drive.readonly', 'sheets.readonly']) {
+    assert.deepEqual(scopesForCapability(rejected), null, `${rejected} must not be a capability name`);
+    // A name that is not a capability produces no scopes at all, so nothing can leak through it.
+    const url = buildAuthorizationUrl({
+      endpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+      clientId: 'client-id',
+      redirectUri: 'https://intake.test/api/providers/google/callback',
+      state: 'state',
+      codeChallenge: 'challenge',
+      scopes: scopesForCapability(rejected) ?? [],
+    });
+    assert.equal(url.includes('spreadsheets'), false);
+  }
+});
+
+test('connecting a provider never asks for the spreadsheet permission', () => {
+  const runtime = env();
+  const asked = providerDefinition('google', runtime).requiredScopes ?? [];
+  assert.equal(asked.some(scope => /drive|spreadsheets/.test(scope)), false);
+  // And the two optional capabilities stay separate: granting one never implies the other.
+  assert.notDeepEqual(scopesForCapability('responses'), scopesForCapability('sheets'));
 });
 
 test('authorization URLs carry PKCE and never the client secret', () => {
@@ -647,6 +686,69 @@ test('an incremental grant adds the new permission and keeps the old ones, witho
   } finally { await world.close(); }
 });
 
+test('the spreadsheet permission can be granted on its own, and the existing grant survives it', async () => {
+  const world = await boot();
+  const box = cipher();
+  try {
+    assert.equal(await connect(world.app, 'google'), 'connected');
+    const before = await world.users.store.getConnection('user-a', 'google');
+
+    const { url } = await begin(world.app, '/api/providers/google/extend?capability=sheets');
+    assert.ok(requestedScopes(url).includes(SHEETS_DRIVE_FILE_SCOPE), 'the per-file Drive scope is asked for');
+    assert.ok(requestedScopes(url).includes('https://www.googleapis.com/auth/forms.body'),
+      'and the permission already granted is repeated, as Google requires');
+
+    world.calls.tokenResponse = {
+      access_token: 'SHEETS_ACCESS_TOKEN',
+      expires_in: 3600,
+      token_type: 'Bearer',
+      scope: `${GOOGLE_SCOPE} ${SHEETS_DRIVE_FILE_SCOPE}`,
+    };
+    const done = await finish(world.app, 'google', url);
+    assert.equal(done.searchParams.get('result'), 'connected');
+
+    const after = await world.users.store.getConnection('user-a', 'google');
+    assert.deepEqual(after.scopes, ['openid', 'email', 'https://www.googleapis.com/auth/forms.body', SHEETS_DRIVE_FILE_SCOPE]);
+    assert.equal(box.decrypt(after.refreshTokenCiphertext, credentialAad('user-a', 'google', 'refresh')), REFRESH,
+      'the refresh token from the first connection is kept');
+    assert.equal(before.refreshTokenCiphertext, after.refreshTokenCiphertext);
+  } finally { await world.close(); }
+});
+
+test('granting the spreadsheet permission does not grant response reading, or the reverse', async () => {
+  const world = await boot();
+  try {
+    assert.equal(await connect(world.app, 'google'), 'connected');
+    world.calls.tokenResponse = {
+      access_token: ACCESS, expires_in: 3600, token_type: 'Bearer',
+      scope: `${GOOGLE_SCOPE} ${SHEETS_DRIVE_FILE_SCOPE}`,
+    };
+    const { url } = await begin(world.app, '/api/providers/google/extend?capability=sheets');
+    await finish(world.app, 'google', url);
+
+    const [connection] = (await world.service.list('user-a')).filter(entry => entry.id === 'google');
+    assert.deepEqual(connection.capabilities, ['sheets'], 'only the capability that was actually granted');
+    assert.equal(connection.scopes.includes(RESPONSES_SCOPE), false);
+  } finally { await world.close(); }
+});
+
+test('a spreadsheet grant can send the person back to the form they were setting up', async () => {
+  const world = await boot();
+  try {
+    assert.equal(await connect(world.app, 'google'), 'connected');
+    world.calls.tokenResponse = {
+      access_token: ACCESS, expires_in: 3600, token_type: 'Bearer',
+      scope: `${GOOGLE_SCOPE} ${SHEETS_DRIVE_FILE_SCOPE}`,
+    };
+    const { response, url } = await begin(world.app, `/api/providers/google/extend?capability=sheets&return_to=${encodeURIComponent('/app/library?sheets=form-1&grant=sheets')}`);
+    assert.equal(response.status, 303, 'the browser is sent to Google');
+    const done = await finish(world.app, 'google', url);
+    assert.equal(done.pathname, '/app/library');
+    assert.equal(done.searchParams.get('sheets'), 'form-1');
+    assert.equal(done.searchParams.get('grant'), 'sheets');
+  } finally { await world.close(); }
+});
+
 test('a permission the provider did not grant is not recorded as granted', async () => {
   // Intake asked for the responses permission. Google granted only what it had before. What was
   // granted is what counts — a request is never evidence of a grant.
@@ -699,7 +801,7 @@ test('the extend endpoint asks for one named permission and returns to the page 
 test('the extend endpoint refuses a permission Intake does not offer', async () => {
   const world = await boot();
   try {
-    for (const capability of ['spreadsheets', 'drive', 'sheets', '']) {
+    for (const capability of ['spreadsheets', 'drive', 'drive.readonly', 'sheets.readonly', '']) {
       const response = await fetch(`${world.app}/api/providers/google/extend?capability=${encodeURIComponent(capability)}`, { method: 'POST', redirect: 'manual', headers: { origin: ORIGIN } });
       assert.equal(response.status, 400, `capability ${capability} must not be requestable`);
       assert.equal((await response.json()).error, 'unknown_capability');

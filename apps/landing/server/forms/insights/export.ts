@@ -88,11 +88,20 @@ function preamble(input: BuildCsvInput): string[] {
  * the order the form asks them.
  */
 function headerRow(questions: readonly ExportQuestion[]): string[] {
-  return ['Response ID', 'Submitted at', 'Respondent email', ...questions.map(question => question.title)];
+  return [...METADATA_HEADERS, ...questions.map(question => question.title)];
 }
 
-/** One response as one row, in the same column order as the header. */
-function responseRow(questions: readonly ExportQuestion[], response: GoogleFormResponse): string[] {
+/** The three columns Intake adds in front of the form's own questions. */
+export const METADATA_HEADERS = ['Response ID', 'Submitted at', 'Respondent email'] as const;
+
+/**
+ * One response as a list of cells, in the same column order as the header.
+ *
+ * This is the single definition of "a response as a row". The CSV writer quotes these cells and the
+ * Sheets sync appends them verbatim, so a value cannot be escaped one way in a file and another way
+ * in a spreadsheet.
+ */
+export function responseCells(questions: readonly ExportQuestion[], response: GoogleFormResponse): string[] {
   const cells = [response.responseId, response.lastSubmittedTime ?? response.createTime ?? '', response.respondentEmail ?? ''];
   for (const question of questions) {
     // Unanswered is an empty cell in this question's own column — the columns never move.
@@ -106,7 +115,7 @@ function responseRow(questions: readonly ExportQuestion[], response: GoogleFormR
 /** The whole file: credit lines, a header, then one row per response. */
 export function buildResponsesCsv(input: BuildCsvInput): string {
   const lines = [...preamble(input), csvRow(headerRow(input.questions))];
-  for (const response of input.responses) lines.push(csvRow(responseRow(input.questions, response)));
+  for (const response of input.responses) lines.push(csvRow(responseCells(input.questions, response)));
   // CRLF and a final newline, so every spreadsheet and every `cat` sees the same file.
   return `${lines.join('\r\n')}\r\n`;
 }
@@ -124,7 +133,7 @@ export function csvPreamble(input: BuildCsvInput): string {
 
 /** One response line, for a caller writing page by page. */
 export function csvResponseLine(questions: readonly ExportQuestion[], response: GoogleFormResponse): string {
-  return `${csvRow(responseRow(questions, response))}\r\n`;
+  return `${csvRow(responseCells(questions, response))}\r\n`;
 }
 
 /** `intake-form-responses-2026-11-06.csv` — the date the file was produced, in UTC. */

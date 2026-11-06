@@ -47,6 +47,14 @@ const MSA_TENANT = '9188040d-6c67-4c5b-b112-36a304b66dad';
  */
 const OPTIONAL_SCOPE_SETS = {
   responses: ['https://www.googleapis.com/auth/forms.responses.readonly'],
+  /**
+   * Google Sheets synchronisation. `drive.file` is the narrowest permission that can do the job:
+   * it reaches only the files this app created, so Intake can build a spreadsheet for a form and
+   * append to it without being able to see, list or open anything else in somebody's Drive. The
+   * broader `drive` scope is restricted and would need a security assessment; `spreadsheets` is
+   * sensitive and would grant every spreadsheet the person owns. Neither is asked for.
+   */
+  sheets: ['https://www.googleapis.com/auth/drive.file'],
 } as const;
 
 export type OptionalCapability = keyof typeof OPTIONAL_SCOPE_SETS;
@@ -79,6 +87,9 @@ export function capabilitiesForScopes(scopes: string[]): string[] {
 
 /** The one scope the responses capability adds. Exported so the route cannot invent its own. */
 export const RESPONSES_READONLY_SCOPE = OPTIONAL_SCOPE_SETS.responses[0];
+
+/** The one scope the sheets capability adds, for the same reason. */
+export const SHEETS_SCOPE = OPTIONAL_SCOPE_SETS.sheets[0];
 
 export interface SessionUser {
   id: string;

@@ -867,14 +867,19 @@ const TRUST_ASK = [
     text: 'One extra permission, requested in a separate step you start yourself: Google Forms asks for forms.body (create and edit the forms you own); Typeform asks for forms:write and forms:read (create and list), plus accounts:read to name the account and offline so the connection survives the week. Intake never asks for Drive, Gmail or webhooks.',
   },
   {
+    title: 'Spreadsheet sync, only when you ask for it',
+    text: 'Keeping a form’s answers in a Google Sheet needs one more permission — drive.file — and it reaches only the files Intake created itself. Intake asks for it only when you set up syncing for a form, never when you connect. It cannot see, list or open anything else in your Drive: not other spreadsheets, not documents, not photos.',
+  },
+  {
     title: 'Response reading, only when you ask for it',
     text: 'Response Insights counts the answers people give you. That needs one extra Google permission — forms.responses.readonly — and Intake asks for it only when you open Response Insights and choose to allow it, never when you connect. Google adds it to what you already granted instead of replacing it, you can take it away from your Google account permissions at any time, and your forms can still be created and edited without it.',
   },
 ] as const;
 
 const TRUST_NEVER = [
-  'Keep a copy of your form responses',
-  'Touch Gmail, Drive, Calendar, or Contacts',
+  'Keep a copy of the answers people submit',
+  'Open, list or change any file in your Drive that Intake did not create itself',
+  'Touch Gmail, Calendar, or Contacts',
   'Delete a form or change who it is shared with',
   'Train models on your forms or sell your data',
   'Show ads or send marketing email you did not ask for',

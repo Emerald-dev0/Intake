@@ -94,6 +94,25 @@ export interface PublicProvider {
 /** The capability that stands for "may read the responses to your forms". */
 export const RESPONSES_CAPABILITY = 'responses';
 
+/**
+ * The capability that stands for "may keep a form's responses in a spreadsheet Intake made".
+ *
+ * It is separate from `responses` on purpose. Reading responses once and writing them into a file
+ * that keeps updating are different promises, so they are different permissions, asked for at the
+ * moment somebody wants the second one and never before.
+ */
+export const SHEETS_CAPABILITY = 'sheets';
+
+/** Whether a connection may sync responses into a spreadsheet. */
+export function hasSheetsCapability(provider: PublicProvider | null | undefined): boolean {
+  return hasCapability(provider, SHEETS_CAPABILITY);
+}
+
+/** Where to send somebody so they can allow the spreadsheet permission, and come back here. */
+export function sheetsGrantHref(returnTo: string): string {
+  return `/api/providers/google/extend?capability=${SHEETS_CAPABILITY}&return_to=${encodeURIComponent(returnTo)}`;
+}
+
 /** Whether a connection may read form responses. */
 export function hasCapability(provider: PublicProvider | null | undefined, capability: string): boolean {
   return !!provider?.capabilities?.includes(capability);
@@ -205,15 +224,20 @@ export function providerAccountName(id: ProviderId | null): string {
 export function grantResultMessage(params: URLSearchParams): { tone: 'ok' | 'warn' | 'bad'; text: string } | null {
   const result = params.get('result');
   if (!isResultCode(result)) return null;
-  if (params.get('grant') !== RESPONSES_CAPABILITY) return null;
+  const grant = params.get('grant');
+  if (grant !== RESPONSES_CAPABILITY && grant !== SHEETS_CAPABILITY) return null;
   if (result === 'connected') {
-    return { tone: 'ok', text: 'Google now lets Intake read the responses to your forms. Response insights are available.' };
+    return grant === SHEETS_CAPABILITY
+      ? { tone: 'ok', text: 'Google now lets Intake create a spreadsheet for you and keep it up to date. Nothing else in your Drive is visible to Intake.' }
+      : { tone: 'ok', text: 'Google now lets Intake read the responses to your forms. Response insights are available.' };
   }
   if (result === 'cancelled') {
     return { tone: 'warn', text: 'You closed Google’s screen before it finished. Nothing changed — the access you already gave Intake is exactly as it was.' };
   }
   if (result === 'denied') {
-    return { tone: 'warn', text: 'You did not allow Intake to read form responses. Nothing changed — the access you already gave Intake is exactly as it was.' };
+    return grant === SHEETS_CAPABILITY
+      ? { tone: 'warn', text: 'You did not allow Intake to manage its own spreadsheets. Nothing changed — no spreadsheet was created and the access you already gave Intake is exactly as it was.' }
+      : { tone: 'warn', text: 'You did not allow Intake to read form responses. Nothing changed — the access you already gave Intake is exactly as it was.' };
   }
   return resultMessage(result, 'google', null);
 }

@@ -167,18 +167,129 @@ and retrying them only spends quota. There is no unbounded concurrency: one page
 
 ### What is not stored
 
-Nothing. Response bodies, respondent emails, page tokens and access tokens are held in local
-variables for the length of one request and are never written to a table, a log line, a cache or a
-background job. There is no response database, no sync, and no scheduled read. Google stays the
-source of truth. Never add logging of an answer, an email address or a token to this path — the
-tests in `test/insights-export.test.mjs` and `test/forms-responses-client.test.mjs` are written to
-make that kind of change loud.
+No response body and no respondent email. On the summary and export paths they are held in local
+variables for the length of one request and are never written to a table, a log line or a cache.
+Never add logging of an answer, an email address or a token to this path — the tests in
+`test/insights-export.test.mjs` and `test/forms-responses-client.test.mjs` are written to make that
+kind of change loud.
+
+The spreadsheet sync below does keep coordination state, including a list of response IDs. That is
+documented there, in the privacy policy and in the changelog; it is not a copy of anybody's answers.
 
 ### Reading one response
 
 `google.getResponse(token, formId, responseId)` exists in the client and reuses the same client,
 token and error contract. It is not exposed as a route yet; when it is, it goes behind the same gate
 as the export.
+
+## Keeping responses in a spreadsheet
+
+Live for Google Forms only. `server/forms/sheets/` holds all of it: the client, the store, the sync
+engine, the worker and the routes. The rows are produced by the same code that produces the CSV
+(`responseCells` in `server/forms/insights/export.ts`), so the two can never disagree about which
+column an answer belongs in.
+
+### The permission
+
+`https://www.googleapis.com/auth/drive.file`, and nothing else.
+
+- It is per-file: it reaches only the files this app created. That is the whole reason it is the
+  choice — `spreadsheets` is *sensitive* and would grant every spreadsheet the person owns, and
+  `drive` / `drive.readonly` are *restricted* and would need a security assessment. Neither is
+  requested anywhere in this repository.
+- It is a separate optional capability (`sheets` in `server/providers/service.ts`), requested through
+  the same incremental-auth route as `responses`. Connecting Google Forms never asks for it, and
+  granting `sheets` never grants `responses`.
+- The capability is proven from the scopes actually returned by Google, not from the scopes asked
+  for. A grant that omits it leaves the panel in `awaiting_authorization` and every write route
+  answers `403 sheets_scope_required`.
+
+### Endpoints
+
+| Route | What it does |
+| --- | --- |
+| `GET /api/forms/:id/sheets` | The state of this form's sync: one word for the screen, plus the destination and counters. Needs no Sheets permission; it is what tells the screen to ask for one. |
+| `POST /api/forms/:id/sheets` | Creates the spreadsheet (title `[form] — Intake Responses`, tab `Responses`), writes the header, records the sync. `409 already_enabled` if one is already running. |
+| `POST /api/forms/:id/sheets/enable` | Resumes a sync that was switched off, on the same spreadsheet. |
+| `POST /api/forms/:id/sheets/sync` | Marks the sync due now. It does not do the work in the request: a form with years of answers would hold the browser open for minutes. |
+| `DELETE /api/forms/:id/sheets` | Switches syncing off. The spreadsheet is never deleted. Deliberately needs no Google call, so it works even when the authorization has lapsed. |
+
+Gate order is the insights order: signed in → abuse limit (`forms.sheets`, 10 per 10 minutes) → the
+form is the caller's own, Google, and finished → plan is Pro → connection usable → `sheets` scope
+granted. `DELETE` stops after the plan check.
+
+### How the sync runs
+
+There is no queue and no cron in this deployment (Render runs one web service). So:
+
+- **The database is the queue.** `form_sheet_sync.next_sync_at` says what is due; a form that is not
+  due is not touched. A restart, a deploy or a missed tick loses nothing, because the due time is a
+  row, not a timer.
+- **The timer is only a nudge.** `server/forms/sheets/worker.ts` ticks every 20 seconds and claims
+  up to 5 forms, 2 at a time, with an `unref()`ed interval and a `stop()` that waits for in-flight
+  work. It starts next to the waitlist delivery loop in `server/index.ts`.
+- **One worker per form.** `claimDue` takes a 5-minute lease in a single statement with
+  `FOR UPDATE SKIP LOCKED`. A second instance — a rolling deploy, or the service scaled to two — gets
+  nothing. A lease that expires is reclaimed, so a process that dies mid-run does not strand a form.
+- **A superseded run is fenced.** Every write is `WHERE run_id = $1`; a run whose lease was taken
+  over throws `StaleSyncRunError` and records nothing.
+
+Cadence: a form that just wrote rows is due again in 60 seconds, an idle one in 5 minutes, a form
+with more history than one run can write is due again immediately. A failure schedules its own retry
+(exponential backoff with jitter, capped at 30 minutes, `Retry-After` honoured) and a permanent
+failure — revoked permission, missing spreadsheet, changed questions — is set 24 hours out instead of
+being retried in a loop.
+
+### Idempotency, and the window Google does not close
+
+Appending rows and recording that you appended them are two systems with no transaction between
+them. If the append lands and Intake dies before it writes down that it landed, a naive retry
+duplicates the rows. Response IDs in Intake's own table cannot solve that on their own, because the
+failure is precisely a missing record.
+
+The design makes the spreadsheet the ledger:
+
+1. Every run begins by reading the destination: `values:batchGet` of `'Tab'!1:1` and `'Tab'!A1:A`.
+   That is the header row and every response ID already in the file.
+2. Anything in that column is skipped and counted, whatever `form_sheet_row` believes. A row somebody
+   deleted from the sheet is therefore written again rather than silently lost.
+3. Only the remainder is appended, in chunks of 400, with `valueInputOption=RAW` and
+   `insertDataOption=INSERT_ROWS`. A write is **never** retried inside a run: a retried append is
+   exactly how duplicates happen.
+4. The cursor (`cursor_last_submitted`) is advanced, and the IDs recorded, only after the append
+   succeeded. A failed or ambiguous append leaves the cursor where it was.
+5. The next run reads the sheet again, so an ambiguous append reconciles itself: what landed is
+   skipped, what did not is written once.
+
+The cursor is an inclusive lower bound (`timestamp >= cursor`), because Google's timestamps are not
+unique — two responses can share a millisecond. Rows are de-duplicated by response ID, which is
+unique, and the run stops at 2000 rows per form so a long history cannot hold a worker forever; it
+says `more` and is due again immediately.
+
+### Failure classification
+
+| Condition | Code | Retry |
+| --- | --- | --- |
+| Sheets 401/403, or a connection that cannot be refreshed | `permission_revoked` | 24 hours; the panel offers to allow the permission again |
+| Sheets 404/400 | `destination_unavailable` | 24 hours; the panel offers a new spreadsheet |
+| Header mismatch on a sheet that already has rows | `questions_changed` | 24 hours; never guesses a column |
+| Sheets 429 / 5xx / timeout / network | `rate_limited` / `sheets_unavailable` | backoff, capped at 30 minutes |
+| Forms 404 | `form_unavailable` | 24 hours |
+| Anything else | `internal_error` | backoff |
+
+A transient failure never blocks future runs, and a permanent one is never retried indefinitely.
+Nothing about a failure advances the cursor.
+
+### What is stored, and what is not
+
+`form_sheet_sync` holds one row per form: destination, tab id and title, header signature, status,
+cursor, counters, last error, schedule and lease. `form_sheet_row` holds `(sync_id, response_id)`
+and nothing else. Neither table holds an answer, a respondent email or a token, and both are deleted
+with the form. The IDs exist only so the common case is one cheap comparison rather than a full
+re-read, and the sheet — not the table — decides what has been written.
+
+Deleting a form stops its sync (cascade). Disabling a sync clears the lease and stops the schedule.
+Neither touches the spreadsheet: Intake does not delete files in somebody's Drive.
 
 ## The honesty rule
 

@@ -297,3 +297,15 @@
 .edit-limits li::marker { color:var(--accent); }
 .edit-limits strong { color:var(--cream); font-weight:600; }
 @media (max-width:650px) { .edit-limits summary span { display:none; } }
+
+/* Spreadsheet sync: one panel, one question at a time. */
+.sheets-intro p, .sheets-status p, .sheets-progress p { margin:0 0 12px; color:var(--paper-mute); line-height:1.6; font-size:14px; }
+.sheets-intro p strong { color:var(--paper-ink); }
+.sheets-progress { padding:8px 0 0; }
+.sheets-progress-line { display:flex; align-items:center; gap:10px; font-size:14px; color:var(--paper-ink); margin-bottom:12px; }
+.sheets-facts { display:flex; flex-wrap:wrap; gap:12px 32px; margin:0 0 16px; padding:16px; border:1px solid var(--paper-line); border-radius:10px; background:var(--paper-2); }
+.sheets-facts div { display:flex; flex-direction:column; gap:4px; min-width:120px; }
+.sheets-facts dt { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--paper-mute); margin:0; }
+.sheets-facts dd { margin:0; font:15px var(--mono); color:var(--paper-ink); }
+.sheets-problem .form-banner { margin-bottom:12px; }
+.sheets-footnote { margin-top:20px; padding-top:16px; border-top:1px solid var(--paper-line); font:12px/1.6 var(--mono); color:var(--paper-mute); }

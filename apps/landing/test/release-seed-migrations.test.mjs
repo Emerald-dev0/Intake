@@ -62,6 +62,7 @@ test('the release migrations apply in order and seed published entries', async (
   await db.exec(await migration('041_release_every_release_opens.sql'));
   await db.exec(await migration('043_release_ask_for_response_reading.sql'));
   await db.exec(await migration('044_release_plainer_words.sql'));
+  await db.exec(await migration('046_release_sheets_sync.sql'));
 
   const rows = await db.query(
     `SELECT slug, status, published_at FROM release
@@ -120,6 +121,25 @@ test('the entry and the bundled notes say the same thing', async () => {
   assert.deepEqual(seeded.categories, bundled.categories);
   assert.deepEqual(seeded.highlights, bundled.highlights);
   assert.equal(seeded.audience, bundled.audience);
+});
+
+test('the spreadsheet sync entry and the bundled notes say the same thing', async () => {
+  const { BUNDLED_RELEASES } = await import('../src/content/changelog.ts');
+  const bundled = BUNDLED_RELEASES.find(entry => entry.slug === 'keep-responses-in-a-sheet');
+  assert.ok(bundled, 'the bundled notes have the entry');
+
+  const row = await db.query(
+    `SELECT title, summary, body, categories, highlights, audience, status FROM release WHERE slug = 'keep-responses-in-a-sheet'`,
+  );
+  const seeded = row.rows[0];
+  assert.ok(seeded, 'the entry is seeded');
+  assert.equal(seeded.status, 'published');
+  assert.equal(seeded.title, bundled.title);
+  assert.equal(seeded.body, bundled.body);
+  assert.deepEqual(seeded.highlights, bundled.highlights);
+  // The one claim this entry must never make.
+  assert.equal(/instant/.test(seeded.summary), false, 'the summary does not promise instant sync');
+  assert.equal(/zero retention|no data/i.test(seeded.body), false, 'and it does not claim nothing is stored');
 });
 
 test('the routing fix entry and the bundled notes say the same thing', async () => {
