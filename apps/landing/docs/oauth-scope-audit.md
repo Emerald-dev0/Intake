@@ -46,11 +46,24 @@
 
 ### `https://www.googleapis.com/auth/drive.file`
 
-**Used by:** Not currently requested.
+**Used by:** The optional `sheets` capability — keeping a form's responses in a Google Sheet, and the
+Google Picker used to choose an existing spreadsheet.
 
-**Finding:** This scope is **not used** and is **not needed**. Intake creates forms directly in the user's Google account via the Forms API (`forms.create`). Forms created this way are already accessible to the user without Drive API access. The `drive.file` scope would only be needed if Intake accessed forms through the Drive API (e.g., searching for forms by file ID), which it does not do.
+**Finding:** This is the **narrowest** scope that can do the job, and it is the only Drive-shaped scope
+in the repository. It is per-file: it reaches files Intake created, plus files the person explicitly
+opens with the app — and for the Picker, Google documents the act of picking as that grant. Creating
+forms does not need it (the Forms API deals in forms, not Drive files), so it is never requested
+during the ordinary Google Forms connection: it arrives as a separate, optional authorization the
+person triggers from the spreadsheet panel.
 
-**Recommendation:** Do not add this scope. It would expand Intake's access without providing any functional benefit.
+- `spreadsheets` is *sensitive* and would grant every spreadsheet in the account. Not requested.
+- `drive` and `drive.readonly` are *restricted*, would require a security assessment, and would let
+  Intake enumerate a person's whole Drive. Not requested, not needed.
+- The Picker itself needs **no** additional scope. It runs in the browser with the same short-lived
+  access token the server already holds, plus a public, origin-restricted API key.
+
+**Recommendation:** Keep. It is the correct minimum for both writing rows and choosing an existing
+file; nothing broader would be accepted for this feature.
 
 ## Summary
 
@@ -58,8 +71,8 @@
 |-------|---------------------|----------------|----------------|
 | `forms.body` | Yes (default) | Yes — create, read, update forms | Keep |
 | `forms.body.readonly` | No | No — redundant with `forms.body` | Do not add |
-| `forms.responses.readonly` | Yes (optional extend) | Yes — aggregated summaries only | Keep (optional) |
-| `drive.file` | No | No — not needed | Do not add |
+| `forms.responses.readonly` | Yes (optional extend) | Yes — response summaries, and the rows a sheet sync writes | Keep (optional) |
+| `drive.file` | Yes (optional `sheets` extend, and the Picker) | Yes — append rows to one spreadsheet, and list only the file the person picked | Keep — narrowest possible; never requested with the base connection |
 
 ## Consent Screen
 

@@ -193,8 +193,8 @@ column an answer belongs in.
 
 `https://www.googleapis.com/auth/drive.file`, and nothing else.
 
-- It is per-file: it reaches only the files this app created. That is the whole reason it is the
-  choice — `spreadsheets` is *sensitive* and would grant every spreadsheet the person owns, and
+- It is per-file: it reaches only the files this app created, plus files the person explicitly picks
+  in Google's own file chooser. That is the whole reason it is the choice — `spreadsheets` is *sensitive* and would grant every spreadsheet the person owns, and
   `drive` / `drive.readonly` are *restricted* and would need a security assessment. Neither is
   requested anywhere in this repository.
 - It is a separate optional capability (`sheets` in `server/providers/service.ts`), requested through
@@ -217,6 +217,65 @@ column an answer belongs in.
 Gate order is the insights order: signed in → abuse limit (`forms.sheets`, 10 per 10 minutes) → the
 form is the caller's own, Google, and finished → plan is Pro → connection usable → `sheets` scope
 granted. `DELETE` stops after the plan check.
+
+### Connecting a spreadsheet the person already has
+
+The panel offers two destinations, and they are deliberately not one button:
+
+- **Create a new spreadsheet** — the behaviour above. Intake made the file, so it initialises it.
+- **Connect an existing spreadsheet** — Google's own file chooser (Google Picker), then one worksheet
+  in it, then an explicit confirmation. Intake appends to that worksheet and never restructures it.
+
+Which files Intake can reach after this: **exactly the one spreadsheet that was picked**. Picking is
+the grant — Google documents `drive.file` as reaching "files that the user shares with an app while
+using the Google Picker API". Intake cannot browse Drive, cannot list a folder, and cannot see any
+file that was not picked. Nothing broader is requested.
+
+| Route | What it does |
+| --- | --- |
+| `GET /api/forms/:id/sheets/picker` | The values the browser needs to open the chooser: the public API key, the Cloud project number, and a **short-lived access token** (the same one the server uses). No refresh token, no client secret. `503 picker_unavailable` when the deployment has no key; `409 token_expired` when the grant has lapsed. |
+| `POST /api/forms/:id/sheets/inspect` | `{ spreadsheetId }` → the file's title, URL and worksheets. `{ spreadsheetId, sheetId }` additionally returns the verdict for that worksheet and the header Intake would write. Writes nothing. |
+| `POST /api/forms/:id/sheets/connect` | `{ spreadsheetId, sheetId, replace? }` → connects it. Inspects the worksheet **again** in this request, writes the header only when the worksheet is empty, and reuses the form's one `form_sheet_sync` row. |
+
+The browser's spreadsheet id is a claim, not a fact: it is shape-checked (`^[A-Za-z0-9_-]{20,120}$`),
+then read with the caller's own connection. A file they cannot open is `404 spreadsheet_not_found`
+(with no hint that it exists), a file reachable without the picker grant is `403 spreadsheet_forbidden`,
+a Google outage is `502 sheets_unavailable`, and rate limiting is `429 rate_limited`.
+
+Worksheet verdicts (`server/forms/sheets/destination.ts`):
+
+| Verdict | Meaning | What Connect does |
+| --- | --- | --- |
+| `empty` | No content in the first rows. | Writes the header row, then the sync engine fills it from the beginning. |
+| `compatible` | The header row is exactly this form's columns. | Leaves the header alone; the engine skips response ids already in the sheet. |
+| `unsuitable` | Somebody's own content, or a table for different questions, or content beside the table. | `409 worksheet_unsuitable` with the reason. Never writes. |
+
+The worksheet is stored by its numeric `sheetId`, never by name, so renaming a tab changes nothing
+(the display name is refreshed on the next run). A tab that is deleted stops the sync as
+`worksheet_missing` — permanent, and recoverable by choosing another worksheet. A tab whose columns
+were replaced stops as `worksheet_unsuitable`; a tab that still holds Intake's own header, but for
+questions that have since changed, stops as `questions_changed`.
+
+Switching a live sync to another destination is allowed but needs `replace: true`, which the panel
+only sends after the person ticks the confirmation. The previous spreadsheet is never touched: not a
+cell is written, cleared or deleted.
+
+### Picker configuration
+
+In the **same** Google Cloud project as the Forms client:
+
+1. Enable **Google Picker API** (APIs & Services → Library).
+2. Create an **API key**, then restrict it: *Application restrictions → Websites* with the exact
+   origins (`https://intake.app/*`, `https://www.intake.app/*`, and the local dev origin), and *API
+   restrictions → Google Picker API*. The key is public by design; the referrer restriction is what
+   makes that acceptable.
+3. Set `GOOGLE_PICKER_API_KEY` (the key) and `GOOGLE_PICKER_APP_ID` (the **project number**, not the
+   name) on the API service. Both are optional: without them the option is disabled with a plain
+   message and creating a new spreadsheet still works.
+
+`server/forms/sheets/picker.ts` validates both values, and `server/preflight.ts` reports the state.
+The key reaches the browser at runtime from the route above — never from a `VITE_`-prefixed build
+variable, which this repo's preflight rejects.
 
 ### How the sync runs
 
