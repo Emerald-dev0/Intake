@@ -8,6 +8,11 @@
 --
 -- Rollback: DELETE FROM release WHERE slug = 'keep-responses-in-a-sheet'; — the entry disappears.
 -- The sync tables and any spreadsheet already created are untouched.
+--
+-- The closing paragraph was corrected when "connect a spreadsheet you already have" shipped: it had
+-- said connecting an existing spreadsheet was not built yet. This migration had not been applied to
+-- any environment at that point; migration 048 also carries the same correction as an UPDATE, so an
+-- environment that did apply it earlier still ends up with the current copy.
 
 INSERT INTO release (id, slug, title, summary, body, categories, status, release_date, links, highlights, audience, published_at, created_at, updated_at)
 VALUES (
@@ -29,7 +34,7 @@ It is asked for at the moment you set up syncing for a form, never when you conn
 A spreadsheet you deleted or moved out of reach is reported as exactly that, and Intake offers to start a new one. It never deletes or moves a file in your Drive, and turning syncing off leaves the spreadsheet and everything in it untouched.
 A permission you removed shows up as a permission you removed, with one button to allow it again — syncing resumes at the point it stopped. A brief failure at Google is described as a short break, because it is one: Intake waits, tries again, and never advances past answers it did not write. And if the form’s questions changed after rows were written, syncing stops with an explanation instead of quietly filing new answers under old headings.
 ## What is not here yet
-Syncing only works with spreadsheets Intake created. Pointing it at a spreadsheet you already have needs Google’s own file chooser in the flow, and that is the next piece, not this one. There is also no filter: a sync takes every response to the form, all of it, in order. And if you want the answers in a database rather than a spreadsheet, that is still the CSV.$notes$,
+When this shipped, syncing only worked with spreadsheets Intake created; connecting one you already have came next, and is in “Connect a spreadsheet you already have”. There is no filter: a sync takes every response to the form, all of it, in order. And if you want the answers in a database rather than a spreadsheet, that is still the CSV.$notes$,
   ARRAY['feature'], 'published', DATE '2026-11-06',
   '[{"label":"Changelog","url":"/changelog"},{"label":"Trust and permissions","url":"/trust"}]'::jsonb,
   ARRAY['One row per response, one column per question, in the order the form asks them — the same layout as the CSV download.', 'Intake creates the spreadsheet called “[form name] — Intake Responses” and keeps one link to it on the form. Turning syncing off never deletes it.', 'It is not instant. While a form is getting answers Intake checks about once a minute, and every few minutes when it is quiet, so an answer usually appears within a minute or two.', 'Before writing, it reads the sheet’s Response ID column and skips anything already there — which is what stops a duplicate when a write landed but Intake never heard back.', 'One extra, optional Google permission: spreadsheets Intake created itself. Nothing else in your Drive is visible, and connecting Google Forms still asks for nothing new.', 'If the form’s questions changed after answers were written, syncing stops and says so rather than putting new answers under headings that mean something else.', 'It is part of Pro. Your answers stay in Google Forms and in your sheet; Intake keeps no copy of them, only the list of response IDs it has written.'],

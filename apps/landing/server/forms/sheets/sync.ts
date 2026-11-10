@@ -221,9 +221,17 @@ export async function runSync(sync: SheetSyncRecord, runId: string, deps: Sheets
     return stop(classifyFailure(error));
   }
 
+  // The worksheet is found by its numeric id, so renaming a tab changes nothing. A tab that has
+  // been deleted is its own answer: the file is fine, and the fix is to pick another worksheet.
   const sheet = metadata.sheets.find(candidate => candidate.sheetId === sync.sheetId);
-  if (!sheet) return stop({ code: 'destination_unavailable', permanent: true });
+  if (!sheet) return stop({ code: 'worksheet_missing', permanent: true });
   const sheetTitle = sheet.title;
+
+  // The file and the tab may have been renamed since they were chosen. Nothing depends on the
+  // names — the worksheet is found by id — but the panel shows them, so they follow the truth.
+  if (sheetTitle !== sync.sheetTitle || metadata.title !== sync.spreadsheetTitle) {
+    await deps.syncs.retitle(sync.id, { sheetTitle, spreadsheetTitle: metadata.title }).catch(() => {});
+  }
 
   const questions = questionsOf(resource.items);
   const signature = headerSignature(questions);
@@ -237,14 +245,36 @@ export async function runSync(sync: SheetSyncRecord, runId: string, deps: Sheets
   }
 
   const alreadyInSheet = new Set(state.responseIds);
-  const headerMatches = state.header.length === expectedHeader.length
-    && expectedHeader.every((cell, index) => state.header[index] === cell);
+  const sameRow = (a: string[], b: string[]) => a.length === b.length && a.every((cell, index) => b[index] === cell);
+  const headerMatches = sameRow(state.header, expectedHeader);
+  /** The header row this form last wrote. Distinguishes "the questions changed" from "somebody
+   *  replaced the columns", which need different words and different fixes. */
+  const previousHeader = (() => {
+    try {
+      const items = JSON.parse(sync.headerSignature ?? '[]');
+      return Array.isArray(items) && items.every(item => item && typeof item.id === 'string' && typeof item.title === 'string')
+        ? headerFor(items as Array<{ id: string; title: string }>)
+        : null;
+    } catch {
+      return null;
+    }
+  })();
 
   // 3. A sheet whose header no longer describes this form cannot receive more rows. With no data in
   // it, the header is simply written again; with data, the columns would silently mislabel answers,
   // so the sync stops and says why.
   let wroteHeader = false;
   if (!headerMatches) {
+    // A blank worksheet is the state Connect leaves a fresh destination in until its header is
+    // written; writing it here is the same initialisation, not an overwrite.
+    const blank = alreadyInSheet.size === 0 && state.header.every(cell => cell.trim() === '');
+    if (sync.destination === 'selected' && !blank) {
+      // A worksheet Intake did not create is somebody's own table. If it still holds the header this
+      // form wrote, the questions changed; anything else means the columns were replaced, and
+      // neither is a reason to write over them.
+      const stillOurs = previousHeader !== null && sameRow(state.header, previousHeader);
+      return stop({ code: stillOurs ? 'questions_changed' : 'worksheet_unsuitable', permanent: true });
+    }
     if (alreadyInSheet.size > 0) return stop({ code: 'questions_changed', permanent: true });
     try {
       await deps.sheets.writeHeader(token, sync.spreadsheetId, sheetTitle, expectedHeader);

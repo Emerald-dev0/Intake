@@ -17,7 +17,9 @@ import type { Entitlement } from '../../credits/entitlements';
 import { isProActive } from '../../credits/entitlements';
 import { hasScope } from '../../providers/oauth';
 import { SHEETS_SCOPE, type AuthorizedConnection } from '../../providers/service';
-import { createGoogleSheetsClient, type GoogleSheetsClient } from './client';
+import { createGoogleSheetsClient, isSpreadsheetId, type GoogleSheetsClient } from './client';
+import { assessWorksheet, type WorksheetAssessment } from './destination';
+import { publicPickerConfig, readPickerConfig, type PickerConfig } from './picker';
 import { headerFor, headerSignature } from './sync';
 import type { SheetSyncRecord, SheetsSyncStore } from './store';
 import { consumeRequestLimit, setRateLimitHeaders, type AbuseScope, type RateLimitStore } from '../../security/rate-limit';
@@ -35,6 +37,11 @@ export interface SheetsRouterDeps {
   };
   sheets?: GoogleSheetsClient;
   abuseLimiter?: RateLimitStore;
+  /**
+   * Google Picker configuration. Defaults to the environment; a deployment without the API key
+   * simply cannot offer "connect an existing spreadsheet", and everything else keeps working.
+   */
+  picker?: PickerConfig;
 }
 
 /** The one vocabulary the screen switches on. Machine state stays in the database; this is for people. */
@@ -50,14 +57,24 @@ export type SheetsUiState =
   | 'failed'
   | 'permission_revoked'
   | 'destination_unavailable'
+  | 'worksheet_missing'
+  | 'worksheet_unsuitable'
   | 'questions_changed';
 
 export interface SheetsStatusBody {
   state: SheetsUiState;
   canSync: boolean;
+  /** Whether this deployment can offer Google Picker at all. */
+  canPick: boolean;
+  /** Why not, when it cannot. */
+  pickerProblem: string | null;
   sync: {
     spreadsheetId: string;
     spreadsheetUrl: string | null;
+    spreadsheetTitle: string | null;
+    /** `created` for a file Intake made, `selected` for one chosen through Picker. */
+    destination: 'created' | 'selected';
+    sheetId: number;
     sheetTitle: string;
     enabled: boolean;
     syncedCount: number;
@@ -80,6 +97,9 @@ function publicSync(record: SheetSyncRecord): SheetsStatusBody['sync'] {
   return {
     spreadsheetId: record.spreadsheetId,
     spreadsheetUrl: record.spreadsheetUrl,
+    spreadsheetTitle: record.spreadsheetTitle,
+    destination: record.destination,
+    sheetId: record.sheetId,
     sheetTitle: record.sheetTitle,
     enabled: record.enabled,
     syncedCount: record.syncedCount,
@@ -90,6 +110,21 @@ function publicSync(record: SheetSyncRecord): SheetsStatusBody['sync'] {
 }
 
 /** The screen's state, from the persisted sync plus the live grant. */
+/** One place that assembles a status body, so `canPick` cannot drift between routes. */
+export function sheetsStatusBody(
+  record: SheetSyncRecord | null,
+  grant: 'ok' | 'missing_scope' | 'reconnect',
+  picker: PickerConfig,
+): SheetsStatusBody {
+  return {
+    state: sheetsUiState(record, grant),
+    canSync: grant === 'ok',
+    canPick: picker.available && grant === 'ok',
+    pickerProblem: picker.problem,
+    sync: record ? publicSync(record) : null,
+  };
+}
+
 export function sheetsUiState(record: SheetSyncRecord | null, grant: 'ok' | 'missing_scope' | 'reconnect'): SheetsUiState {
   if (grant === 'reconnect') return 'reconnect_required';
   if (grant === 'missing_scope') return 'awaiting_authorization';
@@ -100,6 +135,8 @@ export function sheetsUiState(record: SheetSyncRecord | null, grant: 'ok' | 'mis
   if (record.status === 'failed') {
     if (record.lastErrorCode === 'permission_revoked') return 'permission_revoked';
     if (record.lastErrorCode === 'destination_unavailable') return 'destination_unavailable';
+    if (record.lastErrorCode === 'worksheet_missing') return 'worksheet_missing';
+    if (record.lastErrorCode === 'worksheet_unsuitable') return 'worksheet_unsuitable';
     if (record.lastErrorCode === 'questions_changed') return 'questions_changed';
     return 'failed';
   }
@@ -110,6 +147,7 @@ export function sheetsUiState(record: SheetSyncRecord | null, grant: 'ok' | 'mis
 export function createSheetsRouter(deps: SheetsRouterDeps): Router {
   const router = Router();
   const sheetsClient = deps.sheets ?? createGoogleSheetsClient();
+  const pickerConfig = deps.picker ?? readPickerConfig();
 
   router.use((_req, res, next) => {
     res.set('Cache-Control', 'no-store');
@@ -220,12 +258,7 @@ export function createSheetsRouter(deps: SheetsRouterDeps): Router {
 
     const grant = await grantState(user.id);
     const record = await deps.syncs.findByForm(user.id, found.form.id).catch(() => null);
-    const body: SheetsStatusBody = {
-      state: sheetsUiState(record, grant),
-      canSync: grant === 'ok',
-      sync: record ? publicSync(record) : null,
-    };
-    return res.json(body);
+    return res.json(sheetsStatusBody(record, grant, pickerConfig));
   });
 
   /**
@@ -260,9 +293,10 @@ export function createSheetsRouter(deps: SheetsRouterDeps): Router {
     }
 
     let created: Awaited<ReturnType<GoogleSheetsClient['createSpreadsheet']>>;
+    const title = spreadsheetTitle(form.title);
     try {
       created = await sheetsClient.createSpreadsheet(connection.accessToken, {
-        title: spreadsheetTitle(form.title),
+        title,
         sheetTitle: SHEET_TAB_TITLE,
       });
     } catch (error) {
@@ -283,6 +317,8 @@ export function createSheetsRouter(deps: SheetsRouterDeps): Router {
       ? await deps.syncs.restart(existing.id, {
         spreadsheetId: created.spreadsheetId,
         spreadsheetUrl: created.spreadsheetUrl,
+        spreadsheetTitle: title,
+        destination: 'created',
         sheetId: created.sheetId,
         sheetTitle: created.sheetTitle,
         headerSignature: headerSignature(questions),
@@ -293,13 +329,15 @@ export function createSheetsRouter(deps: SheetsRouterDeps): Router {
         userId,
         spreadsheetId: created.spreadsheetId,
         spreadsheetUrl: created.spreadsheetUrl,
+        spreadsheetTitle: title,
+        destination: 'created',
         sheetId: created.sheetId,
         sheetTitle: created.sheetTitle,
         headerSignature: headerSignature(questions),
       });
     if (!record) return res.status(503).json({ error: 'The spreadsheet was created, but Intake could not save the connection to it. Try again.' });
 
-    return res.status(201).json({ state: sheetsUiState(record, 'ok'), canSync: true, sync: publicSync(record) } satisfies SheetsStatusBody);
+    return res.status(201).json(sheetsStatusBody(record, 'ok', pickerConfig));
   });
 
   /** Resume a sync that was switched off, without building another spreadsheet. */
@@ -310,7 +348,7 @@ export function createSheetsRouter(deps: SheetsRouterDeps): Router {
     if (!record) return res.status(404).json({ error: 'There is no spreadsheet set up for this form.', code: 'not_enabled' });
     const enabled = await deps.syncs.enable(access.userId, access.form.id);
     if (!enabled) return res.status(503).json({ error: 'Intake could not restart this sync. Try again.' });
-    return res.json({ state: sheetsUiState(enabled, 'ok'), canSync: true, sync: publicSync(enabled) } satisfies SheetsStatusBody);
+    return res.json(sheetsStatusBody(enabled, 'ok', pickerConfig));
   });
 
   /**
@@ -328,7 +366,7 @@ export function createSheetsRouter(deps: SheetsRouterDeps): Router {
     if (!record.enabled) return res.status(409).json({ error: 'This sync is switched off. Turn it back on first.', code: 'disabled' });
     const updated = await deps.syncs.enable(access.userId, access.form.id);
     if (!updated) return res.status(503).json({ error: 'Intake could not queue this sync. Try again.' });
-    return res.json({ state: sheetsUiState(updated, 'ok'), canSync: true, sync: publicSync(updated) } satisfies SheetsStatusBody);
+    return res.json(sheetsStatusBody(updated, 'ok', pickerConfig));
   });
 
   /**
@@ -342,7 +380,261 @@ export function createSheetsRouter(deps: SheetsRouterDeps): Router {
     if (!access) return;
     const record = await deps.syncs.disable(access.userId, access.form.id).catch(() => null);
     if (!record) return res.status(404).json({ error: 'There is no spreadsheet set up for this form.', code: 'not_enabled' });
-    return res.json({ state: sheetsUiState(record, 'ok'), canSync: true, sync: publicSync(record) } satisfies SheetsStatusBody);
+    return res.json(sheetsStatusBody(record, 'ok', pickerConfig));
+  });
+
+  // ---------------------------------------------------------------------------------------------
+  // Phase D: choosing an existing spreadsheet.
+  // ---------------------------------------------------------------------------------------------
+
+  /** The questions of a Google form, or a response already sent to the caller. */
+  async function loadQuestions(access: Access, res: Response): Promise<Array<{ id: string; title: string }> | null> {
+    try {
+      const resource = await deps.google.getForm(access.connection.accessToken, access.form.providerFormId);
+      return (Array.isArray(resource.items) ? resource.items : [])
+        .filter((item): item is { kind: string; questionId: string; title: string } =>
+          !!item && typeof item === 'object' && (item as { kind?: unknown }).kind === 'question'
+          && typeof (item as { questionId?: unknown }).questionId === 'string'
+          && typeof (item as { title?: unknown }).title === 'string')
+        .map(item => ({ id: item.questionId, title: item.title }));
+    } catch (error) {
+      googleFailure(res, error);
+      return null;
+    }
+  }
+
+  /**
+   * The backend is the authority on a destination.
+   *
+   * An id that arrives from the browser is treated as a claim, not a fact: it is checked against
+   * the shape Google uses, then read with *this user's* connection. A spreadsheet they cannot open
+   * fails here, whatever the Picker appeared to show, and one belonging to somebody else is simply
+   * not found — there is no path from an id in a request body to another person's file.
+   */
+  async function resolveSpreadsheet(
+    access: Access,
+    spreadsheetId: unknown,
+    res: Response,
+  ): Promise<{ metadata: Awaited<ReturnType<GoogleSheetsClient['getSpreadsheet']>> } | null> {
+    if (!isSpreadsheetId(spreadsheetId)) {
+      res.status(400).json({ error: 'That is not a Google spreadsheet ID.', code: 'invalid_spreadsheet_id' });
+      return null;
+    }
+    try {
+      const metadata = await sheetsClient.getSpreadsheet(access.connection.accessToken, spreadsheetId);
+      if (!metadata.sheets.length) {
+        res.status(422).json({ error: 'That file is not a spreadsheet Intake can write to.', code: 'not_a_spreadsheet' });
+        return null;
+      }
+      return { metadata };
+    } catch (error) {
+      const info = error && typeof error === 'object' && 'info' in error
+        ? (error as { info: { httpStatus?: number; kind?: string } }).info
+        : null;
+      if (info?.httpStatus === 404) {
+        res.status(404).json({
+          error: 'Google could not find that spreadsheet, or Intake cannot open it. Choose it again from your Drive.',
+          code: 'spreadsheet_not_found',
+        });
+        return null;
+      }
+      if (info?.httpStatus === 403) {
+        res.status(403).json({
+          error: 'Intake does not have access to that spreadsheet. Choose it again through Google Picker, which is what grants access to the file.',
+          code: 'spreadsheet_forbidden',
+        });
+        return null;
+      }
+      if (info?.httpStatus === 429) {
+        res.status(429).json({ error: 'Google is limiting requests just now. Try again in a minute.', code: 'rate_limited' });
+        return null;
+      }
+      res.status(502).json({ error: 'Google did not answer. Try again shortly.', code: 'sheets_unavailable' });
+      return null;
+    }
+  }
+
+  /** The sample of a worksheet plus the same verdict the sync engine will reach later. */
+  async function inspectWorksheet(
+    access: Access,
+    spreadsheetId: string,
+    sheetTitle: string,
+    expectedHeader: string[],
+    res: Response,
+  ): Promise<WorksheetAssessment | null> {
+    try {
+      const sample = await sheetsClient.readWorksheetSample(access.connection.accessToken, spreadsheetId, sheetTitle, 25);
+      return assessWorksheet({ sample, expectedHeader });
+    } catch {
+      res.status(502).json({ error: 'Google did not answer while Intake was reading that worksheet. Try again shortly.', code: 'sheets_unavailable' });
+      return null;
+    }
+  }
+
+  /**
+   * Where the Picker gets its token.
+   *
+   * The Picker runs in the browser, so the page needs an access token. It gets the one Intake
+   * already holds — short-lived, `drive.file`, and the same grant the server uses — and nothing
+   * else. The refresh token stays encrypted in the database and never crosses this boundary.
+   */
+  router.get('/:id/sheets/picker', async (req, res) => {
+    const access = await authorize(req, res, 'forms.sheets');
+    if (!access) return;
+    if (!pickerConfig.available) {
+      return res.status(503).json({
+        error: pickerConfig.problem ?? 'Choosing an existing spreadsheet is not set up on this server.',
+        code: 'picker_unavailable',
+      });
+    }
+    const expiresAt = access.connection.accessTokenExpiresAt;
+    if (expiresAt && new Date(expiresAt).getTime() <= Date.now()) {
+      return res.status(409).json({
+        error: 'Intake’s Google access has just expired. Reconnect Google Forms, then try again.',
+        code: 'token_expired',
+      });
+    }
+    return res.json(publicPickerConfig(pickerConfig, {
+      accessToken: access.connection.accessToken,
+      expiresAt: expiresAt ?? new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+    }));
+  });
+
+  /**
+   * Look at a spreadsheet somebody picked, before anything is written to it.
+   *
+   * Without a worksheet id it answers the list of worksheets. With one it answers the verdict for
+   * that worksheet — empty, already this form's table, or holding somebody else's data — so the
+   * screen can say what will happen before the person agrees to it.
+   */
+  router.post('/:id/sheets/inspect', async (req, res) => {
+    const access = await authorize(req, res, 'forms.sheets');
+    if (!access) return;
+    const body = (req.body ?? {}) as { spreadsheetId?: unknown; sheetId?: unknown };
+    const resolved = await resolveSpreadsheet(access, body.spreadsheetId, res);
+    if (!resolved) return;
+    const { metadata } = resolved;
+
+    const questions = await loadQuestions(access, res);
+    if (!questions) return;
+    const expectedHeader = headerFor(questions);
+
+    const base = {
+      spreadsheetId: metadata.spreadsheetId,
+      title: metadata.title,
+      spreadsheetUrl: metadata.spreadsheetUrl,
+      worksheets: metadata.sheets.map(sheet => ({
+        sheetId: sheet.sheetId,
+        title: sheet.title,
+        rowCount: sheet.rowCount,
+        columnCount: sheet.columnCount,
+      })),
+    };
+
+    if (body.sheetId === undefined || body.sheetId === null) {
+      return res.json({ ...base, worksheet: null, assessment: null, header: expectedHeader });
+    }
+
+    const sheetId = typeof body.sheetId === 'number' && Number.isSafeInteger(body.sheetId) ? body.sheetId : null;
+    const sheet = sheetId === null ? null : metadata.sheets.find(candidate => candidate.sheetId === sheetId);
+    if (!sheet) {
+      return res.status(404).json({ error: 'That worksheet is not in this spreadsheet any more. Pick another one.', code: 'worksheet_not_found' });
+    }
+
+    const assessment = await inspectWorksheet(access, metadata.spreadsheetId, sheet.title, expectedHeader, res);
+    if (!assessment) return;
+
+    return res.json({
+      ...base,
+      worksheet: { sheetId: sheet.sheetId, title: sheet.title, rowCount: sheet.rowCount, columnCount: sheet.columnCount },
+      assessment,
+      header: expectedHeader,
+    });
+  });
+
+  /**
+   * Connect an existing spreadsheet as this form's destination.
+   *
+   * The worksheet is inspected again here, in the request that writes: a screen can be open for
+   * minutes, and what it showed then is not evidence about what is in the sheet now. An empty
+   * worksheet gets the header row. One that already holds this form's table is left exactly as it
+   * is — its existing rows are read like any others, and the sync engine skips them by response id.
+   * Anything else is refused, with the reason.
+   */
+  router.post('/:id/sheets/connect', async (req, res) => {
+    const access = await authorize(req, res, 'forms.sheets');
+    if (!access) return;
+    const body = (req.body ?? {}) as { spreadsheetId?: unknown; sheetId?: unknown; replace?: unknown };
+    const resolved = await resolveSpreadsheet(access, body.spreadsheetId, res);
+    if (!resolved) return;
+    const { metadata } = resolved;
+
+    const sheetId = typeof body.sheetId === 'number' && Number.isSafeInteger(body.sheetId) ? body.sheetId : null;
+    const sheet = sheetId === null ? null : metadata.sheets.find(candidate => candidate.sheetId === sheetId);
+    if (!sheet) {
+      return res.status(404).json({ error: 'That worksheet is not in this spreadsheet any more. Pick another one.', code: 'worksheet_not_found' });
+    }
+
+    const questions = await loadQuestions(access, res);
+    if (!questions) return;
+    const expectedHeader = headerFor(questions);
+    const assessment = await inspectWorksheet(access, metadata.spreadsheetId, sheet.title, expectedHeader, res);
+    if (!assessment) return;
+
+    if (assessment.verdict === 'unsuitable') {
+      return res.status(409).json({
+        error: assessment.reason ?? 'That worksheet already contains other data. Choose an empty one.',
+        code: 'worksheet_unsuitable',
+      });
+    }
+
+    const existing = await deps.syncs.findByForm(access.userId, access.form.id).catch(() => null);
+    if (existing && existing.enabled) {
+      const same = existing.spreadsheetId === metadata.spreadsheetId && existing.sheetId === sheet.sheetId;
+      if (same) {
+        return res.status(409).json({ error: 'This form is already syncing to that worksheet.', code: 'already_enabled' });
+      }
+      // Moving a live sync to another file is allowed, but not by accident: the screen has to say
+      // what happens to the old destination and send `replace` with the answer.
+      if (body.replace !== true) {
+        return res.status(409).json({
+          error: 'This form is already syncing to another spreadsheet. Confirm the change before switching.',
+          code: 'destination_change_unconfirmed',
+        });
+      }
+    }
+
+    // Only an empty worksheet is initialised. A worksheet that already holds this form's table is
+    // left untouched, and one with other data never reaches this line.
+    if (assessment.verdict === 'empty') {
+      try {
+        await sheetsClient.writeHeader(access.connection.accessToken, metadata.spreadsheetId, sheet.title, expectedHeader);
+      } catch (error) {
+        return googleFailure(res, error);
+      }
+    }
+
+    const destination = {
+      spreadsheetId: metadata.spreadsheetId,
+      spreadsheetUrl: metadata.spreadsheetUrl,
+      spreadsheetTitle: metadata.title,
+      destination: 'selected' as const,
+      sheetId: sheet.sheetId,
+      sheetTitle: sheet.title,
+      headerSignature: headerSignature(questions),
+    };
+
+    // A destination change reuses the one sync row: one destination per form, whichever kind it is.
+    const record = existing
+      ? await deps.syncs.restart(existing.id, destination)
+      : await deps.syncs.create({
+        formId: access.form.id,
+        userId: access.userId,
+        ...destination,
+      });
+    if (!record) return res.status(503).json({ error: 'Intake could not save the connection to that spreadsheet. Try again.' });
+
+    return res.status(201).json(sheetsStatusBody(record, 'ok', pickerConfig));
   });
 
   return router;
