@@ -82,8 +82,8 @@ test('reading metadata asks only for what is needed and finds the tab by id', as
     properties: { title: 'Customer feedback — Intake Responses' },
     spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${ID}/edit`,
     sheets: [
-      { properties: { sheetId: 0, title: 'Responses', rowCount: 1000 } },
-      { properties: { sheetId: 7, title: 'Notes', rowCount: 20 } },
+      { properties: { sheetId: 0, title: 'Responses', gridProperties: { rowCount: 1000, columnCount: 26 } } },
+      { properties: { sheetId: 7, title: 'Notes', gridProperties: { rowCount: 20, columnCount: 12 } } },
     ],
   }));
 
@@ -92,7 +92,8 @@ test('reading metadata asks only for what is needed and finds the tab by id', as
   assert.match(calls[0].url.searchParams.get('fields'), /sheets\.properties/);
   assert.equal(metadata.sheets.length, 2);
   assert.equal(metadata.sheets[1].sheetId, 7);
-  assert.equal(metadata.sheets[0].rowCount, 1000);
+  assert.equal(metadata.sheets[0].rowCount, 1000, 'the grid size comes from gridProperties');
+  assert.equal(metadata.sheets[0].columnCount, 26);
 });
 
 test('a spreadsheet that is gone reports that it is gone', async () => {
