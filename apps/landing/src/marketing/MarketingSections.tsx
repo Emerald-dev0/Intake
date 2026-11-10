@@ -868,7 +868,7 @@ const TRUST_ASK = [
   },
   {
     title: 'Spreadsheet sync, only when you ask for it',
-    text: 'Keeping a form’s answers in a Google Sheet needs one more permission — drive.file — and it reaches only the files Intake created itself. Intake asks for it only when you set up syncing for a form, never when you connect. It cannot see, list or open anything else in your Drive: not other spreadsheets, not documents, not photos.',
+    text: 'Keeping a form’s answers in a Google Sheet needs one more permission — drive.file — and it reaches only the files Intake created itself, plus a file you deliberately pick in Google’s own file chooser. Intake asks for it only when you set up syncing for a form, never when you connect. It cannot see, list or open anything else in your Drive: not other spreadsheets, not documents, not photos. Choosing an existing spreadsheet does not widen that: the file you pick is the only one Intake can then add rows to.',
   },
   {
     title: 'Response reading, only when you ask for it',
