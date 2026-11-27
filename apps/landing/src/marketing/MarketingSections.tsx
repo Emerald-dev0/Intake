@@ -6,7 +6,7 @@ import { formatUsd } from '../lib/plans';
 import { useBillingPlans, comparePlanPrices } from '../lib/useBillingPlans';
 import { LogoMark } from '../components/LogoMark';
 import { GoogleFormsLogo, PlannedProviderLogo, TypeformLogo } from '../components/ProviderLogos';
-import { HeroThreads } from './HeroThreads';
+import { HeroFlow } from './HeroFlow';
 import { StartLink } from './MarketingChrome';
 import { useViewState } from './motion';
 
@@ -316,31 +316,27 @@ export function Hero({ authenticated }: { authenticated: boolean }) {
       <div className="mk-container mk-hero__center">
         <h1 id="mk-hero-title">
           <span className="mk-anim-in" style={{ '--d': '60ms' } as CSSProperties}>Tell Intake what you need.</span>
-          <span className="mk-hero__accent mk-anim-in" style={{ '--d': '160ms' } as CSSProperties}>It builds the form for you.</span>
+          <span className="mk-hero__accent mk-anim-in" style={{ '--d': '160ms' } as CSSProperties}>
+            It builds the form for you.
+            <svg className="mk-hero__scribble" viewBox="0 0 520 34" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+              <path d="M6 22 C 70 10, 150 30, 236 18 S 392 6, 512 20" pathLength={1} />
+            </svg>
+          </span>
         </h1>
-        <p className="mk-hero__lede mk-anim-in" style={{ '--d': '320ms' } as CSSProperties}>
+        <p className="mk-hero__lede mk-anim-in" style={{ '--d': '260ms' } as CSSProperties}>
           Write one plain-English sentence. Intake shows you the questions, you change what you like, and only then does the form appear in your account.
         </p>
-        <div className="mk-hero__actions mk-anim-in" style={{ '--d': '420ms' } as CSSProperties}>
+        <div className="mk-hero__actions mk-anim-in" style={{ '--d': '360ms' } as CSSProperties}>
           <StartLink authenticated={authenticated} />
           <a className="mk-button mk-button--secondary" href="#creation">See it work <Arrow /></a>
         </div>
-      </div>
-
-      <div className="mk-container mk-hero__diagram mk-anim-in" style={{ '--d': '520ms' } as CSSProperties}>
-        <HeroThreads />
-      </div>
-
-      <div className="mk-container mk-hero__product">
-        <Reveal className="mk-hero__product-head" variant="fade">
-          <span className="mk-eyebrow">WHAT YOU SEE BEFORE ANYTHING IS CREATED</span>
-        </Reveal>
-        <Reveal className="mk-hero__product-card" variant="scale">
-          <ProductPreview />
-        </Reveal>
-        <p className="mk-hero__trust">
-          Free during launch · {plans.freeDailyCredits} credits a day · Your account, your forms
+        <p className="mk-hero__trust mk-anim-in" style={{ '--d': '420ms' } as CSSProperties}>
+          Free during launch · {plans.freeDailyCredits} credits a day · No card
         </p>
+      </div>
+
+      <div className="mk-container mk-hero__diagram mk-anim-in" style={{ '--d': '480ms' } as CSSProperties}>
+        <HeroFlow />
       </div>
 
       <div className="mk-container mk-hero__try">
@@ -655,6 +651,11 @@ export function CreationDemo({ authenticated }: { authenticated: boolean }) {
             </article>
           </Reveal>
         </div>
+
+        <Reveal className="mk-creation__workspace" variant="scale">
+          <span className="mk-eyebrow">Inside the workspace · create or edit</span>
+          <ProductPreview />
+        </Reveal>
       </div>
     </section>
   );

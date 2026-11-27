@@ -1,9 +1,10 @@
 /*
- * Landing hero: "One sentence in, forms out."
+ * Landing hero: "One sentence in, a form out."
  *
  * Reads only the shared tokens defined at the top of marketing.css (type scale, spacing, radii,
- * thread colours). Motion is limited to opacity, transform and SVG stroke-dashoffset, and every
- * loop pauses when the diagram is off screen (.is-paused) or the reader prefers reduced motion.
+ * thread colours). Motion is opacity, transform and SVG stroke-dashoffset. Every loop pauses when
+ * the diagram is off screen or paused (.is-paused), and reduced motion gets a still frame
+ * (.is-static plus the media query at the bottom).
  */
 
 .marketing-page .mk-sr-only {
@@ -18,7 +19,7 @@
   border: 0;
 }
 
-/* ------------------------------------------------------------- headline */
+/* ============================================================= headline */
 
 .mk-hero { padding: clamp(56px, 7vw, 104px) 0 0; }
 
@@ -39,226 +40,449 @@
   letter-spacing: -.04em;
   line-height: .98;
 }
-.mk-hero h1 .mk-hero__accent { padding-right: .06em; }
+.mk-hero h1 .mk-hero__accent {
+  position: relative;
+  width: fit-content;
+  margin-inline: auto;
+  padding-right: .06em;
+}
+
+/* One hand-drawn stroke under the promise, drawn once. */
+.mk-hero__scribble {
+  position: absolute;
+  left: 3%;
+  bottom: -.2em;
+  width: 94%;
+  height: .3em;
+  overflow: visible;
+  pointer-events: none;
+}
+.mk-hero__scribble path {
+  fill: none;
+  stroke: var(--mk-accent);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: .8;
+  animation: mk-draw 1.1s var(--mk-ease) 900ms forwards;
+}
 
 .mk-hero__center .mk-hero__lede {
   max-width: 44ch;
-  margin: var(--mk-space-5) auto 0;
+  margin: var(--mk-space-6) auto 0;
   font-size: var(--mk-fs-lede);
   line-height: 1.6;
 }
 .mk-hero__center .mk-hero__actions { justify-content: center; margin-top: var(--mk-space-6); }
-
-/* -------------------------------------------------------------- diagram */
-
-.mk-hero__diagram { margin-top: clamp(48px, 6vw, 84px); }
-
-.mk-threads {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin: 0;
+.mk-hero__center .mk-hero__trust {
+  display: block;
+  margin: 18px 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mk-muted);
+  font: var(--mk-fs-eyebrow)/1.5 var(--mono);
+  letter-spacing: .1em;
+  text-transform: uppercase;
 }
 
-/* 1. The sentence card */
-.mk-threads__request {
+@keyframes mk-draw { to { stroke-dashoffset: 0; } }
+
+/* ========================================================= the story */
+
+.mk-hero__diagram { margin-top: clamp(56px, 7vw, 96px); }
+
+.mk-flow {
   position: relative;
-  z-index: 2;
-  width: min(600px, 100%);
-  padding: var(--mk-space-4) var(--mk-space-5) 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+.mk-flow > * { position: relative; z-index: 1; }
+.mk-flow > .mk-flow__threads { position: absolute; z-index: 0; top: 0; left: 0; overflow: visible; pointer-events: none; }
+.mk-flow .mk-flow__tiles { display: contents; list-style: none; }
+.mk-flow .mk-flow-tile { list-style: none; }
+
+/* ---- threads */
+
+.mk-thread { fill: none; stroke-linecap: round; transition: stroke .5s var(--mk-ease-soft), stroke-width .5s var(--mk-ease-soft); }
+.mk-thread--live { stroke: var(--mk-thread); stroke-width: 1.6; }
+.mk-thread--soon { stroke: var(--mk-thread-soon); stroke-width: 1.3; stroke-dasharray: 2 7; }
+.mk-flow.has-created .mk-thread.is-target { stroke: var(--mk-accent); stroke-width: 2.4; transition-delay: .25s; }
+
+.mk-thread--draw { stroke-dasharray: 1; stroke-dashoffset: 1; }
+.mk-flow.has-read .mk-flow__lines-in .mk-thread--draw:not(.mk-thread--stem) {
+  animation: mk-draw .95s var(--mk-ease) forwards;
+  animation-delay: calc(var(--i, 0) * 110ms);
+}
+.mk-flow.has-draft .mk-thread--stem { animation: mk-draw .6s var(--mk-ease) forwards; }
+
+.mk-thread-pulse {
+  fill: none;
+  stroke: var(--mk-accent);
+  stroke-width: 3.2;
+  stroke-linecap: round;
+  stroke-dasharray: .07 2;
+  stroke-dashoffset: .07;
+  opacity: 0;
+}
+.mk-flow__pulses { filter: drop-shadow(0 0 4px rgba(255, 90, 31, .7)); }
+.mk-flow.is-reading .mk-thread-pulse--in { animation: mk-pulse-once 1.05s linear forwards; animation-delay: calc(360ms + var(--i, 0) * 110ms); }
+.mk-flow.is-drafting .mk-thread-pulse--stem { animation: mk-pulse-once .7s linear forwards; }
+.mk-flow.is-created .mk-thread-pulse--out { animation: mk-pulse-once .95s linear 80ms forwards; }
+
+@keyframes mk-pulse-once {
+  0% { stroke-dashoffset: .07; opacity: 0; }
+  8% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { stroke-dashoffset: -1; opacity: 0; }
+}
+
+/* ---- 1. the request */
+
+.mk-flow__request {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: min(640px, 100%);
+  padding: 18px var(--mk-space-5) 22px;
   border: 1px solid rgba(27, 26, 23, .08);
-  border-radius: 20px;
+  border-radius: 22px;
   background: var(--mk-paper);
   color: var(--mk-ink);
   box-shadow: var(--mk-shadow-soft);
   text-align: left;
 }
-.mk-threads__request-head {
+.mk-flow__request-head {
   display: flex;
   justify-content: space-between;
   gap: var(--mk-space-3);
   color: #6f695d;
   font: 9.5px/1 var(--mono);
   letter-spacing: .14em;
+  text-transform: uppercase;
 }
-.mk-threads__request-head span:last-child {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  letter-spacing: .06em;
-}
-.mk-threads__request-head span:last-child::before {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--mk-accent);
-  content: '';
-}
-.mk-threads__sentence {
-  margin: var(--mk-space-3) 0 0;
+.mk-flow__request-head > span { display: inline-flex; align-items: center; gap: 7px; }
+.mk-flow__request-head svg { color: var(--mk-accent); }
+.mk-flow__request-head > span:last-child { letter-spacing: .06em; }
+.mk-flow__sentence {
+  margin: 14px 0 0;
   color: var(--mk-ink);
   font-family: var(--serif);
-  font-size: clamp(16.5px, 1.5vw, 19.5px);
+  font-size: clamp(17px, 1.55vw, 21px);
   font-variation-settings: 'opsz' 24, 'SOFT' 30, 'WONK' 0;
-  line-height: 1.45;
+  line-height: 1.5;
   letter-spacing: -.012em;
 }
-/* The full sentence reserves the height, the typed copy sits on top: no layout shift. */
-.mk-threads__sentence-stack { display: grid; }
-.mk-threads__sentence-stack > span { grid-area: 1 / 1; }
-.mk-threads__sentence-ghost { visibility: hidden; }
-.mk-threads__sentence .mk-caret {
-  width: 2px;
-  height: .95em;
-  margin-left: 2px;
-  vertical-align: -.14em;
-}
+.mk-flow__sentence-stack { display: grid; }
+.mk-flow__sentence-stack > span { grid-area: 1 / 1; }
+.mk-flow__sentence-ghost { visibility: hidden; }
+.mk-flow__sentence-typed { transition: opacity .45s var(--mk-ease-soft); }
+.mk-flow.is-leaving .mk-flow__sentence-typed { opacity: 0; }
+.mk-flow__sentence .mk-caret { width: 2px; height: .95em; margin-left: 2px; vertical-align: -.14em; }
 
-/* 2–4. Stage: same aspect ratio as the SVG viewBox, so tiles land on thread ends at any width. */
-.mk-threads__stage {
+/* Read: the phrases that become questions get a marker stroke, one after another. */
+.mk-flow__sentence-typed .mk-flow__phrase {
+  border-radius: 3px;
+  background: linear-gradient(transparent 60%, rgba(240, 78, 18, .24) 60%, rgba(240, 78, 18, .24) 92%, transparent 92%) no-repeat 0 0 / 0% 100%;
+  transition: background-size .55s var(--mk-ease) calc(var(--i, 0) * 140ms);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.mk-flow.has-read .mk-flow__sentence-typed .mk-flow__phrase { background-size: 100% 100%; }
+
+/* ---- 2. the Intake mark */
+
+.mk-flow__core {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--mk-space-3);
+  margin: 72px 0 36px;
+}
+.mk-flow__mark { position: relative; width: 84px; aspect-ratio: 1; }
+.mk-flow__mark-tile {
   position: relative;
-  width: 100%;
-  max-width: 1200px;
-  aspect-ratio: 1200 / 500;
-}
-.mk-threads__svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-
-.mk-thread { fill: none; stroke-linecap: round; }
-.mk-thread--live { stroke: var(--mk-thread); stroke-width: 1.6; }
-.mk-thread--soon { stroke: var(--mk-thread-soon); stroke-width: 1.3; stroke-dasharray: 2 7; }
-
-/* Draw-in: hidden until the sentence has finished typing, then traced from the source outwards. */
-.mk-thread--draw { stroke-dasharray: 1; stroke-dashoffset: 1; }
-.mk-threads.is-drawn .mk-thread--draw {
-  animation: mk-thread-draw 1.25s var(--mk-ease) forwards;
-  animation-delay: calc(var(--i, 0) * 90ms);
-}
-.mk-threads.is-drawn .mk-thread--out { animation-delay: calc(480ms + var(--i, 0) * 140ms); }
-.mk-threads__soon-lines { opacity: 0; transition: opacity 1.2s var(--mk-ease-soft) .9s; }
-.mk-threads.is-drawn .mk-threads__soon-lines { opacity: 1; }
-
-@keyframes mk-thread-draw { to { stroke-dashoffset: 0; } }
-
-/* The travelling light: one short dash, request → mark, then mark → live providers. */
-.mk-thread-pulse {
-  fill: none;
-  stroke: var(--mk-accent);
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-dasharray: .06 2;
-  stroke-dashoffset: .06;
-  opacity: 0;
-}
-.mk-threads__pulses { filter: drop-shadow(0 0 4px rgba(255, 90, 31, .65)); }
-.mk-threads.is-drawn .mk-thread-pulse {
-  animation: mk-thread-pulse 6.5s linear infinite;
-  animation-delay: calc(1400ms + var(--p, 0ms));
-}
-@keyframes mk-thread-pulse {
-  0% { stroke-dashoffset: .06; opacity: 0; }
-  3% { opacity: 1; }
-  21% { opacity: 1; }
-  24% { stroke-dashoffset: -1; opacity: 0; }
-  100% { stroke-dashoffset: -1; opacity: 0; }
-}
-
-/* The Intake mark: brightens as each pulse arrives. */
-.mk-threads__core {
-  position: absolute;
-  z-index: 3;
-  top: 38%;
-  left: 50%;
-  display: grid;
-  width: clamp(68px, 7.4vw, 92px);
-  aspect-ratio: 1;
-  place-items: center;
-  transform: translate(-50%, -50%);
-}
-.mk-threads__core-tile {
   display: grid;
   width: 100%;
   height: 100%;
   place-items: center;
   border: 1px solid rgba(240, 78, 18, .28);
-  border-radius: 26%;
+  border-radius: 26px;
   background: var(--mk-paper);
   color: var(--mk-ink);
   box-shadow: 0 0 0 8px rgba(240, 78, 18, .06), 0 22px 50px -22px rgba(240, 78, 18, .55);
+  transition: box-shadow .6s var(--mk-ease-soft);
 }
-.mk-threads__core-tile svg { width: 52%; height: auto; }
-.mk-threads__core-ring {
+.mk-flow.is-reading .mk-flow__mark-tile,
+.mk-flow.is-drafting .mk-flow__mark-tile { box-shadow: 0 0 0 10px rgba(240, 78, 18, .1), 0 26px 60px -20px rgba(240, 78, 18, .7); }
+.mk-flow__orbit {
   position: absolute;
-  inset: 0;
-  border: 1.5px solid var(--mk-accent);
-  border-radius: 26%;
+  inset: -12px;
+  border: 1.5px dashed rgba(240, 78, 18, .55);
+  border-radius: 50%;
   opacity: 0;
+  transition: opacity .4s var(--mk-ease-soft);
 }
-.mk-threads.is-drawn .mk-threads__core-ring { animation: mk-core-ping 6.5s var(--mk-ease-soft) infinite 1400ms; }
-@keyframes mk-core-ping {
-  0%, 20% { opacity: 0; transform: scale(1); }
-  24% { opacity: .75; transform: scale(1); }
-  42% { opacity: 0; transform: scale(1.45); }
-  100% { opacity: 0; transform: scale(1.45); }
+.mk-flow.is-reading .mk-flow__orbit,
+.mk-flow.is-drafting .mk-flow__orbit { opacity: 1; animation: mk-orbit 7s linear infinite; }
+@keyframes mk-orbit { to { transform: rotate(360deg); } }
+
+.mk-flow__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  padding: 0 12px 0 10px;
+  border: 1px solid var(--mk-line);
+  border-radius: var(--mk-pill);
+  background: var(--mk-bg);
+  color: var(--mk-text);
+  font-size: 12.5px;
+  white-space: nowrap;
+  animation: mk-status-in .45s var(--mk-ease) both;
+}
+.mk-flow__status { width: max-content; }
+.mk-flow svg { flex: none; }
+.mk-flow__status svg { color: var(--mk-accent); }
+.mk-flow.has-created .mk-flow__status svg { color: var(--mk-ok); }
+@keyframes mk-status-in {
+  from { opacity: 0; transform: translate3d(0, 4px, 0); }
+  to { opacity: 1; transform: none; }
 }
 
-/* Provider tiles */
-.mk-threads .mk-threads__tiles { display: block; margin: 0; padding: 0; list-style: none; }
+/* ---- 3–4. the draft, and the confirm */
 
-.mk-thread-tile {
-  position: absolute;
-  z-index: 2;
-  top: var(--y);
-  left: var(--x);
-  opacity: 0;
-  transform: translate(-50%, -50%);
-  animation: mk-tile-in .8s var(--mk-ease) forwards;
-  animation-delay: calc(760ms + var(--i, 0) * 90ms);
+.mk-flow__draft {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: min(420px, 100%);
+  margin-bottom: 52px;
+  padding: 18px 18px 14px;
+  border: 1px solid rgba(27, 26, 23, .08);
+  border-radius: 22px;
+  background: var(--mk-paper);
+  color: var(--mk-ink);
+  box-shadow: var(--mk-shadow-2);
+  text-align: left;
 }
-.mk-threads .mk-thread-tile.mk-provider { padding: 0; border-radius: 0; background: none; box-shadow: none; }
-
-.mk-threads .mk-thread-tile .mk-thread-tile__body {
+.mk-flow__draft-head {
   display: flex;
   align-items: center;
-  gap: 10px;
-  white-space: nowrap;
-  animation: mk-tile-float 7s ease-in-out infinite;
-  animation-delay: calc(var(--i, 0) * -1.15s);
-  transition: border-color .24s var(--mk-ease-soft), box-shadow .24s var(--mk-ease-soft);
+  justify-content: space-between;
+  gap: 8px;
+  color: #6f695d;
+  font: 9px/1 var(--mono);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.mk-flow__chip {
+  padding: 4px 8px 3px;
+  border: 1px solid rgba(27, 26, 23, .16);
+  border-radius: var(--mk-pill);
+  transition: background-color .4s var(--mk-ease-soft), color .4s var(--mk-ease-soft), border-color .4s;
+}
+.mk-flow.has-created .mk-flow__chip { border-color: transparent; background: #1d7a5c; color: #fff; }
+
+.mk-flow__draft-title {
+  margin: 12px 0 8px;
+  color: var(--mk-ink);
+  font-family: var(--serif);
+  font-size: 23px;
+  font-variation-settings: 'opsz' 40, 'WONK' 1;
+  font-weight: 450;
+  letter-spacing: -.025em;
+  opacity: .14;
+  transition: opacity .5s var(--mk-ease-soft);
+}
+.mk-flow.has-draft .mk-flow__draft-title { opacity: 1; }
+
+.mk-flow__questions { margin: 0; padding: 0; list-style: none; }
+.mk-flow__questions li {
+  position: relative;
+  min-height: 50px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(27, 26, 23, .1);
+}
+.mk-flow__q-skeleton {
+  position: absolute;
+  top: 50%;
+  left: 48px;
+  width: calc(62% - var(--i, 0) * 7%);
+  height: 9px;
+  border-radius: var(--mk-pill);
+  background: rgba(27, 26, 23, .08);
+  transform: translateY(-50%);
+  transition: opacity .3s var(--mk-ease-soft);
+}
+.mk-flow.is-reading .mk-flow__q-skeleton { animation: mk-skeleton 1s ease-in-out infinite alternate; animation-delay: calc(var(--i, 0) * 120ms); }
+.mk-flow.has-draft .mk-flow__q-skeleton { opacity: 0; animation: none; }
+@keyframes mk-skeleton { from { opacity: .45; } to { opacity: 1; } }
+
+.mk-flow__q-body {
+  display: grid;
+  grid-template-columns: 20px 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  transform: translate3d(0, 6px, 0);
+  transition: opacity .45s var(--mk-ease), transform .45s var(--mk-ease);
+  transition-delay: calc(var(--i, 0) * 170ms);
+}
+.mk-flow.has-draft .mk-flow__q-body { opacity: 1; transform: none; }
+.mk-flow.is-leaving .mk-flow__q-body,
+.mk-flow.is-leaving .mk-flow__draft-title { opacity: 0; transition-delay: 0s; }
+.mk-flow__q-number { color: #b9501f; font: 9.5px var(--mono); }
+.mk-flow__q-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 9px;
+  background: rgba(240, 78, 18, .09);
+  color: #b33e10;
+}
+.mk-flow__q-text { display: grid; gap: 2px; min-width: 0; }
+.mk-flow__q-text strong { overflow: hidden; font-size: 13px; font-weight: 550; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.mk-flow__q-text small { color: #6b655a; font-size: 11px; line-height: 1.3; }
+
+.mk-flow__draft-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(27, 26, 23, .1);
+}
+.mk-flow__note { display: grid; color: #6b655a; font-size: 11.5px; line-height: 1.35; }
+.mk-flow__note > span { display: inline-flex; align-items: center; gap: 6px; grid-area: 1 / 1; transition: opacity .4s var(--mk-ease-soft); }
+.mk-flow__note-done { color: #1d7a5c; font-weight: 550; opacity: 0; }
+.mk-flow.has-created .mk-flow__note-wait { opacity: 0; }
+.mk-flow.has-created .mk-flow__note-done { opacity: 1; }
+
+.mk-flow__confirm {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  min-height: 34px;
+  padding: 0 18px;
+  place-items: center;
+  border-radius: var(--mk-pill);
+  background: #1b1a17;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  opacity: .35;
+  transition: opacity .4s var(--mk-ease-soft), background-color .4s var(--mk-ease-soft);
+}
+.mk-flow.has-draft .mk-flow__confirm { opacity: 1; transition-delay: .6s; }
+.mk-flow.is-confirm .mk-flow__confirm { animation: mk-press 1.6s var(--mk-ease) both; }
+.mk-flow.has-created .mk-flow__confirm { background: #1d7a5c; }
+.mk-flow.has-created .mk-flow__confirm > span { visibility: hidden; }
+.mk-flow.has-created .mk-flow__confirm::after { position: absolute; content: 'Confirmed ✓'; }
+@keyframes mk-press {
+  0%, 62% { transform: scale(1); box-shadow: 0 0 0 0 rgba(240, 78, 18, 0); }
+  68% { transform: scale(.92); box-shadow: 0 0 0 6px rgba(240, 78, 18, .25); }
+  80%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(240, 78, 18, 0); }
 }
 
-.mk-thread-tile--live .mk-thread-tile__body {
-  padding: 11px 18px 11px 13px;
+.mk-flow__cursor {
+  position: absolute;
+  top: 55%;
+  left: 58%;
+  opacity: 0;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, .25));
+  transition: opacity .35s var(--mk-ease-soft);
+}
+.mk-flow.is-confirm .mk-flow__cursor { animation: mk-cursor 1.6s var(--mk-ease) both; }
+@keyframes mk-cursor {
+  0% { opacity: 0; transform: translate3d(90px, 64px, 0); }
+  18% { opacity: 1; }
+  58% { transform: translate3d(0, 0, 0); }
+  66% { transform: translate3d(0, 0, 0) scale(.84); }
+  78%, 100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+/* ---- 5. providers */
+
+.mk-flow .mk-flow-tile { align-self: center; }
+.mk-flow .mk-flow-tile.mk-provider { display: block; padding: 0; border-radius: 0; background: none; box-shadow: none; }
+
+.mk-flow .mk-flow-tile .mk-flow-tile__body {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 100%;
+  transition: border-color .4s var(--mk-ease-soft), box-shadow .4s var(--mk-ease-soft);
+}
+
+.mk-flow .mk-flow-tile--live .mk-flow-tile__body {
+  padding: 10px 18px 10px 10px;
   border: 1px solid rgba(27, 26, 23, .08);
-  border-radius: 16px;
+  border-radius: 20px;
   background: var(--mk-paper);
   color: var(--mk-ink);
   box-shadow: var(--mk-shadow-soft);
 }
-.mk-thread-tile--live .mk-thread-tile__body:hover { border-color: rgba(240, 78, 18, .45); }
-.mk-thread-tile--live svg { flex: none; }
-.mk-thread-tile--live .mk-thread-tile__body > span { display: grid; gap: 2px; text-align: left; }
-.mk-thread-tile--live strong { font-size: 13.5px; font-weight: 600; letter-spacing: -.01em; line-height: 1.2; }
-.mk-thread-tile--live small { color: #5f594e; font-size: 11.5px; line-height: 1.25; }
+.mk-flow .mk-flow-tile--live .mk-flow-tile__body:hover { border-color: rgba(240, 78, 18, .45); }
+.mk-flow .mk-flow-tile__icon { display: grid; flex: none; place-items: center; }
+.mk-flow .mk-flow-tile--live .mk-flow-tile__icon { width: 46px; height: 46px; border-radius: 14px; }
+.mk-flow .mk-flow-tile--google-forms .mk-flow-tile__icon { border: 1px solid rgba(114, 72, 185, .2); background: #fff; }
+.mk-flow .mk-flow-tile--typeform .mk-flow-tile__icon { width: auto; padding: 0 12px; background: #262627; color: #fff; }
+.mk-flow .mk-flow-tile__text { display: grid; gap: 2px; text-align: left; }
+.mk-flow .mk-flow-tile--live strong { font-size: 14px; font-weight: 600; letter-spacing: -.01em; line-height: 1.2; }
+.mk-flow .mk-flow-tile--live small { color: #5f594e; font-size: 11.5px; line-height: 1.3; }
 
-.mk-thread-tile--soon .mk-thread-tile__body {
-  gap: 8px;
-  padding: 8px 10px 8px 11px;
+.mk-flow .mk-flow-tile .mk-flow-tile__badge {
+  position: absolute;
+  top: -10px;
+  right: -8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px 4px 8px;
+  border-radius: var(--mk-pill);
+  background: #1b1a17;
+  color: #fff;
+  font: 8.5px/1 var(--mono);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  opacity: 0;
+  transform: scale(.6);
+  transition: opacity .35s var(--mk-ease), transform .45s var(--mk-ease);
+}
+.mk-flow .mk-flow-tile__badge::before { width: 5px; height: 5px; border-radius: 50%; background: var(--mk-accent); content: ''; }
+.mk-flow.has-created .mk-flow-tile.is-target .mk-flow-tile__badge { opacity: 1; transform: none; transition-delay: .85s; }
+.mk-flow.has-created .mk-flow-tile.is-target .mk-flow-tile__body {
+  border-color: rgba(240, 78, 18, .55);
+  box-shadow: 0 0 0 5px rgba(240, 78, 18, .1), var(--mk-shadow-soft);
+  transition-delay: .85s;
+}
+.mk-flow.is-leaving .mk-flow-tile.is-target .mk-flow-tile__badge { opacity: 0; transition-delay: 0s; }
+
+.mk-flow .mk-flow-tile--soon .mk-flow-tile__body {
+  gap: 9px;
+  padding: 8px 10px 8px 8px;
   border: 1px dashed var(--mk-line-strong);
-  border-radius: 14px;
+  border-radius: 16px;
   background: var(--mk-bg);
   color: var(--mk-muted);
 }
-.mk-thread-tile--soon .mk-thread-tile__body:hover { border-color: var(--mk-muted); }
-.mk-thread-tile__mark { display: inline-flex; opacity: .8; }
-.mk-thread-tile--soon strong { font-size: 12.5px; font-weight: 500; letter-spacing: -.005em; }
-.mk-thread-tile--soon em {
+.mk-flow .mk-flow-tile--soon .mk-flow-tile__body:hover { border-color: var(--mk-muted); }
+.mk-flow .mk-flow-tile--soon .mk-flow-tile__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: rgba(var(--mk-text-rgb), .05);
+}
+.mk-flow .mk-flow-tile--soon strong { font-size: 12.5px; font-weight: 500; }
+.mk-flow .mk-flow-tile--soon em {
+  margin-left: auto;
   padding: 3px 6px 2px;
   border: 1px solid var(--mk-line-strong);
   border-radius: var(--mk-pill);
@@ -269,61 +493,68 @@
   text-transform: uppercase;
 }
 
-@keyframes mk-tile-in { to { opacity: 1; } }
-@keyframes mk-tile-float {
-  0%, 100% { transform: translate3d(0, 0, 0); }
-  50% { transform: translate3d(0, -4px, 0); }
-}
+/* ---- caption and controls */
 
-/* The vertical threads only exist in the stacked phone layout. */
-.mk-threads__drop { display: none; }
-
-.mk-threads__caption {
+.mk-flow__caption {
   display: flex;
   flex-wrap: wrap;
+  grid-column: 1 / -1;
   align-items: center;
   justify-content: center;
-  gap: 6px 10px;
-  max-width: 64ch;
-  margin-top: var(--mk-space-4);
+  gap: 6px 18px;
+  margin-top: var(--mk-space-6);
   color: var(--mk-muted);
   font-size: var(--mk-fs-small);
   line-height: 1.5;
   text-align: center;
 }
-.mk-threads__caption > span:not(.mk-threads__legend) { display: inline-flex; align-items: center; gap: 10px; }
-.mk-threads__legend { display: inline-block; width: 18px; height: 0; border-top: 2px solid var(--mk-accent); border-radius: 2px; }
-.mk-threads__legend--soon { border-top: 2px dashed var(--mk-line-strong); }
+.mk-flow__caption > span { display: inline-flex; align-items: center; gap: 10px; }
+.mk-flow__legend { display: inline-block; width: 18px; height: 0; border-top: 2px solid var(--mk-accent); border-radius: 2px; }
+.mk-flow__legend--soon { border-top: 2px dashed var(--mk-line-strong); }
 
-/* The example workspace's Create / Edit switch was a grey slab on paper in the light theme. */
-html[data-theme='light'] .mk-hero__product .mk-preview-switch { background: rgba(27, 26, 23, .05); }
-html[data-theme='light'] .mk-hero__product .mk-preview-switch button:not([aria-pressed="true"]) { color: #5f594e; }
-
-/* Off screen: every loop holds still. */
-.mk-threads.is-paused *, .mk-threads.is-paused *::before, .mk-threads.is-paused *::after { animation-play-state: paused !important; }
-
-/* ------------------------------------------------- product + try it band */
-
-.mk-hero__product {
+.mk-flow__controls {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
   align-items: center;
-  margin-top: clamp(56px, 7vw, 104px);
+  justify-content: center;
+  gap: 10px;
+  margin-top: var(--mk-space-4);
 }
-.mk-hero__product-head { margin-bottom: var(--mk-space-4); }
-.mk-hero__product-head .mk-eyebrow { color: var(--mk-muted); font-size: var(--mk-fs-eyebrow); }
-.mk-hero__product-card { width: min(860px, 100%); }
-.mk-hero__product .mk-hero__trust {
-  display: block;
-  margin: 18px 0 0;
-  color: var(--mk-muted);
-  font: var(--mk-fs-eyebrow)/1.5 var(--mono);
-  letter-spacing: .1em;
-  text-align: center;
-  text-transform: uppercase;
+.mk-flow__tabs { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.mk-flow__tabs button,
+.mk-flow__play {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--mk-line-strong);
+  border-radius: var(--mk-pill);
+  background: transparent;
+  color: var(--mk-text);
+  font: 12.5px var(--sans);
+  cursor: pointer;
+  transition: background-color .22s var(--mk-ease-soft), color .22s var(--mk-ease-soft), border-color .22s var(--mk-ease-soft);
 }
+.mk-flow__tabs button:hover, .mk-flow__play:hover { border-color: var(--mk-accent); }
+.mk-flow__tab-provider { color: var(--mk-muted); font: 9.5px var(--mono); letter-spacing: .06em; }
+.mk-flow__tabs button[aria-pressed="true"] { border-color: var(--mk-text); background: var(--mk-text); color: var(--mk-bg); }
+.mk-flow__tabs button[aria-pressed="true"] .mk-flow__tab-provider { color: rgba(var(--mk-bg-rgb), .72); }
+.mk-flow__play { justify-content: center; width: 36px; padding: 0; }
 
-.mk-hero__try { margin-top: clamp(48px, 6vw, 80px); }
+/* Off screen or paused: every loop holds still. */
+.mk-flow.is-paused *, .mk-flow.is-paused *::before, .mk-flow.is-paused *::after { animation-play-state: paused !important; }
+
+/* Still frame (reduced motion): threads drawn, no pulses, no cursor. */
+.mk-flow.is-static .mk-thread--draw { stroke-dasharray: none; stroke-dashoffset: 0; animation: none; }
+.mk-flow.is-static .mk-thread-pulse,
+.mk-flow.is-static .mk-flow__cursor,
+.mk-flow.is-static .mk-flow__orbit { display: none; }
+
+/* ================================================ try it + marquee */
+
+.mk-hero__try { margin-top: clamp(56px, 7vw, 96px); }
 .mk-hero__try .mk-hero-try {
   max-width: 720px;
   margin: 0 auto;
@@ -332,65 +563,72 @@ html[data-theme='light'] .mk-hero__product .mk-preview-switch button:not([aria-p
   border-radius: var(--mk-r-lg);
   background: rgba(var(--mk-text-rgb), .025);
 }
-
 .mk-hero .mk-marquee { margin-top: clamp(48px, 6vw, 80px); }
 
-/* ------------------------------------------------------------ responsive */
+/* The workspace preview now lives in the Create section. */
+.mk-creation__workspace { display: grid; justify-items: center; gap: var(--mk-space-4); margin-top: clamp(48px, 6vw, 80px); }
+.mk-creation__workspace .mk-product-preview { width: min(860px, 100%); }
+html[data-theme='light'] .mk-creation__workspace .mk-preview-switch { background: rgba(27, 26, 23, .05); }
+html[data-theme='light'] .mk-creation__workspace .mk-preview-switch button:not([aria-pressed="true"]) { color: #5f594e; }
 
-@media (max-width: 1100px) {
-  .mk-thread-tile--live .mk-thread-tile__body { padding: 9px 14px 9px 11px; }
-  .mk-thread-tile--live small { font-size: 11px; }
+/* ========================================================= responsive */
+
+/* Wide screens: request on top, the mark under it, the draft in the middle, providers either side. */
+@media (min-width: 1081px) {
+  .mk-flow {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 420px) minmax(0, 1fr);
+    column-gap: clamp(72px, 7vw, 112px);
+    row-gap: 18px;
+  }
+  .mk-flow__core { grid-column: 2; grid-row: 2; margin: 78px 0 40px; }
+  .mk-flow__status { position: absolute; top: 28px; left: calc(50% + 66px); }
+  .mk-flow__draft { grid-column: 2; grid-row: 3 / 6; margin-bottom: 0; }
+  .mk-flow__caption { grid-row: 6; margin-top: 56px; }
+  .mk-flow__controls { grid-row: 7; }
+
+  .mk-flow-tile--google-forms { grid-column: 1; grid-row: 3; justify-self: end; margin-right: 6px; }
+  .mk-flow-tile--surveymonkey { grid-column: 1; grid-row: 4; justify-self: end; margin-right: 96px; }
+  .mk-flow-tile--googlesheets { grid-column: 1; grid-row: 5; justify-self: end; margin-right: 28px; }
+  .mk-flow-tile--typeform { grid-column: 3; grid-row: 3; justify-self: start; margin-left: 20px; margin-top: 30px; }
+  .mk-flow-tile--jira { grid-column: 3; grid-row: 4; justify-self: start; margin-left: 84px; }
+  .mk-flow-tile--n8n { grid-column: 3; grid-row: 5; justify-self: start; margin-left: 12px; }
+
+  /* A slow, uneven float, so the tiles feel placed by hand rather than on a grid. */
+  .mk-flow .mk-flow-tile .mk-flow-tile__body { animation: mk-tile-float 7s ease-in-out infinite; }
+  .mk-flow-tile--surveymonkey .mk-flow-tile__body { animation-delay: -1.4s !important; }
+  .mk-flow-tile--googlesheets .mk-flow-tile__body { animation-delay: -3.1s !important; }
+  .mk-flow-tile--typeform .mk-flow-tile__body { animation-delay: -2.2s !important; }
+  .mk-flow-tile--jira .mk-flow-tile__body { animation-delay: -4.6s !important; }
+  .mk-flow-tile--n8n .mk-flow-tile__body { animation-delay: -5.5s !important; }
 }
-
-/* Phones and narrow tablets: the threads collapse into one vertical flow. */
-@media (max-width: 820px) {
-  .mk-threads__stage {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    aspect-ratio: auto;
-  }
-  .mk-threads__svg { display: none; }
-  .mk-threads__core { position: relative; top: auto; left: auto; width: 76px; transform: none; }
-
-  .mk-threads__drop { display: block; width: 60px; height: 56px; overflow: visible; }
-
-  .mk-threads .mk-threads__tiles {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-    width: min(560px, 100%);
-  }
-  .mk-threads .mk-threads__tiles--soon { margin-top: 10px; }
-  .mk-thread-tile { position: relative; top: auto; left: auto; transform: none; }
-  .mk-thread-tile__body { height: 100%; white-space: normal; }
-  .mk-thread-tile--soon .mk-thread-tile__body { justify-content: flex-start; }
-  .mk-thread-tile--soon em { margin-left: auto; }
-
-  .mk-hero__product .mk-product-preview__workspace { grid-template-columns: minmax(0, 1fr); min-height: 0; }
-  .mk-hero__product .mk-preview-rail { display: none; }
+@keyframes mk-tile-float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -4px, 0); }
 }
 
 @media (max-width: 560px) {
   .mk-hero { padding-top: 40px; }
-  .mk-hero__center .mk-hero__lede { font-size: 16px; }
+  .mk-hero__center .mk-hero__lede { margin-top: var(--mk-space-5); font-size: 16px; }
   .mk-hero__center .mk-hero__actions { width: 100%; }
-  .mk-threads__request { padding: 14px 16px 16px; border-radius: 16px; }
-  .mk-thread-tile--live .mk-thread-tile__body { flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px; }
-  .mk-thread-tile--soon .mk-thread-tile__body { flex-wrap: wrap; }
-  .mk-threads__caption { font-size: 12.5px; }
+  .mk-hero__scribble path { stroke-width: 3.2; }
+  .mk-flow__request { padding: 14px 16px 18px; border-radius: 18px; }
+  .mk-flow__core { margin: 56px 0 28px; }
+  .mk-flow__draft { padding: 14px 14px 12px; border-radius: 18px; }
+  .mk-flow__draft-foot { flex-wrap: wrap; }
+  .mk-flow .mk-flow-tile--live .mk-flow-tile__body { flex-direction: column; align-items: flex-start; gap: 10px; padding: 12px; }
+  .mk-flow .mk-flow-tile--soon .mk-flow-tile__body { flex-wrap: wrap; }
+  .mk-flow__caption { font-size: 12.5px; }
+  .mk-flow__tab-provider { display: none; }
   .mk-hero__try .mk-hero-try { padding: var(--mk-space-4); border-radius: 20px; }
 }
 
-/* ---------------------------------------------------------- reduced motion
- * The static diagram: everything drawn, nothing moving, the sentence already written. */
+/* ===================================================== reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  .mk-thread--draw,
-  .mk-threads.is-drawn .mk-thread--draw { stroke-dasharray: none; stroke-dashoffset: 0; animation: none !important; }
-  .mk-thread-pulse, .mk-threads__core-ring { display: none; }
-  .mk-threads__soon-lines { opacity: 1; transition: none; }
-  .mk-thread-tile { opacity: 1; animation: none !important; }
-  .mk-thread-tile__body { animation: none !important; transition: none; }
+  .mk-hero__scribble path { stroke-dasharray: none; stroke-dashoffset: 0; animation: none; }
+  .mk-flow .mk-thread--draw { stroke-dasharray: none; stroke-dashoffset: 0; animation: none !important; }
+  .mk-flow .mk-thread-pulse, .mk-flow__cursor, .mk-flow__orbit { display: none; }
+  .mk-flow .mk-flow-tile .mk-flow-tile__body { animation: none !important; }
+  .mk-flow *, .mk-flow *::before, .mk-flow *::after { transition: none !important; }
 }
 
 /* The margin index waits until the hero has scrolled away. */

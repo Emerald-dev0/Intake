@@ -30,7 +30,7 @@ export function MarketingIndex() {
 
   useEffect(() => {
     if (typeof IntersectionObserver !== 'function') return;
-    const targets = [document.querySelector('.mk-hero__center'), document.querySelector('.mk-threads')]
+    const targets = [document.querySelector('.mk-hero__center'), document.querySelector('.mk-flow')]
       .filter((node): node is Element => node !== null);
     if (!targets.length) return;
     const visible = new Set<Element>();
