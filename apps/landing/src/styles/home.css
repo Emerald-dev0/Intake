@@ -361,6 +361,322 @@ html.lenis.lenis-smooth { scroll-behavior: auto !important; }
 .mk-why__more { margin-top: var(--mk-space-5); text-align: center; }
 .mk-why__more svg { flex: none; }
 
+
+/* ============================================================== How it works */
+
+.mk-how2__grid {
+  display: grid;
+  grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr);
+  gap: clamp(48px, 7vw, 120px);
+  padding-left: clamp(0px, 5vw, 88px);
+  scroll-margin-top: 110px;
+}
+
+/* The steps, on a rail that fills as the story moves on. */
+.mk-how2__steps {
+  position: relative;
+  margin: 0;
+  padding: 0 0 0 64px;
+  list-style: none;
+}
+.mk-how2__steps::before,
+.mk-how2__steps::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 17px;
+  width: 1px;
+  background: var(--mk-line-strong);
+  content: '';
+}
+.mk-how2__steps::after {
+  width: 2px;
+  left: 16.5px;
+  background: var(--mk-accent);
+  transform: scaleY(var(--progress, .33));
+  transform-origin: top;
+  transition: transform .9s var(--mk-ease);
+}
+
+.mk-how2__step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 72vh;
+  opacity: .3;
+  transition: opacity .6s var(--mk-ease);
+}
+.mk-how2__step.is-active { opacity: 1; }
+.mk-how2__num {
+  position: absolute;
+  top: 50%;
+  left: -64px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-top: -18px;
+  color: var(--mk-dim);
+  font: 11px/1 var(--mono);
+  letter-spacing: .04em;
+  background: var(--mk-bg);
+  border: 1px solid var(--mk-line-strong);
+  border-radius: var(--mk-pill);
+  transition: color .5s var(--mk-ease), background-color .5s var(--mk-ease), border-color .5s var(--mk-ease), transform .5s var(--mk-ease);
+}
+.mk-how2__step.is-active .mk-how2__num {
+  color: #fff;
+  background: var(--mk-accent);
+  border-color: var(--mk-accent);
+  transform: scale(1.08);
+}
+.mk-how2__step h3 {
+  margin: 0;
+  color: var(--mk-text);
+  font-family: var(--serif);
+  font-size: clamp(32px, 3.4vw, 48px);
+  font-weight: var(--mk-display-weight);
+  letter-spacing: -.03em;
+  line-height: 1;
+}
+.mk-how2__step p {
+  max-width: 30ch;
+  margin: var(--mk-space-4) 0 0;
+  color: var(--mk-muted);
+  font-size: var(--mk-fs-lede);
+  line-height: 1.5;
+}
+.mk-how2__inline { display: none; }
+
+.mk-how2__sticky {
+  position: sticky;
+  top: calc(50vh - 240px);
+  align-self: start;
+  margin-top: calc(36vh - 240px);
+}
+
+/* The demo card. Warm paper in both themes, like the product itself. */
+.mk-stage {
+  --mk-text: var(--mk-ink);
+  --mk-text-rgb: 27, 26, 23;
+  --mk-line: rgba(27, 26, 23, .1);
+  --mk-muted: #5f594e;
+  --mk-dim: #8a8478;
+  overflow: hidden;
+  color: var(--mk-ink);
+  background: var(--mk-paper);
+  border: 1px solid rgba(27, 26, 23, .08);
+  border-radius: 28px;
+  box-shadow: var(--mk-shadow-soft), 0 40px 90px -50px rgba(27, 26, 23, .35);
+}
+.mk-stage__top {
+  display: flex;
+  align-items: center;
+  gap: var(--mk-space-4);
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--mk-line);
+}
+.mk-stage__dots { display: flex; gap: 6px; }
+.mk-stage__dots i { width: 9px; height: 9px; background: rgba(27, 26, 23, .12); border-radius: var(--mk-pill); }
+.mk-stage__tabs { display: flex; gap: 4px; margin: 0 0 0 auto; padding: 0; list-style: none; }
+.mk-stage__tabs li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  color: var(--mk-dim);
+  font: 10px/1 var(--mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  border-radius: var(--mk-pill);
+  transition: color .4s var(--mk-ease), background-color .4s var(--mk-ease);
+}
+.mk-stage__tabs li span { opacity: .6; }
+.mk-stage__tabs li.is-done { color: var(--mk-muted); }
+.mk-stage__tabs li.is-active { color: #b34416; background: rgba(240, 78, 18, .1); }
+
+.mk-stage__body { position: relative; height: 430px; }
+.mk-stage__layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(22px, 2.6vw, 34px);
+  opacity: 0;
+  visibility: hidden;
+  transform: translate3d(0, 18px, 0) scale(.985);
+  transition: opacity .55s var(--mk-ease), transform .7s var(--mk-ease), visibility 0s linear .7s;
+}
+.mk-stage__layer.is-active {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-delay: .12s, .12s, 0s;
+}
+
+/* 01 · Describe */
+.mk-stage__label { color: var(--mk-dim); font: 10.5px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+.mk-stage__prompt {
+  margin: var(--mk-space-5) 0 0;
+  color: var(--mk-ink);
+  font-family: var(--serif);
+  font-size: clamp(22px, 2.1vw, 29px);
+  font-weight: 380;
+  letter-spacing: -.015em;
+  line-height: 1.3;
+}
+.mk-stage__caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -.12em;
+  background: var(--mk-accent);
+  animation: mk-stage-blink 1s steps(1) infinite;
+}
+@keyframes mk-stage-blink { 50% { opacity: 0; } }
+.mk-stage__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mk-space-3);
+  margin-top: auto;
+  padding-top: var(--mk-space-4);
+  border-top: 1px solid var(--mk-line);
+}
+.mk-stage__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  color: var(--mk-muted);
+  font-size: 12.5px;
+  background: #fffdf9;
+  border: 1px solid var(--mk-line);
+  border-radius: var(--mk-pill);
+}
+.mk-stage__chip svg, .mk-stage__go svg, .mk-stage__meta svg, .mk-stage__links svg { flex: none; }
+.mk-stage__go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  color: var(--mk-dim);
+  font-size: 13px;
+  font-weight: 550;
+  background: rgba(27, 26, 23, .06);
+  border-radius: var(--mk-pill);
+  transition: color .4s var(--mk-ease), background-color .4s var(--mk-ease), transform .4s var(--mk-ease);
+}
+.mk-stage__go.is-ready { color: #fff; background: var(--mk-accent); transform: translateY(-1px); }
+
+/* 02 · Review */
+.mk-stage__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--mk-dim);
+  font: 10.5px/1 var(--mono);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.mk-stage__draft { padding: 4px 9px; color: var(--mk-ink); border: 1px solid var(--mk-line); border-radius: var(--mk-pill); }
+.mk-stage__questions { display: grid; gap: 7px; margin: var(--mk-space-4) 0 0; padding: 0; list-style: none; }
+.mk-stage__questions li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  background: #fffdf9;
+  border: 1px solid var(--mk-line);
+  border-radius: 12px;
+}
+.mk-stage__n { color: var(--mk-dim); font: 10px/1 var(--mono); }
+.mk-stage__q { overflow: hidden; color: var(--mk-ink); text-overflow: ellipsis; white-space: nowrap; }
+.mk-stage__kind {
+  padding: 3px 8px;
+  color: var(--mk-muted);
+  font: 9.5px/1.4 var(--mono);
+  letter-spacing: .04em;
+  background: rgba(27, 26, 23, .05);
+  border-radius: var(--mk-pill);
+}
+.mk-stage__questions li.is-changed { border-color: rgba(240, 78, 18, .45); box-shadow: 0 0 0 3px rgba(240, 78, 18, .08); }
+.mk-stage__questions li.is-changed .mk-stage__kind { color: #fff; background: var(--mk-accent); }
+.mk-stage__ask {
+  align-self: flex-end;
+  margin-top: auto;
+  padding: 10px 15px;
+  color: #fffdf9;
+  font-size: 13px;
+  background: var(--mk-ink);
+  border-radius: 16px 16px 4px 16px;
+}
+.mk-stage__review.is-active .mk-stage__questions li {
+  animation: mk-item-in .55s var(--mk-ease) both;
+  animation-delay: calc(.18s + var(--i, 0) * 70ms);
+}
+.mk-stage__review.is-active .mk-stage__ask { animation: mk-item-in .55s var(--mk-ease) .7s both; }
+
+/* 03 · Confirm */
+.mk-stage__confirm { align-items: center; justify-content: center; text-align: center; }
+.mk-stage__done {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  color: var(--mk-accent);
+  background: rgba(240, 78, 18, .1);
+  border-radius: var(--mk-pill);
+}
+.mk-stage__done svg { flex: none; }
+.mk-stage__confirm.is-active .mk-stage__done { animation: mk-stage-pop .7s var(--mk-ease) .15s both; }
+@keyframes mk-stage-pop {
+  0% { transform: scale(.6); opacity: 0; }
+  60% { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.mk-stage__confirm strong {
+  margin-top: var(--mk-space-5);
+  color: var(--mk-ink);
+  font-family: var(--serif);
+  font-size: clamp(26px, 2.4vw, 32px);
+  font-weight: 400;
+  letter-spacing: -.02em;
+}
+.mk-stage__meta { display: inline-flex; align-items: center; gap: 8px; margin-top: var(--mk-space-2); color: var(--mk-muted); font-size: 13.5px; }
+.mk-stage__links { display: flex; gap: var(--mk-space-2); margin-top: var(--mk-space-6); }
+.mk-stage__links span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 15px;
+  color: var(--mk-ink);
+  font-size: 12.5px;
+  font-weight: 500;
+  background: #fffdf9;
+  border: 1px solid var(--mk-line);
+  border-radius: var(--mk-pill);
+}
+.mk-stage__links span:first-child { color: #fff; background: var(--mk-ink); border-color: var(--mk-ink); }
+
+/* The one-line footnote under the story. */
+.mk-how2__edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--mk-space-3) var(--mk-space-5);
+  margin-top: clamp(48px, 6vw, 88px);
+  text-align: center;
+}
+.mk-how2__edit p { margin: 0; color: var(--mk-muted); font-size: var(--mk-fs-body); }
+.mk-how2__edit svg { flex: none; }
+
 /* ============================================================== responsive */
 
 @media (max-width: 960px) {
@@ -384,6 +700,38 @@ html.lenis.lenis-smooth { scroll-behavior: auto !important; }
   .mk-why__compare-head { align-items: flex-start; flex-direction: column; }
 }
 
+
+@media (max-width: 960px) {
+  .mk-how2__grid { grid-template-columns: 1fr; padding-left: 0; }
+  .mk-how2__sticky { display: none; }
+  .mk-how2__steps { padding-left: 52px; }
+  .mk-how2__steps::before { left: 15px; }
+  .mk-how2__steps::after { left: 14.5px; }
+  .mk-how2__step { min-height: 0; padding-bottom: clamp(56px, 10vw, 88px); opacity: 1; }
+  .mk-how2__step:last-child { padding-bottom: 0; }
+  .mk-how2__num { top: 0; left: -52px; width: 32px; height: 32px; margin-top: 0; }
+  .mk-how2__inline { display: block; margin-top: var(--mk-space-6); }
+  /* Inline cards show one state each, so they size to it instead of reserving room for all three. */
+  .mk-how2__inline .mk-stage__body { height: auto; }
+  .mk-how2__inline .mk-stage__layer { position: relative; display: none; }
+  .mk-how2__inline .mk-stage__layer.is-active { display: flex; }
+  .mk-how2__inline .mk-stage__bar { margin-top: var(--mk-space-6); }
+  .mk-how2__inline .mk-stage__ask { margin-top: var(--mk-space-4); }
+  .mk-how2__inline .mk-stage__confirm { padding-block: var(--mk-space-7); }
+  /* Every step is on screen in turn here, so every number wears the accent. */
+  .mk-how2__step .mk-how2__num,
+  .mk-how2__step.is-active .mk-how2__num { color: var(--mk-accent); background: var(--mk-bg); border-color: var(--mk-accent-line); transform: none; }
+}
+
+@media (max-width: 560px) {
+  .mk-how2__steps { padding-left: 0; }
+  .mk-how2__steps::before, .mk-how2__steps::after { display: none; }
+  .mk-how2__num { position: static; margin-bottom: var(--mk-space-4); }
+  .mk-stage__tabs li span { display: none; }
+  .mk-stage__top { padding: 12px 14px; }
+  .mk-stage__prompt { font-size: 20px; }
+}
+
 /* ============================================================ reduced motion */
 
 @media (prefers-reduced-motion: reduce) {
@@ -391,4 +739,10 @@ html.lenis.lenis-smooth { scroll-behavior: auto !important; }
   .mk-reveal.is-in .mk-why__draft li { animation: none; }
   .mk-home .mk-reveal--rise { transform: none; }
   .mk-why__feature:hover .mk-why__icon { transform: none; }
+  .mk-how2__steps::after, .mk-how2__step, .mk-how2__num, .mk-stage__layer, .mk-stage__tabs li, .mk-stage__go { transition: none; }
+  .mk-stage__caret { animation: none; }
+  .mk-stage__review.is-active .mk-stage__questions li,
+  .mk-stage__review.is-active .mk-stage__ask,
+  .mk-stage__confirm.is-active .mk-stage__done { animation: none; }
+  .mk-stage__layer { transform: none; }
 }

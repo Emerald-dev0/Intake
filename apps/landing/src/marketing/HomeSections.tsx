@@ -1,14 +1,18 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
 import {
   ArrowRight01Icon,
+  CheckmarkCircle02Icon,
+  Copy01Icon,
   Cursor01Icon,
+  LinkSquare02Icon,
   LockKeyIcon,
   PencilEdit02Icon,
   Tick02Icon,
   UserCheck01Icon,
 } from '@hugeicons/core-free-icons';
-import { COMPARISON_ROWS } from '../content/site';
+import { COMPARISON_ROWS, PROOF_EXAMPLE } from '../content/site';
+import { GoogleFormsLogo } from '../components/ProviderLogos';
 import { Reveal } from './MarketingSections';
 
 /**
@@ -183,6 +187,164 @@ export function WhySection() {
             <a className="mk-text-link" href="/vs">Read the full comparison <Icon icon={ArrowRight01Icon} size={14} /></a>
           </Reveal>
         </div>
+      </div>
+    </section>
+  );
+}
+
+/* ============================================================== How it works */
+
+const HOW_STEPS = [
+  { label: 'Describe', title: 'Describe it', text: 'Write it like you’d explain it to a colleague. One sentence is usually enough.' },
+  { label: 'Review', title: 'Review the draft', text: 'See the questions Intake understood. Ask for changes in plain English.' },
+  { label: 'Confirm', title: 'Confirm', text: 'One click builds it in your Google Forms or Typeform — or updates the form you picked.' },
+] as const;
+
+/** The draft tweak shown in the Review step: one plain-English change, applied to one question. */
+const CHANGED_QUESTION = 1;
+const CHANGE_REQUEST = 'Make “Class” a dropdown';
+
+function prefersReducedMotion() {
+  return typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+/** Types `text` while `active`; otherwise (or with reduced motion) shows all of it at once. */
+function useTyping(text: string, active: boolean) {
+  const [count, setCount] = useState(text.length);
+  useEffect(() => {
+    if (!active || prefersReducedMotion()) { setCount(text.length); return; }
+    setCount(0);
+    let index = 0;
+    const timer = window.setInterval(() => {
+      index += 2;
+      setCount(Math.min(index, text.length));
+      if (index >= text.length) window.clearInterval(timer);
+    }, 28);
+    return () => window.clearInterval(timer);
+  }, [text, active]);
+  return { shown: text.slice(0, count), done: count >= text.length };
+}
+
+/**
+ * The demo card for How it works. It holds all three states and cross-fades between them, so a
+ * step change is a transition, not a re-render. Decorative: the section text says the same thing,
+ * and the worked example is repeated for screen readers in the section itself.
+ */
+function HowStage({ step, animate }: { step: number; animate: boolean }) {
+  const { shown, done } = useTyping(PROOF_EXAMPLE.prompt, animate && step === 0);
+  return (
+    <div className={`mk-stage is-step-${step}`} aria-hidden="true">
+      <div className="mk-stage__top">
+        <span className="mk-stage__dots"><i /><i /><i /></span>
+        <ol className="mk-stage__tabs">
+          {HOW_STEPS.map((item, index) => (
+            <li key={item.label} className={index === step ? 'is-active' : index < step ? 'is-done' : ''}>
+              <span>{String(index + 1).padStart(2, '0')}</span>{item.label}
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      <div className="mk-stage__body">
+        <div className={`mk-stage__layer mk-stage__describe${step === 0 ? ' is-active' : ''}`}>
+          <span className="mk-stage__label">Describe your form</span>
+          <p className="mk-stage__prompt">{shown}{!done && <i className="mk-stage__caret" />}</p>
+          <div className="mk-stage__bar">
+            <span className="mk-stage__chip"><GoogleFormsLogo size={14} label={null} />Google Forms</span>
+            <span className={`mk-stage__go${done ? ' is-ready' : ''}`}>Draft it <Icon icon={ArrowRight01Icon} size={14} /></span>
+          </div>
+        </div>
+
+        <div className={`mk-stage__layer mk-stage__review${step === 1 ? ' is-active' : ''}`}>
+          <div className="mk-stage__head">
+            <span className="mk-stage__draft">DRAFT</span>
+            <span>{PROOF_EXAMPLE.questions.length} questions</span>
+          </div>
+          <ol className="mk-stage__questions">
+            {PROOF_EXAMPLE.questions.map((question, index) => (
+              <li key={question.title} className={index === CHANGED_QUESTION ? 'is-changed' : ''} style={{ '--i': index } as CSSProperties}>
+                <span className="mk-stage__n">{String(index + 1).padStart(2, '0')}</span>
+                <span className="mk-stage__q">{question.title}</span>
+                <span className="mk-stage__kind">{question.kind}</span>
+              </li>
+            ))}
+          </ol>
+          <div className="mk-stage__ask">{CHANGE_REQUEST}</div>
+        </div>
+
+        <div className={`mk-stage__layer mk-stage__confirm${step === 2 ? ' is-active' : ''}`}>
+          <span className="mk-stage__done"><Icon icon={CheckmarkCircle02Icon} size={34} /></span>
+          <strong>Created in Google Forms</strong>
+          <span className="mk-stage__meta"><GoogleFormsLogo size={14} label={null} />Parent check-in · {PROOF_EXAMPLE.questions.length} questions</span>
+          <div className="mk-stage__links">
+            <span><Icon icon={LinkSquare02Icon} size={14} />Open form</span>
+            <span><Icon icon={Copy01Icon} size={14} />Copy link</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Which step sits on the middle line of the viewport. Falls back to the first. */
+function useActiveStep(count: number) {
+  const refs = useRef<Array<HTMLLIElement | null>>([]);
+  const [active, setActive] = useState(0);
+  useEffect(() => {
+    if (typeof IntersectionObserver !== 'function') return;
+    const observer = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const index = refs.current.indexOf(entry.target as HTMLLIElement);
+        if (index >= 0) setActive(index);
+      }
+    }, { rootMargin: '-48% 0px -48% 0px', threshold: 0 });
+    refs.current.slice(0, count).forEach(node => node && observer.observe(node));
+    return () => observer.disconnect();
+  }, [count]);
+  return { refs, active };
+}
+
+export function HowItWorksSection() {
+  const { refs, active } = useActiveStep(HOW_STEPS.length);
+  return (
+    <section className="mk-section mk-home mk-how2" id="how-it-works" aria-labelledby="mk-how2-title">
+      <div className="mk-container">
+        <HomeHead eyebrow="HOW IT WORKS" id="mk-how2-title" title={<>You decide. Intake <em>types</em>.</>}>
+          Three steps, and nothing happens without you.
+        </HomeHead>
+
+        <div className="mk-how2__grid" id="proof">
+          <ol className="mk-how2__steps" style={{ '--progress': (active + 0.5) / HOW_STEPS.length } as CSSProperties}>
+            {HOW_STEPS.map((item, index) => (
+              <li
+                key={item.title}
+                ref={node => { refs.current[index] = node; }}
+                className={`mk-how2__step${index === active ? ' is-active' : ''}`}
+              >
+                <span className="mk-how2__num">{String(index + 1).padStart(2, '0')}</span>
+                <h3>{item.title}</h3>
+                <p>{item.text}</p>
+                <div className="mk-how2__inline"><HowStage step={index} animate={false} /></div>
+              </li>
+            ))}
+          </ol>
+          <div className="mk-how2__sticky">
+            <HowStage step={active} animate />
+          </div>
+        </div>
+
+        <p className="mk-sr-only">
+          A real example: the description “{PROOF_EXAMPLE.prompt}” became a draft of {PROOF_EXAMPLE.questions.length} questions —
+          {' '}{PROOF_EXAMPLE.questions.map(question => `${question.title} (${question.kind})`).join(', ')}.
+        </p>
+
+        <Reveal className="mk-how2__edit" variant="fade">
+          <p>Editing works the same way: Intake reads the form, shows the change, then applies it.</p>
+          <a className="mk-text-link" href="#editing">See an edit <Icon icon={ArrowRight01Icon} size={14} /></a>
+        </Reveal>
       </div>
     </section>
   );

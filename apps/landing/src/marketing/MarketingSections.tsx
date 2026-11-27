@@ -1,6 +1,6 @@
-import { useEffect, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import { useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { FAQS, COMING_SOON, HERO_DEMO_PROMPTS, LIVE_PROVIDERS, PROOF_EXAMPLE, PROMPT_EXAMPLES, ROADMAP_NOTE, ROADMAP_PROVIDERS, USE_CASES, WORKFLOW_STEPS, type DemoProposal } from '../content/site';
+import { FAQS, COMING_SOON, HERO_DEMO_PROMPTS, LIVE_PROVIDERS, PROMPT_EXAMPLES, ROADMAP_NOTE, ROADMAP_PROVIDERS, USE_CASES, type DemoProposal } from '../content/site';
 import { NotifyForm } from './NotifyForm';
 import { formatUsd } from '../lib/plans';
 import { useBillingPlans, comparePlanPrices } from '../lib/useBillingPlans';
@@ -360,76 +360,6 @@ export function Hero({ authenticated }: { authenticated: boolean }) {
 
 
 /**
- * Types the example prompt character by character, then reveals the proposal.
- * With reduced motion (or no JavaScript timing) the full text simply appears.
- */
-function Typewriter({ text }: { text: string }) {
-  const [shown, setShown] = useState(text);
-  const [done, setDone] = useState(true);
-
-  useEffect(() => {
-    if (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    setShown('');
-    setDone(false);
-    let index = 0;
-    const timer = window.setInterval(() => {
-      index += 2;
-      setShown(text.slice(0, index));
-      if (index >= text.length) { window.clearInterval(timer); setDone(true); }
-    }, 36);
-    return () => window.clearInterval(timer);
-  }, [text]);
-
-  return (
-    <p>“{shown}{!done && <i className="mk-caret" aria-hidden="true" />}{done && <span className="mk-proof__done">Proposal ready ↓</span>}”</p>
-  );
-}
-
-/**
- * Before/after proof: one prompt on the left, the question list it produced on
- * the right. A worked example, not a live call — it replaces explaining with proof.
- */
-export function ProofSection() {
-  return (
-    <section className="mk-section mk-proof" id="proof" aria-labelledby="mk-proof-title">
-      <div className="mk-container">
-        <SectionIntro eyebrow="PROOF, NOT PROMISES" titleId="mk-proof-title" title={<>One sentence in. A question list out.</>}>
-          This is a real example of what a description becomes. Type your own in the box above and see another.
-        </SectionIntro>
-        <div className="mk-proof__grid">
-          <Reveal className="mk-proof__before" variant="fade">
-            <div className="mk-request-card mk-request-card--large">
-              <span>BEFORE · THE PROMPT</span>
-              <Typewriter text={PROOF_EXAMPLE.prompt} />
-            </div>
-          </Reveal>
-          <Reveal className="mk-proof__after" delay={140} variant="rise">
-            <div className="mk-review-card">
-              <div className="mk-review-card__head">
-                <span>AFTER · THE PROPOSAL</span>
-                <span className="mk-chip mk-chip--warm">SAMPLE</span>
-              </div>
-              <ul className="mk-preview-questions">
-                {PROOF_EXAMPLE.questions.map((question, index) => (
-                  <li key={question.title} style={{ '--i': index } as CSSProperties}>
-                    <span className="mk-preview-question__number">{String(index + 1).padStart(2, '0')}</span>
-                    <span className="mk-preview-question__body">
-                      <strong>{question.title}</strong>
-                      <small>{question.kind}{question.detail ? ` · ${question.detail}` : ''}</small>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <div className="mk-review-card__note"><Check /> You would now rewrite, drop, or confirm each one.</div>
-            </div>
-          </Reveal>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/**
  * What's next, with an email capture. Each item is something visitors asked
  * for; the list tells Intake what to build first.
  */
@@ -463,35 +393,6 @@ function RepeatCta({ authenticated, label }: { authenticated: boolean; label: st
       <span>{label}</span>
       <StartLink authenticated={authenticated} className="mk-button mk-button--primary" />
     </div>
-  );
-}
-
-export function HowItWorks({ authenticated }: { authenticated: boolean }) {
-  return (
-    <section className="mk-section mk-how" id="how-it-works" aria-labelledby="mk-how-title">
-      <div className="mk-container">
-        <SectionIntro eyebrow="FOUR STEPS, NO GUESSWORK" titleId="mk-how-title" title={<>Describe. Understand. Adjust. Create.</>}>
-          You stay in the loop the whole way through. Intake does the typing, you make the decisions.
-        </SectionIntro>
-        <ol className="mk-steps">
-          {WORKFLOW_STEPS.map((step, index) => (
-            <Reveal as="li" className="mk-step" key={step.title} delay={index * 110} variant="rise">
-              <span className="mk-step__number">{String(index + 1).padStart(2, '0')}</span>
-              <h3>{step.title}</h3>
-              <p>{step.body}</p>
-            </Reveal>
-          ))}
-        </ol>
-        <Reveal className="mk-how__edit-note" delay={140} variant="fade">
-          <span className="mk-how__edit-mark" aria-hidden="true">↳</span>
-          <p>Editing is the same story: Intake reads the form first, shows the change, then applies it.</p>
-          <a href="#editing">See an edit example <Arrow /></a>
-        </Reveal>
-        <Reveal delay={200} variant="fade">
-          <RepeatCta authenticated={authenticated} label="Understood the loop? Your first form is one sentence away." />
-        </Reveal>
-      </div>
-    </section>
   );
 }
 

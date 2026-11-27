@@ -10,13 +10,11 @@ import {
   FinalCTA,
   ProviderConnection,
   Hero,
-  HowItWorks,
   PricingSection,
-  ProofSection,
   TrustSection,
   UseCaseSection,
 } from './MarketingSections';
-import { WhySection } from './HomeSections';
+import { HowItWorksSection, WhySection } from './HomeSections';
 import { useSmoothScroll } from './useSmoothScroll';
 import { usePublicSession } from './usePublicSession';
 import { useSiteAnalytics } from '../lib/analytics';
@@ -34,8 +32,7 @@ export default function MarketingHome() {
       <main id="main-content" tabIndex={-1}>
         <Hero authenticated={authenticated} />
         <WhySection />
-        <ProofSection />
-        <HowItWorks authenticated={authenticated} />
+        <HowItWorksSection />
         <CreationDemo authenticated={authenticated} />
         <EditingDemo />
         <UseCaseSection authenticated={authenticated} />

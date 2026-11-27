@@ -757,14 +757,10 @@ html[data-theme='light'] .mk-edit-proposal__note { color: #5f594e; }
 .mk-compare__table thead .is-intake .mk-compare__th-label { color: var(--mk-accent-2); font-weight: 650; }
 
 /* Before/after proof: one prompt, the question list it produced. */
-.mk-proof__grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 20px; align-items: stretch; margin-top: 8px; }
-.mk-proof__before .mk-request-card, .mk-proof__after .mk-review-card { height: 100%; }
 .mk-request-card--large { padding: 22px 24px; }
 .mk-request-card--large p { font-size: 17px; line-height: 1.65; min-height: 8.2em; }
-.mk-proof__done { display: block; margin-top: 12px; color: var(--mk-accent-2); font: 10px var(--mono); letter-spacing: .12em; }
 @media (max-width: 1000px) {
-  .mk-proof__grid { grid-template-columns: minmax(0, 1fr); }
-  .mk-request-card--large p { min-height: 0; }
+    .mk-request-card--large p { min-height: 0; }
 }
 
 /* Phone-first story and trust line: progressive enhancement, hidden on desktop. */
@@ -1049,7 +1045,6 @@ html[data-theme='light'] .mk-edit-proposal__note { color: #5f594e; }
 
 /* How it works */
 
-.mk-how { background: var(--mk-bg); }
 /*
  * Four steps read as a ledger, not as four identical cards: the number in the gutter, the title in
  * the measure, the body in the wide column, one hairline between rows.
@@ -1094,11 +1089,6 @@ html[data-theme='light'] .mk-edit-proposal__note { color: #5f594e; }
   line-height: 1.1;
 }
 .mk-step p { margin: 0; max-width: 54ch; color: var(--mk-muted); font-size: 14px; line-height: 1.66; }
-.mk-how__edit-note { display: flex; align-items: center; gap: 14px; margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--mk-line); }
-.mk-how__edit-mark { color: var(--mk-accent); font-size: 20px; }
-.mk-how__edit-note p { flex: 1; margin: 0; color: var(--mk-dim); font-size: 12.5px; line-height: 1.55; }
-.mk-how__edit-note a { display: inline-flex; flex: none; align-items: center; gap: 7px; color: var(--mk-muted); font-size: 12.5px; }
-.mk-how__edit-note a:hover { color: var(--mk-accent-2); }
 
 /* Creation — the one light spread on the page */
 
@@ -1679,7 +1669,6 @@ html[data-theme='light'] .mk-edit-proposal__note { color: #5f594e; }
  */
 
 @media (min-width: 1000px) {
-  .mk-how > .mk-container,
   .mk-editing > .mk-container,
   .mk-pricing > .mk-container {
     display: grid;
@@ -1687,7 +1676,6 @@ html[data-theme='light'] .mk-edit-proposal__note { color: #5f594e; }
     column-gap: clamp(34px, 5vw, 92px);
     align-items: start;
   }
-  .mk-how > .mk-container > .mk-section-intro,
   .mk-editing > .mk-container > .mk-editing__heading,
   .mk-pricing > .mk-container > .mk-pricing__heading {
     grid-column: 1;
@@ -1695,15 +1683,12 @@ html[data-theme='light'] .mk-edit-proposal__note { color: #5f594e; }
     position: sticky;
     top: 104px;
   }
-  .mk-how > .mk-container > :not(.mk-section-intro),
   .mk-editing > .mk-container > :not(.mk-editing__heading),
   .mk-pricing > .mk-container > :not(.mk-pricing__heading) { grid-column: 2; }
 
   /* In a rail a heading is a label for what is beside it, not a full-width statement. */
-  .mk-how .mk-section-intro h2,
   .mk-editing .mk-section-intro h2,
   .mk-pricing .mk-section-intro h2 { font-size: clamp(28px, 3vw, 44px); }
-  .mk-how .mk-section-intro,
   .mk-pricing .mk-pricing__heading .mk-section-intro { max-width: 34rem; }
 
   .mk-pricing__heading { flex-direction: column; align-items: flex-start; gap: 18px; }
