@@ -1,17 +1,18 @@
 import { MarketingFooter, MarketingNav } from './MarketingChrome';
 import { MarketingIndex } from './MarketingIndex';
 import { MobileActionBar } from './MobileActionBar';
+import { Hero } from './MarketingSections';
 import {
-  ComingSoonSection,
-  ControlSection,
-  FAQSection,
-  FinalCTA,
-  ProviderConnection,
-  Hero,
-  PricingSection,
-  TrustSection,
-} from './MarketingSections';
-import { CreateEditSection, HowItWorksSection, WhySection } from './HomeSections';
+  ControlTrustSection,
+  CreateEditSection,
+  FaqHomeSection,
+  FinalBand,
+  HowItWorksSection,
+  PricingHomeSection,
+  ProvidersSection,
+  UpdatesSection,
+  WhySection,
+} from './HomeSections';
 import { useSmoothScroll } from './useSmoothScroll';
 import { usePublicSession } from './usePublicSession';
 import { useSiteAnalytics } from '../lib/analytics';
@@ -31,13 +32,12 @@ export default function MarketingHome() {
         <WhySection />
         <HowItWorksSection />
         <CreateEditSection authenticated={authenticated} />
-        <ControlSection />
-        <TrustSection />
-        <ProviderConnection authenticated={authenticated} />
-        <PricingSection authenticated={authenticated} />
-        <ComingSoonSection />
-        <FAQSection authenticated={authenticated} />
-        <FinalCTA authenticated={authenticated} />
+        <ControlTrustSection />
+        <ProvidersSection />
+        <PricingHomeSection authenticated={authenticated} />
+        <FaqHomeSection authenticated={authenticated} />
+        <UpdatesSection />
+        <FinalBand authenticated={authenticated} />
       </main>
       <MarketingFooter authenticated={authenticated} />
       <MobileActionBar authenticated={authenticated} />
