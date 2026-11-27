@@ -17,12 +17,14 @@ import {
   UseCaseSection,
 } from './MarketingSections';
 import { WhySection } from './HomeSections';
+import { useSmoothScroll } from './useSmoothScroll';
 import { usePublicSession } from './usePublicSession';
 import { useSiteAnalytics } from '../lib/analytics';
 
 export default function MarketingHome() {
   const authenticated = usePublicSession();
   useSiteAnalytics('/');
+  useSmoothScroll();
 
   return (
     <div className="marketing-page">
