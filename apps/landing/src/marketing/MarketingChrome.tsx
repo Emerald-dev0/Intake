@@ -24,13 +24,11 @@ export function StartLink({
 }
 
 const MAIN_LINKS = [
-  ['Why Intake', '#product'],
-  ['How it works', '#how-it-works'],
-  ['Create', '#creation'],
-  ['Edit', '#editing'],
-  ['Providers', '#providers'],
-  ['Pricing', '#pricing'],
-  ['FAQ', '#faq'],
+  // Five links and no more: the page itself carries the rest. Section links carry the path so they
+  // also work from the pricing, changelog and developer pages.
+  ['How it works', '/#how-it-works'],
+  ['Pricing', '/#pricing'],
+  ['FAQ', '/#faq'],
   // The changelog is its own page, with a permanent page per release — so it is a link and not
   // a section of this one.
   ['Changelog', '/changelog'],

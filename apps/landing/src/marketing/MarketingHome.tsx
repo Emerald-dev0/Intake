@@ -4,17 +4,14 @@ import { MobileActionBar } from './MobileActionBar';
 import {
   ComingSoonSection,
   ControlSection,
-  CreationDemo,
-  EditingDemo,
   FAQSection,
   FinalCTA,
   ProviderConnection,
   Hero,
   PricingSection,
   TrustSection,
-  UseCaseSection,
 } from './MarketingSections';
-import { HowItWorksSection, WhySection } from './HomeSections';
+import { CreateEditSection, HowItWorksSection, WhySection } from './HomeSections';
 import { useSmoothScroll } from './useSmoothScroll';
 import { usePublicSession } from './usePublicSession';
 import { useSiteAnalytics } from '../lib/analytics';
@@ -33,9 +30,7 @@ export default function MarketingHome() {
         <Hero authenticated={authenticated} />
         <WhySection />
         <HowItWorksSection />
-        <CreationDemo authenticated={authenticated} />
-        <EditingDemo />
-        <UseCaseSection authenticated={authenticated} />
+        <CreateEditSection authenticated={authenticated} />
         <ControlSection />
         <TrustSection />
         <ProviderConnection authenticated={authenticated} />

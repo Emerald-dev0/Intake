@@ -677,6 +677,247 @@ html.lenis.lenis-smooth { scroll-behavior: auto !important; }
 .mk-how2__edit p { margin: 0; color: var(--mk-muted); font-size: var(--mk-fs-body); }
 .mk-how2__edit svg { flex: none; }
 
+
+/* ============================================================ Create & edit */
+
+.mk-make .mk-head { margin-bottom: var(--mk-space-7); }
+
+/* The switch: two equal halves and one orange thumb that slides between them. */
+.mk-make__switch-wrap { display: flex; justify-content: center; margin-bottom: var(--mk-space-6); }
+.mk-preview-switch.mk-make__switch {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 0;
+  padding: 4px;
+  background: var(--mk-card);
+  border: 1px solid var(--mk-line);
+  box-shadow: var(--mk-shadow-soft);
+}
+.mk-preview-switch.mk-make__switch button {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 150px;
+  min-height: 42px;
+  padding: 0 20px;
+  color: var(--mk-muted);
+  font-size: 14px;
+  font-weight: 550;
+  background: transparent;
+  transition: color .35s var(--mk-ease);
+}
+.mk-preview-switch.mk-make__switch button svg { flex: none; }
+.mk-preview-switch.mk-make__switch button[aria-pressed="true"] { color: #fff; background: transparent; }
+.mk-make__thumb {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  background: var(--mk-accent);
+  border-radius: var(--mk-pill);
+  box-shadow: 0 6px 16px -8px rgba(240, 78, 18, .7);
+  transition: transform .5s var(--mk-ease);
+}
+.mk-make__thumb[data-mode="edit"] { transform: translateX(100%); }
+
+/* The workspace window: warm paper in both themes, like the product. */
+.mk-make__window {
+  --mk-text: var(--mk-ink);
+  --mk-text-rgb: 27, 26, 23;
+  --mk-line: rgba(27, 26, 23, .1);
+  --mk-muted: #5f594e;
+  --mk-dim: #8a8478;
+  position: relative;
+  max-width: 1080px;
+  margin: 0 auto;
+  overflow: hidden;
+  color: var(--mk-ink);
+  background: var(--mk-paper);
+  border: 1px solid rgba(27, 26, 23, .08);
+  border-radius: 28px;
+  box-shadow: var(--mk-shadow-soft), 0 50px 110px -60px rgba(27, 26, 23, .4);
+}
+.mk-make__anchor { position: absolute; top: -120px; }
+.mk-make__chrome {
+  display: flex;
+  align-items: center;
+  gap: var(--mk-space-4);
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--mk-line);
+}
+.mk-make__dots { display: flex; gap: 6px; }
+.mk-make__dots i { width: 9px; height: 9px; background: rgba(27, 26, 23, .12); border-radius: var(--mk-pill); }
+.mk-make__crumb { color: var(--mk-dim); font-size: 13px; }
+.mk-make__crumb b { color: var(--mk-ink); font-family: var(--serif); font-size: 15px; font-weight: 500; }
+.mk-make__provider {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  padding: 5px 11px;
+  color: var(--mk-muted);
+  font-size: 12px;
+  background: #fffdf9;
+  border: 1px solid var(--mk-line);
+  border-radius: var(--mk-pill);
+}
+.mk-make__provider svg { flex: none; }
+
+.mk-make__body {
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+  min-height: 470px;
+}
+.mk-make__ask {
+  display: flex;
+  flex-direction: column;
+  padding: clamp(24px, 3vw, 44px);
+  border-right: 1px solid var(--mk-line);
+  animation: mk-item-in .6s var(--mk-ease) both;
+}
+.mk-make__label { display: block; color: var(--mk-dim); font: 10.5px/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+.mk-make__quote {
+  margin: var(--mk-space-5) 0 0;
+  color: var(--mk-ink);
+  font-family: var(--serif);
+  font-size: clamp(21px, 2vw, 27px);
+  font-weight: 380;
+  letter-spacing: -.015em;
+  line-height: 1.32;
+}
+.mk-make__hint { margin-top: auto; padding-top: var(--mk-space-5); color: var(--mk-dim); font-size: 13px; }
+.mk-make__hint span { color: var(--mk-accent); }
+
+.mk-make__result { padding: clamp(20px, 2.6vw, 36px); background: rgba(27, 26, 23, .025); }
+.mk-make__result-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--mk-space-4); }
+.mk-make__result-head strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--mk-ink);
+  font-family: var(--serif);
+  font-size: clamp(22px, 2vw, 28px);
+  font-weight: 400;
+  letter-spacing: -.02em;
+}
+.mk-make__draft { padding: 4px 10px; color: #b34416; font: 10px/1.4 var(--mono); letter-spacing: .1em; background: rgba(240, 78, 18, .1); border-radius: var(--mk-pill); }
+
+.mk-make__list { display: grid; gap: 7px; margin: var(--mk-space-5) 0 0; padding: 0; list-style: none; }
+.mk-make__list > li:not(.mk-make__new),
+.mk-make__new-inner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  font-size: 13.5px;
+  background: #fffdf9;
+  border: 1px solid var(--mk-line);
+  border-radius: 12px;
+}
+.mk-make__list > li:not(.mk-make__new) { animation: mk-item-in .5s var(--mk-ease) both; animation-delay: calc(.12s + var(--i, 0) * 60ms); }
+.mk-make__n { display: inline-grid; place-items: center; min-width: 18px; color: var(--mk-dim); font: 10px/1 var(--mono); }
+.mk-make__q { overflow: hidden; color: var(--mk-ink); text-overflow: ellipsis; white-space: nowrap; }
+.mk-make__kind { padding: 3px 9px; color: var(--mk-muted); font: 9.5px/1.4 var(--mono); background: rgba(27, 26, 23, .05); border-radius: var(--mk-pill); }
+
+/* Edit: the new question opens a gap and slides into it, after the one it follows. */
+.mk-make__new {
+  display: grid;
+  grid-template-rows: 0fr;
+  animation: mk-make-open .7s var(--mk-ease) .55s both;
+}
+.mk-make__new-inner {
+  min-height: 0;
+  overflow: hidden;
+  grid-template-areas: 'n q kind' '. where where';
+  row-gap: 4px;
+  border-color: rgba(240, 78, 18, .5);
+  box-shadow: 0 0 0 3px rgba(240, 78, 18, .08);
+}
+.mk-make__new .mk-make__n { color: #fff; background: var(--mk-accent); border-radius: var(--mk-pill); width: 20px; height: 20px; }
+.mk-make__new .mk-make__n svg { flex: none; }
+.mk-make__new .mk-make__kind { color: #fff; background: var(--mk-accent); }
+.mk-make__where { grid-area: where; color: #b34416; font: 10px/1.4 var(--mono); letter-spacing: .04em; }
+@keyframes mk-make-open {
+  from { grid-template-rows: 0fr; opacity: 0; margin-block: -3.5px; }
+  to { grid-template-rows: 1fr; opacity: 1; margin-block: 0; }
+}
+
+.mk-make__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mk-space-3);
+  padding: 14px 20px;
+  color: var(--mk-muted);
+  font-size: 13px;
+  border-top: 1px solid var(--mk-line);
+}
+.mk-make__foot > span:first-child { display: inline-flex; align-items: center; gap: 8px; }
+.mk-make__foot svg { flex: none; color: var(--mk-accent); }
+.mk-make__confirm { padding: 9px 18px; color: #fff; font-size: 13px; font-weight: 550; background: var(--mk-ink); border-radius: var(--mk-pill); }
+
+.mk-make__cta { margin-top: var(--mk-space-6); text-align: center; }
+
+/* Steal a prompt. */
+.mk-prompts { margin-top: clamp(88px, 10vw, 144px); scroll-margin-top: 110px; }
+.mk-prompts__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--mk-space-3); margin-bottom: var(--mk-space-5); }
+.mk-prompts__head h3 {
+  margin: 0;
+  color: var(--mk-text);
+  font-family: var(--serif);
+  font-size: clamp(26px, 2.6vw, 36px);
+  font-weight: 400;
+  letter-spacing: -.025em;
+}
+.mk-prompts__head p { margin: 0; color: var(--mk-muted); font-size: var(--mk-fs-body); }
+.mk-prompts__row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--mk-space-3); margin: 0; padding: 0; list-style: none; }
+.mk-prompts__row > li { display: flex; }
+.mk-prompts__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mk-space-3);
+  width: 100%;
+  padding: 20px 20px 52px;
+  color: var(--mk-text);
+  text-decoration: none;
+  background: var(--mk-card);
+  border: 1px solid var(--mk-line);
+  border-radius: 20px;
+  transition: transform .4s var(--mk-ease), border-color .4s var(--mk-ease);
+}
+.mk-prompts__card:hover { transform: translateY(-4px); border-color: var(--mk-accent-line); }
+.mk-prompts__text {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--mk-muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+.mk-prompts__go {
+  position: absolute;
+  bottom: 16px;
+  left: 20px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: var(--mk-accent);
+  background: var(--mk-accent-tint);
+  border-radius: var(--mk-pill);
+  transition: transform .4s var(--mk-ease), background-color .4s var(--mk-ease), color .4s var(--mk-ease);
+}
+.mk-prompts__go svg { flex: none; }
+.mk-prompts__card:hover .mk-prompts__go { color: #fff; background: var(--mk-accent); transform: translateX(4px); }
+
 /* ============================================================== responsive */
 
 @media (max-width: 960px) {
@@ -732,6 +973,35 @@ html.lenis.lenis-smooth { scroll-behavior: auto !important; }
   .mk-stage__prompt { font-size: 20px; }
 }
 
+
+@media (max-width: 960px) {
+  .mk-make__body { grid-template-columns: 1fr; min-height: 0; }
+  .mk-make__ask { border-right: 0; border-bottom: 1px solid var(--mk-line); }
+  .mk-make__hint { margin-top: var(--mk-space-5); padding-top: 0; }
+  /* Prompts become a swipeable strip. */
+  .mk-prompts__row {
+    display: flex;
+    margin-inline: calc(clamp(24px, 6vw, 72px) / -2);
+    padding: 4px calc(clamp(24px, 6vw, 72px) / 2) 8px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+  .mk-prompts__row::-webkit-scrollbar { display: none; }
+  .mk-prompts__row > li { flex: 0 0 min(260px, 72vw); scroll-snap-align: start; }
+}
+
+@media (max-width: 560px) {
+  .mk-preview-switch.mk-make__switch button { min-width: 0; padding: 0 14px; font-size: 13px; }
+  .mk-make__crumb { display: none; }
+  .mk-make__q { white-space: normal; }
+  .mk-make__list > li:not(.mk-make__new), .mk-make__new-inner { grid-template-columns: auto minmax(0, 1fr); }
+  .mk-make__list .mk-make__kind { grid-column: 2; justify-self: start; }
+  .mk-make__new-inner { grid-template-areas: 'n q' '. kind' '. where'; }
+  .mk-make__foot { justify-content: center; text-align: center; }
+  .mk-make__confirm { width: 100%; text-align: center; }
+}
+
 /* ============================================================ reduced motion */
 
 @media (prefers-reduced-motion: reduce) {
@@ -745,4 +1015,8 @@ html.lenis.lenis-smooth { scroll-behavior: auto !important; }
   .mk-stage__review.is-active .mk-stage__ask,
   .mk-stage__confirm.is-active .mk-stage__done { animation: none; }
   .mk-stage__layer { transform: none; }
+  .mk-make__thumb, .mk-prompts__card, .mk-prompts__go { transition: none; }
+  .mk-make__ask, .mk-make__list > li:not(.mk-make__new), .mk-make__new { animation: none; }
+  .mk-make__new { grid-template-rows: 1fr; }
+  .mk-prompts__card:hover, .mk-prompts__card:hover .mk-prompts__go { transform: none; }
 }

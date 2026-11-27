@@ -8,12 +8,16 @@ import {
   LinkSquare02Icon,
   LockKeyIcon,
   PencilEdit02Icon,
+  PlusSignIcon,
+  QuillWrite01Icon,
   Tick02Icon,
   UserCheck01Icon,
 } from '@hugeicons/core-free-icons';
-import { COMPARISON_ROWS, PROOF_EXAMPLE } from '../content/site';
+import { Link } from 'react-router-dom';
+import { COMPARISON_ROWS, PROOF_EXAMPLE, USE_CASES } from '../content/site';
 import { GoogleFormsLogo } from '../components/ProviderLogos';
 import { Reveal } from './MarketingSections';
+import { StartLink } from './MarketingChrome';
 
 /**
  * The redesigned homepage sections that come after the hero.
@@ -345,6 +349,162 @@ export function HowItWorksSection() {
           <p>Editing works the same way: Intake reads the form, shows the change, then applies it.</p>
           <a className="mk-text-link" href="#editing">See an edit <Icon icon={ArrowRight01Icon} size={14} /></a>
         </Reveal>
+      </div>
+    </section>
+  );
+}
+
+/* ============================================================ Create & edit */
+
+type Mode = 'create' | 'edit';
+
+const CREATE_REQUEST = 'Create an employee onboarding survey. Ask for department, role, onboarding satisfaction, what was confusing, what we should improve, and whether they need additional help.';
+const CREATE_QUESTIONS = [
+  { title: 'Department', kind: 'Short answer' },
+  { title: 'Role', kind: 'Short answer' },
+  { title: 'Overall onboarding satisfaction', kind: 'Multiple choice' },
+  { title: 'What felt confusing?', kind: 'Paragraph' },
+  { title: 'What should we improve?', kind: 'Paragraph' },
+  { title: 'Do you need additional help?', kind: 'Multiple choice' },
+] as const;
+
+const EDIT_REQUEST = 'Add a question asking whether the customer wants a follow-up call, and place it after the satisfaction rating.';
+const EXISTING_QUESTIONS = [
+  { title: 'Overall satisfaction', kind: 'Multiple choice' },
+  { title: 'What did you like about the product?', kind: 'Paragraph' },
+  { title: 'What could we improve?', kind: 'Paragraph' },
+] as const;
+
+function DraftRow({ index, title, kind }: { index: number; title: string; kind: string }) {
+  return (
+    <li style={{ '--i': index } as CSSProperties}>
+      <span className="mk-make__n">{String(index + 1).padStart(2, '0')}</span>
+      <span className="mk-make__q">{title}</span>
+      <span className="mk-make__kind">{kind}</span>
+    </li>
+  );
+}
+
+/** The use-case prompts, one tap from the composer for signed-in visitors. */
+function PromptCard({ audience, prompt, authenticated }: { audience: string; prompt: string; authenticated: boolean }) {
+  const body = (
+    <>
+      <span className="mk-eyebrow">{audience}</span>
+      <span className="mk-prompts__text">“{prompt}”</span>
+      <span className="mk-prompts__go" aria-hidden="true"><Icon icon={ArrowRight01Icon} size={14} /></span>
+    </>
+  );
+  return authenticated
+    ? <Link className="mk-prompts__card" to="/app/forms" state={{ initialPrompt: prompt }}>{body}</Link>
+    : <a className="mk-prompts__card" href="/auth/sign-up">{body}</a>;
+}
+
+export function CreateEditSection({ authenticated }: { authenticated: boolean }) {
+  const [mode, setMode] = useState<Mode>('create');
+
+  // Links elsewhere on the page that point at the edit example open it on the Edit tab.
+  useEffect(() => {
+    const open = (event: MouseEvent) => {
+      const link = (event.target as Element | null)?.closest?.('a[href$="#editing"]');
+      if (link) setMode('edit');
+    };
+    if (window.location.hash === '#editing') setMode('edit');
+    document.addEventListener('click', open);
+    return () => document.removeEventListener('click', open);
+  }, []);
+
+  const create = mode === 'create';
+  return (
+    <section className="mk-section mk-home mk-make" id="creation" aria-labelledby="mk-make-title">
+      <div className="mk-container">
+        <HomeHead eyebrow="CREATE OR EDIT" id="mk-make-title" title={<>A new form, or the one you <em>have</em>.</>}>
+          Describe a fresh form, or the change you want. Same review step either way.
+        </HomeHead>
+
+        <Reveal className="mk-make__switch-wrap" variant="rise">
+          <div className="mk-preview-switch mk-make__switch" role="group" aria-label="Choose an example">
+            <button type="button" aria-pressed={create} onClick={() => setMode('create')}>
+              <Icon icon={QuillWrite01Icon} size={15} />Create
+            </button>
+            <button type="button" aria-pressed={!create} onClick={() => setMode('edit')}>
+              <Icon icon={PencilEdit02Icon} size={15} />Edit existing
+            </button>
+            <span className="mk-make__thumb" data-mode={mode} aria-hidden="true" />
+          </div>
+        </Reveal>
+
+        <Reveal className="mk-make__window" variant="rise" delay={120}>
+          <div id="editing" className="mk-make__anchor" />
+          <div className="mk-make__chrome">
+            <span className="mk-make__dots" aria-hidden="true"><i /><i /><i /></span>
+            <span className="mk-make__crumb"><b>intake</b> / {create ? 'New form' : 'Customer feedback'}</span>
+            <span className="mk-make__provider"><GoogleFormsLogo size={13} label={null} />Google Forms</span>
+          </div>
+
+          <div className="mk-make__body" key={mode}>
+            <div className="mk-make__ask">
+              <span className="mk-make__label">{create ? 'Your request' : 'Requested change'}</span>
+              <p className="mk-make__quote">“{create ? CREATE_REQUEST : EDIT_REQUEST}”</p>
+              <span className="mk-make__hint">
+                <span aria-hidden="true">↳</span> {create ? 'Written as a brief. Intake works out the structure.' : 'Intake reads the form first, then proposes the edit.'}
+              </span>
+            </div>
+
+            <div className="mk-make__result">
+              <div className="mk-make__result-head">
+                <div>
+                  <span className="mk-make__label">{create ? 'What Intake understood' : 'Your Google Form'}</span>
+                  <strong>{create ? 'Employee onboarding' : 'Customer feedback'}</strong>
+                </div>
+                <span className="mk-make__draft">DRAFT</span>
+              </div>
+
+              {create ? (
+                <ol className="mk-make__list">
+                  {CREATE_QUESTIONS.map((question, index) => <DraftRow key={question.title} index={index} {...question} />)}
+                </ol>
+              ) : (
+                <ol className="mk-make__list">
+                  <DraftRow index={0} {...EXISTING_QUESTIONS[0]} />
+                  <li className="mk-make__new" style={{ '--i': 1 } as CSSProperties}>
+                    <div className="mk-make__new-inner">
+                      <span className="mk-make__n"><Icon icon={PlusSignIcon} size={12} /></span>
+                      <span className="mk-make__q">Would you like a follow-up call?</span>
+                      <span className="mk-make__kind">Multiple choice · Yes / No</span>
+                      <span className="mk-make__where">Goes after “Overall satisfaction”</span>
+                    </div>
+                  </li>
+                  {EXISTING_QUESTIONS.slice(1).map((question, index) => <DraftRow key={question.title} index={index + 2} {...question} />)}
+                </ol>
+              )}
+            </div>
+          </div>
+
+          <div className="mk-make__foot">
+            <span><Icon icon={Tick02Icon} size={14} />{create ? 'Nothing is created until you confirm.' : 'Applied to this same form. Links stay the same.'}</span>
+            <span className="mk-make__confirm" aria-hidden="true">{create ? 'Confirm & create' : 'Confirm & apply'}</span>
+          </div>
+        </Reveal>
+
+        <Reveal className="mk-make__cta" variant="fade" delay={160}>
+          <StartLink authenticated={authenticated} className="mk-text-link">Try it with your own idea</StartLink>
+        </Reveal>
+
+        <div className="mk-prompts" id="use-cases">
+          <Reveal className="mk-prompts__head" variant="rise">
+            <h3 id="mk-prompts-title">Steal a prompt</h3>
+            <p>Made for the form you need this week.</p>
+          </Reveal>
+          <Reveal variant="rise" delay={100}>
+            <ul className="mk-prompts__row" aria-labelledby="mk-prompts-title">
+              {USE_CASES.map(useCase => (
+                <li key={useCase.audience}>
+                  <PromptCard audience={useCase.audience} prompt={useCase.prompt} authenticated={authenticated} />
+                </li>
+              ))}
+            </ul>
+          </Reveal>
+        </div>
       </div>
     </section>
   );
