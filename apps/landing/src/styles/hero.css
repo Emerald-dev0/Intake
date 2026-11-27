@@ -31,49 +31,9 @@
   text-align: center;
 }
 
-.mk-hero__pill {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--mk-space-2);
-  min-height: 32px;
-  padding: 0 var(--mk-space-4) 0 var(--mk-space-3);
-  border: 1px solid var(--mk-line-strong);
-  border-radius: var(--mk-pill);
-  background: rgba(var(--mk-bg-rgb), .72);
-  color: var(--mk-text);
-  font: var(--mk-fs-eyebrow)/1 var(--mono);
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  transition: border-color .24s var(--mk-ease-soft), transform .24s var(--mk-ease);
-}
-.mk-hero__pill:hover { border-color: var(--mk-accent); transform: translate3d(0, -1px, 0); }
-.mk-hero__pill i {
-  position: relative;
-  width: 7px;
-  height: 7px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--mk-accent);
-}
-.mk-hero__pill i::after {
-  position: absolute;
-  inset: -4px;
-  border: 1px solid var(--mk-accent);
-  border-radius: 50%;
-  content: '';
-  opacity: 0;
-  animation: mk-pill-ping 2.8s var(--mk-ease-soft) infinite;
-}
-.mk-hero__pill-sep, .mk-hero__pill-soft { color: var(--mk-muted); }
-
-@keyframes mk-pill-ping {
-  0% { opacity: .7; transform: scale(.6); }
-  70%, 100% { opacity: 0; transform: scale(1.5); }
-}
-
 .mk-hero h1 {
   max-width: none;
-  margin: var(--mk-space-5) 0 0;
+  margin: 0;
   font-size: var(--mk-fs-display);
   font-weight: var(--mk-display-weight);
   letter-spacing: -.04em;
@@ -413,7 +373,6 @@ html[data-theme='light'] .mk-hero__product .mk-preview-switch button:not([aria-p
 
 @media (max-width: 560px) {
   .mk-hero { padding-top: 40px; }
-  .mk-hero__pill { font-size: 9.5px; letter-spacing: .1em; }
   .mk-hero__center .mk-hero__lede { font-size: 16px; }
   .mk-hero__center .mk-hero__actions { width: 100%; }
   .mk-threads__request { padding: 14px 16px 16px; border-radius: 16px; }
@@ -432,8 +391,6 @@ html[data-theme='light'] .mk-hero__product .mk-preview-switch button:not([aria-p
   .mk-threads__soon-lines { opacity: 1; transition: none; }
   .mk-thread-tile { opacity: 1; animation: none !important; }
   .mk-thread-tile__body { animation: none !important; transition: none; }
-  .mk-hero__pill i::after { display: none; }
-  .mk-hero__pill { transition: none; }
 }
 
 /* The margin index waits until the hero has scrolled away. */

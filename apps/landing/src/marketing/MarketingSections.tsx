@@ -314,15 +314,9 @@ export function Hero({ authenticated }: { authenticated: boolean }) {
   return (
     <section className="mk-hero" id="top" aria-labelledby="mk-hero-title">
       <div className="mk-container mk-hero__center">
-        <a className="mk-hero__pill mk-anim-in" href="#providers" style={{ '--d': '40ms' } as CSSProperties}>
-          <i aria-hidden="true" />
-          <span>Google Forms &amp; Typeform live</span>
-          <span className="mk-hero__pill-sep" aria-hidden="true">·</span>
-          <span className="mk-hero__pill-soft">4 more next</span>
-        </a>
         <h1 id="mk-hero-title">
-          <span className="mk-anim-in" style={{ '--d': '120ms' } as CSSProperties}>Tell Intake what you need.</span>
-          <span className="mk-hero__accent mk-anim-in" style={{ '--d': '220ms' } as CSSProperties}>It builds the form for you.</span>
+          <span className="mk-anim-in" style={{ '--d': '60ms' } as CSSProperties}>Tell Intake what you need.</span>
+          <span className="mk-hero__accent mk-anim-in" style={{ '--d': '160ms' } as CSSProperties}>It builds the form for you.</span>
         </h1>
         <p className="mk-hero__lede mk-anim-in" style={{ '--d': '320ms' } as CSSProperties}>
           Write one plain-English sentence. Intake shows you the questions, you change what you like, and only then does the form appear in your account.
