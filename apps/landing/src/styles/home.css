@@ -1,0 +1,365 @@
+/*
+ * Redesigned homepage sections, after the hero.
+ *
+ * Reads only the shared tokens at the top of marketing.css (type scale, spacing, radii, shadows,
+ * accent). Each section keeps to the same vocabulary: one soft panel, rounded cards with hairline
+ * borders and a very light shadow, mono eyebrows, serif headings. Motion is transform and opacity,
+ * and every loop stops under prefers-reduced-motion (bottom of this file).
+ */
+
+.marketing-page {
+  /* Card surfaces shared by the sections below, so light and dark stay in step. */
+  --mk-card: rgba(var(--mk-text-rgb), .028);
+  --mk-card-hover: rgba(var(--mk-text-rgb), .05);
+  --mk-card-solid: #121412;
+  --mk-panel: rgba(var(--mk-text-rgb), .022);
+  --mk-r-card: 22px;
+  --mk-accent-tint: rgba(255, 90, 31, .1);
+  --mk-accent-line: rgba(255, 90, 31, .32);
+}
+html[data-theme='light'] .marketing-page {
+  --mk-card: #fffdf9;
+  --mk-card-hover: #ffffff;
+  --mk-card-solid: #fffdf9;
+  --mk-panel: rgba(var(--mk-text-rgb), .03);
+  --mk-accent-tint: rgba(240, 78, 18, .09);
+  --mk-accent-line: rgba(240, 78, 18, .3);
+}
+
+/* ================================================================ Why Intake */
+
+.mk-why__panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  margin-top: var(--mk-space-8);
+  padding: var(--mk-space-3);
+  background: var(--mk-panel);
+  border: 1px solid var(--mk-line);
+  border-radius: var(--mk-r-2xl);
+}
+
+.mk-why__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: clamp(22px, 2.6vw, 36px);
+  border-radius: calc(var(--mk-r-2xl) - var(--mk-space-3));
+}
+.mk-why__card--hand { color: var(--mk-muted); }
+.mk-why__card--intake {
+  --mk-text: var(--mk-ink);
+  --mk-text-rgb: 27, 26, 23;
+  color: var(--mk-ink);
+  background: var(--mk-paper);
+  border: 1px solid rgba(27, 26, 23, .08);
+  box-shadow: var(--mk-shadow-soft);
+}
+.mk-why__card .mk-eyebrow { margin-top: var(--mk-space-6); }
+.mk-why__card--intake .mk-eyebrow { color: #b34416; }
+.mk-why__card h3 {
+  margin: var(--mk-space-2) 0 var(--mk-space-4);
+  color: var(--mk-text);
+  font-family: var(--serif);
+  font-size: clamp(26px, 2.5vw, 34px);
+  font-weight: 400;
+  letter-spacing: -.025em;
+  line-height: 1.05;
+}
+.mk-why__card--hand h3 { color: var(--mk-muted); }
+.mk-why__card--intake h3 { color: var(--mk-ink); }
+
+.mk-why__steps { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.mk-why__steps li {
+  display: flex;
+  align-items: center;
+  gap: var(--mk-space-3);
+  padding: 11px 0;
+  border-top: 1px solid var(--mk-line);
+  font-size: var(--mk-fs-small);
+  line-height: 1.45;
+}
+.mk-why__steps li:first-child { border-top: 0; }
+.mk-why__steps svg { flex: none; }
+.mk-why__card--hand .mk-why__steps svg { color: var(--mk-dim); }
+.mk-why__card--intake .mk-why__steps li { border-top-color: rgba(27, 26, 23, .1); color: #3d3a33; }
+.mk-why__card--intake .mk-why__steps svg {
+  box-sizing: content-box;
+  padding: 3px;
+  color: #fff;
+  background: var(--mk-accent);
+  border-radius: var(--mk-pill);
+}
+
+/* The orange bridge between the two ways of working. */
+.mk-why__bridge {
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  align-self: center;
+  width: 46px;
+  height: 46px;
+  margin-inline: calc(var(--mk-space-5) * -1 + var(--mk-space-2));
+  color: #fff;
+  background: var(--mk-accent);
+  border: 5px solid var(--mk-bg);
+  border-radius: var(--mk-pill);
+  box-sizing: content-box;
+}
+.mk-why__bridge svg { flex: none; }
+
+/* Sketches: tiny drawings of each way of working. Decorative only. */
+.mk-why__sketch {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: var(--mk-space-2);
+  min-height: 176px;
+  padding: var(--mk-space-4);
+  border-radius: 16px;
+}
+.mk-why__sketch--hand {
+  background: rgba(var(--mk-text-rgb), .03);
+  border: 1px dashed var(--mk-line-strong);
+}
+.mk-why__ghost {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mk-space-3);
+  padding: 9px 12px;
+  color: var(--mk-dim);
+  font-size: 12px;
+  background: rgba(var(--mk-text-rgb), .035);
+  border: 1px solid var(--mk-line);
+  border-radius: 10px;
+}
+.mk-why__ghost:nth-child(2) { opacity: .7; }
+.mk-why__ghost:nth-child(3) { opacity: .45; }
+.mk-why__ghost i {
+  padding: 2px 8px;
+  font: 9.5px/1.6 var(--mono);
+  font-style: normal;
+  letter-spacing: .04em;
+  border: 1px solid var(--mk-line);
+  border-radius: var(--mk-pill);
+}
+.mk-why__add {
+  justify-self: start;
+  margin-top: 2px;
+  padding: 6px 12px;
+  color: var(--mk-muted);
+  font-size: 11.5px;
+  border: 1px solid var(--mk-line-strong);
+  border-radius: var(--mk-pill);
+}
+.mk-why__cursor {
+  position: absolute;
+  left: 112px;
+  bottom: 14px;
+  color: var(--mk-text);
+  animation: mk-why-click 3.2s var(--mk-ease-soft) infinite;
+}
+@keyframes mk-why-click {
+  0%, 100% { transform: translate(0, 0); }
+  45% { transform: translate(-14px, -6px); }
+  55% { transform: translate(-14px, -6px) scale(.86); }
+  65% { transform: translate(-14px, -6px); }
+}
+
+.mk-why__sketch--intake {
+  background: #f7f1e6;
+  border: 1px solid rgba(27, 26, 23, .07);
+}
+.mk-why__say {
+  justify-self: start;
+  max-width: 100%;
+  padding: 9px 14px;
+  color: #fff;
+  font-size: 12.5px;
+  line-height: 1.35;
+  background: var(--mk-ink);
+  border-radius: 14px 14px 14px 4px;
+}
+.mk-why__draft { display: grid; gap: 6px; margin: 4px 0 0; padding: 0; list-style: none; }
+.mk-why__draft li {
+  display: flex;
+  align-items: center;
+  gap: var(--mk-space-2);
+  padding: 7px 10px;
+  color: #2d2a24;
+  font-size: 12px;
+  background: #fffdf9;
+  border: 1px solid rgba(27, 26, 23, .08);
+  border-radius: 10px;
+}
+.mk-why__draft svg { flex: none; color: var(--mk-accent); }
+.mk-why__ready {
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  gap: 4px;
+  margin-top: 2px;
+  color: #b34416;
+  font: 10px/1 var(--mono);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.mk-why__ready svg { flex: none; }
+
+/* The draft lines settle in one by one when the card arrives. */
+.mk-reveal.is-in .mk-why__draft li { animation: mk-item-in .5s var(--mk-ease) both; }
+.mk-reveal.is-in .mk-why__draft li:nth-child(1) { animation-delay: calc(var(--d, 0ms) + 260ms); }
+.mk-reveal.is-in .mk-why__draft li:nth-child(2) { animation-delay: calc(var(--d, 0ms) + 380ms); }
+.mk-reveal.is-in .mk-why__draft li:nth-child(3) { animation-delay: calc(var(--d, 0ms) + 500ms); }
+
+/* Three differences. */
+.mk-why__features {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--mk-space-4);
+  margin: var(--mk-space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.mk-why__feature {
+  padding: clamp(20px, 2.2vw, 28px);
+  background: var(--mk-card);
+  border: 1px solid var(--mk-line);
+  border-radius: var(--mk-r-card);
+  transition: transform .35s var(--mk-ease), border-color .35s var(--mk-ease), background-color .35s var(--mk-ease);
+}
+.mk-why__feature.is-in:hover {
+  transform: translateY(-3px);
+  background: var(--mk-card-hover);
+  border-color: var(--mk-accent-line);
+}
+.mk-why__icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  color: var(--mk-accent);
+  background: var(--mk-accent-tint);
+  border-radius: 12px;
+}
+.mk-why__icon svg { flex: none; }
+.mk-why__feature h3 {
+  margin: var(--mk-space-5) 0 var(--mk-space-2);
+  color: var(--mk-text);
+  font-size: 16.5px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  line-height: 1.3;
+}
+.mk-why__feature p { margin: 0; color: var(--mk-muted); font-size: 14px; line-height: 1.6; }
+
+/* The comparison table, restyled for this section only (the /vs page keeps its own look). */
+.mk-why__compare { margin-top: var(--mk-space-9); scroll-margin-top: 96px; }
+.mk-why__compare-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  align-items: end;
+  gap: var(--mk-space-6);
+  margin-bottom: var(--mk-space-6);
+}
+.mk-why__compare-head h3 {
+  margin: 0;
+  color: var(--mk-text);
+  font-family: var(--serif);
+  font-size: clamp(28px, 3vw, 40px);
+  font-weight: 400;
+  letter-spacing: -.028em;
+  line-height: 1.05;
+}
+.mk-why__compare-head p { max-width: 52ch; margin: 0; color: var(--mk-muted); font-size: 15px; line-height: 1.65; }
+
+.mk-why .mk-compare__scroll {
+  background: var(--mk-card-solid);
+  border: 1px solid var(--mk-line);
+  border-radius: var(--mk-r-card);
+  box-shadow: var(--mk-shadow-soft);
+}
+.mk-why .mk-compare__scroll:focus-visible { outline-offset: 3px; }
+.mk-why .mk-compare__table { table-layout: fixed; background: transparent; font-size: 13.5px; }
+.mk-why .mk-compare__table thead th:nth-child(1) { width: 19%; }
+.mk-why .mk-compare__table thead th:nth-child(2) { width: 25%; }
+.mk-why .mk-compare__table caption { padding: 16px 22px; font-size: 12px; }
+.mk-why .mk-compare__table th,
+.mk-why .mk-compare__table td { padding: 16px 20px; color: var(--mk-muted); }
+.mk-why .mk-compare__table thead th {
+  color: var(--mk-dim);
+  font: 500 10.5px/1.4 var(--mono);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.mk-why .mk-compare__table tbody th { color: var(--mk-text); font-weight: 550; }
+.mk-why .mk-compare__table .is-intake {
+  color: var(--mk-text);
+  font-weight: 500;
+  background: var(--mk-accent-tint);
+  box-shadow: inset 1px 0 var(--mk-accent-line), inset -1px 0 var(--mk-accent-line);
+}
+.mk-why .mk-compare__table thead .is-intake .mk-compare__th-label {
+  display: inline-block;
+  padding: 3px 10px;
+  color: #fff;
+  background: var(--mk-accent);
+  border-radius: var(--mk-pill);
+}
+.mk-why__yes {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 8px;
+  color: #fff;
+  vertical-align: -4px;
+  background: var(--mk-accent);
+  border-radius: var(--mk-pill);
+}
+.mk-why__yes svg { flex: none; }
+
+@media (max-width: 960px) {
+  .mk-why__features { grid-template-columns: 1fr; }
+  .mk-why__feature { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--mk-space-4); }
+  .mk-why__feature .mk-why__icon { grid-row: span 2; }
+  .mk-why__feature h3 { margin-top: 2px; }
+  .mk-why__compare-head { grid-template-columns: 1fr; gap: var(--mk-space-3); }
+}
+
+@media (max-width: 780px) {
+  .mk-why__panel { grid-template-columns: 1fr; margin-top: var(--mk-space-7); padding: var(--mk-space-2); }
+  .mk-why__card { border-radius: calc(var(--mk-r-2xl) - var(--mk-space-2)); }
+  .mk-why__bridge {
+    justify-self: center;
+    margin: calc(var(--mk-space-5) * -1 + var(--mk-space-1)) 0;
+    transform: rotate(90deg);
+  }
+  .mk-why__compare { margin-top: var(--mk-space-8); }
+  /* The capability column stays put while the rest of the table scrolls under it. */
+  .mk-why .mk-compare__table tbody th,
+  .mk-why .mk-compare__table thead th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    min-width: 130px;
+    background: var(--mk-card-solid);
+    box-shadow: 1px 0 var(--mk-line), inset 0 -1px var(--mk-line);
+  }
+}
+
+@media (max-width: 560px) {
+  .mk-why__sketch { min-height: 0; }
+  .mk-why__feature { display: block; }
+}
+
+/* ============================================================ reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .mk-why__cursor { animation: none; }
+  .mk-reveal.is-in .mk-why__draft li { animation: none; }
+  .mk-why__feature { transition: none; }
+  .mk-why__feature.is-in:hover { transform: none; }
+}

@@ -3,10 +3,8 @@ import { MarketingIndex } from './MarketingIndex';
 import { MobileActionBar } from './MobileActionBar';
 import {
   ComingSoonSection,
-  CompareSection,
   ControlSection,
   CreationDemo,
-  DifferenceSection,
   EditingDemo,
   FAQSection,
   FinalCTA,
@@ -18,6 +16,7 @@ import {
   TrustSection,
   UseCaseSection,
 } from './MarketingSections';
+import { WhySection } from './HomeSections';
 import { usePublicSession } from './usePublicSession';
 import { useSiteAnalytics } from '../lib/analytics';
 
@@ -32,9 +31,8 @@ export default function MarketingHome() {
       <MarketingIndex />
       <main id="main-content" tabIndex={-1}>
         <Hero authenticated={authenticated} />
-        <DifferenceSection />
+        <WhySection />
         <ProofSection />
-        <CompareSection />
         <HowItWorks authenticated={authenticated} />
         <CreationDemo authenticated={authenticated} />
         <EditingDemo />

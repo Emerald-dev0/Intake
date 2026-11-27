@@ -125,7 +125,6 @@ html[data-theme='light'] .marketing-page {
 /** Light theme: hardcoded dark surfaces become paper cards; light-ink accents go terracotta. */
 html[data-theme='light'] .mk-sheet__panel,
 html[data-theme='light'] .mk-product-preview,
-html[data-theme='light'] .mk-workflow-compare,
 html[data-theme='light'] .mk-reveal.mk-price-card {
   background: #fffdf9;
 }
@@ -136,8 +135,6 @@ html[data-theme='light'] .mk-editing__request > span,
 html[data-theme='light'] .mk-edit-proposal__change > span { color: #9a5a30; }
 html[data-theme='light'] .mk-edit-proposal .mk-review-card__head,
 html[data-theme='light'] .mk-edit-proposal__note { color: #5f594e; }
-html[data-theme='light'] .mk-workflow-compare__column--intake .mk-eyebrow { color: #b34416; }
-html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
 
 .marketing-page [id] { scroll-margin-top: 92px; }
 .marketing-page :focus-visible { outline: 2px solid var(--mk-accent); outline-offset: 3px; }
@@ -225,8 +222,7 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
 .mk-reveal.is-out > h2 { animation: none; }
 
 /* Staggered children inside a revealed row: the number lands before the words. */
-.mk-reveal.is-in .mk-step__number,
-.mk-reveal.is-in .mk-difference__icon {
+.mk-reveal.is-in .mk-step__number {
   animation: mk-item-in .5s var(--mk-ease) both;
   animation-delay: calc(var(--d, 0ms) + 180ms);
 }
@@ -1050,108 +1046,6 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
   line-height: 1.7;
 }
 
-/* Difference */
-
-.mk-difference__intro {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(240px, .75fr);
-  align-items: end;
-  gap: clamp(26px, 4vw, 56px);
-}
-.mk-difference__aside {
-  max-width: 30ch;
-  margin: 0 0 6px;
-  color: #cfccc3;
-  font-family: var(--serif);
-  font-style: italic;
-  font-size: clamp(17px, 1.5vw, 21px);
-  font-variation-settings: 'opsz' 30, 'SOFT' 40, 'WONK' 1;
-  line-height: 1.45;
-}
-.mk-workflow-compare {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 62px minmax(0, 1fr);
-  margin-top: clamp(30px, 3.8vw, 52px);
-  overflow: hidden;
-  border: 1px solid var(--mk-line-strong);
-  border-radius: var(--mk-r-lg);
-  background: #0e100e;
-}
-.mk-reveal.mk-workflow-compare__column { padding: clamp(22px, 2.6vw, 38px); }
-.mk-workflow-compare__column h3 {
-  margin: 14px 0 20px;
-  color: var(--mk-text);
-  font-size: clamp(17px, 1.5vw, 20px);
-  font-weight: 500;
-  letter-spacing: -.026em;
-}
-.mk-workflow-compare__column ol { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; counter-reset: workflow; }
-.mk-workflow-compare__column li {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  gap: 10px;
-  padding: 11px 0;
-  border-top: 1px solid var(--mk-line);
-  color: var(--mk-muted);
-  font-size: 13px;
-  line-height: 1.55;
-  counter-increment: workflow;
-}
-.mk-workflow-compare__column li:first-child { border-top: 0; padding-top: 0; }
-.mk-workflow-compare__column li::before { color: var(--mk-dim); font: 9.5px/1.9 var(--mono); content: counter(workflow, decimal-leading-zero); }
-.mk-workflow-compare__divider { display: grid; place-items: center; border-inline: 1px solid var(--mk-line); }
-.mk-workflow-compare__arrow {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border: 1px solid rgba(255, 90, 31, .3);
-  border-radius: 50%;
-  color: var(--mk-accent);
-  background: rgba(255, 90, 31, .08);
-}
-.mk-workflow-compare__column--intake { background: rgba(255, 90, 31, .045); }
-.mk-workflow-compare__column--intake .mk-eyebrow { color: #e09a78; }
-.mk-workflow-compare__column--intake li::before { color: var(--mk-accent); }
-
-/* A ledger, not a card grid: hairline rows with a number in the gutter. */
-.mk-difference__features {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0 clamp(20px, 2.4vw, 34px);
-  margin: clamp(34px, 4vw, 54px) 0 0;
-  padding: 0;
-  list-style: none;
-}
-.mk-reveal.mk-difference__feature {
-  display: grid;
-  grid-template-columns: 26px minmax(0, 1fr);
-  align-content: start;
-  gap: 10px;
-  padding: 20px 0 22px;
-  border-top: 1px solid var(--mk-line-strong);
-  transition: opacity .72s var(--mk-ease), border-color .3s var(--mk-ease-soft);
-}
-.mk-reveal.mk-difference__feature.is-in { border-top-color: rgba(255, 90, 31, .45); }
-/* The icon square becomes a short accent rule: a ledger tick, not a badge. */
-.mk-difference__icon {
-  display: block;
-  width: 22px;
-  height: 1px;
-  margin-top: 11px;
-  background: var(--mk-accent);
-  transition: width .42s var(--mk-ease);
-}
-.mk-reveal.mk-difference__feature.is-in:hover .mk-difference__icon { width: 40px; }
-.mk-difference__icon i { display: none; }
-.mk-difference__feature h3 {
-  margin: 0;
-  color: var(--mk-text);
-  font-size: 15px;
-  font-weight: 550;
-  letter-spacing: -.018em;
-}
-.mk-difference__feature p { margin: 8px 0 0; color: var(--mk-dim); font-size: 12.5px; line-height: 1.62; }
 
 /* How it works */
 
@@ -1838,7 +1732,6 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
   .mk-nav-links { gap: 0; }
   /* One more link in the bar: the padding comes down before the type does. */
   .mk-nav-links a { padding-inline: 7px; font-size: 12.5px; }
-  .mk-difference__features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .mk-reveal.mk-step { grid-template-columns: 3rem minmax(0, 1fr) minmax(0, 1.2fr); }
   .mk-edit-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .mk-section-intro { padding-left: 3.6rem; }
@@ -1862,15 +1755,10 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
 }
 
 @media (max-width: 960px) {
-  .mk-workflow-compare { grid-template-columns: minmax(0, 1fr); }
-  .mk-workflow-compare__divider { border-inline: 0; border-block: 1px solid var(--mk-line); padding: 14px 0; }
-  .mk-workflow-compare__arrow { transform: rotate(90deg); }
   .mk-creation__heading, .mk-editing__heading, .mk-pricing__heading { flex-direction: column; align-items: flex-start; gap: 18px; }
   .mk-creation__grid { grid-template-columns: minmax(0, 1fr); }
   .mk-price-grid { grid-template-columns: minmax(0, 1fr); }
   .mk-reveal.mk-credit-guide { grid-template-columns: minmax(0, 1fr); }
-  .mk-difference__intro { grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
-  .mk-difference__aside { margin: 0; }
   .mk-footer__top { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr); }
   .mk-footer__column--providers { grid-column: 1 / -1; }
 }
@@ -2076,7 +1964,6 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
   .mk-edit-flow::-webkit-scrollbar { display: none; }
   .mk-reveal.mk-edit-flow__card { flex: 0 0 78%; min-height: 0; scroll-snap-align: start; }
   .mk-reveal.mk-editing__request { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 18px 16px; }
-  .mk-difference__features { grid-template-columns: minmax(0, 1fr); }
   .mk-credit-examples { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .mk-credit-examples > div { padding: 14px 0 14px 16px; border-left: 1px solid var(--mk-line-strong); }
   .mk-credit-examples > div:first-child { padding-top: 0; }
@@ -2111,7 +1998,6 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
   .mk-section { padding: 52px 0; }
   .mk-section-intro h2, .mk-faq__heading h2, .mk-control h2, .mk-google h2, .mk-final-cta h2 { font-size: clamp(29px, 8.6vw, 36px); }
   .mk-section-intro > p, .mk-faq__heading > p { font-size: 15px; }
-  .mk-reveal.mk-workflow-compare__column { padding: 20px 18px; }
   .mk-reveal.mk-creation-request, .mk-reveal.mk-creation-proposal { padding: 20px 18px; }
   .mk-creation-request > p { margin: 24px 0; font-size: 19px; }
   .mk-reveal.mk-edit-flow__card { flex-basis: 86%; padding: 18px 16px; }
@@ -2160,8 +2046,7 @@ html[data-theme='light'] .mk-difference__aside { color: #5f594e; }
     clip-path: none;
   }
   .mk-reveal.is-in > h2,
-  .mk-reveal.is-in .mk-step__number,
-  .mk-reveal.is-in .mk-difference__icon { animation: none; }
+  .mk-reveal.is-in .mk-step__number { animation: none; }
   .mk-hero__visual.mk-anim-in { animation: none; }
   .marketing-page main { animation: none; }
   .mk-marquee__track { animation: none; }

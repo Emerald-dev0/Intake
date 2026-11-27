@@ -7,6 +7,7 @@ import '@fontsource-variable/fraunces/standard-italic.css';
 import './styles/base.css';
 import './styles/marketing.css';
 import './styles/hero.css';
+import './styles/home.css';
 import { BrowserRouter, useRoutes } from 'react-router-dom';
 import { routes } from './app/routes';
 import { IntakeLoader } from './components/IntakeLoader';

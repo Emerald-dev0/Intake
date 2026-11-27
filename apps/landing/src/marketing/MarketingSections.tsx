@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { FAQS, COMPARISON_ROWS, COMING_SOON, HERO_DEMO_PROMPTS, LIVE_PROVIDERS, PROOF_EXAMPLE, PROMPT_EXAMPLES, ROADMAP_NOTE, ROADMAP_PROVIDERS, USE_CASES, WORKFLOW_STEPS, type DemoProposal } from '../content/site';
+import { FAQS, COMING_SOON, HERO_DEMO_PROMPTS, LIVE_PROVIDERS, PROOF_EXAMPLE, PROMPT_EXAMPLES, ROADMAP_NOTE, ROADMAP_PROVIDERS, USE_CASES, WORKFLOW_STEPS, type DemoProposal } from '../content/site';
 import { NotifyForm } from './NotifyForm';
 import { formatUsd } from '../lib/plans';
 import { useBillingPlans, comparePlanPrices } from '../lib/useBillingPlans';
@@ -358,20 +358,6 @@ export function Hero({ authenticated }: { authenticated: boolean }) {
   );
 }
 
-const DIFFERENCES = [
-  {
-    title: 'You approve every question before it exists',
-    text: 'Nothing is created, sent, or touched until you confirm the proposal. Rewrite, drop, add, or reorder — the form only becomes real when you say so.',
-  },
-  {
-    title: 'It edits your existing forms without making copies',
-    text: 'Point Intake at a form you already have and describe the change. It proposes the edit and applies it to that same form. No duplicates, no migration.',
-  },
-  {
-    title: 'The form lives in your own account',
-    text: 'Whichever provider you connected: a normal form in your own workspace, with the same links, the same responses tab, the same sharing you already have. Your data never moves to another platform, and adding a provider later does not change that.',
-  },
-] as const;
 
 /**
  * Types the example prompt character by character, then reveals the proposal.
@@ -438,102 +424,6 @@ export function ProofSection() {
             </div>
           </Reveal>
         </div>
-      </div>
-    </section>
-  );
-}
-
-export function DifferenceSection() {
-  return (
-    <section className="mk-section mk-difference" id="product" aria-labelledby="mk-difference-title">
-      <div className="mk-container">
-        <div className="mk-difference__intro">
-          <SectionIntro eyebrow="WHY INTAKE" titleId="mk-difference-title" title={<>Three things the others do not do.</>}>
-            Intake does not move your forms somewhere new, and it is not tied to one vendor. It gives you a faster way to make the forms you were always going to make — in Google Forms or Typeform today, in whichever tool joins next — and to change the forms you already own.
-          </SectionIntro>
-          <Reveal className="mk-difference__aside" as="p" delay={120} variant="fade" fadeOut>
-            Build the form you already had in your head, then decide when it is ready.
-          </Reveal>
-        </div>
-
-        <div className="mk-workflow-compare" role="group" aria-label="Doing it by hand compared with Intake">
-          <Reveal className="mk-workflow-compare__column" variant="fade">
-            <span className="mk-eyebrow">BY HAND</span>
-            <h3>Piece it together.</h3>
-            <ol>
-              <li>Open your form tool</li>
-              <li>Add and set up every question</li>
-              <li>Sort out sections and answer options</li>
-              <li>Do it again whenever something changes</li>
-            </ol>
-          </Reveal>
-          <div className="mk-workflow-compare__divider" aria-hidden="true">
-            <span className="mk-workflow-compare__arrow"><Arrow /></span>
-          </div>
-          <Reveal className="mk-workflow-compare__column mk-workflow-compare__column--intake" delay={120} variant="fade">
-            <span className="mk-eyebrow">WITH INTAKE</span>
-            <h3>Say what you want.</h3>
-            <ol>
-              <li>Describe what the form should collect</li>
-              <li>Read the questions it came up with</li>
-              <li>Adjust anything that does not fit</li>
-              <li>Confirm and it is created or updated</li>
-            </ol>
-          </Reveal>
-        </div>
-
-        <ul className="mk-difference__features">
-          {DIFFERENCES.map((item, index) => (
-            <Reveal as="li" className="mk-difference__feature" key={item.title} delay={index * 90} variant="rise">
-              <span className="mk-difference__icon" aria-hidden="true"><i /></span>
-              <div><h3>{item.title}</h3><p>{item.text}</p></div>
-            </Reveal>
-          ))}
-        </ul>
-      </div>
-    </section>
-  );
-}
-
-/**
- * Head-to-head against the obvious alternatives. Claims stay modest and checkable:
- * native AI drafts inside someone else's product, a chatbot gives text — Intake
- * builds reviewable forms in the tool you pick and edits the ones you own in place.
- */
-export function CompareSection() {
-  return (
-    <section className="mk-section mk-compare" id="compare" aria-labelledby="mk-compare-title">
-      <div className="mk-container">
-        <SectionIntro eyebrow="INTAKE VS THE ALTERNATIVES" titleId="mk-compare-title" title={<>How does it compare?</>}>
-          The alternatives draft text or lock you into their platform. Intake builds the actual form in the tool you chose and lets you approve it first.
-        </SectionIntro>
-        <Reveal variant="rise">
-          <div className="mk-compare__scroll">
-            <table className="mk-compare__table">
-              <caption>Intake compared with Google&rsquo;s built-in AI help, Typeform AI, and asking a chatbot</caption>
-              <thead>
-                <tr>
-                  <th scope="col"><span className="mk-compare__th-label">Capability</span></th>
-                  <th scope="col" className="is-intake"><span className="mk-compare__th-label">Intake</span></th>
-                  <th scope="col"><span className="mk-compare__th-label">Google&rsquo;s built-in AI</span></th>
-                  <th scope="col"><span className="mk-compare__th-label">Typeform AI</span></th>
-                  <th scope="col"><span className="mk-compare__th-label">ChatGPT</span></th>
-                </tr>
-              </thead>
-              <tbody>
-                {COMPARISON_ROWS.map(row => (
-                  <tr key={row.label}>
-                    <th scope="row">{row.label}</th>
-                    <td className="is-intake"><Check />{row.intake}</td>
-                    <td>{row.googleAi}</td>
-                    <td>{row.typeformAi}</td>
-                    <td>{row.chatgpt}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Reveal>
       </div>
     </section>
   );
