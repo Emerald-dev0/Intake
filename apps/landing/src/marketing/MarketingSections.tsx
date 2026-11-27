@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { FAQS, COMPARISON_ROWS, COMING_SOON, HERO_DEMO_PROMPTS, LIVE_PROVIDERS, PROOF_EXAMPLE, PROMPT_EXAMPLES, ROADMAP_NOTE, ROADMAP_PROVIDERS, USE_CASES, WORKFLOW_STEPS, type DemoProposal } from '../content/site';
 import { NotifyForm } from './NotifyForm';
 import { formatUsd } from '../lib/plans';
 import { useBillingPlans, comparePlanPrices } from '../lib/useBillingPlans';
 import { LogoMark } from '../components/LogoMark';
-import { GoogleFormsLogo, PlannedProviderLogo, ProviderLogoStrip, TypeformLogo } from '../components/ProviderLogos';
+import { GoogleFormsLogo, PlannedProviderLogo, TypeformLogo } from '../components/ProviderLogos';
+import { HeroThreads } from './HeroThreads';
 import { StartLink } from './MarketingChrome';
 import { useViewState } from './motion';
 
@@ -139,7 +140,7 @@ function HeroPromptBox({ authenticated }: { authenticated: boolean }) {
   }
 
   return (
-    <div className="mk-hero-try mk-anim-in" style={{ '--d': '470ms' } as CSSProperties}>
+    <div className="mk-hero-try">
       <form className="mk-hero-try__form" onSubmit={run}>
         <label htmlFor="mk-hero-prompt">Try it — no signup needed</label>
         <div className="mk-hero-try__row">
@@ -308,142 +309,48 @@ function EditPreview() {
   );
 }
 
-/**
- * The phone-first hero story: the same request → proposal → result arc as the
- * desktop workspace mock, cut into three swipeable cards. Desktop keeps the
- * full mock; this only renders where the mock would shrink into illegibility.
- * Without JavaScript it degrades to a vertically stacked set of cards.
- */
-const HERO_STORY_STEPS = ['You write', 'Intake proposes', 'Google has it'] as const;
-
-function HeroStory() {
-  const trackRef = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState(0);
-
-  const syncActive = () => {
-    const track = trackRef.current;
-    if (!track) return;
-    const card = track.querySelector<HTMLElement>('.mk-hero-story__card');
-    if (!card) return;
-    const stride = card.offsetWidth + 12;
-    if (stride > 0) setActive(Math.min(HERO_STORY_STEPS.length - 1, Math.max(0, Math.round(track.scrollLeft / stride))));
-  };
-
-  const goTo = (index: number) => {
-    const track = trackRef.current;
-    const card = track?.querySelector<HTMLElement>('.mk-hero-story__card');
-    if (!track || !card) return;
-    track.scrollTo({ left: index * (card.offsetWidth + 12), behavior: 'smooth' });
-  };
-
-  return (
-    <div className="mk-hero-story" role="region" aria-roledescription="carousel" aria-label="How Intake works, in three swipes">
-      <div className="mk-hero-story__meta">
-        <span className="mk-eyebrow">TRY IT IN YOUR HEAD</span>
-        <span className="mk-hero-story__count" aria-hidden="true">{String(active + 1).padStart(2, '0')} / {String(HERO_STORY_STEPS.length).padStart(2, '0')}</span>
-      </div>
-      <div className="mk-hero-story__track" ref={trackRef} onScroll={syncActive}>
-        <article className="mk-hero-story__card" aria-roledescription="slide" aria-label={`1 of ${HERO_STORY_STEPS.length}: ${HERO_STORY_STEPS[0]}`}>
-          <span className="mk-hero-story__step">01 · YOU WRITE</span>
-          <div className="mk-request-card">
-            <span>YOUR REQUEST</span>
-            <p>“Create a customer feedback form. Ask what people liked, what could improve, and whether they’d recommend it.”<i className="mk-caret" aria-hidden="true" /></p>
-          </div>
-          <p className="mk-hero-story__hint">One sentence. No setup screens.</p>
-        </article>
-
-        <article className="mk-hero-story__card" aria-roledescription="slide" aria-label={`2 of ${HERO_STORY_STEPS.length}: ${HERO_STORY_STEPS[1]}`}>
-          <span className="mk-hero-story__step">02 · INTAKE PROPOSES</span>
-          <div className="mk-review-card">
-            <div className="mk-review-card__head">
-              <span>WHAT INTAKE UNDERSTOOD</span>
-              <span className="mk-chip">DRAFT</span>
-            </div>
-            <p className="mk-review-card__title">Customer feedback</p>
-            <ul className="mk-preview-questions">
-              {HERO_QUESTIONS.slice(0, 3).map((question, index) => (
-                <li key={question.title} style={{ '--i': index } as CSSProperties}>
-                  <span className="mk-preview-question__number">{String(index + 1).padStart(2, '0')}</span>
-                  <span className="mk-preview-question__body">
-                    <strong>{question.title}</strong>
-                    <small>{question.kind}</small>
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <div className="mk-review-card__note"><Check /> Looks right? Confirm and it is created.</div>
-          </div>
-          <p className="mk-hero-story__hint">Nothing exists yet. Change anything.</p>
-        </article>
-
-        <article className="mk-hero-story__card" aria-roledescription="slide" aria-label={`3 of ${HERO_STORY_STEPS.length}: ${HERO_STORY_STEPS[2]}`}>
-          <span className="mk-hero-story__step">03 · GOOGLE HAS IT</span>
-          <div className="mk-hero-result">
-            <div className="mk-hero-result__head">
-              <span>CUSTOMER FEEDBACK</span>
-              <span className="mk-chip mk-chip--warm">LIVE</span>
-            </div>
-            <strong>Your form is ready.</strong>
-            <div className="mk-hero-result__links">
-              <span>Open form <i aria-hidden="true">↗</i></span>
-              <span>Edit in Google <i aria-hidden="true">↗</i></span>
-            </div>
-            <p>People answer on Google. Responses land in your account — Intake never sees them.</p>
-          </div>
-          <p className="mk-hero-story__hint">A real form. Not a mockup.</p>
-        </article>
-      </div>
-      <div className="mk-hero-story__dots" role="group" aria-label="Story steps">
-        {HERO_STORY_STEPS.map((step, index) => (
-          <button
-            key={step}
-            type="button"
-            onClick={() => goTo(index)}
-            aria-label={`Go to step ${index + 1}: ${step}`}
-            aria-current={active === index}
-          >
-            <i aria-hidden="true" />
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export function Hero({ authenticated }: { authenticated: boolean }) {
   const plans = useBillingPlans();
   return (
     <section className="mk-hero" id="top" aria-labelledby="mk-hero-title">
-      <div className="mk-container mk-hero__grid">
-        <div className="mk-hero__copy">
-          <span className="mk-eyebrow mk-hero__eyebrow mk-anim-in" style={{ '--d': '60ms' } as CSSProperties}><i aria-hidden="true" /> FOR PEOPLE WHO JUST NEED THE FORM</span>
-          <h1 id="mk-hero-title">
-            <span className="mk-anim-in" style={{ '--d': '140ms' } as CSSProperties}>Tell Intake what you need.</span>
-            <span className="mk-hero__accent mk-anim-in" style={{ '--d': '240ms' } as CSSProperties}>It builds the form for you.</span>
-          </h1>
-          <p className="mk-hero__lede mk-anim-in" style={{ '--d': '340ms' } as CSSProperties}>
-            Intake turns one plain-English description into a real form in the tool you already use. Google Forms and Typeform today; SurveyMonkey, Google Sheets, Jira and n8n are next in line. You get the questions first, change whatever you like, and only then does anything appear in your account. Free, with 20 credits a day.
-          </p>
-          <div className="mk-hero__actions mk-anim-in" style={{ '--d': '440ms' } as CSSProperties}>
-            <StartLink authenticated={authenticated} />
-            <a className="mk-button mk-button--secondary" href="#creation">See it work <Arrow /></a>
-          </div>
-          <ProviderLogoStrip className="mk-anim-in" />
-          <HeroPromptBox authenticated={authenticated} />
-          <p className="mk-hero__trust mk-anim-in" style={{ '--d': '490ms' } as CSSProperties}>
-            Free during launch · {plans.freeDailyCredits} credits daily · Your account, your forms
-          </p>
-          <div className="mk-hero__facts mk-anim-in" style={{ '--d': '540ms' } as CSSProperties} role="group" aria-label="What Intake does">
-            <span>Real forms in your own account</span>
-            <span>Edit in place, no copies</span>
-            <span>Nothing changes until you say so</span>
-          </div>
+      <div className="mk-container mk-hero__center">
+        <a className="mk-hero__pill mk-anim-in" href="#providers" style={{ '--d': '40ms' } as CSSProperties}>
+          <i aria-hidden="true" />
+          <span>Google Forms &amp; Typeform live</span>
+          <span className="mk-hero__pill-sep" aria-hidden="true">·</span>
+          <span className="mk-hero__pill-soft">4 more next</span>
+        </a>
+        <h1 id="mk-hero-title">
+          <span className="mk-anim-in" style={{ '--d': '120ms' } as CSSProperties}>Tell Intake what you need.</span>
+          <span className="mk-hero__accent mk-anim-in" style={{ '--d': '220ms' } as CSSProperties}>It builds the form for you.</span>
+        </h1>
+        <p className="mk-hero__lede mk-anim-in" style={{ '--d': '320ms' } as CSSProperties}>
+          Write one plain-English sentence. Intake shows you the questions, you change what you like, and only then does the form appear in your account.
+        </p>
+        <div className="mk-hero__actions mk-anim-in" style={{ '--d': '420ms' } as CSSProperties}>
+          <StartLink authenticated={authenticated} />
+          <a className="mk-button mk-button--secondary" href="#creation">See it work <Arrow /></a>
         </div>
+      </div>
 
-        <div className="mk-hero__visual mk-anim-in" style={{ '--d': '300ms' } as CSSProperties}>
+      <div className="mk-container mk-hero__diagram mk-anim-in" style={{ '--d': '520ms' } as CSSProperties}>
+        <HeroThreads />
+      </div>
+
+      <div className="mk-container mk-hero__product">
+        <Reveal className="mk-hero__product-head" variant="fade">
+          <span className="mk-eyebrow">WHAT YOU SEE BEFORE ANYTHING IS CREATED</span>
+        </Reveal>
+        <Reveal className="mk-hero__product-card" variant="scale">
           <ProductPreview />
-          <HeroStory />
-        </div>
+        </Reveal>
+        <p className="mk-hero__trust">
+          Free during launch · {plans.freeDailyCredits} credits a day · Your account, your forms
+        </p>
+      </div>
+
+      <div className="mk-container mk-hero__try">
+        <HeroPromptBox authenticated={authenticated} />
       </div>
 
       <div className="mk-marquee" aria-label="Examples of what you can ask for">

@@ -47,6 +47,38 @@
   /* The measure gutter: where a section's index number lives on wide screens. */
   --mk-gutter: 4.75rem;
 
+  /*
+   * Design tokens for the redesigned landing page. Defined once here; every new section reads
+   * these instead of hard-coding sizes, so the rhythm stays the same from hero to footer.
+   */
+  /* Type scale: display serif for headlines, sans for body, mono for eyebrows. */
+  --mk-fs-display: clamp(44px, 6.6vw, 96px);
+  --mk-fs-h2: clamp(34px, 4.6vw, 64px);
+  --mk-fs-h3: clamp(19px, 1.7vw, 23px);
+  --mk-fs-lede: clamp(16px, 1.32vw, 19px);
+  --mk-fs-body: 15px;
+  --mk-fs-small: 13px;
+  --mk-fs-eyebrow: 10.5px;
+  --mk-display-weight: 380;
+  /* Spacing scale (4px base). */
+  --mk-space-1: 4px;
+  --mk-space-2: 8px;
+  --mk-space-3: 12px;
+  --mk-space-4: 16px;
+  --mk-space-5: 24px;
+  --mk-space-6: 32px;
+  --mk-space-7: 48px;
+  --mk-space-8: 64px;
+  --mk-space-9: 96px;
+  --mk-space-10: 128px;
+  --mk-section-y: clamp(72px, 9vw, 136px);
+  /* Large rounded panels, plus the softest shadow used on floating tiles. */
+  --mk-r-2xl: 40px;
+  --mk-shadow-soft: 0 1px 2px rgba(0, 0, 0, .28), 0 14px 34px -20px rgba(0, 0, 0, .7);
+  /* The thread colour for live connections, and its quieter twin for planned ones. */
+  --mk-thread: rgba(255, 90, 31, .62);
+  --mk-thread-soon: rgba(var(--mk-text-rgb), .22);
+
   min-height: 100svh;
   overflow: clip;
   color: var(--mk-text);
@@ -85,6 +117,9 @@ html[data-theme='light'] .marketing-page {
   --mk-shadow-1: 0 1px 3px rgba(27, 26, 23, .18);
   --mk-shadow-2: 0 30px 70px -34px rgba(27, 26, 23, .35);
   --mk-shadow-3: 0 60px 130px -50px rgba(27, 26, 23, .4);
+  --mk-shadow-soft: 0 1px 2px rgba(27, 26, 23, .06), 0 14px 34px -20px rgba(27, 26, 23, .28);
+  --mk-thread: rgba(240, 78, 18, .55);
+  --mk-thread-soon: rgba(var(--mk-text-rgb), .24);
 }
 
 /** Light theme: hardcoded dark surfaces become paper cards; light-ink accents go terracotta. */

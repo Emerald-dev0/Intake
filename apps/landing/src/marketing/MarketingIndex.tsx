@@ -24,6 +24,26 @@ const ENTRIES = [
 
 export function MarketingIndex() {
   const [active, setActive] = useState<string>('');
+  // The centred hero has no margin to spare, so the rail waits until the headline and the thread
+  // diagram have scrolled away. Without IntersectionObserver it simply stays visible.
+  const [pastHero, setPastHero] = useState(true);
+
+  useEffect(() => {
+    if (typeof IntersectionObserver !== 'function') return;
+    const targets = [document.querySelector('.mk-hero__center'), document.querySelector('.mk-threads')]
+      .filter((node): node is Element => node !== null);
+    if (!targets.length) return;
+    const visible = new Set<Element>();
+    const observer = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) visible.add(entry.target);
+        else visible.delete(entry.target);
+      }
+      setPastHero(visible.size === 0);
+    });
+    for (const target of targets) observer.observe(target);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (typeof IntersectionObserver !== 'function') return;
@@ -48,7 +68,7 @@ export function MarketingIndex() {
   }, []);
 
   return (
-    <nav className="mk-index" aria-label="Sections on this page">
+    <nav className={`mk-index${pastHero ? '' : ' is-hidden'}`} aria-label="Sections on this page">
       <ol>
         {ENTRIES.map(([number, label, href]) => (
           <li key={href}>
