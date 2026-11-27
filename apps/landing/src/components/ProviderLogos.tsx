@@ -49,10 +49,16 @@ export function TypeformLogo({
   tone = 'brand',
   className,
   label = 'Typeform',
+  tight = false,
 }: {
   height?: number | string;
   tone?: 'brand' | 'mono';
   className?: string;
+  /**
+   * The Simple Icons geometry sits in the bottom band of its box. `tight` crops the viewBox to the
+   * letters themselves, so the wordmark can be shown at a readable size. Same path, no redraw.
+   */
+  tight?: boolean;
   /** Accessible name. Pass `null` where the brand name is already written next to the mark. */
   label?: string | null;
 }) {
@@ -60,7 +66,7 @@ export function TypeformLogo({
     <svg
       className={className}
       height={height}
-      viewBox="0 0 24 14.2"
+      viewBox={tight ? '0 9.62 24 4.62' : '0 0 24 14.2'}
       {...(label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': true })}
       focusable="false"
       fill={tone === 'brand' ? TYPEFORM_BRAND : 'currentColor'}
