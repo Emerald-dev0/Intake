@@ -213,11 +213,9 @@
   border-radius: 26px;
   background: var(--mk-paper);
   color: var(--mk-ink);
-  box-shadow: 0 0 0 8px rgba(240, 78, 18, .06), 0 22px 50px -22px rgba(240, 78, 18, .55);
-  transition: box-shadow .6s var(--mk-ease-soft);
+  box-shadow: var(--mk-shadow-soft);
 }
 .mk-flow.is-reading .mk-flow__mark-tile,
-.mk-flow.is-drafting .mk-flow__mark-tile { box-shadow: 0 0 0 10px rgba(240, 78, 18, .1), 0 26px 60px -20px rgba(240, 78, 18, .7); }
 .mk-flow__orbit {
   position: absolute;
   inset: -12px;
@@ -379,15 +377,9 @@
   transition: opacity .4s var(--mk-ease-soft), background-color .4s var(--mk-ease-soft);
 }
 .mk-flow.has-draft .mk-flow__confirm { opacity: 1; transition-delay: .6s; }
-.mk-flow.is-confirm .mk-flow__confirm { animation: mk-press 1.6s var(--mk-ease) both; }
 .mk-flow.has-created .mk-flow__confirm { background: #1d7a5c; }
 .mk-flow.has-created .mk-flow__confirm > span { visibility: hidden; }
 .mk-flow.has-created .mk-flow__confirm::after { position: absolute; content: 'Confirmed ✓'; }
-@keyframes mk-press {
-  0%, 62% { transform: scale(1); box-shadow: 0 0 0 0 rgba(240, 78, 18, 0); }
-  68% { transform: scale(.92); box-shadow: 0 0 0 6px rgba(240, 78, 18, .25); }
-  80%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(240, 78, 18, 0); }
-}
 
 .mk-flow__cursor {
   position: absolute;
@@ -460,7 +452,6 @@
 .mk-flow.has-created .mk-flow-tile.is-target .mk-flow-tile__badge { opacity: 1; transform: none; transition-delay: .85s; }
 .mk-flow.has-created .mk-flow-tile.is-target .mk-flow-tile__body {
   border-color: rgba(240, 78, 18, .55);
-  box-shadow: 0 0 0 5px rgba(240, 78, 18, .1), var(--mk-shadow-soft);
   transition-delay: .85s;
 }
 .mk-flow.is-leaving .mk-flow-tile.is-target .mk-flow-tile__badge { opacity: 0; transition-delay: 0s; }
