@@ -203,7 +203,14 @@ export function Hero({ authenticated }: { authenticated: boolean }) {
           Write one plain-English sentence. Intake shows you the questions, you change what you like, and only then does the form appear in your account.
         </p>
         <div className="mk-hero__actions mk-anim-in" style={{ '--d': '360ms' } as CSSProperties}>
-          <StartLink authenticated={authenticated} />
+          {authenticated ? (
+            <StartLink authenticated />
+          ) : (
+            <a className="mk-button mk-button--primary" href="/auth/sign-up">
+              <span>Sign up free</span>
+              <Arrow />
+            </a>
+          )}
           <a className="mk-button mk-button--secondary" href="#creation">See it work <Arrow /></a>
         </div>
         <p className="mk-hero__trust mk-anim-in" style={{ '--d': '420ms' } as CSSProperties}>
