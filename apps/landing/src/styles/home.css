@@ -1676,3 +1676,87 @@ html.lenis.lenis-smooth { scroll-behavior: auto !important; }
   .mk-prov__group--live li:hover { transform: none; }
   .mk-faq2__more, .mk-faq2__toggle svg { transition: none; }
 }
+
+/* ============================================================== theme switch */
+
+.mk-switch {
+  position: relative;
+  flex: none;
+  width: 58px;
+  height: 30px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(27, 26, 23, .14);
+  border-radius: var(--mk-pill);
+  background: #efe3cc;
+  cursor: pointer;
+  transition: background-color .5s var(--mk-ease-soft), border-color .5s var(--mk-ease-soft);
+}
+.mk-switch.is-dark { border-color: rgba(242, 239, 230, .16); background: #1b1d1a; }
+.mk-switch:hover .mk-switch__knob { box-shadow: 0 0 0 4px rgba(240, 78, 18, .12), 0 2px 6px rgba(27, 26, 23, .18); }
+.mk-switch.is-dark:hover .mk-switch__knob { box-shadow: 0 0 0 4px rgba(242, 239, 230, .08), 0 2px 6px rgba(0, 0, 0, .4); }
+.mk-switch:focus-visible { outline: 2px solid var(--mk-accent); outline-offset: 3px; }
+
+.mk-switch__knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: #f04e12;
+  background: #fffaf2;
+  box-shadow: 0 2px 6px rgba(27, 26, 23, .18);
+  transition: transform .6s cubic-bezier(.34, 1.56, .64, 1), background-color .5s var(--mk-ease-soft), color .5s var(--mk-ease-soft), box-shadow .3s linear;
+}
+.mk-switch.is-dark .mk-switch__knob { color: #f2efe6; background: #30332e; transform: translateX(28px); box-shadow: 0 2px 6px rgba(0, 0, 0, .4); }
+.mk-switch__knob svg { overflow: visible; }
+.mk-switch__disc { fill: currentColor; r: 4.6px; transition: r .5s var(--mk-ease); }
+.mk-switch.is-dark .mk-switch__disc { r: 7px; }
+.mk-switch__bite { transition: transform .6s var(--mk-ease); }
+.mk-switch.is-dark .mk-switch__bite { transform: translate(-7px, 4px); }
+.mk-switch__rays {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  transform-box: view-box;
+  transform-origin: 12px 12px;
+  transition: transform .6s var(--mk-ease), opacity .35s linear;
+}
+.mk-switch.is-dark .mk-switch__rays { opacity: 0; transform: rotate(-90deg) scale(.4); }
+
+.mk-switch__stars i {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #f2efe6;
+  opacity: 0;
+  transform: scale(0);
+  transition: opacity .4s linear, transform .5s var(--mk-ease);
+}
+.mk-switch__stars i:nth-child(1) { top: 8px; left: 10px; }
+.mk-switch__stars i:nth-child(2) { top: 17px; left: 18px; width: 2px; height: 2px; }
+.mk-switch__stars i:nth-child(3) { top: 10px; left: 24px; width: 2px; height: 2px; }
+.mk-switch.is-dark .mk-switch__stars i { opacity: .85; transform: none; }
+.mk-switch.is-dark .mk-switch__stars i:nth-child(2) { transition-delay: .08s; }
+.mk-switch.is-dark .mk-switch__stars i:nth-child(3) { transition-delay: .16s; }
+
+/* The circular reveal: the new theme is a live layer clipped open from the switch (see ThemeSwitch). */
+html.is-theme-switching::view-transition-old(root),
+html.is-theme-switching::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+html.is-theme-switching::view-transition-old(root) { z-index: 1; }
+html.is-theme-switching::view-transition-new(root) { z-index: 2; }
+html.is-theme-switching body *:not(.mk-switch, .mk-switch *) { transition: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mk-switch, .mk-switch__knob, .mk-switch__disc, .mk-switch__bite, .mk-switch__rays, .mk-switch__stars i { transition: none; }
+}
+/* Without the nav links the actions lose their push to the right; keep the switch beside Menu. */
+@media (max-width: 1000px) {
+  .mk-header__actions { margin-left: auto; gap: 12px; }
+  .mk-header__actions + .mk-menu-toggle { margin-left: 0; }
+}

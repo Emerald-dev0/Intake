@@ -3,6 +3,7 @@ import { CREATOR } from '../content/site';
 import { LogoMark } from '../components/LogoMark';
 import { GoogleFormsLogo, TypeformLogo } from '../components/ProviderLogos';
 import { useScrolled, useScrollProgress } from './motion';
+import { ThemeSwitch } from './ThemeSwitch';
 
 export function StartLink({
   authenticated,
@@ -81,6 +82,7 @@ export function MarketingNav({ authenticated }: { authenticated: boolean }) {
           </nav>
 
           <div className="mk-header__actions">
+            <ThemeSwitch />
             {!authenticated && <a className="mk-sign-in" href="/auth/sign-in">Sign in</a>}
             <StartLink authenticated={authenticated} className="mk-button mk-button--primary mk-button--nav" />
           </div>
