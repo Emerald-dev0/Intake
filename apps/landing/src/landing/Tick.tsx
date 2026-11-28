@@ -187,40 +187,40 @@ function Face({ expression, blink, pupilShift }: { expression: MascotExpression;
   const happy = expression === 'happy';
 
   return (
-    <g id="eyes" className="tick__eyes">
+    <g className="tick__eyes">
       {/* Brows: only the thinking and surprised faces raise them. */}
-      <g id="brows" className={`tick__brows is-${expression}`}>
+      <g className={`tick__brows is-${expression}`}>
         <path d="M38 34 q7 -5 14 -1" />
         <path d="M68 33 q7 -4 14 0" />
       </g>
 
       {happy ? (
         // A ticked box is a happy eye: two small checks instead of two pupils.
-        <g id="eye-happy" className="tick__tick-eyes">
+        <g className="tick__tick-eyes">
           <path d="M36 46 l7 7 12 -14" />
           <path d="M66 46 l7 7 12 -14" />
         </g>
       ) : (
         <>
-          <rect id="eye-left" className={`tick__eye${thinking ? ' is-empty' : ''}`} x="40" y="41" width="16" height={wide ? 16 : 14} rx="4" />
-          <rect id="eye-right" className={`tick__eye${thinking ? ' is-empty' : ''}`} x="62" y="39" width="18" height={wide ? 17 : 15} rx="4" />
+          <rect className={`tick__eye${thinking ? ' is-empty' : ''}`} x="40" y="41" width="16" height={wide ? 16 : 14} rx="4" />
+          <rect className={`tick__eye${thinking ? ' is-empty' : ''}`} x="62" y="39" width="18" height={wide ? 17 : 15} rx="4" />
           {!thinking && !closed && (
             <>
-              <circle id="pupil-left" className="tick__pupil" cx={48 + pupilShift} cy={wide ? 49 : 48} r={wide ? 4.4 : 3.6} />
-              <circle id="pupil-right" className="tick__pupil" cx={71 + pupilShift} cy={wide ? 47.5 : 46.5} r={wide ? 4.6 : 3.8} />
+              <circle className="tick__pupil" cx={48 + pupilShift} cy={wide ? 49 : 48} r={wide ? 4.4 : 3.6} />
+              <circle className="tick__pupil" cx={71 + pupilShift} cy={wide ? 47.5 : 46.5} r={wide ? 4.6 : 3.8} />
             </>
           )}
           {/* Lids: the blink is a filled rect growing down over the eye, not a scale. */}
-          <g id="lid-left" className={`tick__lid${closed ? ' is-closed' : ''}`}>
+          <g className={`tick__lid${closed ? ' is-closed' : ''}`}>
             <rect x="40" y="41" width="16" height="14" rx="4" />
           </g>
-          <g id="lid-right" className={`tick__lid${closed ? ' is-closed' : ''}`}>
+          <g className={`tick__lid${closed ? ' is-closed' : ''}`}>
             <rect x="62" y="39" width="18" height="15" rx="4" />
           </g>
         </>
       )}
 
-      <g id="mouth" className={`tick__mouth is-${expression}`}>
+      <g className={`tick__mouth is-${expression}`}>
         {expression === 'surprised' ? <ellipse cx="58" cy="68" rx="4.6" ry="6" />
           : expression === 'thinking' ? <path d="M49 68 h17" />
             : expression === 'wink' ? <path d="M48 66 q10 8 20 1" />
@@ -269,32 +269,32 @@ export function Tick({
       <svg viewBox="0 0 120 148" width={size} height={(size * 148) / 120} role="img" aria-label="Tick, Intake’s checkmark-headed helper">
         <g className="tick__rig" transform={`translate(0 0)`}>
           {/* Filled box behind the whole character, so the tick can flash on. */}
-          <g id="body" className="tick__body" style={{ transform: transforms.body }}>
+          <g className="tick__body" style={{ transform: transforms.body }}>
             <path className="tick__limb" d="M47 118 l-2 18" style={{ transform: transforms.legLeft, transformOrigin: '48px 118px' }} />
             <path className="tick__limb" d="M73 118 l2 18" style={{ transform: transforms.legRight, transformOrigin: '72px 118px' }} />
             <rect className="tick__torso" x="40" y="90" width="40" height="34" rx="14" />
-            <path className="tick__limb" d="M42 100 l-14 12" id="arm-left" style={{ transform: transforms.armLeft, transformOrigin: '42px 100px' }} />
-            <path className="tick__limb" d="M78 100 l14 10" id="arm-right" style={{ transform: transforms.armRight, transformOrigin: '78px 100px' }} />
-            <circle id="hand-left" className="tick__hand" cx="26" cy="113" r="6" style={{ transform: transforms.handLeft }} />
-            <circle id="hand-right" className="tick__hand" cx="94" cy="111" r="6.5" style={{ transform: transforms.handRight }} />
+            <path className="tick__limb" d="M42 100 l-14 12" style={{ transform: transforms.armLeft, transformOrigin: '42px 100px' }} />
+            <path className="tick__limb" d="M78 100 l14 10" style={{ transform: transforms.armRight, transformOrigin: '78px 100px' }} />
+            <circle className="tick__hand" cx="26" cy="113" r="6" style={{ transform: transforms.handLeft }} />
+            <circle className="tick__hand" cx="94" cy="111" r="6.5" style={{ transform: transforms.handRight }} />
           </g>
 
           {/* The head: a rounded checkbox, deliberately a few degrees off square. */}
-          <g id="head" className="tick__head" style={{ transform: `rotate(calc(-3deg + var(--tick-head-tilt)))` }}>
+          <g className="tick__head" style={{ transform: `rotate(calc(-3deg + var(--tick-head-tilt)))` }}>
             <rect className={`tick__box${ticks || expression === 'happy' ? ' is-ticked' : ''}`} x="22" y="14" width="76" height="70" rx="20" />
             <g className="tick__box-tick" aria-hidden>
               <path d="M36 47 l12 13 26 -30" />
             </g>
             <Face expression={expression} blink={blink} pupilShift={tilt.pupils} />
             {/* The clipboard clip, worn like a hair tuft. */}
-            <g id="accessory" className="tick__clip">
+            <g className="tick__clip">
               <rect x="48" y="6" width="24" height="12" rx="5" />
               <rect x="54" y="3" width="12" height="6" rx="3" />
             </g>
           </g>
 
           {/* The pencil. The page's line is drawn from its tip. */}
-          <g id="prop" className="tick__prop" style={{ transform: transforms.prop, transformOrigin: '94px 111px' }}>
+          <g className="tick__prop" style={{ transform: transforms.prop, transformOrigin: '94px 111px' }}>
             <rect className="tick__pencil" x="96" y="86" width="9" height="34" rx="3" />
             <path className="tick__pencil-tip" d="M96 120 l4.5 9 4.5 -9 z" />
             <rect className="tick__pencil-band" x="96" y="86" width="9" height="5" rx="2" />

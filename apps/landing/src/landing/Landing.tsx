@@ -38,11 +38,18 @@ import {
 } from '../content/site.ts';
 import { Tick, type MascotExpression, type MascotPose } from './Tick.tsx';
 import { ScrollLine } from './ScrollLine.tsx';
+import { raf, cancelRaf } from './frame.ts';
 
 const NAV = [
   { label: 'How it works', href: '#how' },
   { label: 'Pricing', href: '#pricing' },
   { label: 'FAQ', href: '#faq' },
+];
+
+/** Pages that live outside the homepage. The changelog belongs in the bar, not only the footer. */
+const PAGES = [
+  { label: 'Changelog', href: '/changelog' },
+  { label: 'Developers', href: '/developers' },
 ];
 
 const SIGN_UP = '/auth/sign-up';
@@ -183,7 +190,7 @@ function useMagnetic(strength = 0.28) {
     const node = ref.current;
     if (!node || frame.current) return;
     const { clientX, clientY } = event;
-    frame.current = window.requestAnimationFrame(() => {
+    frame.current = raf(() => {
       frame.current = 0;
       const box = node.getBoundingClientRect();
       const dx = clientX - (box.left + box.width / 2);
@@ -198,7 +205,7 @@ function useMagnetic(strength = 0.28) {
     node.style.setProperty('--pull-x', '0px');
     node.style.setProperty('--pull-y', '0px');
   }, []);
-  useEffect(() => () => { if (frame.current) window.cancelAnimationFrame(frame.current); }, []);
+  useEffect(() => () => { if (frame.current) cancelRaf(frame.current); }, []);
   return { ref, onPointerMove: onMove, onPointerLeave: reset, onBlur: reset };
 }
 
@@ -237,10 +244,10 @@ function useCountUp(target: number, active: boolean) {
       const progress = Math.min(1, (now - start) / 900);
       const eased = 1 - Math.pow(1 - progress, 3);
       setValue(Math.round(target * eased));
-      if (progress < 1) frame = window.requestAnimationFrame(run);
+      if (progress < 1) frame = raf(run);
     };
-    frame = window.requestAnimationFrame(run);
-    return () => window.cancelAnimationFrame(frame);
+    frame = raf(run);
+    return () => cancelRaf(frame);
   }, [active, target]);
   return value;
 }
@@ -292,7 +299,7 @@ function TopBar({ authenticated }: { authenticated: boolean }) {
     let frame = 0;
     const onScroll = () => {
       if (frame) return;
-      frame = window.requestAnimationFrame(() => {
+      frame = raf(() => {
         frame = 0;
         const y = window.scrollY;
         setHidden(y > 160 && y > lastY.current + 4);
@@ -300,7 +307,7 @@ function TopBar({ authenticated }: { authenticated: boolean }) {
       });
     };
     window.addEventListener('scroll', onScroll, { passive: true });
-    return () => { window.removeEventListener('scroll', onScroll); if (frame) window.cancelAnimationFrame(frame); };
+    return () => { window.removeEventListener('scroll', onScroll); if (frame) cancelRaf(frame); };
   }, []);
 
   return (
@@ -312,14 +319,15 @@ function TopBar({ authenticated }: { authenticated: boolean }) {
         <span>Intake</span>
       </a>
 
-      <nav className="land-top__nav" aria-label="Sections">
+      <nav className="mk-nav-links land-top__nav" aria-label="Sections">
         {NAV.map(item => <a key={item.href} href={item.href}>{item.label}</a>)}
+        {PAGES.map(item => <Link key={item.href} to={item.href}>{item.label}</Link>)}
       </nav>
 
-      <div className="land-top__actions">
+      <div className="mk-header__actions land-top__actions">
         {authenticated
-          ? <Link className="land-btn land-btn--ghost" to="/app">Open my forms</Link>
-          : <Link className="land-btn land-btn--accent" to={SIGN_UP}>Build my first form</Link>}
+          ? <Link className="mk-button--nav land-btn land-btn--ghost" to="/app">Open my forms</Link>
+          : <Link className="mk-button--nav land-btn land-btn--accent" to={SIGN_UP}>Build my first form</Link>}
         <button
           type="button"
           className="mk-menu-toggle land-menu-toggle"
@@ -333,13 +341,17 @@ function TopBar({ authenticated }: { authenticated: boolean }) {
       </div>
 
       <div id={sheetId} className={`mk-sheet land-sheet${open ? ' is-open' : ''}`} hidden={!open}>
-        <nav aria-label="Menu">
-          {NAV.map(item => (
-            <a key={item.href} href={item.href} onClick={() => setOpen(false)}>{item.label}</a>
-          ))}
-          <Link to={SIGN_UP} onClick={() => setOpen(false)}>Build my first form</Link>
-          <Link to="/pricing" onClick={() => setOpen(false)}>Pricing page</Link>
-        </nav>
+        <div className="mk-sheet__panel">
+          <nav aria-label="Menu">
+            {NAV.map(item => (
+              <a key={item.href} href={item.href} onClick={() => setOpen(false)}>{item.label}</a>
+            ))}
+            {PAGES.map(item => (
+              <Link key={item.href} to={item.href} onClick={() => setOpen(false)}>{item.label}</Link>
+            ))}
+            <Link to={SIGN_UP} onClick={() => setOpen(false)}>Build my first form</Link>
+          </nav>
+        </div>
       </div>
     </header>
   );
@@ -355,9 +367,9 @@ const PREVIEW_QUESTIONS = [
 ];
 
 const EDIT_CHANGES = [
-  'Add a question about follow-up calls',
-  'Change the rating question to a dropdown',
-  'Make the last section optional',
+  { change: 'Would you like a follow-up call?', note: 'Goes after “Overall satisfaction”' },
+  { change: 'Change the rating question to a dropdown', note: 'Keeps every existing answer option' },
+  { change: 'Make the last section optional', note: 'Nothing is removed from the form' },
 ];
 
 function Hero({ authenticated }: { authenticated: boolean }) {
@@ -473,7 +485,9 @@ function Hero({ authenticated }: { authenticated: boolean }) {
           <div className="land-device">
             <div className="land-device__bar">
               <span className="land-device__dots" aria-hidden><i /><i /><i /></span>
-              <span className="land-device__name">Intake · draft</span>
+              <span className="land-device__name">
+                Intake · {mode === 'create' ? 'proposal' : 'DRAFT'}
+              </span>
               <div className="mk-preview-switch land-switch" role="group" aria-label="Preview mode">
                 <button type="button" aria-pressed={mode === 'create'} onClick={() => setMode('create')}>Create</button>
                 <button type="button" aria-pressed={mode === 'edit'} onClick={() => setMode('edit')}>Edit</button>
@@ -501,10 +515,13 @@ function Hero({ authenticated }: { authenticated: boolean }) {
               </ol>
             ) : (
               <ul className="land-device__changes">
-                {EDIT_CHANGES.map((change, order) => (
-                  <li key={change} style={{ '--i': order } as CSSProperties}>
+                {EDIT_CHANGES.map((item, order) => (
+                  <li key={item.change} style={{ '--i': order } as CSSProperties}>
                     <span className="land-mono">0{order + 1}</span>
-                    <span>{change}</span>
+                    <span>
+                      <strong>{item.change}</strong>
+                      <small>{item.note}</small>
+                    </span>
                     <span className="land-tag">Plain English</span>
                   </li>
                 ))}
@@ -714,14 +731,14 @@ function Story() {
       const travelled = (window.innerHeight * 0.85 - box.top) / span;
       setLit(Math.round(Math.min(1, Math.max(0, travelled)) * STORY_WORDS.length));
     };
-    const onScroll = () => { if (!frame) frame = window.requestAnimationFrame(update); };
+    const onScroll = () => { if (!frame) frame = raf(update); };
     update();
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll);
     return () => {
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onScroll);
-      if (frame) window.cancelAnimationFrame(frame);
+      if (frame) cancelRaf(frame);
     };
   }, []);
 
@@ -746,6 +763,7 @@ function Story() {
 
 function Features() {
   const [open, setOpen] = useState<string | null>(FEATURES[0].title);
+  const scope = useId();
   return (
     <section className="land-section" id="features" data-line="features">
       <header className="land-section__head mk-reveal">
@@ -766,7 +784,7 @@ function Features() {
               <button
                 type="button"
                 aria-expanded={isOpen}
-                aria-controls={`feature-${feature.index}`}
+                aria-controls={`${scope}-feature-${feature.index}`}
                 onClick={() => setOpen(isOpen ? null : feature.title)}
               >
                 <span className="land-feature__index land-mono">{feature.index}</span>
@@ -776,7 +794,7 @@ function Features() {
                 </span>
                 <span className="land-feature__plus" aria-hidden />
               </button>
-              <div id={`feature-${feature.index}`} className="land-feature__panel" hidden={!isOpen}>
+              <div id={`${scope}-feature-${feature.index}`} className="land-feature__panel" hidden={!isOpen}>
                 <p>{feature.body}</p>
               </div>
             </li>
@@ -862,7 +880,7 @@ function Pricing() {
             <li>Review before anything is applied</li>
           </ul>
           <p className="land-plan__note">No card needed.</p>
-          <Link className="land-btn land-btn--accent" to={SIGN_UP}>Build my first form</Link>
+          <Link className="mk-button--nav land-btn land-btn--accent" to={SIGN_UP}>Build my first form</Link>
         </article>
 
         <article className="land-plan land-plan--pro mk-reveal">
@@ -905,6 +923,9 @@ function PrivacyStrip() {
 
 function Faq() {
   const [open, setOpen] = useState<string | null>(null);
+  // `useId` keeps the panels unique even if two copies of the page are mounted (a route
+  // transition, or a test rendering the page twice into one document).
+  const scope = useId();
   return (
     <section className="land-section land-faq" id="faq" data-line="faq">
       <header className="land-section__head mk-reveal">
@@ -912,9 +933,9 @@ function Faq() {
         <h2>Anything else you were about to ask.</h2>
       </header>
       <div className="land-faq__list">
-        {FAQS.map(item => {
+        {FAQS.map((item, index) => {
           const isOpen = open === item.question;
-          const id = `faq-${item.question.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
+          const id = `${scope}-faq-${index}`;
           return (
             <div className={`mk-faq-item land-faq__item${isOpen ? ' is-open' : ''}`} key={item.question}>
               <h3>
@@ -993,9 +1014,16 @@ function FooterWordmark({ still }: { still: boolean }) {
     }
     let frame = 0;
     let last = performance.now();
+
+    /**
+     * The simulation is idle-aware: once every letter has settled it stops requesting frames and
+     * waits for the next push. A landing page that spins a rAF loop forever costs battery on a
+     * phone and keeps any embedding process alive.
+     */
     const tick = (now: number) => {
       const dt = Math.min(32, now - last) / 16.67;
       last = now;
+      let moving = false;
       state.current.forEach((letter, index) => {
         const node = nodes.current[index];
         if (!node) return;
@@ -1010,10 +1038,11 @@ function FooterWordmark({ still }: { still: boolean }) {
         letter.rot += letter.vr * dt;
         letter.rot *= 0.94;
         node.style.transform = `translateY(${letter.y.toFixed(2)}px) rotate(${letter.rot.toFixed(2)}deg)`;
+        if (Math.abs(letter.y) > 0.05 || Math.abs(letter.v) > 0.05 || Math.abs(letter.rot) > 0.05) moving = true;
       });
-      frame = window.requestAnimationFrame(tick);
+      frame = moving ? raf(tick) : 0;
     };
-    frame = window.requestAnimationFrame(tick);
+    frame = raf(tick);
 
     const push = (event: PointerEvent) => {
       const host = wrap.current;
@@ -1032,9 +1061,14 @@ function FooterWordmark({ still }: { still: boolean }) {
           letter.vr += (distance / 90) * 0.9;
         }
       });
+      // A push wakes the simulation again if it had settled.
+      if (!frame) frame = raf(tick);
     };
     window.addEventListener('pointermove', push, { passive: true });
-    return () => { window.cancelAnimationFrame(frame); window.removeEventListener('pointermove', push); };
+    return () => {
+      if (frame) cancelRaf(frame);
+      window.removeEventListener('pointermove', push);
+    };
   }, [still, letters]);
 
   return (
@@ -1092,6 +1126,7 @@ function Footer({ authenticated, onConfetti }: { authenticated: boolean; onConfe
           <Link to="/templates">Templates</Link>
           <Link to="/guides">Guides</Link>
           <Link to="/changelog">Changelog</Link>
+          <Link to="/developers">Developers</Link>
         </div>
         <div className="mk-footer__column">
           <h2>Legal</h2>
@@ -1157,7 +1192,7 @@ function PillNav() {
     let frame = 0;
     const onScroll = () => {
       if (frame) return;
-      frame = window.requestAnimationFrame(() => {
+      frame = raf(() => {
         frame = 0;
         const scrollable = document.documentElement.scrollHeight - window.innerHeight;
         setProgress(scrollable > 0 ? Math.min(1, window.scrollY / scrollable) : 0);
@@ -1165,7 +1200,7 @@ function PillNav() {
     };
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
-    return () => { observer?.disconnect(); window.removeEventListener('scroll', onScroll); if (frame) window.cancelAnimationFrame(frame); };
+    return () => { observer?.disconnect(); window.removeEventListener('scroll', onScroll); if (frame) cancelRaf(frame); };
   }, []);
 
   const circumference = 2 * Math.PI * 15;
@@ -1219,11 +1254,11 @@ function Cursor() {
         dot.current.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${1 + Math.min(0.25, Math.abs(vx) / 60)})`;
       }
       if (!frame) {
-        frame = window.requestAnimationFrame(() => { frame = 0; vx *= 0.6; });
+        frame = raf(() => { frame = 0; vx *= 0.6; });
       }
     };
     window.addEventListener('pointermove', move, { passive: true });
-    return () => { window.removeEventListener('pointermove', move); if (frame) window.cancelAnimationFrame(frame); };
+    return () => { window.removeEventListener('pointermove', move); if (frame) cancelRaf(frame); };
   }, [fine, reduced]);
 
   if (!fine) return null;

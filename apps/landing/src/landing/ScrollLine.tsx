@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { raf, cancelRaf } from './frame.ts';
 
 export interface ScrollLineProps {
   /** Reduced motion draws the whole line immediately. */
@@ -105,7 +106,7 @@ export function ScrollLine({ still = false }: ScrollLineProps) {
     const onScroll = () => {
       if (still) return;
       if (frame) return;
-      frame = window.requestAnimationFrame(() => {
+      frame = raf(() => {
         frame = 0;
         const scrollable = document.documentElement.scrollHeight - window.innerHeight;
         const next = scrollable > 0 ? Math.min(1, Math.max(0, window.scrollY / scrollable)) : 1;
@@ -117,7 +118,7 @@ export function ScrollLine({ still = false }: ScrollLineProps) {
     };
 
     const onResize = () => {
-      frame = window.requestAnimationFrame(() => {
+      frame = raf(() => {
         frame = 0;
         progress.current = 0;
         rebuild();
@@ -135,7 +136,7 @@ export function ScrollLine({ still = false }: ScrollLineProps) {
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onResize);
       window.clearTimeout(settle);
-      if (frame) window.cancelAnimationFrame(frame);
+      if (frame) cancelRaf(frame);
     };
   }, [measure, still, length]);
 
