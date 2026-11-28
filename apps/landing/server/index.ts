@@ -29,6 +29,7 @@ import { createInsightsRouter } from './forms/insights/routes';
 import { createGoogleFormsClient } from './forms/providers/google/client';
 import { createGoogleSheetsClient } from './forms/sheets/client';
 import { createSheetsRouter } from './forms/sheets/routes';
+import { readPickerConfig } from './forms/sheets/picker';
 import { createPostgresSheetsSyncStore } from './forms/sheets/store';
 import { createSheetsWorker } from './forms/sheets/worker';
 import { getProviderConnection } from './providers/service';
@@ -382,6 +383,8 @@ app.use('/api/forms', createSheetsRouter({
   syncs: sheetsSyncStore,
   google: createGoogleFormsClient(),
   sheets: sheetsClient,
+  // Optional: without the key the panel offers creating a spreadsheet only, and says why.
+  picker: readPickerConfig(),
   abuseLimiter,
 }));
 

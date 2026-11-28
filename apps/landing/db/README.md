@@ -32,9 +32,12 @@ From `apps/landing`, with a real `DATABASE_URL` and the other required auth vari
    - `044_release_plainer_words.sql` rewrites the existing changelog entry that read like a release note written by a machine.
    - `045_form_sheet_sync.sql` creates the two tables the Google Sheets sync needs: `form_sheet_sync` (one row per form — destination, tab id and title, header signature, status, cursor, counters, last error, schedule and lease) and `form_sheet_row` (`sync_id`, `response_id`, and nothing else). Neither holds an answer, a respondent email or a token; both are deleted with the form. They are coordination state, not a response store: the spreadsheet is the record of what has been written, and every run reads the destination's Response ID column before appending. Rollback: `DROP TABLE form_sheet_row; DROP TABLE form_sheet_sync;` — no form, response or spreadsheet is touched.
    - `046_release_sheets_sync.sql` seeds the changelog entry for spreadsheet syncing.
+   - `047_sheet_sync_destination.sql` adds two columns to `form_sheet_sync`: `destination` (`created` — the file Intake made — or `selected` — one the person picked in Google's chooser; NOT NULL, default `created`, so every Phase C row is correctly labelled without being touched) and `spreadsheet_title` (nullable, 1–200 characters; a display name only). Both are additive and no other table changes: a selected destination is the same row, the same cursor and the same ledger, so there is still exactly one destination per form. Rollback: `ALTER TABLE form_sheet_sync DROP COLUMN spreadsheet_title, DROP COLUMN destination;` — the sync keeps running on the spreadsheet it already has, and the panel simply stops distinguishing the two kinds.
 
-**Deployment order for 039, 040, 041, 042, 045 and 046.** Apply 045 before the deployment that
-ships spreadsheet syncing: the routes answer `503` until the tables exist, and the worker does not
+**Deployment order for 039, 040, 041, 042, 045, 046 and 047.** Apply 045 then 047 before the
+deployment that ships spreadsheet syncing (047 requires 045; the routes answer `503` without the
+tables, and connecting an existing spreadsheet writes `destination` and `spreadsheet_title`).
+Apply 045 before the deployment that ships spreadsheet syncing: the routes answer `503` until the tables exist, and the worker does not
 start without them. Apply 046 whenever the changelog entry should exist in the database rather than
 only in the notes bundled with the site. Apply 039 before or with the deployment that introduces the
 AI proposal endpoint, and 040 and 041 whenever the changelog entries should exist in the database

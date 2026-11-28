@@ -32,6 +32,7 @@ const MAX_RESPONSE_BYTES = 4_000_000;
 export type GoogleSheetsOperation =
   | 'spreadsheets.create'
   | 'spreadsheets.get'
+  | 'values.get'
   | 'values.batchGet'
   | 'values.append'
   | 'values.update';
@@ -66,7 +67,9 @@ export interface CreatedSpreadsheet {
 export interface SpreadsheetSheet {
   sheetId: number;
   title: string;
+  /** Rows the grid has, which is capacity rather than content: a new sheet already has 1000. */
   rowCount: number;
+  columnCount: number;
 }
 
 export interface SpreadsheetMetadata {
@@ -88,6 +91,11 @@ export interface GoogleSheetsClient {
   getSpreadsheet(accessToken: string, spreadsheetId: string): Promise<SpreadsheetMetadata>;
   /** Reads the header row and the id column in one request. */
   readSheetState(accessToken: string, spreadsheetId: string, sheetTitle: string): Promise<SheetState>;
+  /**
+   * The first rows of a worksheet, verbatim, so a worksheet somebody picked can be inspected before
+   * anything is written to it. Read-only, and bounded: this never walks a whole sheet.
+   */
+  readWorksheetSample(accessToken: string, spreadsheetId: string, sheetTitle: string, rows?: number): Promise<string[][]>;
   /** Appends rows verbatim. Never retried by this client. */
   appendRows(accessToken: string, spreadsheetId: string, sheetTitle: string, rows: string[][]): Promise<{ updatedRows: number }>;
   /** Writes the header row for a sheet that has no data in it yet. */
@@ -253,10 +261,15 @@ export function createGoogleSheetsClient(options: { fetchImpl?: SheetsFetchLike;
       for (const sheet of sheets) {
         const properties = sheet && typeof sheet === 'object' ? (sheet as { properties?: Record<string, unknown> }).properties : null;
         if (!properties || !Number.isInteger(properties.sheetId) || typeof properties.title !== 'string') continue;
+        // The grid's size lives in `gridProperties`; the flat `rowCount` is legacy and usually absent.
+        const grid = properties.gridProperties && typeof properties.gridProperties === 'object'
+          ? (properties.gridProperties as { rowCount?: unknown; columnCount?: unknown })
+          : {};
         parsed.push({
           sheetId: properties.sheetId as number,
           title: properties.title,
-          rowCount: Number.isInteger(properties.rowCount) ? (properties.rowCount as number) : 0,
+          rowCount: Number.isInteger(grid.rowCount) ? (grid.rowCount as number) : 0,
+          columnCount: Number.isInteger(grid.columnCount) ? (grid.columnCount as number) : 0,
         });
       }
       const properties = json.properties && typeof json.properties === 'object' ? (json.properties as { title?: unknown }) : null;
@@ -282,6 +295,22 @@ export function createGoogleSheetsClient(options: { fetchImpl?: SheetsFetchLike;
       const header = readRow(ranges[1]);
       // Row 1 of the id column is the header cell; the ids start at row 2.
       return { header, responseIds: ids.slice(1).filter(cell => cell !== '') };
+    },
+
+    async readWorksheetSample(accessToken, spreadsheetId, sheetTitle, rows = 25) {
+      const depth = Math.max(1, Math.min(100, Math.trunc(rows)));
+      const range = sheetRange(sheetTitle, `A1:Z${depth}`);
+      const json = await call('values.get', accessToken, `${spreadsheetPath('values.get', spreadsheetId)}/values/${encodeURIComponent(range)}`, {
+        method: 'GET',
+        query: { majorDimension: 'ROWS', valueRenderOption: 'FORMATTED_VALUE' },
+      });
+      const values = Array.isArray(json.values) ? json.values : [];
+      const out: string[][] = [];
+      for (const row of values) {
+        if (!Array.isArray(row)) continue;
+        out.push(row.map(value => (typeof value === 'string' ? value : typeof value === 'number' ? String(value) : '')));
+      }
+      return out;
     },
 
     async appendRows(accessToken, spreadsheetId, sheetTitle, rows) {

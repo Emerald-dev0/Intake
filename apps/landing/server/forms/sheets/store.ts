@@ -14,6 +14,8 @@ export type SheetSyncStatus = (typeof SHEET_SYNC_STATUSES)[number];
 export const SHEET_SYNC_ERROR_CODES = [
   'permission_revoked',
   'destination_unavailable',
+  'worksheet_missing',
+  'worksheet_unsuitable',
   'questions_changed',
   'form_unavailable',
   'rate_limited',
@@ -23,12 +25,23 @@ export const SHEET_SYNC_ERROR_CODES = [
 ] as const;
 export type SheetSyncErrorCode = (typeof SHEET_SYNC_ERROR_CODES)[number];
 
+/**
+ * Who made the destination, which decides what Intake is allowed to do to it.
+ *
+ * `created` is a file Intake made and may therefore initialise. `selected` is a file the person
+ * chose: rows may be appended to one worksheet, and nothing else in it may be written.
+ */
+export const SHEET_SYNC_DESTINATIONS = ['created', 'selected'] as const;
+export type SheetSyncDestination = (typeof SHEET_SYNC_DESTINATIONS)[number];
+
 export interface SheetSyncRecord {
   id: string;
   formId: string;
   userId: string;
   spreadsheetId: string;
   spreadsheetUrl: string | null;
+  spreadsheetTitle: string | null;
+  destination: SheetSyncDestination;
   sheetId: number;
   sheetTitle: string;
   headerSignature: string;
@@ -54,6 +67,9 @@ export interface NewSheetSync {
   userId: string;
   spreadsheetId: string;
   spreadsheetUrl: string | null;
+  spreadsheetTitle?: string | null;
+  /** Defaults to `created`: only a file Intake made can be initialised without asking. */
+  destination?: SheetSyncDestination;
   sheetId: number;
   sheetTitle: string;
   headerSignature: string;
@@ -84,6 +100,11 @@ export interface SheetsSyncStore {
   create(input: NewSheetSync): Promise<SheetSyncRecord>;
   /** Points an existing sync at a new spreadsheet, resetting the cursor and the counters. */
   restart(syncId: string, input: Omit<NewSheetSync, 'id' | 'formId' | 'userId'>): Promise<SheetSyncRecord | null>;
+  /**
+   * Keeps the display names in step with the file. A worksheet found by id can be renamed at any
+   * time, and a screen that says "tab “Sheet 2”" long after it became "Sheet 2 (final)" would lie.
+   */
+  retitle(syncId: string, names: { sheetTitle?: string; spreadsheetTitle?: string | null }): Promise<void>;
   disable(userId: string, formId: string): Promise<SheetSyncRecord | null>;
   enable(userId: string, formId: string): Promise<SheetSyncRecord | null>;
   /** Takes up to `limit` due syncs, each with a lease. Two workers cannot claim the same one. */
@@ -103,6 +124,8 @@ interface Row {
   user_id: string;
   spreadsheet_id: string;
   spreadsheet_url: string | null;
+  spreadsheet_title: string | null;
+  destination: string;
   sheet_id: number;
   sheet_title: string;
   header_signature: string;
@@ -128,6 +151,10 @@ function record(row: Row): SheetSyncRecord {
     userId: row.user_id,
     spreadsheetId: row.spreadsheet_id,
     spreadsheetUrl: row.spreadsheet_url,
+    // A database that has not run migration 047 yet reports neither column; both defaults are the
+    // Phase C behaviour, which is the safe assumption for a file Intake created itself.
+    spreadsheetTitle: row.spreadsheet_title ?? null,
+    destination: row.destination === 'selected' ? 'selected' : 'created',
     sheetId: row.sheet_id,
     sheetTitle: row.sheet_title,
     headerSignature: row.header_signature,
@@ -172,11 +199,15 @@ export function createPostgresSheetsSyncStore(pool: Pool): SheetsSyncStore {
     async create(input) {
       const result = await pool.query<Row>(
         `INSERT INTO form_sheet_sync
-           (id, form_id, user_id, spreadsheet_id, spreadsheet_url, sheet_id, sheet_title,
-            header_signature, status, enabled, next_sync_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', true, now())
+           (id, form_id, user_id, spreadsheet_id, spreadsheet_url, spreadsheet_title, destination,
+            sheet_id, sheet_title, header_signature, status, enabled, next_sync_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', true, now())
          RETURNING *`,
-        [input.id ?? newSheetSyncId(), input.formId, input.userId, input.spreadsheetId, input.spreadsheetUrl, input.sheetId, input.sheetTitle, input.headerSignature],
+        [
+          input.id ?? newSheetSyncId(), input.formId, input.userId, input.spreadsheetId,
+          input.spreadsheetUrl, input.spreadsheetTitle ?? null, input.destination ?? 'created',
+          input.sheetId, input.sheetTitle, input.headerSignature,
+        ],
       );
       if (!result.rows[0]) throw new Error('sheet_sync_store_unavailable');
       return record(result.rows[0]);
@@ -185,20 +216,34 @@ export function createPostgresSheetsSyncStore(pool: Pool): SheetsSyncStore {
     async restart(syncId, input) {
       const result = await pool.query<Row>(
         `UPDATE form_sheet_sync SET
-           spreadsheet_id = $2, spreadsheet_url = $3, sheet_id = $4, sheet_title = $5,
-           header_signature = $6, status = 'pending', enabled = true,
+           spreadsheet_id = $2, spreadsheet_url = $3, spreadsheet_title = $4, destination = $5,
+           sheet_id = $6, sheet_title = $7, header_signature = $8, status = 'pending', enabled = true,
            cursor_last_submitted = NULL, synced_count = 0, last_synced_at = NULL,
            last_error_code = NULL, last_error_at = NULL, attempt = 0,
            next_sync_at = now(), locked_until = NULL, run_id = NULL, updated_at = now()
          WHERE id = $1
          RETURNING *`,
-        [syncId, input.spreadsheetId, input.spreadsheetUrl, input.sheetId, input.sheetTitle, input.headerSignature],
+        [
+          syncId, input.spreadsheetId, input.spreadsheetUrl, input.spreadsheetTitle ?? null,
+          input.destination ?? 'created', input.sheetId, input.sheetTitle, input.headerSignature,
+        ],
       );
       if (result.rows[0]) {
         // The old ids described the old spreadsheet; keeping them would suppress writes to the new one.
         await pool.query('DELETE FROM form_sheet_row WHERE sync_id = $1', [syncId]);
       }
       return result.rows[0] ? record(result.rows[0]) : null;
+    },
+
+    async retitle(syncId, names) {
+      await pool.query(
+        `UPDATE form_sheet_sync
+            SET sheet_title = COALESCE($2, sheet_title),
+                spreadsheet_title = COALESCE($3, spreadsheet_title),
+                updated_at = now()
+          WHERE id = $1`,
+        [syncId, names.sheetTitle ?? null, names.spreadsheetTitle ?? null],
+      );
     },
 
     async disable(userId, formId) {

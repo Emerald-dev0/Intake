@@ -6,8 +6,10 @@ import '@fontsource-variable/fraunces/standard.css';
 import '@fontsource-variable/fraunces/standard-italic.css';
 import './styles/base.css';
 import './styles/marketing.css';
-import './styles/hero.css';
-import './styles/home.css';
+import './styles/landing.css';
+// `hero.css` and `home.css` belong to `src/marketing/MarketingHome.tsx`, which is no longer the
+// homepage. They stay in the repository with that page; importing them here would ship their
+// rules to every visitor of a page that no longer uses them.
 import { BrowserRouter, useRoutes } from 'react-router-dom';
 import { routes } from './app/routes';
 import { IntakeLoader } from './components/IntakeLoader';

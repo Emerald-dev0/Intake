@@ -121,23 +121,63 @@ export function createFakeSheets(options = {}) {
     headerWrites: 0,
   };
 
+  /**
+   * A spreadsheet with one or more worksheets.
+   *
+   * The object keeps the single-sheet shape earlier tests read (`rows`, `header`, `sheetTitle`) as
+   * accessors onto the first worksheet, and adds `sheets` for the multi-worksheet cases Phase D
+   * brought in.
+   */
   function seed(spreadsheetId = 'SHEET_ID_1234567890abcdef', overrides = {}) {
-    const sheet = {
-      spreadsheetId,
-      title: overrides.title ?? 'Customer feedback — Intake Responses',
+    const first = {
       sheetId: overrides.sheetId ?? 0,
-      sheetTitle: overrides.sheetTitle ?? 'Responses',
+      title: overrides.sheetTitle ?? 'Responses',
       header: [...(overrides.header ?? [])],
       rows: [...(overrides.rows ?? [])],
     };
-    state.spreadsheets.set(spreadsheetId, sheet);
-    return sheet;
+    const spreadsheet = {
+      spreadsheetId,
+      title: overrides.title ?? 'Customer feedback — Intake Responses',
+      sheets: [first, ...(overrides.extraSheets ?? []).map(sheet => ({
+        sheetId: sheet.sheetId,
+        title: sheet.title,
+        header: [...(sheet.header ?? [])],
+        rows: [...(sheet.rows ?? [])],
+      }))],
+    };
+    for (const [key, read] of [
+      ['sheetId', () => first.sheetId],
+      ['sheetTitle', () => first.title],
+      ['header', () => first.header],
+      ['rows', () => first.rows],
+    ]) {
+      Object.defineProperty(spreadsheet, key, {
+        enumerable: true,
+        get: read,
+        set: value => {
+          if (key === 'sheetTitle') first.title = value;
+          else if (key === 'sheetId') first.sheetId = value;
+          else if (key === 'header') first.header = value;
+          else first.rows = value;
+        },
+      });
+    }
+    state.spreadsheets.set(spreadsheetId, spreadsheet);
+    return spreadsheet;
   }
 
   function current(spreadsheetId) {
-    const sheet = state.deleted ? null : state.spreadsheets.get(spreadsheetId);
-    if (!sheet) throw new GoogleSheetsApiError({ operation: 'spreadsheets.get', kind: 'http', httpStatus: 404, googleStatus: 'NOT_FOUND' });
-    return sheet;
+    const spreadsheet = state.deleted ? null : state.spreadsheets.get(spreadsheetId);
+    if (!spreadsheet) throw new GoogleSheetsApiError({ operation: 'spreadsheets.get', kind: 'http', httpStatus: 404, googleStatus: 'NOT_FOUND' });
+    return spreadsheet;
+  }
+
+  /** Resolve a worksheet by its title, the way the real API does; ids are what we store. */
+  function tab(spreadsheet, sheetTitle) {
+    if (!sheetTitle) return spreadsheet.sheets[0];
+    const found = spreadsheet.sheets.find(sheet => sheet.title === sheetTitle);
+    if (!found) throw new GoogleSheetsApiError({ operation: 'values.get', kind: 'http', httpStatus: 400, googleStatus: 'INVALID_ARGUMENT' });
+    return found;
   }
 
   return {
@@ -146,25 +186,35 @@ export function createFakeSheets(options = {}) {
     client: {
       async createSpreadsheet(_token, input) {
         const id = `SHEET_${String(state.created.length).padStart(4, '0')}_created_by_intake`;
-        const sheet = seed(id, { title: input.title, sheetTitle: input.sheetTitle, sheetId: 0 });
+        const spreadsheet = seed(id, { title: input.title, sheetTitle: input.sheetTitle, sheetId: 0 });
         state.created.push({ id, ...input });
-        return { spreadsheetId: id, spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${id}/edit`, sheetId: sheet.sheetId, sheetTitle: sheet.sheetTitle };
+        return { spreadsheetId: id, spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${id}/edit`, sheetId: spreadsheet.sheetId, sheetTitle: spreadsheet.sheetTitle };
       },
       async getSpreadsheet(_token, spreadsheetId) {
-        const sheet = current(spreadsheetId);
+        const spreadsheet = current(spreadsheetId);
         return {
           spreadsheetId,
-          title: sheet.title,
+          title: spreadsheet.title,
           spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
-          sheets: [{ sheetId: sheet.sheetId, title: sheet.sheetTitle, rowCount: 1000 }],
+          sheets: spreadsheet.sheets.map(sheet => ({
+            sheetId: sheet.sheetId,
+            title: sheet.title,
+            rowCount: 1000,
+            columnCount: 26,
+          })),
         };
       },
-      async readSheetState(_token, spreadsheetId) {
-        const sheet = current(spreadsheetId);
+      async readSheetState(_token, spreadsheetId, sheetTitle) {
+        const sheet = tab(current(spreadsheetId), sheetTitle);
         return { header: [...sheet.header], responseIds: sheet.rows.map(row => row[0]) };
       },
-      async appendRows(_token, spreadsheetId, _sheetTitle, rows) {
-        const sheet = current(spreadsheetId);
+      async readWorksheetSample(_token, spreadsheetId, sheetTitle, rows = 25) {
+        const sheet = tab(current(spreadsheetId), sheetTitle);
+        const grid = sheet.header.length ? [sheet.header, ...sheet.rows] : [...sheet.rows];
+        return grid.slice(0, rows).map(row => row.map(cell => String(cell)));
+      },
+      async appendRows(_token, spreadsheetId, sheetTitle, rows) {
+        const sheet = tab(current(spreadsheetId), sheetTitle);
         if (state.failAppend) {
           const error = state.failAppend;
           state.failAppend = null;
@@ -179,8 +229,8 @@ export function createFakeSheets(options = {}) {
         }
         return { updatedRows: rows.length };
       },
-      async writeHeader(_token, spreadsheetId, _sheetTitle, header) {
-        const sheet = current(spreadsheetId);
+      async writeHeader(_token, spreadsheetId, sheetTitle, header) {
+        const sheet = tab(current(spreadsheetId), sheetTitle);
         sheet.header = [...header];
         state.headerWrites += 1;
       },
@@ -212,12 +262,20 @@ export function createMemorySyncStore(seedRecords = []) {
       for (const record of records.values()) if (record.userId === userId && record.formId === formId) return clone(record);
       return null;
     },
+    async retitle(id, names) {
+      const record = records.get(id);
+      if (!record) return;
+      if (names.sheetTitle) record.sheetTitle = names.sheetTitle;
+      if (names.spreadsheetTitle !== undefined && names.spreadsheetTitle !== null) record.spreadsheetTitle = names.spreadsheetTitle;
+    },
     async findById(id) {
       const record = records.get(id);
       return record ? clone(record) : null;
     },
     async create(input) {
       const record = {
+        spreadsheetTitle: input.spreadsheetTitle ?? null,
+        destination: input.destination ?? 'created',
         ...input,
         status: 'pending',
         enabled: true,
@@ -240,6 +298,8 @@ export function createMemorySyncStore(seedRecords = []) {
       const record = records.get(id);
       if (!record) return null;
       Object.assign(record, input, {
+        spreadsheetTitle: input.spreadsheetTitle ?? null,
+        destination: input.destination ?? 'created',
         status: 'pending', enabled: true, cursorLastSubmitted: null, syncedCount: 0,
         lastSyncedAt: null, lastErrorCode: null, attempt: 0, runId: null, lockedUntil: null,
       });
@@ -351,6 +411,8 @@ export function makeSync(overrides = {}) {
     userId: 'user-a',
     spreadsheetId: 'SHEET_ID_1234567890abcdef',
     spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/SHEET_ID_1234567890abcdef/edit',
+    spreadsheetTitle: 'Customer feedback — Intake Responses',
+    destination: 'created',
     sheetId: 0,
     sheetTitle: 'Responses',
     headerSignature: JSON.stringify([['q1', 'What is your name?'], ['q2', 'Anything else?']]),

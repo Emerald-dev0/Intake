@@ -21,6 +21,7 @@ import { isProviderConfigured, supportedProviders } from './providers/registry';
 import { aiProviderLabel } from './ai/registry';
 import { readGoogleSignInConfig } from './sign-in/google';
 import { isTestCredential, readEmailConfig } from './email/config';
+import { readPickerConfig } from './forms/sheets/picker';
 
 export type PreflightStatus = 'pass' | 'warn' | 'fail' | 'info';
 
@@ -103,6 +104,13 @@ export function runPreflight(env: NodeJS.ProcessEnv = process.env): PreflightChe
   add('provider connections', googleConfigured ? 'pass' : 'warn', googleConfigured
     ? providerSetup
     : `${providerSetup}. Google Forms connection/creation is unavailable until GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET are set and the Forms API is enabled in that Google Cloud project. Typeform is independent of that: set TYPEFORM_OAUTH_CLIENT_ID and TYPEFORM_OAUTH_CLIENT_SECRET to enable it.`);
+
+  // The Picker is optional: without it, creating a spreadsheet still works and the panel says why
+  // "connect an existing spreadsheet" is unavailable. It must never `fail` a deployment.
+  const picker = readPickerConfig(env);
+  add('Google Picker (existing spreadsheets)', picker.available ? 'pass' : 'info', picker.available
+    ? 'GOOGLE_PICKER_API_KEY and GOOGLE_PICKER_APP_ID are set. Confirm the key is restricted to this site’s origin and to the Google Picker API, and that the Picker API is enabled in the Cloud project. Creating new spreadsheets does not use it.'
+    : picker.problem ?? 'Not configured: choosing an existing spreadsheet is disabled; creating a new one still works.');
 
   let googleSignIn = false;
   try {

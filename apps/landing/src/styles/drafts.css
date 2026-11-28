@@ -309,3 +309,27 @@
 .sheets-facts dd { margin:0; font:15px var(--mono); color:var(--paper-ink); }
 .sheets-problem .form-banner { margin-bottom:12px; }
 .sheets-footnote { margin-top:20px; padding-top:16px; border-top:1px solid var(--paper-line); font:12px/1.6 var(--mono); color:var(--paper-mute); }
+
+/* Choosing an existing spreadsheet: a file, a worksheet, an explicit yes. */
+.sheets-chooser { margin-top:20px; padding:18px; border:1px solid var(--paper-line); border-radius:10px; background:var(--paper-2); }
+.sheets-chooser h3 { margin:0 0 12px; font-size:15px; font-weight:550; }
+.sheets-chooser-status { display:flex; align-items:center; gap:8px; margin:0 0 12px; font-size:13px; color:var(--paper-mute); }
+.sheets-chooser-file { display:flex; align-items:baseline; gap:10px; margin:0 0 12px; font-size:14px; color:var(--paper-ink); }
+.sheets-chooser-file a { font:11px var(--mono); color:var(--accent); text-decoration:none; }
+.sheets-chooser-sheets { border:0; margin:0 0 12px; padding:0; display:flex; flex-direction:column; gap:6px; }
+.sheets-chooser-sheets legend { font:10px var(--mono); text-transform:uppercase; letter-spacing:.06em; color:var(--paper-mute); padding:0 0 8px; }
+.sheets-sheet-option { display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid var(--paper-line); border-radius:8px; background:var(--paper); cursor:pointer; }
+.sheets-sheet-option.chosen { border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); }
+.sheets-sheet-name { font-size:13px; color:var(--paper-ink); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sheets-sheet-meta { font:10px var(--mono); color:var(--paper-mute); }
+.sheets-verdict { margin:0 0 12px; padding:12px; border-radius:8px; background:var(--paper-3); }
+.sheets-verdict p { margin:0; font-size:13px; line-height:1.55; color:var(--paper-ink); }
+.sheets-verdict p + p { margin-top:8px; }
+.sheets-verdict.unsuitable { background:#fdecea; }
+.sheets-verdict.unsuitable p { color:var(--dev-danger, #b42318); }
+.sheets-acknowledge { display:flex; gap:10px; align-items:flex-start; margin:0 0 12px; font-size:12px; line-height:1.55; color:var(--paper-mute); }
+.sheets-acknowledge input { margin-top:2px; }
+.sheets-destination { display:flex; flex-direction:column; gap:4px; margin:0 0 12px; }
+.sheets-destination-kind { font:10px var(--mono); letter-spacing:.06em; color:var(--paper-mute); }
+.sheets-destination-name { font-size:13px; color:var(--paper-ink); }
+.sheets-destination-tab { color:var(--paper-mute); }

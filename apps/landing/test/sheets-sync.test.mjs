@@ -345,7 +345,9 @@ test('a spreadsheet that is gone stops the sync and says so, instead of retrying
   assert.equal(result.errorCode, 'destination_unavailable');
   const saved = world.store.get(world.sync.id);
   assert.equal(saved.status, 'failed');
-  assert.ok(saved.nextSyncAt.getTime() > Date.now(), 'it is not due again immediately');
+  // Measured against the run's own clock, not the wall clock: the fixtures are pinned to a date and
+  // an assertion about "now" would start failing the day the calendar caught up with them.
+  assert.ok(saved.nextSyncAt.getTime() > world.now().getTime(), 'it is not due again immediately');
 });
 
 test('a tab that was renamed keeps working, because the id is what identifies it', async () => {
@@ -484,4 +486,134 @@ test('the sheet is never asked to sync a form the caller does not own', async ()
   });
   await runSync(world.store.get(world.sync.id), 'run_1', world.deps);
   assert.equal(world.google.state.lists, 0);
+});
+
+// --------------------------------------------------- an existing spreadsheet (Phase D)
+
+/*
+ * The engine is the same one Phase C built. What changes is only which worksheet it writes to and
+ * what it is willing to find there: a human-chosen worksheet may already hold rows, may be renamed,
+ * or may be replaced by one with somebody else's data in it. None of those may result in a silent
+ * overwrite, a second copy of an answer, or a write into the wrong tab.
+ */
+
+function existingWorld(options = {}) {
+  const world = createWorld({
+    ...options,
+    sync: { destination: 'selected', sheetTitle: 'Sheet 2', ...(options.sync ?? {}) },
+  });
+  // A worksheet somebody else made, with the other tab present beside it.
+  world.sheets.seed(world.sync.spreadsheetId, {
+    title: 'Team tracker',
+    sheetTitle: 'Sheet 2',
+    header: options.header ?? [],
+    rows: options.rows ?? [],
+    extraSheets: [{ sheetId: 3, title: 'Notes', header: ['Note'], rows: [['not ours']] }],
+  });
+  return world;
+}
+
+test('a human-chosen worksheet is filled from the beginning, historical answers first', async () => {
+  const world = existingWorld({
+    responses: [response('r1', T(1), { q1: ['Ada'] }), response('r2', T(2), { q1: ['Bola'] })],
+  });
+  const result = await runSync(world.store.get(world.sync.id), 'run_1', world.deps);
+
+  assert.equal(result.outcome, 'up_to_date');
+  assert.equal(result.written, 2);
+  const spreadsheet = world.sheets.state.spreadsheets.get(world.sync.spreadsheetId);
+  const sheet = spreadsheet.sheets.find(candidate => candidate.title === 'Sheet 2');
+  assert.deepEqual(sheet.header, headerFor([{ id: 'q1', title: 'What is your name?' }, { id: 'q2', title: 'Anything else?' }]));
+  assert.deepEqual(sheet.rows.map(row => row[0]), ['r1', 'r2']);
+  assert.deepEqual(spreadsheet.sheets.find(candidate => candidate.title === 'Notes').rows, [['not ours']], 'the other tab is untouched');
+});
+
+test('a worksheet that already holds this form’s rows is continued, not restarted', async () => {
+  const header = headerFor([{ id: 'q1', title: 'What is your name?' }, { id: 'q2', title: 'Anything else?' }]);
+  const world = existingWorld({
+    header,
+    rows: [['r1', T(1), '', 'Ada', '']],
+    responses: [response('r1', T(1), { q1: ['Ada'] }), response('r2', T(2), { q1: ['Bola'] })],
+  });
+  const result = await runSync(world.store.get(world.sync.id), 'run_1', world.deps);
+
+  assert.equal(result.outcome, 'up_to_date');
+  assert.equal(result.written, 1, 'the row already there is skipped');
+  const sheet = world.sheets.state.spreadsheets.get(world.sync.spreadsheetId).sheets.find(s => s.title === 'Sheet 2');
+  assert.deepEqual(sheet.rows.map(row => row[0]), ['r1', 'r2'], 'and there is exactly one copy of each');
+  assert.equal(world.sheets.state.headerWrites, 0, 'the header it found was left alone');
+});
+
+test('a renamed worksheet keeps syncing: the tab is found by id, not by name', async () => {
+  const header = headerFor([{ id: 'q1', title: 'What is your name?' }, { id: 'q2', title: 'Anything else?' }]);
+  const world = existingWorld({ header, rows: [['r1', T(1), '', 'Ada', '']], responses: [response('r1', T(1), { q1: ['Ada'] }), response('r2', T(2), { q1: ['Bola'] })] });
+  // Somebody renamed the tab in Sheets. The stored name is now stale; the id is not.
+  world.sheets.state.spreadsheets.get(world.sync.spreadsheetId).sheets[0].title = 'Answers 2026';
+
+  const result = await runSync(world.store.get(world.sync.id), 'run_1', world.deps);
+  assert.equal(result.outcome, 'up_to_date');
+  assert.equal(result.written, 1);
+  const record = world.store.get(world.sync.id);
+  assert.equal(record.sheetTitle, 'Answers 2026', 'the display name follows the rename');
+});
+
+test('a deleted worksheet stops the sync as a missing worksheet, not as a broken spreadsheet', async () => {
+  const world = existingWorld({ responses: [response('r1', T(1), { q1: ['Ada'] })] });
+  const spreadsheet = world.sheets.state.spreadsheets.get(world.sync.spreadsheetId);
+  spreadsheet.sheets = spreadsheet.sheets.filter(sheet => sheet.title !== 'Sheet 2');
+
+  const result = await runSync(world.store.get(world.sync.id), 'run_1', world.deps);
+  assert.equal(result.outcome, 'failed');
+  assert.equal(result.errorCode, 'worksheet_missing');
+
+  const record = world.store.get(world.sync.id);
+  assert.equal(record.lastErrorCode, 'worksheet_missing');
+  assert.equal(record.status, 'failed');
+  assert.equal(record.enabled, true, 'the connection survives; only this run stopped');
+});
+
+test('a chosen worksheet whose header was replaced is refused rather than written over', async () => {
+  const world = existingWorld({ header: ['Name', 'Comment'], rows: [['Ada', 'hello']], responses: [response('r1', T(1), { q1: ['Ada'] })] });
+  const result = await runSync(world.store.get(world.sync.id), 'run_1', world.deps);
+
+  assert.equal(result.outcome, 'failed');
+  assert.equal(result.errorCode, 'worksheet_unsuitable');
+  assert.equal(result.written, 0);
+  const sheet = world.sheets.state.spreadsheets.get(world.sync.spreadsheetId).sheets.find(s => s.title === 'Sheet 2');
+  assert.deepEqual(sheet.header, ['Name', 'Comment'], 'the header is exactly as it was');
+  assert.deepEqual(sheet.rows, [['Ada', 'hello']]);
+});
+
+test('a chosen worksheet that somebody filled with unrelated data is refused', async () => {
+  const world = existingWorld({ rows: [['Ada', '42']], responses: [response('r1', T(1), { q1: ['Ada'] })] });
+  const result = await runSync(world.store.get(world.sync.id), 'run_1', world.deps);
+  assert.equal(result.outcome, 'failed');
+  assert.equal(result.errorCode, 'worksheet_unsuitable');
+});
+
+test('a spreadsheet Intake created is still initialised when it is empty, as before', async () => {
+  // The Phase C path must be untouched by the new rules.
+  const world = createWorld({ responses: [response('r1', T(1), { q1: ['Ada'] })] });
+  const result = await runSync(world.store.get(world.sync.id), 'run_1', world.deps);
+  assert.equal(result.outcome, 'up_to_date');
+  assert.equal(world.sheets.state.headerWrites, 1, 'a created sheet gets its header from the engine');
+});
+
+test('after an ambiguous append on an existing sheet, the next run still writes each answer once', async () => {
+  const header = headerFor([{ id: 'q1', title: 'What is your name?' }, { id: 'q2', title: 'Anything else?' }]);
+  const world = existingWorld({
+    header,
+    responses: [response('r1', T(1), { q1: ['Ada'] }), response('r2', T(2), { q1: ['Bola'] })],
+  });
+  // Google applied the append and then the connection dropped.
+  world.sheets.state.applyThenThrow = networkError();
+  const first = await runSync(world.store.get(world.sync.id), 'run_1', world.deps);
+  assert.notEqual(first.outcome, 'up_to_date', 'the run cannot claim success it did not verify');
+
+  const retry = world.store.get(world.sync.id);
+  retry.runId = 'run_2';
+  const second = await runSync(retry, 'run_2', { ...world.deps, now: () => new Date('2026-11-06T12:05:00.000Z') });
+  assert.equal(second.outcome, 'up_to_date');
+  const sheet = world.sheets.state.spreadsheets.get(world.sync.spreadsheetId).sheets.find(s => s.title === 'Sheet 2');
+  assert.deepEqual(sheet.rows.map(row => row[0]), ['r1', 'r2'], 'one copy of each, on a sheet Intake did not create');
 });

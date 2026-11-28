@@ -46,6 +46,17 @@ services:
         sync: false
       - key: GOOGLE_OAUTH_CLIENT_SECRET
         sync: false
+      # --- Google Picker (choosing an existing spreadsheet) -----------------
+      # Same Cloud project as the Forms client. The key is public by design and must be
+      # restricted to this site's origin (and to the Picker API) in the Cloud console; it is
+      # served to the browser at runtime by GET /api/forms/:id/sheets/picker, never bundled.
+      # The app id is the Cloud project NUMBER, not its name.
+      # Leave both unset and "Connect an existing spreadsheet" is disabled with a plain message;
+      # creating a new spreadsheet keeps working.
+      - key: GOOGLE_PICKER_API_KEY
+        sync: false
+      - key: GOOGLE_PICKER_APP_ID
+        sync: false
       # --- Typeform connection (optional; creation target beside Google) ------------
       # Redirect URI: ${BETTER_AUTH_URL}/api/providers/typeform/callback
       # Leave unset to launch Google-only: the Typeform row then stays "Setup required".

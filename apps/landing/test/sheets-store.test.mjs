@@ -40,6 +40,7 @@ before(async () => {
   await db.exec('CREATE TABLE "user" (id text PRIMARY KEY);');
   await db.exec('CREATE TABLE form (id text PRIMARY KEY, user_id text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE);');
   await db.exec(await migration('045_form_sheet_sync.sql'));
+  await db.exec(await migration('047_sheet_sync_destination.sql'));
   store = createPostgresSheetsSyncStore(poolFor(db));
   await db.exec(`INSERT INTO "user" (id) VALUES ('user-a'), ('user-b');`);
   await db.exec(`INSERT INTO form (id, user_id) VALUES ('form-1', 'user-a'), ('form-2', 'user-a');`);
@@ -231,4 +232,78 @@ test('restarting a sync forgets the cursor and the ids, and re-reads the sheet',
   assert.equal(restarted.syncedCount, 0);
   assert.equal(await store.countRows(created.id), 0);
   assert.equal(restarted.status, 'pending');
+});
+
+// ------------------------------------------------- Phase D: which kind of destination
+
+test('a sync Intake created is recorded as created, with the title it made', async () => {
+  const created = await store.create(base({ spreadsheetTitle: 'Customer feedback — Intake Responses' }));
+  assert.equal(created.destination, 'created', 'the default matches Phase C rows and the column default');
+  assert.equal(created.spreadsheetTitle, 'Customer feedback — Intake Responses');
+});
+
+test('a spreadsheet somebody chose is recorded as selected, with its title for display', async () => {
+  const created = await store.create(base({ destination: 'selected', spreadsheetTitle: 'Team tracker', sheetTitle: 'Sheet 2' }));
+  assert.equal(created.destination, 'selected');
+  assert.equal(created.spreadsheetTitle, 'Team tracker');
+  assert.equal(created.sheetTitle, 'Sheet 2');
+
+  const found = await store.findByForm('user-a', 'form-1');
+  assert.equal(found.destination, 'selected', 'the kind survives a read, so the panel can label it');
+});
+
+test('a destination has to be one of the two kinds the schema knows', async () => {
+  await assert.rejects(() => store.create(base({ destination: 'guessed' })), /destination/);
+});
+
+test('a title longer than a reasonable name is refused by the column, not stored truncated', async () => {
+  await assert.rejects(() => store.create(base({ spreadsheetTitle: 'x'.repeat(201) })), /spreadsheet_title/);
+});
+
+test('restarting a sync at a new destination keeps one row and resets the journey', async () => {
+  const first = await store.create(base({ spreadsheetTitle: 'First', destination: 'created' }));
+  // A real run holds the lease before it may record anything.
+  await store.claimDue('run_1', 10, DEFAULT_LEASE_MS);
+  await store.recordRows(first.id, 'run_1', ['r1', 'r2']);
+
+  const moved = await store.restart(first.id, {
+    spreadsheetId: 'OTHER_SHEET_ID_0123456789ab',
+    spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/OTHER_SHEET_ID_0123456789ab/edit',
+    spreadsheetTitle: 'Somebody’s own file',
+    destination: 'selected',
+    sheetId: 7,
+    sheetTitle: 'Sheet 2',
+    headerSignature: '[["q1","Name"]]',
+  });
+
+  assert.equal(moved.id, first.id, 'the form still has exactly one destination');
+  assert.equal(moved.destination, 'selected');
+  assert.equal(moved.spreadsheetTitle, 'Somebody’s own file');
+  assert.equal(moved.sheetId, 7);
+  assert.equal(moved.syncedCount, 0, 'the new destination starts from the beginning');
+  assert.equal(moved.cursorLastSubmitted, null);
+  assert.equal(moved.enabled, true);
+  assert.equal(moved.status, 'pending');
+
+  const rows = await store.countRows(first.id);
+  assert.equal(rows, 0, 'and the old ledger of written ids goes with the old destination');
+});
+
+test('renaming a tab or a file updates the names without disturbing the sync', async () => {
+  const created = await store.create(base({ destination: 'selected', spreadsheetTitle: 'Tracker' }));
+  await store.retitle(created.id, { sheetTitle: 'Answers 2026', spreadsheetTitle: 'Tracker (final)' });
+
+  const found = await store.findById(created.id);
+  assert.equal(found.sheetTitle, 'Answers 2026');
+  assert.equal(found.spreadsheetTitle, 'Tracker (final)');
+  assert.equal(found.destination, 'selected', 'and nothing else changes');
+  assert.equal(found.enabled, true);
+});
+
+test('a retitle with nothing to say changes nothing', async () => {
+  const created = await store.create(base({ spreadsheetTitle: 'Tracker' }));
+  await store.retitle(created.id, {});
+  const found = await store.findById(created.id);
+  assert.equal(found.sheetTitle, 'Responses');
+  assert.equal(found.spreadsheetTitle, 'Tracker');
 });
