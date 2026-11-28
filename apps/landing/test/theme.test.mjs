@@ -69,3 +69,25 @@ test('persisting never throws when storage is unavailable', () => {
     window.localStorage.setItem = original;
   }
 });
+
+test('the marketing switch is a real switch that flips and saves the theme', async (t) => {
+  resetDom();
+  document.documentElement.dataset.theme = 'light';
+  const { ThemeSwitch } = await import('../src/marketing/ThemeSwitch.tsx');
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  t.after(() => act(async () => { root.unmount(); host.remove(); }));
+  await act(async () => { root.render(React.createElement(ThemeSwitch)); });
+  const button = host.querySelector('button.mk-switch');
+  assert.ok(button, 'the switch renders');
+  assert.equal(button.getAttribute('role'), 'switch');
+  assert.equal(button.getAttribute('aria-label'), 'Dark mode');
+  assert.equal(button.getAttribute('aria-checked'), 'false');
+  await act(async () => { button.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); });
+  assert.equal(document.documentElement.dataset.theme, 'dark');
+  assert.equal(window.localStorage.getItem('intake-theme'), 'dark');
+  assert.equal(button.getAttribute('aria-checked'), 'true');
+  const mask = host.querySelector('mask');
+  assert.ok(mask?.id && host.querySelector('circle[mask]').getAttribute('mask') === `url(#${mask.id})`, 'the moon mask is wired by a unique id');
+});
